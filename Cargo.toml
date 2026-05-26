@@ -1,0 +1,37 @@
+[workspace]
+resolver = "2"
+members = [
+    "apps/desktop/src-tauri",
+    "crates/cellar-core",
+    "crates/cellar-drivers",
+    "crates/cellar-sql",
+    "crates/cellar-diff",
+    "crates/cellar-secrets",
+    "crates/cellar-plugin-host",
+]
+
+[workspace.package]
+version = "0.1.0-alpha"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/nzmrl/cellar"
+
+[workspace.dependencies]
+# async
+tokio = { version = "1", features = ["full"] }
+# error handling
+thiserror = "1"
+anyhow = "1"
+# serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# tauri (kept in workspace so crates can pin the same major)
+tauri = { version = "2" }
+tauri-build = { version = "2" }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

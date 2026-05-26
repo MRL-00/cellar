@@ -1,0 +1,7 @@
+[package]
+name = "cellar-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Cellar — shared traits, types, and errors for drivers and the host"
+publish = false

@@ -1,0 +1,7 @@
+[package]
+name = "cellar-diff"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Cellar — pending row-level edits → transactional SQL"
+publish = false

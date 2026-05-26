@@ -1,0 +1,23 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build outputs
+dist/
+build/
+target/
+.turbo/
+
+# tauri
+apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/gen/
+
+# editor / OS
+.DS_Store
+.vscode/
+.idea/
+*.log
+
+# env
+.env
+.env.local

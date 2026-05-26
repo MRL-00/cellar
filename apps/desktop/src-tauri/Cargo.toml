@@ -1,0 +1,19 @@
+[package]
+name = "cellar-desktop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Cellar desktop app — Tauri shell"
+publish = false
+
+[lib]
+name = "cellar_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { workspace = true }
+
+[dependencies]
+tauri = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }

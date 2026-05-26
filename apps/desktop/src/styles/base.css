@@ -1,0 +1,85 @@
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-sans);
+  font-size: var(--fs-md);
+  color: var(--fg-0);
+  background: var(--bg-0);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "cv11", "ss01", "ss03";
+  overflow: hidden;
+  user-select: none;
+}
+
+#root { height: 100vh; }
+
+button, input, textarea, select {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+button {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.12);
+  background-clip: padding-box;
+}
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.10);
+  background-clip: padding-box;
+}
+
+.mono { font-family: var(--font-mono); font-feature-settings: "calt", "ss01"; }
+.tnum { font-variant-numeric: tabular-nums; }
+
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-2);
+  background: var(--bg-3);
+  border: 1px solid var(--border-default);
+  border-radius: 3px;
+  line-height: 1;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  color: var(--fg-2);
+  transition: background 0.12s, color 0.12s;
+}
+.icon-btn:hover { background: var(--bg-3); color: var(--fg-0); }
+.icon-btn.active { background: var(--accent-soft); color: var(--accent); }
+
+.divider-v { width: 1px; background: var(--border-divider); align-self: stretch; }
+.divider-h { height: 1px; background: var(--border-divider); }
+
+.dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
