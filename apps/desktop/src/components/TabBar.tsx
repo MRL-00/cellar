@@ -22,23 +22,31 @@ export function TabBar({
   onActivate?: (id: string) => void;
 }) {
   return (
-    <div className="tabs-root">
-      <div className="tabs-scroll">
+    <div className="flex h-[30px] items-stretch shrink-0 border-b border-border-default bg-bg-1">
+      <div className="flex flex-1 min-w-0 overflow-x-auto">
         {SAMPLE_TABS.map((t) => {
           const isActive = t.id === activeId;
           const isQuery = t.kind === "query";
           return (
             <div
               key={t.id}
-              className={"tab" + (isActive ? " active" : "")}
               onClick={() => onActivate?.(t.id)}
+              className={
+                "group relative inline-flex items-center gap-1.5 h-full pl-2.5 pr-2 max-w-[220px] shrink-0 border-r border-border-default text-[11.5px] cursor-pointer transition-[background,color] duration-100 " +
+                (isActive
+                  ? "bg-bg-0 text-fg-0 border-b border-bg-0 -mb-px"
+                  : "bg-bg-1 text-fg-2 hover:bg-bg-2 hover:text-fg-1")
+              }
             >
               <span
-                className="tab-accent"
+                className={
+                  "absolute left-0 top-0 h-full w-0.5 transition-opacity duration-150 " +
+                  (isActive ? "opacity-100" : "opacity-0")
+                }
                 style={{ background: "var(--eng-postgres)" }}
               />
               <span
-                className="tab-icon"
+                className="inline-flex"
                 style={{ color: isQuery ? "var(--syn-fn)" : "var(--fg-1)" }}
               >
                 {isQuery ? (
@@ -47,23 +55,36 @@ export function TabBar({
                   <Icon.table size={11} />
                 )}
               </span>
-              <span className="tab-title">{t.title}</span>
-              {t.dirty && <span className="tab-dot" title="Unsaved" />}
+              <span className="overflow-hidden text-ellipsis whitespace-nowrap">
+                {t.title}
+              </span>
+              {t.dirty && (
+                <span
+                  className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent"
+                  title="Unsaved"
+                />
+              )}
               <button
-                className="tab-close"
                 onClick={(e) => e.stopPropagation()}
                 title="Close"
+                className={
+                  "ml-0.5 inline-flex h-4 w-4 items-center justify-center rounded-[3px] text-fg-3 transition-opacity duration-100 hover:bg-bg-3 hover:text-fg-0 " +
+                  (isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100")
+                }
               >
                 <Icon.close size={10} />
               </button>
             </div>
           );
         })}
-        <button className="tab-new" title="New query tab">
+        <button
+          title="New query tab"
+          className="inline-flex w-7 items-center justify-center border-r border-border-default text-fg-3 transition-[background,color] duration-100 hover:bg-bg-2 hover:text-fg-0"
+        >
           <Icon.plus size={11} />
         </button>
       </div>
-      <div className="tabs-actions">
+      <div className="flex items-center gap-px border-l border-border-default px-1.5">
         <button className="icon-btn" title="Split horizontal">
           <Icon.splitH size={12} />
         </button>

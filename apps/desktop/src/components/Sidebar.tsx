@@ -37,12 +37,31 @@ function StatusDot({ status }: { status: ConnStatus }) {
         : "var(--fg-4)";
   return (
     <span
-      className={"sb-status-dot" + (status === "connecting" ? " pulse" : "")}
+      className={
+        "ml-1 h-1.5 w-1.5 shrink-0 rounded-full" +
+        (status === "connecting" ? " animate-sb-pulse" : "")
+      }
       style={{ background: color }}
       title={status}
     />
   );
 }
+
+const ROW_BASE =
+  "group relative flex h-[22px] select-none items-center gap-1 pr-1.5 text-fg-1 cursor-default hover:bg-bg-2";
+
+const ROW_ACTIVE = "bg-accent-soft text-accent [&_.sb-icon-slot]:!text-accent";
+
+const ICON_SLOT =
+  "sb-icon-slot inline-flex h-[14px] w-[14px] shrink-0 items-center justify-center";
+
+const TWISTY =
+  "inline-flex h-[14px] w-[14px] shrink-0 items-center justify-center text-fg-3 hover:text-fg-1";
+
+const META = "ml-auto pr-1 whitespace-nowrap text-[10px] text-fg-3 shrink-0";
+
+const PILL =
+  "ml-1 rounded-[3px] bg-bg-2 px-1 py-px font-mono text-[9px] text-fg-3";
 
 export function Sidebar({
   onNewConnection,
@@ -52,18 +71,16 @@ export function Sidebar({
   const [filter, setFilter] = useState("");
   const meta = { color: "var(--eng-postgres)" };
   return (
-    <div className="sb-root">
-      <div className="sb-header">
-        <div className="sb-header-title">
+    <div className="flex h-full flex-col text-[11.5px]">
+      <div className="flex shrink-0 items-center justify-between pt-[7px] pb-[5px] pl-2.5 pr-2">
+        <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-fg-2">
           <span>Connections</span>
-          <span className="sb-header-count mono">{SAMPLE_CONNECTIONS.length}</span>
+          <span className="rounded-[8px] bg-bg-2 px-1.5 py-px font-mono text-[10px] text-fg-3">
+            {SAMPLE_CONNECTIONS.length}
+          </span>
         </div>
-        <div className="sb-header-actions">
-          <button
-            className="icon-btn"
-            title="New connection"
-            onClick={onNewConnection}
-          >
+        <div className="flex gap-px">
+          <button className="icon-btn" title="New connection" onClick={onNewConnection}>
             <Icon.plus size={12} />
           </button>
           <button className="icon-btn" title="More">
@@ -72,126 +89,149 @@ export function Sidebar({
         </div>
       </div>
 
-      <div className="sb-filter">
+      <div className="mx-2 mb-1.5 flex h-6 shrink-0 items-center gap-1.5 rounded-[4px] border border-border-default bg-bg-inset px-2 focus-within:border-accent-line">
         <Icon.search size={11} style={{ color: "var(--fg-3)" }} />
         <input
-          className="sb-filter-input"
           placeholder="Filter…"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
+          className="flex-1 border-none bg-transparent text-[11.5px] text-fg-0 outline-none placeholder:text-fg-3"
         />
         <span className="kbd">⌘F</span>
       </div>
 
-      <div className="sb-scroll">
-        {/* expanded prod connection */}
-        <div className="sb-connection">
+      <div className="flex-1 overflow-y-auto pb-3">
+        <div>
           <div
-            className="sb-row sb-conn-row"
+            className={
+              ROW_BASE + " h-[26px] border-l-2 pl-1 font-medium text-fg-0"
+            }
             style={{ borderLeftColor: meta.color }}
           >
-            <button className="sb-twisty">
+            <button className={TWISTY}>
               <Icon.chevronDown size={10} />
             </button>
             <EngineBadge engine="postgres" size={12} />
-            <span className="sb-label sb-conn-name">shop-eu (prod)</span>
+            <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[12px] font-medium">
+              shop-eu (prod)
+            </span>
             <StatusDot status="connected" />
-            <button className="icon-btn sb-row-action" title="Disconnect">
+            <button
+              className="icon-btn ml-1 opacity-0 transition-opacity duration-100 group-hover:opacity-100"
+              title="Disconnect"
+            >
               <Icon.power size={11} />
             </button>
           </div>
 
-          {/* database row */}
-          <div className="sb-row" style={{ paddingLeft: 18 }}>
-            <button className="sb-twisty">
+          <div className={ROW_BASE} style={{ paddingLeft: 18 }}>
+            <button className={TWISTY}>
               <Icon.chevronDown size={10} />
             </button>
-            <span className="sb-icon">
+            <span className={ICON_SLOT}>
               <Icon.database size={12} />
             </span>
-            <span className="sb-label">shop_eu</span>
-            <span className="sb-meta mono">2 schemas</span>
+            <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[11.5px]">
+              shop_eu
+            </span>
+            <span className={META + " font-mono"}>2 schemas</span>
           </div>
 
-          {/* schema row */}
-          <div className="sb-row" style={{ paddingLeft: 30 }}>
-            <button className="sb-twisty">
+          <div className={ROW_BASE} style={{ paddingLeft: 30 }}>
+            <button className={TWISTY}>
               <Icon.chevronDown size={10} />
             </button>
-            <span className="sb-icon">
+            <span className={ICON_SLOT}>
               <Icon.schema size={12} />
             </span>
-            <span className="sb-label">public</span>
-            <span className="sb-meta mono">{SAMPLE_TABLES.length}</span>
+            <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[11.5px]">
+              public
+            </span>
+            <span className={META + " font-mono"}>{SAMPLE_TABLES.length}</span>
           </div>
 
-          {/* tables group */}
-          <div className="sb-row sb-group" style={{ paddingLeft: 42 }}>
-            <button className="sb-twisty">
+          <div
+            className={
+              ROW_BASE +
+              " mt-0.5 h-5 text-[10px] uppercase tracking-[0.05em] text-fg-3 hover:bg-transparent hover:text-fg-2"
+            }
+            style={{ paddingLeft: 42 }}
+          >
+            <button className={TWISTY}>
               <Icon.chevronDown size={10} />
             </button>
-            <span className="sb-group-label">tables</span>
-            <span className="sb-group-count mono">{SAMPLE_TABLES.length}</span>
+            <span className="flex-1 font-semibold">tables</span>
+            <span className="font-mono text-[10px] text-fg-3">
+              {SAMPLE_TABLES.length}
+            </span>
           </div>
 
           {SAMPLE_TABLES.map((t) => (
             <div
               key={t.id}
-              className={"sb-row" + (t.active ? " active" : "")}
+              className={ROW_BASE + (t.active ? " " + ROW_ACTIVE : "")}
               style={{ paddingLeft: 54 }}
             >
-              <span className="sb-twisty" style={{ visibility: "hidden" }} />
-              <span className="sb-icon" style={{ color: "var(--fg-1)" }}>
+              <span className={TWISTY + " invisible"} />
+              <span className={ICON_SLOT} style={{ color: "var(--fg-1)" }}>
                 <Icon.table size={11} />
               </span>
-              <span className="sb-label">{t.name}</span>
-              <span className="sb-meta mono">{t.rows}</span>
+              <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[11.5px]">
+                {t.name}
+              </span>
+              <span className={META + " font-mono"}>{t.rows}</span>
               {t.fks ? (
-                <span className="sb-pill" title={`${t.fks} foreign keys`}>
+                <span className={PILL} title={`${t.fks} foreign keys`}>
                   fk·{t.fks}
                 </span>
               ) : null}
             </div>
           ))}
 
-          <div className="sb-row sb-group" style={{ paddingLeft: 42 }}>
-            <button className="sb-twisty">
-              <Icon.chevronRight size={10} />
-            </button>
-            <span className="sb-group-label">views</span>
-            <span className="sb-group-count mono">3</span>
-          </div>
-          <div className="sb-row sb-group" style={{ paddingLeft: 42 }}>
-            <button className="sb-twisty">
-              <Icon.chevronRight size={10} />
-            </button>
-            <span className="sb-group-label">functions</span>
-            <span className="sb-group-count mono">2</span>
-          </div>
-          <div className="sb-row sb-group" style={{ paddingLeft: 42 }}>
-            <button className="sb-twisty">
-              <Icon.chevronRight size={10} />
-            </button>
-            <span className="sb-group-label">procedures</span>
-            <span className="sb-group-count mono">1</span>
-          </div>
+          {(["views", "functions", "procedures"] as const).map((group, i) => (
+            <div
+              key={group}
+              className={
+                ROW_BASE +
+                " mt-0.5 h-5 text-[10px] uppercase tracking-[0.05em] text-fg-3 hover:bg-transparent hover:text-fg-2"
+              }
+              style={{ paddingLeft: 42 }}
+            >
+              <button className={TWISTY}>
+                <Icon.chevronRight size={10} />
+              </button>
+              <span className="flex-1 font-semibold">{group}</span>
+              <span className="font-mono text-[10px] text-fg-3">
+                {[3, 2, 1][i]}
+              </span>
+            </div>
+          ))}
         </div>
 
-        {/* collapsed connections */}
         {SAMPLE_CONNECTIONS.slice(1).map((c) => (
-          <div key={c.id} className="sb-connection">
-            <div className="sb-row sb-conn-row">
-              <button className="sb-twisty">
+          <div key={c.id}>
+            <div
+              className={
+                ROW_BASE +
+                " h-[26px] border-l-2 border-transparent pl-1 font-medium text-fg-0"
+              }
+            >
+              <button className={TWISTY}>
                 <Icon.chevronRight size={10} />
               </button>
               <EngineBadge engine={c.engine} size={12} />
-              <span className="sb-label sb-conn-name">{c.name}</span>
+              <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[12px] font-medium">
+                {c.name}
+              </span>
               <StatusDot status={c.status} />
             </div>
           </div>
         ))}
 
-        <button className="sb-add-connection" onClick={onNewConnection}>
+        <button
+          onClick={onNewConnection}
+          className="m-2 flex w-[calc(100%-16px)] items-center gap-1.5 rounded-[4px] border border-dashed border-border-default px-2 py-1.5 text-[11.5px] text-fg-2 transition-[border-color,color,background] duration-150 hover:border-solid hover:border-accent-line hover:bg-accent-soft hover:text-accent"
+        >
           <Icon.plus size={11} />
           <span>New connection</span>
         </button>

@@ -54,7 +54,7 @@ export function App() {
   }, []);
 
   return (
-    <div className={"cellar-app" + (empty ? " cellar-app-empty" : "")}>
+    <div className="flex h-screen w-screen flex-col bg-bg-0">
       <TitleBar
         panels={panels}
         onTogglePanel={togglePanel}
@@ -63,14 +63,17 @@ export function App() {
         onOpenPalette={() => openModal("palette")}
       />
 
-      <div className="cellar-main">
+      <div className="flex flex-1 min-h-0">
         {!empty && panels.left && (
-          <div className="cellar-pane cellar-pane-left" style={{ width: 256 }}>
+          <div
+            className="flex min-w-0 flex-col border-r border-border-default bg-bg-1"
+            style={{ width: 256 }}
+          >
             <Sidebar onNewConnection={() => openModal("connection")} />
           </div>
         )}
 
-        <div className="cellar-center">
+        <div className="flex flex-1 min-w-0 flex-col bg-bg-0">
           {empty ? (
             <EmptyState onNew={() => openModal("connection")} />
           ) : (
@@ -78,7 +81,7 @@ export function App() {
               <TabBar />
               <Workspace onCommit={() => openModal("commit")} />
               {panels.bottom && (
-                <div className="cellar-bottom">
+                <div className="flex h-[280px] flex-col border-t border-border-default bg-bg-1">
                   <BottomPanel onClose={() => togglePanel("bottom")} />
                 </div>
               )}
@@ -87,7 +90,10 @@ export function App() {
         </div>
 
         {!empty && panels.right && (
-          <div className="cellar-pane cellar-pane-right" style={{ width: 380 }}>
+          <div
+            className="flex min-w-0 flex-col border-l border-border-default bg-bg-1"
+            style={{ width: 380 }}
+          >
             <AIPanel onClose={() => togglePanel("right")} />
           </div>
         )}

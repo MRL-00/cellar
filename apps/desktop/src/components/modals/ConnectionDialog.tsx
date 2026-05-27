@@ -26,6 +26,20 @@ const DEFAULT_PORT: Record<Engine, string> = {
 type Auth = "password" | "kerberos" | "azure-ad" | "managed-id" | "windows";
 type Tab = "general" | "ssh" | "ssl" | "options";
 
+const ED_RUN_BASE =
+  "inline-flex h-[26px] items-center gap-[5px] whitespace-nowrap rounded-[4px] border border-transparent px-2.5 text-[11.5px] font-medium text-fg-1 transition-[background,color,border-color,filter] duration-[120ms]";
+
+const ED_RUN_SUBTLE =
+  ED_RUN_BASE +
+  " bg-transparent border-border-default hover:bg-bg-3 hover:border-border-strong hover:text-fg-0 disabled:opacity-40 disabled:cursor-not-allowed";
+
+const ED_RUN_PRIMARY =
+  ED_RUN_BASE +
+  " bg-accent text-accent-fg hover:brightness-[1.07] disabled:opacity-40 disabled:cursor-not-allowed";
+
+const CD_INPUT =
+  "h-[26px] min-w-0 flex-1 rounded-[4px] border border-border-default bg-bg-inset px-2 text-[11.5px] text-fg-0 outline-none font-sans focus:border-accent-line focus:bg-bg-2";
+
 export function ConnectionDialog({ onClose }: { onClose: () => void }) {
   const [engine, setEngine] = useState<Engine>("postgres");
   const [tab, setTab] = useState<Tab>("general");
@@ -43,20 +57,22 @@ export function ConnectionDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal onClose={onClose} width={760}>
-      <div className="cd-head">
-        <div className="cd-head-left">
-          <span className="cd-head-icon">
+      <div className="flex h-[38px] shrink-0 items-center justify-between border-b border-border-default pl-3.5 pr-2">
+        <div className="flex items-center gap-2">
+          <span className="inline-flex text-accent">
             <Icon.database size={14} />
           </span>
-          <span className="cd-head-title">New connection</span>
+          <span className="whitespace-nowrap text-[12.5px] font-semibold text-fg-0">
+            New connection
+          </span>
         </div>
         <button className="icon-btn" onClick={onClose} title="Close">
           <Icon.close size={13} />
         </button>
       </div>
 
-      <div className="cd-body">
-        <div className="cd-engines">
+      <div className="flex-1 overflow-y-auto px-4 pt-3 pb-4">
+        <div className="mb-3.5 grid grid-cols-5 gap-1.5">
           {ENGINE_ORDER.map((e) => {
             const m = ENGINE_META[e];
             const hex = ENGINE_HEX[e];
@@ -64,11 +80,14 @@ export function ConnectionDialog({ onClose }: { onClose: () => void }) {
             return (
               <button
                 key={e}
-                className={"cd-engine" + (active ? " active" : "")}
                 onClick={() => setEngine(e)}
+                className={
+                  "flex flex-col items-center gap-1.5 rounded-[6px] border border-border-default bg-bg-2 px-1.5 pt-2.5 pb-[9px] transition-all duration-150 hover:border-border-strong " +
+                  (active ? "shadow-[inset_0_0_0_1px_var(--accent)]" : "")
+                }
               >
                 <span
-                  className="cd-engine-letter mono"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-[6px] border font-mono text-[13px] font-semibold"
                   style={{
                     color: hex,
                     background: `color-mix(in oklab, ${hex} 14%, transparent)`,
@@ -77,134 +96,141 @@ export function ConnectionDialog({ onClose }: { onClose: () => void }) {
                 >
                   {m.letter}
                 </span>
-                <span className="cd-engine-name">{m.label}</span>
+                <span
+                  className={
+                    "text-[10.5px] " +
+                    (active ? "font-medium text-fg-0" : "text-fg-1")
+                  }
+                >
+                  {m.label}
+                </span>
               </button>
             );
           })}
         </div>
 
-        <div className="cd-tabs">
-          {(["general", "ssh", "ssl", "options"] as Tab[]).map((t) => (
-            <button
-              key={t}
-              className={"cd-tab" + (tab === t ? " active" : "")}
-              onClick={() => setTab(t)}
-            >
-              {t === "general" && <Icon.database size={11} />}
-              {t === "ssh" && <Icon.ssh size={11} />}
-              {t === "ssl" && <Icon.lock size={11} />}
-              {t === "options" && <Icon.settings size={11} />}
-              <span>
-                {t === "ssh"
-                  ? "SSH tunnel"
-                  : t === "ssl"
-                    ? "SSL / TLS"
-                    : t}
-              </span>
-              {t === "ssh" && ssh && <span className="cd-tab-dot" />}
-              {t === "ssl" && ssl && <span className="cd-tab-dot" />}
-            </button>
-          ))}
+        <div className="mb-3.5 flex gap-0.5 border-b border-border-default">
+          {(["general", "ssh", "ssl", "options"] as Tab[]).map((t) => {
+            const isActive = tab === t;
+            return (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={
+                  "relative -mb-px inline-flex h-[26px] items-center gap-1.5 px-2.5 text-[11.5px] capitalize border-b-[1.5px] " +
+                  (isActive
+                    ? "border-accent text-accent"
+                    : "border-transparent text-fg-2 hover:text-fg-0")
+                }
+              >
+                {t === "general" && <Icon.database size={11} />}
+                {t === "ssh" && <Icon.ssh size={11} />}
+                {t === "ssl" && <Icon.lock size={11} />}
+                {t === "options" && <Icon.settings size={11} />}
+                <span>
+                  {t === "ssh"
+                    ? "SSH tunnel"
+                    : t === "ssl"
+                      ? "SSL / TLS"
+                      : t}
+                </span>
+                {t === "ssh" && ssh && (
+                  <span className="ml-0.5 h-[5px] w-[5px] rounded-full bg-accent" />
+                )}
+                {t === "ssl" && ssl && (
+                  <span className="ml-0.5 h-[5px] w-[5px] rounded-full bg-accent" />
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {tab === "general" && (
-          <div className="cd-form">
+          <div className="flex flex-col gap-2.5">
             <FormRow label="Name" hint="Shown in the sidebar">
-              <input className="cd-input" defaultValue="shop-eu (prod)" />
+              <input className={CD_INPUT} defaultValue="shop-eu (prod)" />
             </FormRow>
 
             <FormRow label="Host">
               <input
-                className="cd-input mono"
+                className={CD_INPUT + " font-mono"}
                 defaultValue="prod-pg.internal.shop.eu"
                 style={{ flex: 1 }}
               />
-              <span className="cd-form-sep">:</span>
+              <span className="text-fg-3">:</span>
               <input
-                className="cd-input mono cd-input-port"
+                className={CD_INPUT + " font-mono w-[70px] flex-none"}
                 defaultValue={DEFAULT_PORT[engine]}
               />
             </FormRow>
 
             {engine !== "sqlite" && (
               <FormRow label="Database">
-                <input className="cd-input mono" defaultValue="shop_eu" />
+                <input className={CD_INPUT + " font-mono"} defaultValue="shop_eu" />
               </FormRow>
             )}
 
             {engine === "sqlite" && (
               <FormRow label="File">
                 <input
-                  className="cd-input mono"
+                  className={CD_INPUT + " font-mono"}
                   defaultValue="~/projects/shop/local.db"
                   style={{ flex: 1 }}
                 />
-                <button className="cd-pick">
+                <PickButton>
                   <Icon.fileText size={11} />
                   <span>Browse</span>
-                </button>
+                </PickButton>
               </FormRow>
             )}
 
             <FormRow label="Auth">
-              <div className="cd-segment">
-                <button
-                  className={"cd-seg" + (auth === "password" ? " active" : "")}
-                  onClick={() => setAuth("password")}
-                >
+              <Segment>
+                <Seg active={auth === "password"} onClick={() => setAuth("password")}>
                   Password
-                </button>
+                </Seg>
                 {engine === "postgres" && (
-                  <button
-                    className={"cd-seg" + (auth === "kerberos" ? " active" : "")}
-                    onClick={() => setAuth("kerberos")}
-                  >
+                  <Seg active={auth === "kerberos"} onClick={() => setAuth("kerberos")}>
                     Kerberos
-                  </button>
+                  </Seg>
                 )}
                 {(engine === "azure" || engine === "mssql") && (
-                  <button
-                    className={"cd-seg" + (auth === "azure-ad" ? " active" : "")}
-                    onClick={() => setAuth("azure-ad")}
-                  >
+                  <Seg active={auth === "azure-ad"} onClick={() => setAuth("azure-ad")}>
                     Azure AD
-                  </button>
+                  </Seg>
                 )}
                 {engine === "azure" && (
-                  <button
-                    className={
-                      "cd-seg" + (auth === "managed-id" ? " active" : "")
-                    }
-                    onClick={() => setAuth("managed-id")}
-                  >
+                  <Seg active={auth === "managed-id"} onClick={() => setAuth("managed-id")}>
                     Managed identity
-                  </button>
+                  </Seg>
                 )}
                 {(engine === "mssql" || engine === "azure") && (
-                  <button
-                    className={"cd-seg" + (auth === "windows" ? " active" : "")}
-                    onClick={() => setAuth("windows")}
-                  >
+                  <Seg active={auth === "windows"} onClick={() => setAuth("windows")}>
                     Windows
-                  </button>
+                  </Seg>
                 )}
-              </div>
+              </Segment>
             </FormRow>
 
             {auth === "password" && (
               <>
                 <FormRow label="User">
-                  <input className="cd-input mono" defaultValue="analytics_ro" />
+                  <input className={CD_INPUT + " font-mono"} defaultValue="analytics_ro" />
                 </FormRow>
                 <FormRow label="Password" hint="Stored in OS keychain">
                   <input
-                    className="cd-input mono"
+                    className={CD_INPUT + " font-mono"}
                     type="password"
                     defaultValue="••••••••••••••"
                     style={{ flex: 1 }}
                   />
-                  <label className="cd-check">
-                    <input type="checkbox" /> save
+                  <label className="inline-flex cursor-pointer items-center gap-1 text-[11px] text-fg-2">
+                    <input
+                      type="checkbox"
+                      className="h-3 w-3"
+                      style={{ accentColor: "var(--accent)" }}
+                    />
+                    save
                   </label>
                 </FormRow>
               </>
@@ -214,15 +240,19 @@ export function ConnectionDialog({ onClose }: { onClose: () => void }) {
               <>
                 <FormRow label="Tenant" hint="leave empty for default">
                   <input
-                    className="cd-input mono"
+                    className={CD_INPUT + " font-mono"}
                     placeholder="contoso.onmicrosoft.com"
                   />
                 </FormRow>
                 <FormRow label="Account">
-                  <div className="cd-azure-account">
-                    <span className="cd-azure-avatar">A</span>
+                  <div className="inline-flex items-center gap-1.5 rounded-[4px] border border-border-default bg-bg-inset py-0.5 pl-0.5 pr-2 text-[11px]">
+                    <span className="inline-flex h-[18px] w-[18px] items-center justify-center rounded-[3px] bg-eng-azure text-[10px] font-semibold text-white">
+                      A
+                    </span>
                     <span>alice@contoso.com</span>
-                    <button className="cd-link">change</button>
+                    <button className="bg-transparent text-[11px] text-accent underline underline-offset-2">
+                      change
+                    </button>
                   </div>
                 </FormRow>
               </>
@@ -230,40 +260,42 @@ export function ConnectionDialog({ onClose }: { onClose: () => void }) {
 
             {auth === "managed-id" && (
               <FormRow label="Client ID" hint="user-assigned identity">
-                <input
-                  className="cd-input mono"
-                  placeholder="(system-assigned)"
-                />
+                <input className={CD_INPUT + " font-mono"} placeholder="(system-assigned)" />
               </FormRow>
             )}
 
-            <div className="cd-divider" />
+            <div className="my-1 h-px bg-border-divider" />
 
             <FormRow
               label="Accent"
               hint="visual marker — protects against running on prod by mistake"
             >
-              <div className="cd-swatches">
+              <div className="flex gap-1">
                 {SWATCH_COLORS.map((c) => (
                   <button
                     key={c}
-                    className={"cd-swatch" + (c === swatch ? " active" : "")}
-                    style={{ background: c }}
                     onClick={() => setSwatch(c)}
                     title={c}
+                    className={
+                      "h-[18px] w-[18px] rounded-[4px] border border-white/10 p-0 transition-transform hover:scale-110 " +
+                      (c === swatch
+                        ? "shadow-[0_0_0_2px_var(--bg-1),0_0_0_3px_var(--fg-0)]"
+                        : "")
+                    }
+                    style={{ background: c }}
                   />
                 ))}
               </div>
             </FormRow>
 
             <FormRow label="Environment">
-              <div className="cd-segment">
-                <button className="cd-seg active">prod</button>
-                <button className="cd-seg">staging</button>
-                <button className="cd-seg">dev</button>
-                <button className="cd-seg">local</button>
-              </div>
-              <span className="cd-warn">
+              <Segment>
+                <Seg active>prod</Seg>
+                <Seg>staging</Seg>
+                <Seg>dev</Seg>
+                <Seg>local</Seg>
+              </Segment>
+              <span className="ml-2 inline-flex items-center gap-1 text-[10.5px] text-warn">
                 <Icon.warn size={10} />
                 <span>prod requires confirmation for DML</span>
               </span>
@@ -272,7 +304,7 @@ export function ConnectionDialog({ onClose }: { onClose: () => void }) {
         )}
 
         {tab === "ssh" && (
-          <div className="cd-form">
+          <div className="flex flex-col gap-2.5">
             <FormRow label="Use SSH tunnel">
               <Toggle on={ssh} onChange={setSsh} />
             </FormRow>
@@ -280,36 +312,36 @@ export function ConnectionDialog({ onClose }: { onClose: () => void }) {
               <>
                 <FormRow label="SSH host">
                   <input
-                    className="cd-input mono"
+                    className={CD_INPUT + " font-mono"}
                     defaultValue="bastion.shop.eu"
                     style={{ flex: 1 }}
                   />
-                  <span className="cd-form-sep">:</span>
+                  <span className="text-fg-3">:</span>
                   <input
-                    className="cd-input mono cd-input-port"
+                    className={CD_INPUT + " font-mono w-[70px] flex-none"}
                     defaultValue="22"
                   />
                 </FormRow>
                 <FormRow label="SSH user">
-                  <input className="cd-input mono" defaultValue="alice" />
+                  <input className={CD_INPUT + " font-mono"} defaultValue="alice" />
                 </FormRow>
                 <FormRow label="Auth">
-                  <div className="cd-segment">
-                    <button className="cd-seg active">Key pair</button>
-                    <button className="cd-seg">Password</button>
-                    <button className="cd-seg">Agent</button>
-                  </div>
+                  <Segment>
+                    <Seg active>Key pair</Seg>
+                    <Seg>Password</Seg>
+                    <Seg>Agent</Seg>
+                  </Segment>
                 </FormRow>
                 <FormRow label="Private key">
                   <input
-                    className="cd-input mono"
+                    className={CD_INPUT + " font-mono"}
                     defaultValue="~/.ssh/id_ed25519"
                     style={{ flex: 1 }}
                   />
-                  <button className="cd-pick">
+                  <PickButton>
                     <Icon.fileText size={11} />
                     <span>Browse</span>
-                  </button>
+                  </PickButton>
                 </FormRow>
               </>
             )}
@@ -317,30 +349,30 @@ export function ConnectionDialog({ onClose }: { onClose: () => void }) {
         )}
 
         {tab === "ssl" && (
-          <div className="cd-form">
+          <div className="flex flex-col gap-2.5">
             <FormRow label="Use SSL / TLS">
               <Toggle on={ssl} onChange={setSsl} />
             </FormRow>
             {ssl && (
               <>
                 <FormRow label="SSL mode">
-                  <div className="cd-segment">
-                    <button className="cd-seg">disable</button>
-                    <button className="cd-seg">prefer</button>
-                    <button className="cd-seg">require</button>
-                    <button className="cd-seg active">verify-full</button>
-                  </div>
+                  <Segment>
+                    <Seg>disable</Seg>
+                    <Seg>prefer</Seg>
+                    <Seg>require</Seg>
+                    <Seg active>verify-full</Seg>
+                  </Segment>
                 </FormRow>
                 <FormRow label="Server CA">
                   <input
-                    className="cd-input mono"
+                    className={CD_INPUT + " font-mono"}
                     defaultValue="~/.cellar/certs/shop-eu-ca.pem"
                     style={{ flex: 1 }}
                   />
                 </FormRow>
                 <FormRow label="Client cert" hint="optional, for mTLS">
                   <input
-                    className="cd-input mono"
+                    className={CD_INPUT + " font-mono"}
                     placeholder="…"
                     style={{ flex: 1 }}
                   />
@@ -351,26 +383,23 @@ export function ConnectionDialog({ onClose }: { onClose: () => void }) {
         )}
 
         {tab === "options" && (
-          <div className="cd-form">
+          <div className="flex flex-col gap-2.5">
             <FormRow label="Read-only by default">
               <Toggle on={true} />
             </FormRow>
             <FormRow label="Connection timeout">
               <input
-                className="cd-input mono cd-input-port"
+                className={CD_INPUT + " font-mono w-[70px] flex-none"}
                 defaultValue="10"
               />
               <span style={{ color: "var(--fg-3)" }}>seconds</span>
             </FormRow>
             <FormRow label="Application name">
-              <input
-                className="cd-input mono"
-                defaultValue="cellar (alice@laptop)"
-              />
+              <input className={CD_INPUT + " font-mono"} defaultValue="cellar (alice@laptop)" />
             </FormRow>
             <FormRow label="Schema search path">
               <input
-                className="cd-input mono"
+                className={CD_INPUT + " font-mono"}
                 defaultValue="public, audit, analytics"
               />
             </FormRow>
@@ -378,30 +407,35 @@ export function ConnectionDialog({ onClose }: { onClose: () => void }) {
         )}
       </div>
 
-      <div className="cd-foot">
-        <div className="cd-foot-left">
-          <button className="ed-run subtle">
+      <div className="flex h-11 shrink-0 items-center justify-between gap-3 border-t border-border-default bg-bg-2 px-3">
+        <div className="flex items-center gap-2">
+          <button className={ED_RUN_SUBTLE}>
             <Icon.power size={11} />
             <span>Test connection</span>
           </button>
-          <span className="cd-foot-status">
+          <span className="inline-flex items-center gap-1.5 text-[11px]">
             <Icon.check size={10} stroke="var(--accent)" />
             <span style={{ color: "var(--accent)" }}>Connected</span>
             <span style={{ color: "var(--fg-3)" }}>·</span>
-            <span style={{ color: "var(--fg-2)" }} className="mono">
+            <span style={{ color: "var(--fg-2)" }} className="font-mono">
               214 ms
             </span>
             <span style={{ color: "var(--fg-3)" }}>·</span>
-            <span style={{ color: "var(--fg-2)" }} className="mono">
+            <span style={{ color: "var(--fg-2)" }} className="font-mono">
               PostgreSQL 16.2 on x86_64-linux-gnu
             </span>
           </span>
         </div>
-        <div className="cd-foot-right">
-          <button className="ed-run subtle" onClick={onClose}>
+        <div className="flex items-center gap-2">
+          <button className={ED_RUN_SUBTLE} onClick={onClose}>
             Cancel
           </button>
-          <button className="ed-run primary">
+          <button
+            className={ED_RUN_PRIMARY}
+            style={{
+              borderColor: "color-mix(in oklab, var(--accent) 30%, black)",
+            }}
+          >
             <Icon.plus size={11} />
             <span>Save &amp; connect</span>
           </button>
@@ -421,12 +455,16 @@ function FormRow({
   children: ReactNode;
 }) {
   return (
-    <div className="cd-row">
-      <div className="cd-row-label">
+    <div className="grid min-h-6 items-center gap-3 grid-cols-[110px_1fr]">
+      <div className="flex flex-col gap-px pt-0.5 text-[11.5px] font-medium text-fg-1">
         <span>{label}</span>
-        {hint && <span className="cd-row-hint">{hint}</span>}
+        {hint && (
+          <span className="text-[10px] font-normal text-fg-3">{hint}</span>
+        )}
       </div>
-      <div className="cd-row-content">{children}</div>
+      <div className="flex min-w-0 items-center gap-1.5 text-[11.5px]">
+        {children}
+      </div>
     </div>
   );
 }
@@ -440,11 +478,59 @@ function Toggle({
 }) {
   return (
     <button
-      className={"cd-toggle" + (on ? " on" : "")}
       onClick={() => onChange?.(!on)}
       type="button"
+      className={
+        "relative h-4 w-7 shrink-0 rounded-[10px] transition-[background] duration-150 " +
+        (on ? "bg-accent" : "bg-bg-3")
+      }
     >
-      <span className="cd-toggle-knob" />
+      <span
+        className={
+          "absolute top-0.5 h-3 w-3 rounded-full bg-white transition-[left] duration-150 " +
+          (on ? "left-3.5" : "left-0.5")
+        }
+      />
+    </button>
+  );
+}
+
+function Segment({ children }: { children: ReactNode }) {
+  return (
+    <div className="inline-flex gap-px rounded-[4px] border border-border-default bg-bg-inset p-0.5">
+      {children}
+    </div>
+  );
+}
+
+function Seg({
+  active,
+  onClick,
+  children,
+}: {
+  active?: boolean;
+  onClick?: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={
+        "h-5 rounded-[3px] px-2.5 text-[11px] " +
+        (active
+          ? "bg-bg-3 font-medium text-fg-0"
+          : "text-fg-2 hover:text-fg-0")
+      }
+    >
+      {children}
+    </button>
+  );
+}
+
+function PickButton({ children }: { children: ReactNode }) {
+  return (
+    <button className="inline-flex h-[26px] items-center gap-1 rounded-[4px] border border-border-default bg-bg-2 px-2 text-[11px] text-fg-1 hover:bg-bg-3">
+      {children}
     </button>
   );
 }

@@ -107,13 +107,24 @@ export function tokensToLines(tokens: Token[]): Token[][] {
   return lines;
 }
 
+const TOKEN_CLASS: Record<Exclude<TokKind, "ws" | "nl">, string> = {
+  kw: "text-syn-kw",
+  fn: "text-syn-fn",
+  str: "text-syn-str",
+  num: "text-syn-num",
+  comment: "italic text-syn-comment",
+  op: "text-syn-op",
+  tbl: "text-syn-tbl",
+  ident: "text-syn-ident",
+};
+
 export function renderTokens(tokens: Token[]): ReactNode {
   return tokens.map((t, i) => {
     if (t.kind === "ws") return t.text;
-    const cls = `syn-${t.kind}`;
+    if (t.kind === "nl") return null;
     return (
       <Fragment key={i}>
-        <span className={cls}>{t.text}</span>
+        <span className={TOKEN_CLASS[t.kind]}>{t.text}</span>
       </Fragment>
     );
   });

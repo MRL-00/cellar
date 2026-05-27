@@ -19,28 +19,49 @@ const TABS: BPTab[] = [
 export function BottomPanel({ onClose }: { onClose: () => void }) {
   const [active, setActive] = useState("results");
   return (
-    <div className="bp-root">
-      <div className="bp-head">
-        <div className="bp-tabs">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              className={"bp-tab" + (active === t.id ? " active" : "")}
-              onClick={() => setActive(t.id)}
-            >
-              <span className="bp-tab-icon">{t.icon}</span>
-              <span>{t.label}</span>
-              {t.count != null && (
-                <span className="bp-tab-count mono">{t.count}</span>
-              )}
-            </button>
-          ))}
-          <div className="bp-tab-divider" />
-          <div className="bp-runinfo mono">
-            <span style={{ color: "var(--fg-3)" }}>no query run yet</span>
+    <div className="flex h-full flex-col bg-bg-1">
+      <div className="flex shrink-0 items-stretch justify-between h-7 pl-1.5 pr-1 border-b border-border-default">
+        <div className="flex flex-1 min-w-0 items-center gap-0.5">
+          {TABS.map((t) => {
+            const isActive = active === t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => setActive(t.id)}
+                className={
+                  "mt-[3px] inline-flex h-[22px] items-center gap-1.5 rounded-[4px] px-2 text-[11px] " +
+                  (isActive
+                    ? "bg-accent-soft text-accent"
+                    : "text-fg-2 hover:bg-bg-2 hover:text-fg-0")
+                }
+              >
+                <span
+                  className={
+                    "inline-flex " + (isActive ? "text-accent" : "text-fg-3")
+                  }
+                >
+                  {t.icon}
+                </span>
+                <span>{t.label}</span>
+                {t.count != null && (
+                  <span
+                    className={
+                      "rounded-[8px] px-1 py-px font-mono text-[9.5px] " +
+                      (isActive ? "bg-bg-1 text-accent" : "bg-bg-2 text-fg-2")
+                    }
+                  >
+                    {t.count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+          <div className="mx-1.5 h-[18px] w-px self-center bg-border-divider" />
+          <div className="inline-flex items-center gap-1.5 font-mono text-[10.5px]">
+            <span className="text-fg-3">no query run yet</span>
           </div>
         </div>
-        <div className="bp-head-actions">
+        <div className="flex items-center gap-px">
           <button className="icon-btn" title="Export">
             <Icon.fileText size={11} />
           </button>
@@ -53,10 +74,14 @@ export function BottomPanel({ onClose }: { onClose: () => void }) {
         </div>
       </div>
 
-      <div className="bp-body">
-        <div className="bp-placeholder">
-          <div className="bp-placeholder-title">{labelFor(active)}</div>
-          <div className="bp-placeholder-sub">{subFor(active)}</div>
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <div className="flex h-full flex-col items-center justify-center gap-1.5 p-6 text-center text-[11.5px] text-fg-3">
+          <div className="text-[12px] font-medium text-fg-1">
+            {labelFor(active)}
+          </div>
+          <div className="max-w-[320px] text-[10.5px] leading-[1.5] text-fg-3">
+            {subFor(active)}
+          </div>
         </div>
       </div>
     </div>
