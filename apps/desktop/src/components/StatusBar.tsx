@@ -2,11 +2,11 @@ import { Icon } from "./icons";
 
 export function StatusBar() {
   return (
-    <div className="cellar-statusbar">
-      <div className="cellar-statusbar-group">
-        <span className="cellar-status-item">
+    <div className="flex h-[22px] shrink-0 items-center justify-between border-t border-border-default bg-bg-1 px-2.5 text-[11px] text-fg-2">
+      <div className="flex items-center gap-3.5">
+        <span className="inline-flex h-[18px] items-center gap-[5px] whitespace-nowrap text-[10.5px]">
           <span
-            className="dot"
+            className="inline-block h-1.5 w-1.5 rounded-full"
             style={{
               background: "var(--accent)",
               boxShadow: "0 0 0 2px var(--accent-soft)",
@@ -18,25 +18,25 @@ export function StatusBar() {
           <span style={{ color: "var(--fg-3)" }}>·</span>
           <span className="mono" style={{ color: "var(--fg-2)" }}>v16.2</span>
         </span>
-        <span className="cellar-status-item">
+        <span className="inline-flex h-[18px] items-center gap-[5px] whitespace-nowrap text-[10.5px]">
           <Icon.user size={10} />
           <span className="mono">analytics_ro@prod-pg</span>
         </span>
-        <span className="cellar-status-item">
+        <span className="inline-flex h-[18px] items-center gap-[5px] whitespace-nowrap text-[10.5px]">
           <Icon.lock size={10} />
           <span>SSL · SCRAM-SHA-256</span>
         </span>
       </div>
 
-      <div className="cellar-statusbar-group">
-        <span className="cellar-status-item">
+      <div className="flex items-center gap-3.5">
+        <span className="inline-flex h-[18px] items-center gap-[5px] whitespace-nowrap text-[10.5px]">
           <Icon.check size={10} style={{ color: "var(--accent)" }} />
           <span className="mono">— rows · — ms</span>
         </span>
-        <span className="cellar-status-item mono" style={{ color: "var(--fg-2)" }}>
+        <span className="inline-flex h-[18px] items-center gap-[5px] whitespace-nowrap font-mono text-[10.5px]" style={{ color: "var(--fg-2)" }}>
           UTF-8 · LF
         </span>
-        <span className="cellar-status-item mono" style={{ color: "var(--fg-2)" }}>
+        <span className="inline-flex h-[18px] items-center gap-[5px] whitespace-nowrap font-mono text-[10.5px]" style={{ color: "var(--fg-2)" }}>
           Ln 1, Col 1
         </span>
       </div>

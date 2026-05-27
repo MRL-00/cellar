@@ -14,7 +14,6 @@ export type Change = UpdateChange | InsertChange | DeleteChange;
 
 export type ChangeSet = Record<string, Change>;
 
-/* Demo changeset matching the design's commit preview. */
 export const SAMPLE_CHANGES: ChangeSet = {
   "0a14b9b2-7f6c-4f2d-8a17-3e9f30caa101": {
     kind: "update",
@@ -57,6 +56,17 @@ function formatVal(v: unknown): string {
   return "'" + v + "'";
 }
 
+const ED_RUN_BASE =
+  "inline-flex h-[26px] items-center gap-[5px] whitespace-nowrap rounded-[4px] border border-transparent px-2.5 text-[11.5px] font-medium text-fg-1 transition-[background,color,border-color,filter] duration-[120ms]";
+
+const ED_RUN_SUBTLE =
+  ED_RUN_BASE +
+  " bg-transparent border-border-default hover:bg-bg-3 hover:border-border-strong hover:text-fg-0";
+
+const ED_RUN_DANGER =
+  ED_RUN_BASE +
+  " bg-delete text-white hover:brightness-[1.07]";
+
 export function CommitModal({
   onClose,
   changes = SAMPLE_CHANGES,
@@ -95,9 +105,7 @@ export function CommitModal({
   inserts.forEach(([id, c]) => {
     const cols = Object.keys(c.row);
     const vals = cols.map((k) => formatVal(c.row[k]));
-    sqlLines.push(
-      `INSERT INTO public.${table} (${cols.join(", ")})`,
-    );
+    sqlLines.push(`INSERT INTO public.${table} (${cols.join(", ")})`);
     sqlLines.push(`VALUES (${vals.join(", ")});`);
     sqlLines.push("");
     void id;
@@ -112,13 +120,15 @@ export function CommitModal({
 
   return (
     <Modal onClose={onClose} width={880}>
-      <div className="cd-head">
-        <div className="cd-head-left">
-          <span className="cd-head-icon">
+      <div className="flex h-[38px] shrink-0 items-center justify-between border-b border-border-default pl-3.5 pr-2">
+        <div className="flex items-center gap-2">
+          <span className="inline-flex text-accent">
             <Icon.commit size={14} />
           </span>
-          <span className="cd-head-title">Review &amp; commit</span>
-          <span className="cm-target">
+          <span className="whitespace-nowrap text-[12.5px] font-semibold text-fg-0">
+            Review &amp; commit
+          </span>
+          <span className="ml-1 border-l border-border-divider pl-1.5 font-mono text-[11px] text-fg-2">
             public.{table} <span style={{ color: "var(--fg-3)" }}>·</span>{" "}
             shop-eu (prod)
           </span>
@@ -128,170 +138,165 @@ export function CommitModal({
         </button>
       </div>
 
-      <div className="cm-summary">
-        <div className="cm-summary-item">
-          <span
-            className="cm-summary-icon"
-            style={{ background: "var(--insert-bg)", color: "var(--insert)" }}
-          >
-            <Icon.plus size={11} />
-          </span>
-          <span className="cm-summary-n tnum mono">{inserts.length}</span>
-          <span className="cm-summary-label">
-            insert{inserts.length === 1 ? "" : "s"}
-          </span>
-        </div>
-        <div className="cm-summary-item">
-          <span
-            className="cm-summary-icon"
-            style={{ background: "var(--update-bg)", color: "var(--update)" }}
-          >
-            <Icon.diff size={11} />
-          </span>
-          <span className="cm-summary-n tnum mono">{updates.length}</span>
-          <span className="cm-summary-label">
-            update{updates.length === 1 ? "" : "s"}
-          </span>
-        </div>
-        <div className="cm-summary-item">
-          <span
-            className="cm-summary-icon"
-            style={{ background: "var(--delete-bg)", color: "var(--delete)" }}
-          >
-            <Icon.close size={11} />
-          </span>
-          <span className="cm-summary-n tnum mono">{deletes.length}</span>
-          <span className="cm-summary-label">
-            delete{deletes.length === 1 ? "" : "s"}
-          </span>
-        </div>
-        <div className="cm-summary-spacer" />
-        <span className="cm-summary-tx mono">
+      <div className="flex shrink-0 items-center gap-4 border-b border-border-default bg-bg-2 px-4 py-2.5">
+        <SummaryItem
+          icon={<Icon.plus size={11} />}
+          bg="var(--insert-bg)"
+          color="var(--insert)"
+          n={inserts.length}
+          label={`insert${inserts.length === 1 ? "" : "s"}`}
+        />
+        <SummaryItem
+          icon={<Icon.diff size={11} />}
+          bg="var(--update-bg)"
+          color="var(--update)"
+          n={updates.length}
+          label={`update${updates.length === 1 ? "" : "s"}`}
+        />
+        <SummaryItem
+          icon={<Icon.close size={11} />}
+          bg="var(--delete-bg)"
+          color="var(--delete)"
+          n={deletes.length}
+          label={`delete${deletes.length === 1 ? "" : "s"}`}
+        />
+        <div className="flex-1" />
+        <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-[4px] bg-bg-inset px-2 py-1 font-mono text-[10.5px] text-fg-2">
           <Icon.bracket size={10} />
           <span>BEGIN … COMMIT — atomic</span>
         </span>
       </div>
 
-      <div className="cm-body">
-        <div className="cm-changes">
-          <div className="cm-changes-head">
+      <div className="grid min-h-0 flex-1 overflow-hidden grid-cols-[320px_1fr]">
+        <div className="flex min-h-0 flex-col border-r border-border-default">
+          <div className="flex h-[26px] shrink-0 items-center gap-1.5 border-b border-border-divider px-3 text-[10px] font-semibold uppercase tracking-[0.05em] text-fg-3">
             <span>Changes</span>
-            <span className="cm-changes-count mono">{entries.length}</span>
+            <span className="rounded-[8px] bg-bg-2 px-1.5 py-px font-mono text-[10px] text-fg-2">
+              {entries.length}
+            </span>
           </div>
-          <div className="cm-changes-list">
+          <div className="flex-1 overflow-y-auto py-1.5">
             {updates.map(([id, c]) => (
-              <div key={id} className="cm-change cm-change-update">
-                <span className="cm-change-tag">UPDATE</span>
-                <div className="cm-change-body">
-                  <div className="cm-change-row">
-                    <span className="cm-change-id">{c.row.order_number}</span>
-                    <span style={{ color: "var(--fg-3)" }}>·</span>
+              <ChangeRow key={id} tag="UPDATE" tagBg="var(--update-bg)" tagColor="var(--update)">
+                <div className="flex items-center gap-1.5 text-[11px]">
+                  <span className="font-mono font-medium text-fg-0">
+                    {c.row.order_number}
+                  </span>
+                  <span style={{ color: "var(--fg-3)" }}>·</span>
+                  <span className="font-mono" style={{ color: "var(--fg-3)", fontSize: 10 }}>
+                    {id.slice(0, 8)}
+                  </span>
+                </div>
+                {Object.entries(c.edits).map(([col, e]) => (
+                  <div
+                    key={col}
+                    className="grid items-center gap-[5px] pl-1 font-mono text-[10.5px] grid-cols-[90px_auto_auto_auto]"
+                  >
+                    <span className="overflow-hidden text-ellipsis text-fg-2">
+                      {col}
+                    </span>
                     <span
-                      className="mono"
-                      style={{ color: "var(--fg-3)", fontSize: 10 }}
+                      className="overflow-hidden text-ellipsis rounded-[3px] px-1.5 py-px text-delete line-through"
+                      style={{
+                        background: "var(--delete-bg)",
+                        textDecorationColor: "rgba(255, 255, 255, 0.2)",
+                      }}
                     >
-                      {id.slice(0, 8)}
+                      {formatVal(e.from)}
+                    </span>
+                    <Icon.chevronRight size={10} stroke="var(--fg-3)" />
+                    <span className="overflow-hidden text-ellipsis rounded-[3px] bg-accent-soft px-1.5 py-px text-accent">
+                      {formatVal(e.to)}
                     </span>
                   </div>
-                  {Object.entries(c.edits).map(([col, e]) => (
-                    <div key={col} className="cm-edit">
-                      <span className="cm-edit-col">{col}</span>
-                      <span className="cm-edit-from">{formatVal(e.from)}</span>
-                      <Icon.chevronRight size={10} stroke="var(--fg-3)" />
-                      <span className="cm-edit-to">{formatVal(e.to)}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+                ))}
+              </ChangeRow>
             ))}
             {inserts.map(([id, c]) => (
-              <div key={id} className="cm-change cm-change-insert">
-                <span className="cm-change-tag">INSERT</span>
-                <div className="cm-change-body">
-                  <div className="cm-change-row">
-                    <span className="cm-change-id">
-                      {String((c.row as { order_number?: string }).order_number ?? "new")}
-                    </span>
-                    <span style={{ color: "var(--fg-3)" }}>·</span>
-                    <span
-                      className="mono"
-                      style={{ color: "var(--fg-3)", fontSize: 10 }}
-                    >
-                      new
-                    </span>
-                  </div>
-                  <div
-                    className="cm-edit"
-                    style={{
-                      color: "var(--fg-2)",
-                      gridTemplateColumns: "1fr",
-                    }}
-                  >
-                    new row · {Object.keys(c.row).length} columns set
-                  </div>
+              <ChangeRow key={id} tag="INSERT" tagBg="var(--insert-bg)" tagColor="var(--insert)">
+                <div className="flex items-center gap-1.5 text-[11px]">
+                  <span className="font-mono font-medium text-fg-0">
+                    {String((c.row as { order_number?: string }).order_number ?? "new")}
+                  </span>
+                  <span style={{ color: "var(--fg-3)" }}>·</span>
+                  <span className="font-mono" style={{ color: "var(--fg-3)", fontSize: 10 }}>
+                    new
+                  </span>
                 </div>
-              </div>
+                <div
+                  className="pl-1 font-mono text-[10.5px] text-fg-2"
+                  style={{ display: "grid", gridTemplateColumns: "1fr", gap: 5 }}
+                >
+                  new row · {Object.keys(c.row).length} columns set
+                </div>
+              </ChangeRow>
             ))}
             {deletes.map(([id, c]) => (
-              <div key={id} className="cm-change cm-change-delete">
-                <span className="cm-change-tag">DELETE</span>
-                <div className="cm-change-body">
-                  <div className="cm-change-row">
-                    <span
-                      className="cm-change-id"
-                      style={{ textDecoration: "line-through" }}
-                    >
-                      {c.row.order_number}
-                    </span>
-                    <span style={{ color: "var(--fg-3)" }}>·</span>
-                    <span
-                      className="mono"
-                      style={{ color: "var(--fg-3)", fontSize: 10 }}
-                    >
-                      {id.slice(0, 8)}
-                    </span>
-                  </div>
+              <ChangeRow key={id} tag="DELETE" tagBg="var(--delete-bg)" tagColor="var(--delete)">
+                <div className="flex items-center gap-1.5 text-[11px]">
+                  <span className="font-mono font-medium text-fg-0 line-through">
+                    {c.row.order_number}
+                  </span>
+                  <span style={{ color: "var(--fg-3)" }}>·</span>
+                  <span className="font-mono" style={{ color: "var(--fg-3)", fontSize: 10 }}>
+                    {id.slice(0, 8)}
+                  </span>
                 </div>
-              </div>
+              </ChangeRow>
             ))}
           </div>
         </div>
 
-        <div className="cm-sql">
-          <div className="cm-sql-head">
+        <div className="flex min-h-0 flex-col bg-bg-inset">
+          <div className="flex h-[26px] shrink-0 items-center justify-between border-b border-border-divider bg-bg-1 px-3 text-[10px] font-semibold uppercase tracking-[0.05em] text-fg-3">
             <span>Generated SQL</span>
-            <div className="cm-sql-head-right">
-              <button className="cd-pick">
+            <div className="flex gap-1">
+              <button className="inline-flex h-[26px] items-center gap-1 rounded-[4px] border border-border-default bg-bg-2 px-2 text-[11px] text-fg-1 hover:bg-bg-3">
                 <Icon.edit size={11} />
                 <span>Edit</span>
               </button>
-              <button className="cd-pick">
+              <button className="inline-flex h-[26px] items-center gap-1 rounded-[4px] border border-border-default bg-bg-2 px-2 text-[11px] text-fg-1 hover:bg-bg-3">
                 <Icon.copy size={11} />
                 <span>Copy</span>
               </button>
             </div>
           </div>
-          <div className="cm-sql-body mono">
+          <div className="flex-1 overflow-auto py-2 font-mono text-[11.5px] leading-[1.55]">
             {lines.map((toks, i) => (
-              <div key={i} className="cm-sql-line">
-                <span className="cm-sql-ln">{i + 1}</span>
-                <span className="cm-sql-text">{renderTokens(toks)}</span>
+              <div key={i} className="flex px-3">
+                <span className="inline-flex w-7 shrink-0 select-none items-center justify-end pr-2.5 font-variant-numeric-tabular text-[10px] text-fg-3 font-mono">
+                  {i + 1}
+                </span>
+                <span className="whitespace-pre font-mono">
+                  {renderTokens(toks)}
+                </span>
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      <div className="cd-foot">
-        <div className="cd-foot-left">
-          <label className="cd-check">
-            <input type="checkbox" defaultChecked /> Rollback on error
+      <div className="flex h-11 shrink-0 items-center justify-between gap-3 border-t border-border-default bg-bg-2 px-3">
+        <div className="flex items-center gap-2">
+          <label className="inline-flex cursor-pointer items-center gap-1 text-[11px] text-fg-2">
+            <input
+              type="checkbox"
+              defaultChecked
+              className="h-3 w-3"
+              style={{ accentColor: "var(--accent)" }}
+            />
+            Rollback on error
           </label>
-          <label className="cd-check">
-            <input type="checkbox" defaultChecked /> Confirm if rows affected
-            &gt; 100
+          <label className="inline-flex cursor-pointer items-center gap-1 text-[11px] text-fg-2">
+            <input
+              type="checkbox"
+              defaultChecked
+              className="h-3 w-3"
+              style={{ accentColor: "var(--accent)" }}
+            />
+            Confirm if rows affected &gt; 100
           </label>
-          <span className="cm-foot-warn">
+          <span className="ml-2 inline-flex items-center gap-1.5 text-[10.5px]">
             <Icon.warn size={10} stroke="var(--warn)" />
             <span style={{ color: "var(--warn)" }}>prod</span>
             <span style={{ color: "var(--fg-2)" }}>
@@ -299,20 +304,78 @@ export function CommitModal({
             </span>
           </span>
         </div>
-        <div className="cd-foot-right">
-          <button className="ed-run subtle" onClick={onClose}>
+        <div className="flex items-center gap-2">
+          <button className={ED_RUN_SUBTLE} onClick={onClose}>
             Cancel
           </button>
-          <button className="ed-run subtle">
+          <button className={ED_RUN_SUBTLE}>
             <Icon.undo size={11} />
             <span>Save as migration</span>
           </button>
-          <button className="ed-run primary danger">
+          <button
+            className={ED_RUN_DANGER}
+            style={{
+              borderColor: "color-mix(in oklab, var(--delete) 40%, black)",
+            }}
+          >
             <Icon.commit size={11} />
             <span>Commit transaction</span>
           </button>
         </div>
       </div>
     </Modal>
+  );
+}
+
+function SummaryItem({
+  icon,
+  bg,
+  color,
+  n,
+  label,
+}: {
+  icon: React.ReactNode;
+  bg: string;
+  color: string;
+  n: number;
+  label: string;
+}) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <span
+        className="inline-flex h-[22px] w-[22px] items-center justify-center rounded-[4px]"
+        style={{ background: bg, color }}
+      >
+        {icon}
+      </span>
+      <span className="font-mono text-[14px] font-semibold text-fg-0 tabular-nums">
+        {n}
+      </span>
+      <span className="text-[11px] text-fg-2">{label}</span>
+    </div>
+  );
+}
+
+function ChangeRow({
+  tag,
+  tagBg,
+  tagColor,
+  children,
+}: {
+  tag: string;
+  tagBg: string;
+  tagColor: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex gap-2 border-b border-dashed border-border-divider px-3 py-1.5">
+      <span
+        className="mt-px inline-flex h-[14px] items-center self-start rounded-[3px] px-1 py-px font-mono text-[9.5px] font-semibold tracking-[0.04em]"
+        style={{ background: tagBg, color: tagColor }}
+      >
+        {tag}
+      </span>
+      <div className="flex min-w-0 flex-1 flex-col gap-[3px]">{children}</div>
+    </div>
   );
 }

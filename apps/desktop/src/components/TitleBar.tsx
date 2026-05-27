@@ -16,28 +16,57 @@ export function TitleBar({
   onOpenPalette?: () => void;
 }) {
   return (
-    <div className="cellar-titlebar">
-      <div className="cellar-titlebar-left">
-        <div className="cellar-native-controls-spacer" aria-hidden="true" />
-        <div className="cellar-brand">
-          <span className="cellar-brand-mark" />
-          <span className="cellar-brand-name">Cellar</span>
+    <div
+      className={
+        "relative flex shrink-0 h-[34px] items-center gap-2.5 px-2.5 [-webkit-app-region:drag] " +
+        (empty
+          ? "bg-bg-0 border-b border-transparent"
+          : "bg-bg-1 border-b border-border-default")
+      }
+    >
+      <div className="flex shrink-0 items-center gap-1.5 [-webkit-app-region:no-drag]">
+        {/* Reserves room for macOS native traffic lights (positioned via
+            tauri.conf.json `trafficLightPosition`). */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none h-full w-[68px] shrink-0"
+        />
+        <div className="flex items-center gap-1.5 px-1">
+          <span
+            className="relative h-[14px] w-[14px] rounded-[3px]"
+            style={{
+              background:
+                "linear-gradient(135deg, #c4b5fd 0%, var(--accent) 55%, #6d4ed1 100%)",
+              boxShadow: "0 0 0 1px rgba(0, 0, 0, 0.2) inset",
+            }}
+          >
+            <span
+              className="absolute inset-[2px] rounded-[1px] bg-bg-1"
+              style={{
+                clipPath:
+                  "polygon(0 0, 100% 0, 100% 35%, 35% 35%, 35% 65%, 100% 65%, 100% 100%, 0 100%)",
+              }}
+            />
+          </span>
+          <span className="text-[12px] font-semibold tracking-[0.02em] text-fg-0">
+            Cellar
+          </span>
         </div>
         {!empty && (
           <>
-            <div className="cellar-titlebar-divider" />
-            <div className="cellar-breadcrumbs">
-              <button className="cellar-bc">
+            <div className="mx-0.5 h-4 w-px bg-border-default" />
+            <div className="flex items-center gap-0.5 max-[1080px]:[&_svg]:hidden">
+              <button className="inline-flex items-center gap-[5px] whitespace-nowrap rounded-[4px] px-1.5 py-[3px] text-[11.5px] text-fg-1 transition-[background] duration-100 hover:bg-bg-3 hover:text-fg-0">
                 <Icon.database size={12} />
                 <span>shop-eu (prod)</span>
               </button>
               <Icon.chevronRight size={11} style={{ opacity: 0.4 }} />
-              <button className="cellar-bc">
+              <button className="inline-flex items-center gap-[5px] whitespace-nowrap rounded-[4px] px-1.5 py-[3px] text-[11.5px] text-fg-1 transition-[background] duration-100 hover:bg-bg-3 hover:text-fg-0 max-[1080px]:hidden">
                 <span style={{ color: "var(--eng-postgres)" }}>●</span>
                 <span>shop_eu</span>
               </button>
               <Icon.chevronRight size={11} style={{ opacity: 0.4 }} />
-              <button className="cellar-bc">
+              <button className="inline-flex items-center gap-[5px] whitespace-nowrap rounded-[4px] px-1.5 py-[3px] text-[11.5px] text-fg-1 transition-[background] duration-100 hover:bg-bg-3 hover:text-fg-0 max-[1080px]:hidden">
                 <Icon.schema size={11} />
                 <span>public</span>
               </button>
@@ -46,16 +75,21 @@ export function TitleBar({
         )}
       </div>
 
-      <button className="cellar-cmdk" onClick={onOpenPalette}>
+      <button
+        onClick={onOpenPalette}
+        className="absolute left-1/2 top-1/2 flex h-[22px] min-w-0 w-[320px] max-w-[320px] -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-[5px] border border-border-default bg-bg-inset px-2 text-[11px] text-fg-3 transition-[border-color] duration-150 hover:border-border-strong [-webkit-app-region:no-drag]"
+      >
         <Icon.search size={11} />
-        <span className="cellar-cmdk-text">Search tables, columns, queries…</span>
-        <span className="cellar-cmdk-kbd">
+        <span className="flex-1 text-left">
+          Search tables, columns, queries…
+        </span>
+        <span className="inline-flex gap-0.5">
           <kbd className="kbd">⌘</kbd>
           <kbd className="kbd">K</kbd>
         </span>
       </button>
 
-      <div className="cellar-titlebar-right">
+      <div className="ml-auto flex shrink-0 items-center gap-1.5 [-webkit-app-region:no-drag]">
         {!empty && (
           <>
             <button
@@ -79,7 +113,7 @@ export function TitleBar({
             >
               <Icon.panelRight size={13} />
             </button>
-            <div className="cellar-titlebar-divider" />
+            <div className="mx-0.5 h-4 w-px bg-border-default" />
           </>
         )}
         {onToggleEmpty && (

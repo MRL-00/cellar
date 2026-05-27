@@ -63,75 +63,91 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
   for (const c of filtered) (grouped[c.grp] ||= []).push(c);
 
   return (
-    <div className="modal-scrim cmd-scrim" onClick={onClose}>
-      <div className="cmd-shell" onClick={(e) => e.stopPropagation()}>
-        <div className="cmd-input">
+    <div
+      className="fixed inset-0 z-[100] flex items-start justify-center bg-bg-overlay pt-[14vh] backdrop-blur-[4px] animate-scrim-in"
+      onClick={onClose}
+    >
+      <div
+        className="flex w-[580px] flex-col overflow-hidden rounded-lg border border-border-default bg-bg-1 shadow-lg animate-modal-in-fast"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex h-[38px] items-center gap-[9px] border-b border-border-default px-3">
           <Icon.search size={13} stroke="var(--fg-3)" />
           <input
             placeholder="Search tables, columns, commands, AI prompts…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             autoFocus
+            className="flex-1 border-none bg-transparent text-[13px] text-fg-0 outline-none placeholder:text-fg-3"
           />
           <span className="kbd">esc</span>
         </div>
 
-        <div className="cmd-list">
+        <div className="max-h-[420px] overflow-y-auto pt-1 pb-2">
           {Object.entries(grouped).map(([grp, items]) => (
-            <div key={grp} className="cmd-group">
-              <div className="cmd-group-head">{grp}</div>
-              {items.map((c, i) => (
-                <button
-                  key={c.label}
-                  className={
-                    "cmd-item" + (grp === "Recent" && i === 0 ? " active" : "")
-                  }
-                >
-                  <span className="cmd-item-icon">{groupIcon(grp as Group)}</span>
-                  <span className="cmd-item-label">{c.label}</span>
-                  {c.hint && <span className="cmd-item-hint">{c.hint}</span>}
-                  {c.kbd && (
-                    <span className="cmd-item-kbd">
-                      {c.kbd.map((k, j) => (
-                        <kbd key={j} className="kbd">
-                          {k}
-                        </kbd>
-                      ))}
+            <div key={grp} className="pt-1.5 pb-1">
+              <div className="px-3.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-fg-3">
+                {grp}
+              </div>
+              {items.map((c, i) => {
+                const isActive = grp === "Recent" && i === 0;
+                return (
+                  <button
+                    key={c.label}
+                    className={
+                      "flex w-full items-center gap-2.5 px-3.5 py-1.5 text-left text-[12px] " +
+                      (isActive
+                        ? "bg-accent-soft text-accent"
+                        : "text-fg-1 hover:bg-bg-2 hover:text-fg-0")
+                    }
+                  >
+                    <span className="inline-flex w-[18px] shrink-0 items-center justify-center">
+                      {groupIcon(grp as Group)}
                     </span>
-                  )}
-                </button>
-              ))}
+                    <span className="shrink-0 whitespace-nowrap font-medium">
+                      {c.label}
+                    </span>
+                    {c.hint && (
+                      <span className="ml-auto min-w-0 overflow-hidden text-ellipsis whitespace-nowrap pr-1.5 text-[11px] text-fg-3">
+                        {c.hint}
+                      </span>
+                    )}
+                    {c.kbd && (
+                      <span className="inline-flex shrink-0 gap-0.5">
+                        {c.kbd.map((k, j) => (
+                          <kbd key={j} className="kbd">
+                            {k}
+                          </kbd>
+                        ))}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           ))}
           {filtered.length === 0 && (
-            <div
-              style={{
-                padding: "20px 14px",
-                fontSize: 11.5,
-                color: "var(--fg-3)",
-                textAlign: "center",
-              }}
-            >
+            <div className="px-3.5 py-5 text-center text-[11.5px] text-fg-3">
               No matches for &ldquo;{q}&rdquo;
             </div>
           )}
         </div>
 
-        <div className="cmd-foot">
-          <span>
+        <div className="flex items-center gap-3 border-t border-border-default bg-bg-2 px-3 py-1.5 text-[10.5px] text-fg-3">
+          <span className="inline-flex items-center gap-1">
             <kbd className="kbd">↑↓</kbd>
             <span>navigate</span>
           </span>
-          <span>
+          <span className="inline-flex items-center gap-1">
             <kbd className="kbd">⏎</kbd>
             <span>select</span>
           </span>
-          <span>
+          <span className="inline-flex items-center gap-1">
             <kbd className="kbd">⌘⏎</kbd>
             <span>open in new tab</span>
           </span>
-          <div style={{ flex: 1 }} />
-          <span>
+          <div className="flex-1" />
+          <span className="inline-flex items-center gap-1">
             <Icon.sparkles size={10} stroke="var(--accent)" />
             <span style={{ color: "var(--accent)" }}>type / to ask AI</span>
           </span>

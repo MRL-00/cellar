@@ -1,9 +1,110 @@
+@import "tailwindcss";
 @import "./tokens.css";
 @import "./base.css";
-@import "./chrome.css";
-@import "./sidebar.css";
-@import "./tabs.css";
-@import "./workspace.css";
-@import "./bottom.css";
-@import "./ai.css";
-@import "./modals.css";
+
+/* Bridge: expose every design token from tokens.css as a Tailwind v4 theme key
+   so utilities like `bg-bg-0`, `text-fg-1`, `border-border-default`, `font-mono`,
+   `text-sm`, `shadow-lg`, `rounded-md`, `animate-modal-in` resolve correctly.
+   Values stay as `var(--…)` references so `[data-theme]` / `[data-density]`
+   overrides in tokens.css still drive runtime theme + density switching. */
+@theme inline {
+  /* Surfaces */
+  --color-bg-0: var(--bg-0);
+  --color-bg-1: var(--bg-1);
+  --color-bg-2: var(--bg-2);
+  --color-bg-3: var(--bg-3);
+  --color-bg-4: var(--bg-4);
+  --color-bg-inset: var(--bg-inset);
+  --color-bg-overlay: var(--bg-overlay);
+
+  /* Borders */
+  --color-border-subtle: var(--border-subtle);
+  --color-border-default: var(--border-default);
+  --color-border-strong: var(--border-strong);
+  --color-border-divider: var(--border-divider);
+
+  /* Text */
+  --color-fg-0: var(--fg-0);
+  --color-fg-1: var(--fg-1);
+  --color-fg-2: var(--fg-2);
+  --color-fg-3: var(--fg-3);
+  --color-fg-4: var(--fg-4);
+
+  /* Accent */
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-line: var(--accent-line);
+  --color-accent-fg: var(--accent-fg);
+
+  /* Semantic */
+  --color-insert: var(--insert);
+  --color-insert-bg: var(--insert-bg);
+  --color-insert-line: var(--insert-line);
+  --color-update: var(--update);
+  --color-update-bg: var(--update-bg);
+  --color-update-line: var(--update-line);
+  --color-delete: var(--delete);
+  --color-delete-bg: var(--delete-bg);
+  --color-delete-line: var(--delete-line);
+  --color-warn: var(--warn);
+  --color-info: var(--info);
+
+  /* Engine */
+  --color-eng-postgres: var(--eng-postgres);
+  --color-eng-mysql: var(--eng-mysql);
+  --color-eng-mssql: var(--eng-mssql);
+  --color-eng-azure: var(--eng-azure);
+  --color-eng-sqlite: var(--eng-sqlite);
+
+  /* Syntax (SQL) */
+  --color-syn-kw: var(--syn-kw);
+  --color-syn-fn: var(--syn-fn);
+  --color-syn-str: var(--syn-str);
+  --color-syn-num: var(--syn-num);
+  --color-syn-ident: var(--syn-ident);
+  --color-syn-comment: var(--syn-comment);
+  --color-syn-op: var(--syn-op);
+  --color-syn-tbl: var(--syn-tbl);
+  --color-syn-ghost: var(--syn-ghost);
+  --color-syn-error: var(--syn-error);
+
+  /* Type */
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  /* Font sizes (matches Cellar's compact density scale) */
+  --text-xs: var(--fs-xs);
+  --text-sm: var(--fs-sm);
+  --text-md: var(--fs-md);
+  --text-lg: var(--fs-lg);
+  --text-xl: var(--fs-xl);
+
+  /* Shadows */
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+
+  /* Radii */
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+
+  /* Animations — keyframes defined below */
+  --animate-scrim-in: scrim-in 0.18s ease-out;
+  --animate-modal-in: modal-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-modal-in-fast: modal-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-sb-pulse: sb-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes scrim-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes modal-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.99); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes sb-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}

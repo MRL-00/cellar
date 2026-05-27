@@ -21,45 +21,82 @@ const SHORT: Record<Engine, string> = {
 
 export function EmptyState({ onNew }: { onNew: () => void }) {
   return (
-    <div className="empty-root">
-      <div className="empty-card">
-        <div className="empty-logo">
-          <span className="empty-logo-mark" />
+    <div className="relative flex flex-1 items-center justify-center overflow-hidden bg-bg-0">
+      <div
+        className="pointer-events-none absolute inset-0 opacity-60"
+        style={{
+          backgroundImage:
+            "radial-gradient(circle at 30% 20%, var(--accent-soft), transparent 40%), radial-gradient(circle at 70% 80%, color-mix(in oklab, var(--syn-kw) 10%, transparent), transparent 50%)",
+        }}
+      />
+      <div className="relative w-[540px] rounded-xl border border-border-default bg-bg-1 px-9 pt-9 pb-7 text-center shadow-md">
+        <div className="mb-[18px] flex justify-center">
+          <span
+            className="relative h-9 w-9 rounded-lg"
+            style={{
+              background:
+                "linear-gradient(135deg, #c4b5fd 0%, var(--accent) 55%, #6d4ed1 100%)",
+              boxShadow: "0 0 24px var(--accent-soft)",
+            }}
+          >
+            <span
+              className="absolute inset-[5px] rounded bg-bg-1"
+              style={{
+                clipPath:
+                  "polygon(0 0, 100% 0, 100% 35%, 35% 35%, 35% 65%, 100% 65%, 100% 100%, 0 100%)",
+              }}
+            />
+          </span>
         </div>
-        <h1 className="empty-title">Welcome to Cellar</h1>
-        <p className="empty-sub">
+        <h1 className="m-0 mb-1 text-[20px] font-semibold tracking-[-0.01em] text-fg-0">
+          Welcome to Cellar
+        </h1>
+        <p
+          className="m-0 mb-[22px] text-[12.5px] text-fg-2"
+          style={{ textWrap: "pretty" }}
+        >
           A fast, native database client with AI built in. Open-source, BYO key.
         </p>
 
-        <div className="empty-actions">
-          <button className="empty-action primary" onClick={onNew}>
+        <div className="mb-[22px] flex flex-col gap-1.5">
+          <button
+            onClick={onNew}
+            className="flex h-8 items-center justify-center gap-2 whitespace-nowrap rounded-[6px] border px-3 text-xs font-medium text-accent-fg transition-[filter] duration-[120ms] hover:brightness-[1.07]"
+            style={{
+              background:
+                "linear-gradient(135deg, #c4b5fd 0%, var(--accent) 55%, #6d4ed1 100%)",
+              borderColor: "color-mix(in oklab, var(--accent) 40%, black)",
+            }}
+          >
             <Icon.plus size={12} />
             <span>New connection</span>
           </button>
-          <button className="empty-action">
+          <button className="flex h-8 items-center justify-center gap-2 whitespace-nowrap rounded-[6px] border border-border-default bg-bg-2 px-3 text-xs text-fg-0 transition-[background,border-color] duration-[120ms] hover:border-border-strong hover:bg-bg-3">
             <Icon.fileText size={12} />
             <span>Import from DataGrip / DBeaver</span>
           </button>
-          <button className="empty-action">
+          <button className="flex h-8 items-center justify-center gap-2 whitespace-nowrap rounded-[6px] border border-border-default bg-bg-2 px-3 text-xs text-fg-0 transition-[background,border-color] duration-[120ms] hover:border-border-strong hover:bg-bg-3">
             <Icon.cloud size={12} />
             <span>Connect to demo database</span>
           </button>
         </div>
 
-        <div className="empty-engines-label">or pick an engine to start</div>
-        <div className="empty-engines">
+        <div className="mb-2 text-[10px] uppercase tracking-[0.06em] text-fg-3">
+          or pick an engine to start
+        </div>
+        <div className="mb-[22px] grid grid-cols-5 gap-1.5">
           {ENGINE_ORDER.map((e) => {
             const m = ENGINE_META[e];
             const hex = ENGINE_HEX[e];
             return (
               <button
                 key={e}
-                className="empty-engine"
                 onClick={onNew}
                 title={m.label}
+                className="flex flex-col items-center gap-1.5 rounded-[6px] border border-border-default bg-bg-2 px-1.5 pt-2.5 pb-2 transition-all duration-150 hover:-translate-y-px hover:border-border-strong"
               >
                 <span
-                  className="empty-engine-letter mono"
+                  className="inline-flex h-[26px] w-[26px] items-center justify-center rounded-[5px] border font-mono text-xs font-semibold"
                   style={{
                     color: hex,
                     background: `color-mix(in oklab, ${hex} 12%, transparent)`,
@@ -68,35 +105,42 @@ export function EmptyState({ onNew }: { onNew: () => void }) {
                 >
                   {m.letter}
                 </span>
-                <span className="empty-engine-name">{SHORT[e]}</span>
+                <span className="whitespace-nowrap text-[10px] text-fg-1">
+                  {SHORT[e]}
+                </span>
               </button>
             );
           })}
         </div>
 
-        <div className="empty-shortcut-row">
-          <span className="empty-shortcut">
+        <div className="mb-[18px] flex justify-center gap-4">
+          <span className="inline-flex items-center gap-1 whitespace-nowrap text-[10.5px] text-fg-3">
             <kbd className="kbd">⌘</kbd>
             <kbd className="kbd">K</kbd>
             <span>command palette</span>
           </span>
-          <span className="empty-shortcut">
+          <span className="inline-flex items-center gap-1 whitespace-nowrap text-[10.5px] text-fg-3">
             <kbd className="kbd">⌘</kbd>
             <kbd className="kbd">N</kbd>
             <span>new connection</span>
           </span>
-          <span className="empty-shortcut">
+          <span className="inline-flex items-center gap-1 whitespace-nowrap text-[10.5px] text-fg-3">
             <kbd className="kbd">⌘</kbd>
             <kbd className="kbd">,</kbd>
             <span>settings</span>
           </span>
         </div>
 
-        <div className="empty-foot">
+        <div className="border-t border-border-divider pt-4 text-[10.5px] text-fg-3">
           <span>
             v0.1.0 · MIT licensed ·{" "}
-            <button className="cd-link">docs</button> ·{" "}
-            <button className="cd-link">github</button>
+            <button className="bg-transparent text-[10.5px] text-accent underline underline-offset-2">
+              docs
+            </button>{" "}
+            ·{" "}
+            <button className="bg-transparent text-[10.5px] text-accent underline underline-offset-2">
+              github
+            </button>
           </span>
         </div>
       </div>
