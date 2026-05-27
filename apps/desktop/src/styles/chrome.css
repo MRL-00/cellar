@@ -48,6 +48,7 @@
 
 /* ─── title bar ─── */
 .cellar-titlebar {
+  position: relative;
   height: var(--titlebar-h);
   display: flex;
   align-items: center;
@@ -78,11 +79,11 @@
   .cellar-breadcrumbs > svg { display: none; }
 }
 
-.cellar-traffic { display: flex; gap: 6px; padding: 0 6px 0 0; }
-.cellar-traffic span {
-  width: 11px;
-  height: 11px;
-  border-radius: 50%;
+.cellar-native-controls-spacer {
+  width: 68px;
+  height: 100%;
+  flex-shrink: 0;
+  pointer-events: none;
 }
 
 .cellar-brand {
@@ -140,13 +141,16 @@
 .cellar-bc:hover { background: var(--bg-3); color: var(--fg-0); }
 
 .cellar-cmdk {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   display: flex;
   align-items: center;
   gap: 8px;
   height: 22px;
   width: 320px;
   max-width: 320px;
-  margin: 0 auto;
   padding: 0 8px;
   background: var(--bg-inset);
   border: 1px solid var(--border-default);
