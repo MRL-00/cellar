@@ -35,6 +35,7 @@ const I = ({
 export const Icon = {
   chevronRight: (p: IconProps) => <I {...p} d="M9 6l6 6-6 6" />,
   chevronDown: (p: IconProps) => <I {...p} d="M6 9l6 6 6-6" />,
+  chevronLeft: (p: IconProps) => <I {...p} d="M15 6l-6 6 6 6" />,
   chevronsDown: (p: IconProps) => (
     <I {...p}>
       <path d="M6 6l6 6 6-6" />
@@ -201,6 +202,46 @@ export const Icon = {
       <path d="M12 3v18M9 6L6 9l3 3M15 18l3-3-3-3" />
     </I>
   ),
+  commit: (p: IconProps) => (
+    <I {...p}>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M16 12h6M2 12h6" />
+    </I>
+  ),
+  copy: (p: IconProps) => (
+    <I {...p}>
+      <rect x="9" y="9" width="11" height="11" rx="1.5" />
+      <path d="M5 15H4a1 1 0 01-1-1V4a1 1 0 011-1h10a1 1 0 011 1v1" />
+    </I>
+  ),
+  edit: (p: IconProps) => (
+    <I {...p} d="M11 4H5a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2v-6M18 2l4 4-10 10H8v-4z" />
+  ),
+  undo: (p: IconProps) => (
+    <I {...p} d="M3 8h10a5 5 0 010 10H8M3 8l4-4M3 8l4 4" />
+  ),
+  ssh: (p: IconProps) => (
+    <I {...p}>
+      <rect x="2" y="4" width="20" height="16" rx="1.5" />
+      <path d="M6 9l3 3-3 3M13 15h5" />
+    </I>
+  ),
+  cloud: (p: IconProps) => (
+    <I
+      {...p}
+      d="M17.5 19a4.5 4.5 0 000-9c-.4-2.8-2.8-5-5.7-5a5.8 5.8 0 00-5.6 4.3A4.4 4.4 0 002 14a4 4 0 004 4z"
+    />
+  ),
+  bolt: (p: IconProps) => (
+    <I {...p} fill="currentColor" stroke="none" d="M13 2L4 14h6l-1 8 9-12h-6z" />
+  ),
+  layout: (p: IconProps) => (
+    <I {...p}>
+      <rect x="3" y="3" width="18" height="18" rx="1.5" />
+      <path d="M3 9h18M9 9v12" />
+    </I>
+  ),
+  bracket: (p: IconProps) => <I {...p} d="M8 4H4v16h4M16 4h4v16h-4" />,
 };
 
 export type IconName = keyof typeof Icon;
