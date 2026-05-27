@@ -5,6 +5,10 @@
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
+  "scripts": {
+    "lint": "node ../../scripts/check-ts-entry.mjs src/index.ts src/index.test.ts",
+    "test": "vitest run"
+  },
   "exports": {
     ".": "./src/index.ts"
   }

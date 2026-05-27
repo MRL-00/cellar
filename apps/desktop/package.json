@@ -8,6 +8,8 @@
     "dev:web": "vite",
     "build": "tsc --noEmit && vite build",
     "build:tauri": "tauri build",
+    "lint": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit",
     "tauri": "tauri"
   },
