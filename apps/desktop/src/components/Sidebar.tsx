@@ -44,7 +44,11 @@ function StatusDot({ status }: { status: ConnStatus }) {
   );
 }
 
-export function Sidebar() {
+export function Sidebar({
+  onNewConnection,
+}: {
+  onNewConnection?: () => void;
+} = {}) {
   const [filter, setFilter] = useState("");
   const meta = { color: "var(--eng-postgres)" };
   return (
@@ -55,7 +59,11 @@ export function Sidebar() {
           <span className="sb-header-count mono">{SAMPLE_CONNECTIONS.length}</span>
         </div>
         <div className="sb-header-actions">
-          <button className="icon-btn" title="New connection">
+          <button
+            className="icon-btn"
+            title="New connection"
+            onClick={onNewConnection}
+          >
             <Icon.plus size={12} />
           </button>
           <button className="icon-btn" title="More">
@@ -183,7 +191,7 @@ export function Sidebar() {
           </div>
         ))}
 
-        <button className="sb-add-connection">
+        <button className="sb-add-connection" onClick={onNewConnection}>
           <Icon.plus size={11} />
           <span>New connection</span>
         </button>

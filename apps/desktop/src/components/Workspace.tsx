@@ -1,6 +1,6 @@
 import { Icon } from "./icons";
 
-export function Workspace() {
+export function Workspace({ onCommit }: { onCommit?: () => void } = {}) {
   return (
     <div className="cellar-workspace">
       <div className="ws-placeholder">
@@ -28,6 +28,20 @@ export function Workspace() {
             <kbd className="kbd">I</kbd>&nbsp;ask AI
           </span>
         </div>
+        {onCommit && (
+          <button
+            className="ed-run subtle"
+            onClick={onCommit}
+            style={{ marginTop: 4 }}
+            title="Open the commit review modal"
+          >
+            <Icon.commit size={11} />
+            <span>Review &amp; commit (4 pending)</span>
+            <kbd className="kbd" style={{ marginLeft: 4 }}>
+              ⌘S
+            </kbd>
+          </button>
+        )}
       </div>
     </div>
   );
