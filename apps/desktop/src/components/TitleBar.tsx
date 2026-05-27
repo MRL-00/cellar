@@ -12,11 +12,7 @@ export function TitleBar({
   return (
     <div className="cellar-titlebar">
       <div className="cellar-titlebar-left">
-        <div className="cellar-traffic">
-          <span style={{ background: "#ed6a5e" }} />
-          <span style={{ background: "#f5bf4f" }} />
-          <span style={{ background: "#61c554" }} />
-        </div>
+        <div className="cellar-native-controls-spacer" aria-hidden="true" />
         <div className="cellar-brand">
           <span className="cellar-brand-mark" />
           <span className="cellar-brand-name">Cellar</span>
