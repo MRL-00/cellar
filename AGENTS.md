@@ -104,6 +104,7 @@ If Clawpatch reports findings, triage them before claiming the project is ready 
 - Keep frontend TypeScript strict.
 - Keep Rust errors typed; avoid stringly-typed backend contracts.
 - Generated IPC types should come from Rust command/type definitions, not hand-maintained duplicates.
+- Pull request titles must not use `codex:` or `[codex]` prefixes. Use conventional prefixes such as `feat:`, `fix:`, `bug:`, `chore:`, `docs:`, `test:`, `build:`, `ci:`, or `refactor:`.
 
 ## Security And Privacy
 
