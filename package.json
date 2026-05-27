@@ -7,14 +7,15 @@
   "packageManager": "pnpm@9.0.0",
   "scripts": {
     "dev": "pnpm --filter @cellar/desktop dev",
-    "build": "turbo run build",
-    "lint": "turbo run lint",
-    "test": "turbo run test",
-    "typecheck": "turbo run typecheck"
+    "build": "node scripts/turbo-guard.mjs build",
+    "lint": "cargo fmt --all --check && node scripts/turbo-guard.mjs lint",
+    "test": "cargo test --workspace && node scripts/turbo-guard.mjs test && pnpm typecheck",
+    "typecheck": "node scripts/turbo-guard.mjs typecheck"
   },
   "devDependencies": {
     "turbo": "^2.1.0",
-    "typescript": "^5.5.4"
+    "typescript": "^5.5.4",
+    "vitest": "^2.1.9"
   },
   "engines": {
     "node": ">=20",
