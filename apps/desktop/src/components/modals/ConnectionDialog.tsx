@@ -1,7 +1,11 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import type { ConnectionConfig, DriverInfo, EnvTag, SslMode } from "@cellar/ipc";
+import { commands, unwrap } from "@cellar/ipc";
+
 import { Icon } from "../icons";
 import { ENGINE_META, type Engine } from "../EngineBadge";
 import { Modal } from "./Modal";
+import { useConnections } from "../../state/connections";
 
 const ENGINE_ORDER: Engine[] = ["postgres", "mssql", "azure", "mysql", "sqlite"];
 
@@ -15,23 +19,36 @@ const ENGINE_HEX: Record<Engine, string> = {
 
 const SWATCH_COLORS = ["#4f8ff7", "#f6a44a", "#d97a5a", "#5bb8e0", "#a78bfa", "#4ade80", "#f87171"];
 
-const DEFAULT_PORT: Record<Engine, string> = {
-  postgres: "5432",
-  mysql: "3306",
-  mssql: "1433",
-  azure: "1433",
-  sqlite: "—",
+const DEFAULT_PORT: Record<Engine, number> = {
+  postgres: 5432,
+  mysql: 3306,
+  mssql: 1433,
+  azure: 1433,
+  sqlite: 0,
 };
 
-type Auth = "password" | "kerberos" | "azure-ad" | "managed-id" | "windows";
 type Tab = "general" | "ssh" | "ssl" | "options";
+type TestStatus =
+  | { kind: "idle" }
+  | { kind: "running" }
+  | { kind: "ok"; info: DriverInfo; durationMs: number }
+  | { kind: "error"; message: string };
+
+const ENV_TAGS: EnvTag[] = ["prod", "staging", "dev", "local"];
+const SSL_MODES: SslMode[] = [
+  "disable",
+  "prefer",
+  "require",
+  "verify-ca",
+  "verify-full",
+];
 
 const ED_RUN_BASE =
-  "inline-flex h-[26px] items-center gap-[5px] whitespace-nowrap rounded-[4px] border border-transparent px-2.5 text-[11.5px] font-medium text-fg-1 transition-[background,color,border-color,filter] duration-[120ms]";
+  "inline-flex h-[26px] items-center gap-[5px] whitespace-nowrap rounded-[4px] border border-transparent px-2.5 text-[11.5px] font-medium transition-[background,color,border-color,filter] duration-[120ms]";
 
 const ED_RUN_SUBTLE =
   ED_RUN_BASE +
-  " bg-transparent border-border-default hover:bg-bg-3 hover:border-border-strong hover:text-fg-0 disabled:opacity-40 disabled:cursor-not-allowed";
+  " text-fg-1 bg-transparent border-border-default hover:bg-bg-3 hover:border-border-strong hover:text-fg-0 disabled:opacity-40 disabled:cursor-not-allowed";
 
 const ED_RUN_PRIMARY =
   ED_RUN_BASE +
@@ -40,20 +57,109 @@ const ED_RUN_PRIMARY =
 const CD_INPUT =
   "h-[26px] min-w-0 flex-1 rounded-[4px] border border-border-default bg-bg-inset px-2 text-[11.5px] text-fg-0 outline-none font-sans focus:border-accent-line focus:bg-bg-2";
 
-export function ConnectionDialog({ onClose }: { onClose: () => void }) {
-  const [engine, setEngine] = useState<Engine>("postgres");
-  const [tab, setTab] = useState<Tab>("general");
-  const [auth, setAuth] = useState<Auth>("password");
-  const [ssh, setSsh] = useState(false);
-  const [ssl, setSsl] = useState(true);
-  const [swatch, setSwatch] = useState<string>(ENGINE_HEX.postgres);
+interface ConnectionDialogProps {
+  onClose: () => void;
+  /** "edit" keeps the existing id; "new" derives a fresh one from the name. */
+  mode?: "new" | "edit";
+  /** Prefill values — an existing connection (edit) or a copy seed (duplicate). */
+  initial?: ConnectionConfig;
+}
 
+export function ConnectionDialog({
+  onClose,
+  mode = "new",
+  initial,
+}: ConnectionDialogProps) {
+  const saveConnection = useConnections((s) => s.saveConnection);
+  const isEdit = mode === "edit" && !!initial;
+
+  const [engine, setEngine] = useState<Engine>(
+    (initial?.engine as Engine) ?? "postgres",
+  );
+  const [tab, setTab] = useState<Tab>("general");
+  const [ssh, setSsh] = useState(false);
+  const [ssl, setSsl] = useState(
+    initial ? initial.ssl_mode !== "disable" : true,
+  );
+  const [sslMode, setSslMode] = useState<SslMode>(
+    initial && initial.ssl_mode !== "disable" ? initial.ssl_mode : "prefer",
+  );
+  const [swatch, setSwatch] = useState<string>(
+    initial?.color ?? ENGINE_HEX.postgres,
+  );
+  const [envTag, setEnvTag] = useState<EnvTag>(initial?.env_tag ?? "local");
+
+  const [name, setName] = useState(initial?.name ?? "");
+  const [host, setHost] = useState(initial?.host ?? "localhost");
+  const [port, setPort] = useState<number>(initial?.port ?? DEFAULT_PORT.postgres);
+  const [database, setDatabase] = useState(initial?.database ?? "postgres");
+  const [user, setUser] = useState(initial?.user ?? "");
+  const [password, setPassword] = useState("");
+  const [appName, setAppName] = useState(initial?.application_name ?? "cellar");
+
+  const [test, setTest] = useState<TestStatus>({ kind: "idle" });
+  const [savingError, setSavingError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  // Only snap the port/swatch to engine defaults when the user picks an engine
+  // for a *new* connection — never clobber values loaded for editing.
+  const userPickedEngine = useRef(false);
   useEffect(() => {
-    if (engine === "azure") setAuth("azure-ad");
-    else if (auth === "azure-ad" && engine !== "mssql") setAuth("password");
+    if (!userPickedEngine.current) return;
+    setPort(DEFAULT_PORT[engine] || 5432);
     setSwatch(ENGINE_HEX[engine]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [engine]);
+
+  const derivedId = useMemo(
+    () => slugify(name || `${host}-${database}`),
+    [name, host, database],
+  );
+  const id = isEdit && initial ? initial.id : derivedId;
+
+  const buildConfig = (): ConnectionConfig => ({
+    id,
+    name: name || `${user || "user"}@${host}/${database}`,
+    engine: engine as ConnectionConfig["engine"],
+    host,
+    port,
+    database,
+    user,
+    ssl_mode: ssl ? sslMode : "disable",
+    env_tag: envTag,
+    application_name: appName || null,
+    color: swatch,
+  });
+
+  const onTest = async () => {
+    setTest({ kind: "running" });
+    const started = performance.now();
+    try {
+      const info = await unwrap(
+        commands.testConnection(buildConfig(), password || null),
+      );
+      const durationMs = Math.round(performance.now() - started);
+      setTest({ kind: "ok", info, durationMs });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setTest({ kind: "error", message });
+    }
+  };
+
+  const onSave = async () => {
+    setSavingError(null);
+    setSaving(true);
+    try {
+      await saveConnection(buildConfig(), password || null);
+      onClose();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setSavingError(message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const sqliteOnly = engine === "sqlite";
 
   return (
     <Modal onClose={onClose} width={760}>
@@ -63,7 +169,7 @@ export function ConnectionDialog({ onClose }: { onClose: () => void }) {
             <Icon.database size={14} />
           </span>
           <span className="whitespace-nowrap text-[12.5px] font-semibold text-fg-0">
-            New connection
+            {isEdit ? "Edit connection" : "New connection"}
           </span>
         </div>
         <button className="icon-btn" onClick={onClose} title="Close">
@@ -77,13 +183,21 @@ export function ConnectionDialog({ onClose }: { onClose: () => void }) {
             const m = ENGINE_META[e];
             const hex = ENGINE_HEX[e];
             const active = engine === e;
+            const disabled = e !== "postgres";
             return (
               <button
                 key={e}
-                onClick={() => setEngine(e)}
+                onClick={() => {
+                  if (disabled) return;
+                  userPickedEngine.current = true;
+                  setEngine(e);
+                }}
+                disabled={disabled}
+                title={disabled ? "coming soon" : m.label}
                 className={
                   "flex flex-col items-center gap-1.5 rounded-[6px] border border-border-default bg-bg-2 px-1.5 pt-2.5 pb-[9px] transition-all duration-150 hover:border-border-strong " +
-                  (active ? "shadow-[inset_0_0_0_1px_var(--accent)]" : "")
+                  (active ? "shadow-[inset_0_0_0_1px_var(--accent)]" : "") +
+                  (disabled ? " opacity-40 cursor-not-allowed" : "")
                 }
               >
                 <span
@@ -148,128 +262,71 @@ export function ConnectionDialog({ onClose }: { onClose: () => void }) {
         {tab === "general" && (
           <div className="flex flex-col gap-2.5">
             <FormRow label="Name" hint="Shown in the sidebar">
-              <input className={CD_INPUT} defaultValue="shop-eu (prod)" />
+              <input
+                className={CD_INPUT}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="local-postgres"
+              />
             </FormRow>
 
             <FormRow label="Host">
               <input
                 className={CD_INPUT + " font-mono"}
-                defaultValue="prod-pg.internal.shop.eu"
+                value={host}
+                onChange={(e) => setHost(e.target.value)}
                 style={{ flex: 1 }}
               />
               <span className="text-fg-3">:</span>
               <input
                 className={CD_INPUT + " font-mono w-[70px] flex-none"}
-                defaultValue={DEFAULT_PORT[engine]}
+                value={port}
+                inputMode="numeric"
+                onChange={(e) => setPort(Number(e.target.value) || 0)}
               />
             </FormRow>
 
-            {engine !== "sqlite" && (
+            {!sqliteOnly && (
               <FormRow label="Database">
-                <input className={CD_INPUT + " font-mono"} defaultValue="shop_eu" />
-              </FormRow>
-            )}
-
-            {engine === "sqlite" && (
-              <FormRow label="File">
                 <input
                   className={CD_INPUT + " font-mono"}
-                  defaultValue="~/projects/shop/local.db"
-                  style={{ flex: 1 }}
+                  value={database}
+                  onChange={(e) => setDatabase(e.target.value)}
                 />
-                <PickButton>
-                  <Icon.fileText size={11} />
-                  <span>Browse</span>
-                </PickButton>
               </FormRow>
             )}
 
-            <FormRow label="Auth">
-              <Segment>
-                <Seg active={auth === "password"} onClick={() => setAuth("password")}>
-                  Password
-                </Seg>
-                {engine === "postgres" && (
-                  <Seg active={auth === "kerberos"} onClick={() => setAuth("kerberos")}>
-                    Kerberos
-                  </Seg>
-                )}
-                {(engine === "azure" || engine === "mssql") && (
-                  <Seg active={auth === "azure-ad"} onClick={() => setAuth("azure-ad")}>
-                    Azure AD
-                  </Seg>
-                )}
-                {engine === "azure" && (
-                  <Seg active={auth === "managed-id"} onClick={() => setAuth("managed-id")}>
-                    Managed identity
-                  </Seg>
-                )}
-                {(engine === "mssql" || engine === "azure") && (
-                  <Seg active={auth === "windows"} onClick={() => setAuth("windows")}>
-                    Windows
-                  </Seg>
-                )}
-              </Segment>
+            <FormRow label="User">
+              <input
+                className={CD_INPUT + " font-mono"}
+                value={user}
+                onChange={(e) => setUser(e.target.value)}
+                autoComplete="off"
+              />
             </FormRow>
 
-            {auth === "password" && (
-              <>
-                <FormRow label="User">
-                  <input className={CD_INPUT + " font-mono"} defaultValue="analytics_ro" />
-                </FormRow>
-                <FormRow label="Password" hint="Stored in OS keychain">
-                  <input
-                    className={CD_INPUT + " font-mono"}
-                    type="password"
-                    defaultValue="••••••••••••••"
-                    style={{ flex: 1 }}
-                  />
-                  <label className="inline-flex cursor-pointer items-center gap-1 text-[11px] text-fg-2">
-                    <input
-                      type="checkbox"
-                      className="h-3 w-3"
-                      style={{ accentColor: "var(--accent)" }}
-                    />
-                    save
-                  </label>
-                </FormRow>
-              </>
-            )}
-
-            {auth === "azure-ad" && (
-              <>
-                <FormRow label="Tenant" hint="leave empty for default">
-                  <input
-                    className={CD_INPUT + " font-mono"}
-                    placeholder="contoso.onmicrosoft.com"
-                  />
-                </FormRow>
-                <FormRow label="Account">
-                  <div className="inline-flex items-center gap-1.5 rounded-[4px] border border-border-default bg-bg-inset py-0.5 pl-0.5 pr-2 text-[11px]">
-                    <span className="inline-flex h-[18px] w-[18px] items-center justify-center rounded-[3px] bg-eng-azure text-[10px] font-semibold text-white">
-                      A
-                    </span>
-                    <span>alice@contoso.com</span>
-                    <button className="bg-transparent text-[11px] text-accent underline underline-offset-2">
-                      change
-                    </button>
-                  </div>
-                </FormRow>
-              </>
-            )}
-
-            {auth === "managed-id" && (
-              <FormRow label="Client ID" hint="user-assigned identity">
-                <input className={CD_INPUT + " font-mono"} placeholder="(system-assigned)" />
-              </FormRow>
-            )}
+            <FormRow
+              label="Password"
+              hint={
+                isEdit
+                  ? "Leave blank to keep the saved password"
+                  : "Stored in OS keychain"
+              }
+            >
+              <input
+                className={CD_INPUT + " font-mono"}
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder={isEdit ? "•••••••• (unchanged)" : ""}
+                style={{ flex: 1 }}
+                autoComplete="new-password"
+              />
+            </FormRow>
 
             <div className="my-1 h-px bg-border-divider" />
 
-            <FormRow
-              label="Accent"
-              hint="visual marker — protects against running on prod by mistake"
-            >
+            <FormRow label="Accent" hint="Visual marker — protects against running on prod by mistake">
               <div className="flex gap-1">
                 {SWATCH_COLORS.map((c) => (
                   <button
@@ -290,15 +347,18 @@ export function ConnectionDialog({ onClose }: { onClose: () => void }) {
 
             <FormRow label="Environment">
               <Segment>
-                <Seg active>prod</Seg>
-                <Seg>staging</Seg>
-                <Seg>dev</Seg>
-                <Seg>local</Seg>
+                {ENV_TAGS.map((t) => (
+                  <Seg key={t} active={envTag === t} onClick={() => setEnvTag(t)}>
+                    {t}
+                  </Seg>
+                ))}
               </Segment>
-              <span className="ml-2 inline-flex items-center gap-1 text-[10.5px] text-warn">
-                <Icon.warn size={10} />
-                <span>prod requires confirmation for DML</span>
-              </span>
+              {envTag === "prod" && (
+                <span className="ml-2 inline-flex items-center gap-1 text-[10.5px] text-warn">
+                  <Icon.warn size={10} />
+                  <span>prod requires confirmation for DML</span>
+                </span>
+              )}
             </FormRow>
           </div>
         )}
@@ -308,43 +368,9 @@ export function ConnectionDialog({ onClose }: { onClose: () => void }) {
             <FormRow label="Use SSH tunnel">
               <Toggle on={ssh} onChange={setSsh} />
             </FormRow>
-            {ssh && (
-              <>
-                <FormRow label="SSH host">
-                  <input
-                    className={CD_INPUT + " font-mono"}
-                    defaultValue="bastion.shop.eu"
-                    style={{ flex: 1 }}
-                  />
-                  <span className="text-fg-3">:</span>
-                  <input
-                    className={CD_INPUT + " font-mono w-[70px] flex-none"}
-                    defaultValue="22"
-                  />
-                </FormRow>
-                <FormRow label="SSH user">
-                  <input className={CD_INPUT + " font-mono"} defaultValue="alice" />
-                </FormRow>
-                <FormRow label="Auth">
-                  <Segment>
-                    <Seg active>Key pair</Seg>
-                    <Seg>Password</Seg>
-                    <Seg>Agent</Seg>
-                  </Segment>
-                </FormRow>
-                <FormRow label="Private key">
-                  <input
-                    className={CD_INPUT + " font-mono"}
-                    defaultValue="~/.ssh/id_ed25519"
-                    style={{ flex: 1 }}
-                  />
-                  <PickButton>
-                    <Icon.fileText size={11} />
-                    <span>Browse</span>
-                  </PickButton>
-                </FormRow>
-              </>
-            )}
+            <div className="text-[11px] text-fg-3">
+              SSH tunneling lands in a follow-up slice. Connect directly for now.
+            </div>
           </div>
         )}
 
@@ -354,53 +380,30 @@ export function ConnectionDialog({ onClose }: { onClose: () => void }) {
               <Toggle on={ssl} onChange={setSsl} />
             </FormRow>
             {ssl && (
-              <>
-                <FormRow label="SSL mode">
-                  <Segment>
-                    <Seg>disable</Seg>
-                    <Seg>prefer</Seg>
-                    <Seg>require</Seg>
-                    <Seg active>verify-full</Seg>
-                  </Segment>
-                </FormRow>
-                <FormRow label="Server CA">
-                  <input
-                    className={CD_INPUT + " font-mono"}
-                    defaultValue="~/.cellar/certs/shop-eu-ca.pem"
-                    style={{ flex: 1 }}
-                  />
-                </FormRow>
-                <FormRow label="Client cert" hint="optional, for mTLS">
-                  <input
-                    className={CD_INPUT + " font-mono"}
-                    placeholder="…"
-                    style={{ flex: 1 }}
-                  />
-                </FormRow>
-              </>
+              <FormRow label="SSL mode">
+                <Segment>
+                  {SSL_MODES.map((m) => (
+                    <Seg
+                      key={m}
+                      active={sslMode === m}
+                      onClick={() => setSslMode(m)}
+                    >
+                      {m}
+                    </Seg>
+                  ))}
+                </Segment>
+              </FormRow>
             )}
           </div>
         )}
 
         {tab === "options" && (
           <div className="flex flex-col gap-2.5">
-            <FormRow label="Read-only by default">
-              <Toggle on={true} />
-            </FormRow>
-            <FormRow label="Connection timeout">
-              <input
-                className={CD_INPUT + " font-mono w-[70px] flex-none"}
-                defaultValue="10"
-              />
-              <span style={{ color: "var(--fg-3)" }}>seconds</span>
-            </FormRow>
             <FormRow label="Application name">
-              <input className={CD_INPUT + " font-mono"} defaultValue="cellar (alice@laptop)" />
-            </FormRow>
-            <FormRow label="Schema search path">
               <input
                 className={CD_INPUT + " font-mono"}
-                defaultValue="public, audit, analytics"
+                value={appName}
+                onChange={(e) => setAppName(e.target.value)}
               />
             </FormRow>
           </div>
@@ -409,39 +412,102 @@ export function ConnectionDialog({ onClose }: { onClose: () => void }) {
 
       <div className="flex h-11 shrink-0 items-center justify-between gap-3 border-t border-border-default bg-bg-2 px-3">
         <div className="flex items-center gap-2">
-          <button className={ED_RUN_SUBTLE}>
+          <button
+            className={ED_RUN_SUBTLE}
+            onClick={() => void onTest()}
+            disabled={test.kind === "running"}
+          >
             <Icon.power size={11} />
-            <span>Test connection</span>
+            <span>{test.kind === "running" ? "Testing…" : "Test connection"}</span>
           </button>
-          <span className="inline-flex items-center gap-1.5 text-[11px]">
-            <Icon.check size={10} stroke="var(--accent)" />
-            <span style={{ color: "var(--accent)" }}>Connected</span>
-            <span style={{ color: "var(--fg-3)" }}>·</span>
-            <span style={{ color: "var(--fg-2)" }} className="font-mono">
-              214 ms
-            </span>
-            <span style={{ color: "var(--fg-3)" }}>·</span>
-            <span style={{ color: "var(--fg-2)" }} className="font-mono">
-              PostgreSQL 16.2 on x86_64-linux-gnu
-            </span>
-          </span>
+          <TestPill status={test} />
         </div>
         <div className="flex items-center gap-2">
+          {savingError && (
+            <span className="text-[11px] text-warn">{savingError}</span>
+          )}
           <button className={ED_RUN_SUBTLE} onClick={onClose}>
             Cancel
           </button>
           <button
             className={ED_RUN_PRIMARY}
+            disabled={saving || !user || !host || !database}
+            onClick={() => void onSave()}
             style={{
               borderColor: "color-mix(in oklab, var(--accent) 30%, black)",
             }}
           >
             <Icon.plus size={11} />
-            <span>Save &amp; connect</span>
+            <span>{saving ? "Saving…" : isEdit ? "Save changes" : "Save"}</span>
           </button>
         </div>
       </div>
     </Modal>
+  );
+}
+
+function TestPill({ status }: { status: TestStatus }) {
+  if (status.kind === "idle") return null;
+  if (status.kind === "running") {
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] text-fg-3">
+        <span className="h-1.5 w-1.5 animate-sb-pulse rounded-full bg-accent" />
+        contacting…
+      </span>
+    );
+  }
+  if (status.kind === "ok") {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-[11px]">
+        <span
+          className="inline-flex h-[15px] items-center gap-1 rounded-[3px] px-1.5 font-medium"
+          style={{
+            color: "var(--accent)",
+            background: "var(--accent-soft)",
+          }}
+        >
+          <Icon.check size={10} stroke="var(--accent)" />
+          Connection successful
+        </span>
+        <span className="font-mono" style={{ color: "var(--fg-2)" }}>
+          {status.durationMs} ms
+        </span>
+        <span style={{ color: "var(--fg-3)" }}>·</span>
+        <span
+          className="font-mono"
+          style={{ color: "var(--fg-2)" }}
+          title={status.info.version}
+        >
+          {shortVersion(status.info.version)}
+        </span>
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex max-w-[420px] items-center gap-1 truncate text-[11px] text-warn">
+      <Icon.warn size={10} />
+      <span title={status.message}>{truncate(status.message, 80)}</span>
+    </span>
+  );
+}
+
+function truncate(s: string, n: number): string {
+  return s.length <= n ? s : s.slice(0, n - 1) + "…";
+}
+
+function shortVersion(v: string): string {
+  // `PostgreSQL 16.12 on x86_64-pc-linux-gnu, compiled by …` → `PostgreSQL 16.12`
+  const match = v.match(/^(\S+\s+\d+(?:\.\d+)*)/);
+  return match?.[1] ?? truncate(v, 40);
+}
+
+function slugify(s: string): string {
+  return (
+    s
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 64) || "connection"
   );
 }
 
@@ -522,14 +588,6 @@ function Seg({
           : "text-fg-2 hover:text-fg-0")
       }
     >
-      {children}
-    </button>
-  );
-}
-
-function PickButton({ children }: { children: ReactNode }) {
-  return (
-    <button className="inline-flex h-[26px] items-center gap-1 rounded-[4px] border border-border-default bg-bg-2 px-2 text-[11px] text-fg-1 hover:bg-bg-3">
       {children}
     </button>
   );

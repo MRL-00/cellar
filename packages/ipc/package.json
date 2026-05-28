@@ -6,10 +6,14 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "scripts": {
-    "lint": "node ../../scripts/check-ts-entry.mjs src/index.ts src/index.test.ts",
-    "test": "vitest run"
+    "lint": "node ../../scripts/check-ts-entry.mjs src/index.ts src/index.test.ts src/generated.ts src/mock.ts",
+    "test": "vitest run",
+    "codegen": "cargo run --manifest-path ../../apps/desktop/src-tauri/Cargo.toml --bin cellar-codegen"
   },
   "exports": {
     ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.0.0"
   }
 }

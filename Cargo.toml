@@ -4,6 +4,7 @@ members = [
     "apps/desktop/src-tauri",
     "crates/cellar-core",
     "crates/cellar-drivers",
+    "crates/cellar-drivers/postgres",
     "crates/cellar-sql",
     "crates/cellar-diff",
     "crates/cellar-secrets",
