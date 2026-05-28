@@ -2,14 +2,62 @@ use std::collections::BTreeMap;
 
 use cellar_core::error::{CellarError, CellarResult};
 use cellar_core::schema::{Column, Database, ForeignKey, Index, Schema, Table, View};
+use futures::future::join_all;
 use sqlx::{PgPool, Row};
 
-/// Walk the system catalog and build the database → schema → table tree for
-/// the connected database only. SPEC §6.2 wants every database visible in
-/// the sidebar; that needs cross-database connections and is a follow-up.
-pub async fn introspect(pool: &PgPool) -> CellarResult<Vec<Database>> {
-    let database_name = current_database(pool).await?;
+use crate::connect::PgConnection;
 
+/// Build the full database → schema → table tree for every database on the
+/// server the user can connect to. Postgres binds a connection to a single
+/// database, so each database is introspected through its own pool; the one
+/// we're already connected to reuses the live pool. SPEC §6.2.
+///
+/// Databases the credentials can't open (managed system DBs such as Azure's
+/// `azure_sys`, RDS's `rdsadmin`) are still listed, with empty schemas, so the
+/// user sees they exist instead of silently dropping them.
+pub async fn introspect(conn: &PgConnection) -> CellarResult<Vec<Database>> {
+    let pool = conn.pool();
+    let current = current_database(pool).await?;
+    let db_names = list_databases(pool).await?;
+
+    let tasks = db_names.into_iter().map(|name| {
+        let is_default = name == current;
+        async move {
+            // Reuses the default pool for the connected database and a cached
+            // sibling pool for the rest. Databases the credentials can't open
+            // are listed empty rather than dropped.
+            let schemas = match conn.pool_for_database(&name).await {
+                Ok(db_pool) => introspect_schemas(&db_pool).await.unwrap_or_default(),
+                Err(_) => Vec::new(),
+            };
+            Database {
+                name,
+                is_default,
+                schemas,
+            }
+        }
+    });
+
+    Ok(join_all(tasks).await)
+}
+
+/// List connectable, non-template databases on the server, ordered by name.
+async fn list_databases(pool: &PgPool) -> CellarResult<Vec<String>> {
+    let rows = sqlx::query(
+        "SELECT datname FROM pg_database \
+         WHERE datallowconn AND NOT datistemplate \
+         ORDER BY datname",
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(intro_err)?;
+    rows.into_iter()
+        .map(|r| r.try_get::<String, _>("datname").map_err(intro_err))
+        .collect()
+}
+
+/// Introspect every schema in the database the given pool is bound to.
+async fn introspect_schemas(pool: &PgPool) -> CellarResult<Vec<Schema>> {
     let schema_names = list_schemas(pool).await?;
     let columns_by_table = list_columns(pool).await?;
     let primary_keys = list_primary_keys(pool).await?;
@@ -66,13 +114,7 @@ pub async fn introspect(pool: &PgPool) -> CellarResult<Vec<Database>> {
         }
     }
 
-    let schemas_vec: Vec<Schema> = schemas.into_values().collect();
-
-    Ok(vec![Database {
-        name: database_name,
-        is_default: true,
-        schemas: schemas_vec,
-    }])
+    Ok(schemas.into_values().collect())
 }
 
 fn schema_with(name: String) -> Schema {

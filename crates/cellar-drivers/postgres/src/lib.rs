@@ -43,11 +43,11 @@ impl Driver for PostgresDriver {
 
     async fn introspect(&self, conn: &dyn Connection) -> CellarResult<Vec<Database>> {
         let pg = connect::as_pg(conn)?;
-        introspect::introspect(pg.pool()).await
+        introspect::introspect(pg).await
     }
 
     async fn execute_query(&self, conn: &dyn Connection, q: &Query) -> CellarResult<QueryResult> {
         let pg = connect::as_pg(conn)?;
-        query::execute_query(pg.pool(), q).await
+        query::execute_query(pg, q).await
     }
 }

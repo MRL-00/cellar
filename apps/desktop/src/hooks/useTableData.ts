@@ -30,6 +30,7 @@ const DEFAULT_LIMIT = 500;
  */
 export function useTableData(
   connectionId: string,
+  database: string,
   schema: string,
   table: string,
 ): TableData {
@@ -49,10 +50,10 @@ export function useTableData(
     void (async () => {
       try {
         const result = await unwrap(
-          commands.runQuery(connectionId, sql, DEFAULT_LIMIT),
+          commands.runQuery(connectionId, sql, DEFAULT_LIMIT, database),
         );
         if (cancelled) return;
-        const cols = columnsFor(connectionId, schema, table, result);
+        const cols = columnsFor(connectionId, database, schema, table, result);
         const rows = rowsFor(result);
         setState({
           columns: cols,
@@ -84,19 +85,21 @@ export function useTableData(
     return () => {
       cancelled = true;
     };
-  }, [connectionId, schema, table]);
+  }, [connectionId, database, schema, table]);
 
   return state;
 }
 
 function columnsFor(
   connectionId: string,
+  database: string,
   schema: string,
   table: string,
   result: QueryResult,
 ): GridColumn[] {
   const cache = useConnections.getState().byId[connectionId];
   const tableMeta = cache?.databases
+    .filter((d) => d.name === database)
     .flatMap((d) => d.schemas)
     .find((s) => s.name === schema)
     ?.tables.find((t) => t.name === table);

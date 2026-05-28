@@ -3,13 +3,23 @@ use std::time::Instant;
 use cellar_core::error::{CellarError, CellarResult};
 use cellar_core::query::{Query, QueryResult};
 use cellar_core::value::{ColumnMeta, Row};
-use sqlx::{Column as _, PgPool, Row as _, TypeInfo as _};
+use sqlx::{Column as _, Row as _, TypeInfo as _};
 
+use crate::connect::PgConnection;
 use crate::decode::decode_cell;
 
 const DEFAULT_MAX_ROWS: u32 = 500;
 
-pub async fn execute_query(pool: &PgPool, query: &Query) -> CellarResult<QueryResult> {
+pub async fn execute_query(conn: &PgConnection, query: &Query) -> CellarResult<QueryResult> {
+    // Route to the pool for the query's target database so the sidebar can
+    // browse and query several databases through one connection.
+    let database = query
+        .database
+        .as_deref()
+        .unwrap_or(conn.config().database.as_str());
+    let pool = conn.pool_for_database(database).await?;
+    let pool = &pool;
+
     let max_rows = query.max_rows.unwrap_or(DEFAULT_MAX_ROWS);
     // SQL passes through verbatim. Driving LIMIT into user-supplied SQL would
     // need a parser; we cap on the host side instead and signal truncation.

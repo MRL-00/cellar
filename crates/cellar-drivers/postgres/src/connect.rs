@@ -1,4 +1,5 @@
 use std::any::Any;
+use std::collections::HashMap;
 use std::str::FromStr;
 
 use async_trait::async_trait;
@@ -6,17 +7,51 @@ use cellar_core::driver::{Connection, ConnectionConfig, DriverInfo, Engine, SslM
 use cellar_core::error::{CellarError, CellarResult};
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions, PgSslMode};
 use sqlx::{PgPool, Row};
+use tokio::sync::Mutex;
 
 const DEFAULT_POOL_SIZE: u32 = 4;
 
 pub struct PgConnection {
     info: DriverInfo,
+    /// Pool bound to `config.database` — the database named in the connection.
     pool: PgPool,
+    /// Kept so we can open pools to *other* databases on the same server
+    /// (Postgres binds one connection to one database). The password lives
+    /// only in process memory for the session — never on disk.
+    config: ConnectionConfig,
+    password: Option<String>,
+    /// Lazily-opened pools for databases other than the default, keyed by
+    /// database name. Reused across introspection and queries, closed when the
+    /// connection is dropped.
+    siblings: Mutex<HashMap<String, PgPool>>,
 }
 
 impl PgConnection {
     pub fn pool(&self) -> &PgPool {
         &self.pool
+    }
+
+    pub fn config(&self) -> &ConnectionConfig {
+        &self.config
+    }
+
+    /// Get (or open and cache) a pool bound to `database` on the same server.
+    /// Returns the default pool when `database` is the connection's own
+    /// database. `PgPool` is internally reference-counted, so the clone is
+    /// cheap and shares the underlying connections.
+    pub async fn pool_for_database(&self, database: &str) -> CellarResult<PgPool> {
+        if database == self.config.database {
+            return Ok(self.pool.clone());
+        }
+        let mut guard = self.siblings.lock().await;
+        if let Some(existing) = guard.get(database) {
+            return Ok(existing.clone());
+        }
+        let mut sibling = self.config.clone();
+        sibling.database = database.to_string();
+        let pool = build_pool(&sibling, self.password.as_deref(), DEFAULT_POOL_SIZE).await?;
+        guard.insert(database.to_string(), pool.clone());
+        Ok(pool)
     }
 }
 
@@ -28,6 +63,10 @@ impl Connection for PgConnection {
 
     async fn close(&self) -> CellarResult<()> {
         self.pool.close().await;
+        let guard = self.siblings.lock().await;
+        for pool in guard.values() {
+            pool.close().await;
+        }
         Ok(())
     }
 
@@ -40,6 +79,33 @@ pub async fn open_pool(
     config: &ConnectionConfig,
     password: Option<&str>,
 ) -> CellarResult<PgConnection> {
+    let pool = build_pool(config, password, DEFAULT_POOL_SIZE).await?;
+
+    let version = sqlx::query("SELECT version() AS v")
+        .fetch_one(&pool)
+        .await
+        .map_err(|e| CellarError::Connection(e.to_string()))?;
+    let version: String = version
+        .try_get::<String, _>("v")
+        .map_err(|e| CellarError::Decode(e.to_string()))?;
+
+    Ok(PgConnection {
+        info: DriverInfo {
+            engine: Engine::Postgres,
+            version,
+        },
+        pool,
+        config: config.clone(),
+        password: password.map(|p| p.to_string()),
+        siblings: Mutex::new(HashMap::new()),
+    })
+}
+
+async fn build_pool(
+    config: &ConnectionConfig,
+    password: Option<&str>,
+    max_connections: u32,
+) -> CellarResult<PgPool> {
     let mut opts = PgConnectOptions::from_str(&format!(
         "postgres://{user}@{host}:{port}/{db}",
         user = config.user,
@@ -56,27 +122,11 @@ pub async fn open_pool(
         opts = opts.application_name(name);
     }
 
-    let pool = PgPoolOptions::new()
-        .max_connections(DEFAULT_POOL_SIZE)
+    PgPoolOptions::new()
+        .max_connections(max_connections)
         .connect_with(opts)
         .await
-        .map_err(map_sqlx_err_for_connect)?;
-
-    let version = sqlx::query("SELECT version() AS v")
-        .fetch_one(&pool)
-        .await
-        .map_err(|e| CellarError::Connection(e.to_string()))?;
-    let version: String = version
-        .try_get::<String, _>("v")
-        .map_err(|e| CellarError::Decode(e.to_string()))?;
-
-    Ok(PgConnection {
-        info: DriverInfo {
-            engine: Engine::Postgres,
-            version,
-        },
-        pool,
-    })
+        .map_err(map_sqlx_err_for_connect)
 }
 
 fn map_ssl_mode(mode: SslMode) -> PgSslMode {

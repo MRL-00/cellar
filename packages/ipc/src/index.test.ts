@@ -54,6 +54,7 @@ describe("@cellar/ipc", () => {
       "any",
       "SELECT 1",
       10,
+      null,
     );
     expect(result.status).toBe("ok");
     if (result.status === "ok") {

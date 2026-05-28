@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import type { ConnectionConfig } from "@cellar/ipc";
 import { TitleBar } from "./components/TitleBar";
 import { StatusBar } from "./components/StatusBar";
 import { Sidebar } from "./components/Sidebar";
@@ -13,7 +14,8 @@ import { EmptyState } from "./components/modals/EmptyState";
 import { SettingsModal } from "./components/modals/Settings";
 
 type Panels = { left: boolean; right: boolean; bottom: boolean };
-type ModalId = "connection" | "commit" | "palette" | "settings" | null;
+type ModalId = "commit" | "palette" | "settings" | null;
+type ConnDialog = { mode: "new" | "edit"; initial?: ConnectionConfig } | null;
 
 export function App() {
   const [panels, setPanels] = useState<Panels>({
@@ -22,6 +24,7 @@ export function App() {
     bottom: true,
   });
   const [modal, setModal] = useState<ModalId>(null);
+  const [connDialog, setConnDialog] = useState<ConnDialog>(null);
   const [empty, setEmpty] = useState(false);
 
   const togglePanel = useCallback(
@@ -31,6 +34,19 @@ export function App() {
 
   const openModal = useCallback((m: ModalId) => setModal(m), []);
   const closeModal = useCallback(() => setModal(null), []);
+  const openNewConnection = useCallback(() => setConnDialog({ mode: "new" }), []);
+  const editConnection = useCallback(
+    (initial: ConnectionConfig) => setConnDialog({ mode: "edit", initial }),
+    [],
+  );
+  const duplicateConnection = useCallback(
+    (source: ConnectionConfig) =>
+      setConnDialog({
+        mode: "new",
+        initial: { ...source, id: "", name: `${source.name} copy` },
+      }),
+    [],
+  );
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -42,7 +58,7 @@ export function App() {
       }
       if (mod && e.key.toLowerCase() === "n" && !e.shiftKey) {
         e.preventDefault();
-        setModal("connection");
+        setConnDialog((d) => (d ? null : { mode: "new" }));
         return;
       }
       if (mod && e.key.toLowerCase() === "s") {
@@ -76,13 +92,17 @@ export function App() {
             className="flex min-w-0 flex-col border-r border-border-default bg-bg-1"
             style={{ width: 256 }}
           >
-            <Sidebar onNewConnection={() => openModal("connection")} />
+            <Sidebar
+              onNewConnection={openNewConnection}
+              onEditConnection={editConnection}
+              onDuplicateConnection={duplicateConnection}
+            />
           </div>
         )}
 
         <div className="flex flex-1 min-w-0 flex-col bg-bg-0">
           {empty ? (
-            <EmptyState onNew={() => openModal("connection")} />
+            <EmptyState onNew={openNewConnection} />
           ) : (
             <>
               <TabBar />
@@ -108,7 +128,13 @@ export function App() {
 
       <StatusBar />
 
-      {modal === "connection" && <ConnectionDialog onClose={closeModal} />}
+      {connDialog && (
+        <ConnectionDialog
+          onClose={() => setConnDialog(null)}
+          mode={connDialog.mode}
+          initial={connDialog.initial}
+        />
+      )}
       {modal === "commit" && <CommitModal onClose={closeModal} />}
       {modal === "palette" && <CommandPalette onClose={closeModal} />}
       {modal === "settings" && <SettingsModal onClose={closeModal} />}

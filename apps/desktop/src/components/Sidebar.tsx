@@ -3,6 +3,7 @@ import type { ConnectionConfig, Schema, Table } from "@cellar/ipc";
 
 import { Icon } from "./icons";
 import { EngineBadge, type Engine } from "./EngineBadge";
+import { ContextMenu, type ContextMenuState } from "./ContextMenu";
 import { useConnections, type ConnStatus } from "../state/connections";
 import { useTabs } from "../state/tabs";
 
@@ -43,18 +44,27 @@ const META = "ml-auto pr-1 whitespace-nowrap text-[10px] text-fg-3 shrink-0";
 const PILL =
   "ml-1 rounded-[3px] bg-bg-2 px-1 py-px font-mono text-[9px] text-fg-3";
 
+export interface SidebarProps {
+  onNewConnection?: () => void;
+  onEditConnection?: (config: ConnectionConfig) => void;
+  onDuplicateConnection?: (config: ConnectionConfig) => void;
+}
+
 export function Sidebar({
   onNewConnection,
-}: {
-  onNewConnection?: () => void;
-} = {}) {
+  onEditConnection,
+  onDuplicateConnection,
+}: SidebarProps = {}) {
   const [filter, setFilter] = useState("");
+  const [menu, setMenu] = useState<ContextMenuState | null>(null);
   const connections = useConnections((s) => s.connections);
   const byId = useConnections((s) => s.byId);
   const loaded = useConnections((s) => s.loaded);
   const load = useConnections((s) => s.load);
   const toggleExpand = useConnections((s) => s.toggleExpand);
+  const connect = useConnections((s) => s.connect);
   const disconnect = useConnections((s) => s.disconnect);
+  const deleteConnection = useConnections((s) => s.deleteConnection);
   const openTable = useTabs((s) => s.openTable);
   const activeTabId = useTabs((s) => s.activeId);
 
@@ -67,10 +77,56 @@ export function Sidebar({
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase();
     if (!q) return connections;
-    return connections.filter((c) =>
-      c.name.toLowerCase().includes(q),
-    );
+    return connections.filter((c) => c.name.toLowerCase().includes(q));
   }, [filter, connections]);
+
+  const openConnectionMenu = (e: React.MouseEvent, config: ConnectionConfig) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const status = byId[config.id]?.status ?? "disconnected";
+    const connected = status === "connected" || status === "connecting";
+    setMenu({
+      x: e.clientX,
+      y: e.clientY,
+      items: [
+        {
+          label: "Edit…",
+          icon: <Icon.edit size={12} />,
+          onClick: () => onEditConnection?.(config),
+        },
+        {
+          label: "Duplicate",
+          icon: <Icon.copy size={12} />,
+          onClick: () => onDuplicateConnection?.(config),
+        },
+        connected
+          ? {
+              label: "Disconnect",
+              icon: <Icon.power size={12} />,
+              onClick: () => void disconnect(config.id),
+            }
+          : {
+              label: "Connect",
+              icon: <Icon.power size={12} />,
+              onClick: () => void connect(config.id),
+            },
+        {
+          label: "Remove",
+          icon: <Icon.trash size={12} />,
+          danger: true,
+          onClick: () => {
+            if (
+              window.confirm(
+                `Remove connection "${config.name}"? This deletes its saved password from the keychain.`,
+              )
+            ) {
+              void deleteConnection(config.id);
+            }
+          },
+        },
+      ],
+    });
+  };
 
   return (
     <div className="flex h-full flex-col text-[11.5px]">
@@ -82,7 +138,11 @@ export function Sidebar({
           </span>
         </div>
         <div className="flex gap-px">
-          <button className="icon-btn" title="New connection" onClick={onNewConnection}>
+          <button
+            className="icon-btn"
+            title="New connection"
+            onClick={onNewConnection}
+          >
             <Icon.plus size={12} />
           </button>
           <button className="icon-btn" title="More">
@@ -121,7 +181,10 @@ export function Sidebar({
               error={state?.error ?? null}
               onToggle={() => toggleExpand(c.id)}
               onDisconnect={() => void disconnect(c.id)}
-              onOpenTable={(schema, table) => openTable(c.id, schema, table)}
+              onContextMenu={(e) => openConnectionMenu(e, c)}
+              onOpenTable={(database, schema, table) =>
+                openTable(c.id, database, schema, table)
+              }
               activeTabId={activeTabId}
             />
           );
@@ -135,6 +198,8 @@ export function Sidebar({
           <span>New connection</span>
         </button>
       </div>
+
+      <ContextMenu state={menu} onClose={() => setMenu(null)} />
     </div>
   );
 }
@@ -148,7 +213,8 @@ interface ConnectionRowProps {
   error: string | null;
   onToggle: () => void;
   onDisconnect: () => void;
-  onOpenTable: (schema: string, table: string) => void;
+  onContextMenu: (e: React.MouseEvent) => void;
+  onOpenTable: (database: string, schema: string, table: string) => void;
   activeTabId: string | null;
 }
 
@@ -161,6 +227,7 @@ function ConnectionRow({
   error,
   onToggle,
   onDisconnect,
+  onContextMenu,
   onOpenTable,
   activeTabId,
 }: ConnectionRowProps) {
@@ -169,12 +236,15 @@ function ConnectionRow({
     <div>
       <div
         className={
-          ROW_BASE + " h-[26px] border-l-2 pl-1 font-medium text-fg-0 cursor-pointer"
+          ROW_BASE +
+          " h-[26px] border-l-2 pl-1 font-medium text-fg-0 cursor-pointer"
         }
         style={{
-          borderLeftColor: expanded && status === "connected" ? accent : "transparent",
+          borderLeftColor:
+            expanded && status === "connected" ? accent : "transparent",
         }}
         onClick={onToggle}
+        onContextMenu={onContextMenu}
       >
         <button
           className={TWISTY}
@@ -193,10 +263,29 @@ function ConnectionRow({
         <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[12px] font-medium">
           {config.name}
         </span>
+        {config.env_tag === "prod" && (
+          <span
+            className="rounded-[3px] px-1 py-px font-mono text-[8.5px] uppercase"
+            style={{ color: "var(--warn)", background: "color-mix(in oklab, var(--warn) 16%, transparent)" }}
+            title="production"
+          >
+            prod
+          </span>
+        )}
         <StatusDot status={status} />
+        <button
+          className="icon-btn ml-1 opacity-0 transition-opacity duration-100 group-hover:opacity-100"
+          title="Actions"
+          onClick={(e) => {
+            e.stopPropagation();
+            onContextMenu(e);
+          }}
+        >
+          <Icon.more size={11} />
+        </button>
         {status === "connected" && (
           <button
-            className="icon-btn ml-1 opacity-0 transition-opacity duration-100 group-hover:opacity-100"
+            className="icon-btn opacity-0 transition-opacity duration-100 group-hover:opacity-100"
             title="Disconnect"
             onClick={(e) => {
               e.stopPropagation();
@@ -209,10 +298,7 @@ function ConnectionRow({
       </div>
 
       {expanded && error && (
-        <div
-          className="px-3 py-1 text-[10.5px] text-warn"
-          style={{ paddingLeft: 32 }}
-        >
+        <div className="px-3 py-1 text-[10.5px] text-warn" style={{ paddingLeft: 32 }}>
           {error}
         </div>
       )}
@@ -227,11 +313,12 @@ function ConnectionRow({
       )}
 
       {expanded &&
+        !loadingSchema &&
         databases.map((db) => (
           <DatabaseRow
             key={db.name}
-            connectionId={config.id}
             dbName={db.name}
+            isDefault={db.is_default}
             schemas={db.schemas}
             onOpenTable={onOpenTable}
             activeTabId={activeTabId}
@@ -242,42 +329,58 @@ function ConnectionRow({
 }
 
 function DatabaseRow({
-  connectionId,
   dbName,
+  isDefault,
   schemas,
   onOpenTable,
   activeTabId,
 }: {
-  connectionId: string;
   dbName: string;
+  isDefault: boolean;
   schemas: Schema[];
-  onOpenTable: (schema: string, table: string) => void;
+  onOpenTable: (database: string, schema: string, table: string) => void;
   activeTabId: string | null;
 }) {
-  const [open, setOpen] = useState(true);
+  // Default database opens expanded; others stay collapsed to keep the tree tidy.
+  const [open, setOpen] = useState(isDefault);
+  const empty = schemas.length === 0;
   return (
     <div>
       <div
         className={ROW_BASE + " cursor-pointer"}
         style={{ paddingLeft: 18 }}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => !empty && setOpen((v) => !v)}
+        title={empty ? "no accessible schemas" : undefined}
       >
         <button className={TWISTY}>
-          {open ? <Icon.chevronDown size={10} /> : <Icon.chevronRight size={10} />}
+          {empty ? (
+            <span className={TWISTY + " invisible"} />
+          ) : open ? (
+            <Icon.chevronDown size={10} />
+          ) : (
+            <Icon.chevronRight size={10} />
+          )}
         </button>
         <span className={ICON_SLOT}>
           <Icon.database size={12} />
         </span>
-        <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[11.5px]">
+        <span
+          className={
+            "flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[11.5px] " +
+            (empty ? "text-fg-3" : "")
+          }
+        >
           {dbName}
         </span>
-        <span className={META + " font-mono"}>{schemas.length} schemas</span>
+        <span className={META + " font-mono"}>
+          {empty ? "—" : `${schemas.length} schemas`}
+        </span>
       </div>
       {open &&
         schemas.map((sch) => (
           <SchemaRow
             key={sch.name}
-            connectionId={connectionId}
+            database={dbName}
             schema={sch}
             onOpenTable={onOpenTable}
             activeTabId={activeTabId}
@@ -288,14 +391,14 @@ function DatabaseRow({
 }
 
 function SchemaRow({
-  connectionId,
+  database,
   schema,
   onOpenTable,
   activeTabId,
 }: {
-  connectionId: string;
+  database: string;
   schema: Schema;
-  onOpenTable: (schema: string, table: string) => void;
+  onOpenTable: (database: string, schema: string, table: string) => void;
   activeTabId: string | null;
 }) {
   const [open, setOpen] = useState(true);
@@ -307,7 +410,11 @@ function SchemaRow({
         onClick={() => setOpen((v) => !v)}
       >
         <button className={TWISTY}>
-          {open ? <Icon.chevronDown size={10} /> : <Icon.chevronRight size={10} />}
+          {open ? (
+            <Icon.chevronDown size={10} />
+          ) : (
+            <Icon.chevronRight size={10} />
+          )}
         </button>
         <span className={ICON_SLOT}>
           <Icon.schema size={12} />
@@ -319,14 +426,16 @@ function SchemaRow({
       </div>
       {open && (
         <>
-          <GroupHeader label="tables" count={schema.tables.length} />
+          {schema.tables.length > 0 && (
+            <GroupHeader label="tables" count={schema.tables.length} />
+          )}
           {schema.tables.map((t) => (
             <TableRow
               key={t.name}
-              connectionId={connectionId}
+              database={database}
               schema={schema.name}
               table={t}
-              onOpen={() => onOpenTable(schema.name, t.name)}
+              onOpen={() => onOpenTable(database, schema.name, t.name)}
               activeTabId={activeTabId}
             />
           ))}
@@ -338,8 +447,8 @@ function SchemaRow({
                   key={v.name}
                   className={ROW_BASE + " cursor-pointer"}
                   style={{ paddingLeft: 54 }}
-                  onDoubleClick={() => onOpenTable(schema.name, v.name)}
-                  title="double-click to open"
+                  onClick={() => onOpenTable(database, schema.name, v.name)}
+                  title="click to open"
                 >
                   <span className={TWISTY + " invisible"} />
                   <span className={ICON_SLOT}>
@@ -375,26 +484,25 @@ function GroupHeader({ label, count }: { label: string; count: number }) {
 }
 
 function TableRow({
-  connectionId,
+  database,
   schema,
   table,
   onOpen,
   activeTabId,
 }: {
-  connectionId: string;
+  database: string;
   schema: string;
   table: Table;
   onOpen: () => void;
   activeTabId: string | null;
 }) {
-  const tabId = `${connectionId}::${schema}.${table.name}`;
-  const active = activeTabId === tabId;
+  const tabId = `${database}.${schema}.${table.name}`;
+  const active = activeTabId?.endsWith(tabId) ?? false;
   const fkCount = table.foreign_keys.length;
   return (
     <div
       className={ROW_BASE + " cursor-pointer" + (active ? " " + ROW_ACTIVE : "")}
       style={{ paddingLeft: 54 }}
-      onDoubleClick={onOpen}
       onClick={onOpen}
       title="click to open"
     >
@@ -406,7 +514,9 @@ function TableRow({
         {table.name}
       </span>
       {table.row_count != null && (
-        <span className={META + " font-mono"}>{formatRowCount(table.row_count)}</span>
+        <span className={META + " font-mono"}>
+          {formatRowCount(table.row_count)}
+        </span>
       )}
       {fkCount > 0 && (
         <span className={PILL} title={`${fkCount} foreign keys`}>

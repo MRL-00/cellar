@@ -50,6 +50,7 @@ export const mockCommands = {
     _connectionId: string,
     _sql: string,
     _maxRows: number | null,
+    _database: string | null,
   ): Promise<Result<QueryResult, CellarError>> =>
     ok({
       columns: [],

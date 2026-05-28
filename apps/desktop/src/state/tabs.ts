@@ -4,6 +4,7 @@ export interface TableTab {
   id: string;
   kind: "table";
   connectionId: string;
+  database: string;
   schema: string;
   table: string;
 }
@@ -11,21 +12,31 @@ export interface TableTab {
 interface TabsStore {
   tabs: TableTab[];
   activeId: string | null;
-  openTable: (connectionId: string, schema: string, table: string) => void;
+  openTable: (
+    connectionId: string,
+    database: string,
+    schema: string,
+    table: string,
+  ) => void;
   closeTab: (id: string) => void;
   setActive: (id: string) => void;
 }
 
-function tableKey(connectionId: string, schema: string, table: string): string {
-  return `${connectionId}::${schema}.${table}`;
+function tableKey(
+  connectionId: string,
+  database: string,
+  schema: string,
+  table: string,
+): string {
+  return `${connectionId}::${database}.${schema}.${table}`;
 }
 
 export const useTabs = create<TabsStore>((set, get) => ({
   tabs: [],
   activeId: null,
 
-  openTable(connectionId, schema, table) {
-    const id = tableKey(connectionId, schema, table);
+  openTable(connectionId, database, schema, table) {
+    const id = tableKey(connectionId, database, schema, table);
     const existing = get().tabs.find((t) => t.id === id);
     if (existing) {
       set({ activeId: id });
@@ -34,7 +45,7 @@ export const useTabs = create<TabsStore>((set, get) => ({
     set((s) => ({
       tabs: [
         ...s.tabs,
-        { id, kind: "table", connectionId, schema, table },
+        { id, kind: "table", connectionId, database, schema, table },
       ],
       activeId: id,
     }));

@@ -16,7 +16,12 @@ export function Workspace({ onCommit }: { onCommit?: () => void } = {}) {
 }
 
 function TableTabPane({ tab }: { tab: TableTab }) {
-  const data = useTableData(tab.connectionId, tab.schema, tab.table);
+  const data = useTableData(
+    tab.connectionId,
+    tab.database,
+    tab.schema,
+    tab.table,
+  );
   return (
     <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
       <DataGrid

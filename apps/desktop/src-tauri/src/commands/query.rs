@@ -11,10 +11,14 @@ pub async fn run_query(
     connection_id: String,
     sql: String,
     max_rows: Option<u32>,
+    database: Option<String>,
 ) -> Result<QueryResult, CellarError> {
     let mut query = Query::new(sql);
     if let Some(n) = max_rows {
         query = query.with_max_rows(n);
+    }
+    if let Some(db) = database {
+        query = query.with_database(db);
     }
     registry.run_query(&connection_id, query).await
 }

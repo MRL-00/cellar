@@ -12,6 +12,11 @@ pub struct Query {
     /// asks for streamed page-style results — for the first vertical slice we
     /// just return up to `max_rows` rows in one shot.
     pub max_rows: Option<u32>,
+    /// Target database. For engines like Postgres where a connection is bound
+    /// to one database, the driver routes the query to a pool for this
+    /// database (the sidebar can browse several databases per connection).
+    /// `None` means "use the connection's default database".
+    pub database: Option<String>,
 }
 
 impl Query {
@@ -19,11 +24,17 @@ impl Query {
         Self {
             sql: sql.into(),
             max_rows: None,
+            database: None,
         }
     }
 
     pub fn with_max_rows(mut self, max_rows: u32) -> Self {
         self.max_rows = Some(max_rows);
+        self
+    }
+
+    pub fn with_database(mut self, database: impl Into<String>) -> Self {
+        self.database = Some(database.into());
         self
     }
 }

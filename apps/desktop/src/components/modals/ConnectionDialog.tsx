@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { ConnectionConfig, DriverInfo, EnvTag, SslMode } from "@cellar/ipc";
 import { commands, unwrap } from "@cellar/ipc";
 
@@ -59,37 +59,62 @@ const CD_INPUT =
 
 interface ConnectionDialogProps {
   onClose: () => void;
+  /** "edit" keeps the existing id; "new" derives a fresh one from the name. */
+  mode?: "new" | "edit";
+  /** Prefill values — an existing connection (edit) or a copy seed (duplicate). */
+  initial?: ConnectionConfig;
 }
 
-export function ConnectionDialog({ onClose }: ConnectionDialogProps) {
+export function ConnectionDialog({
+  onClose,
+  mode = "new",
+  initial,
+}: ConnectionDialogProps) {
   const saveConnection = useConnections((s) => s.saveConnection);
+  const isEdit = mode === "edit" && !!initial;
 
-  const [engine, setEngine] = useState<Engine>("postgres");
+  const [engine, setEngine] = useState<Engine>(
+    (initial?.engine as Engine) ?? "postgres",
+  );
   const [tab, setTab] = useState<Tab>("general");
   const [ssh, setSsh] = useState(false);
-  const [ssl, setSsl] = useState(true);
-  const [sslMode, setSslMode] = useState<SslMode>("prefer");
-  const [swatch, setSwatch] = useState<string>(ENGINE_HEX.postgres);
-  const [envTag, setEnvTag] = useState<EnvTag>("local");
+  const [ssl, setSsl] = useState(
+    initial ? initial.ssl_mode !== "disable" : true,
+  );
+  const [sslMode, setSslMode] = useState<SslMode>(
+    initial && initial.ssl_mode !== "disable" ? initial.ssl_mode : "prefer",
+  );
+  const [swatch, setSwatch] = useState<string>(
+    initial?.color ?? ENGINE_HEX.postgres,
+  );
+  const [envTag, setEnvTag] = useState<EnvTag>(initial?.env_tag ?? "local");
 
-  const [name, setName] = useState("");
-  const [host, setHost] = useState("localhost");
-  const [port, setPort] = useState<number>(DEFAULT_PORT.postgres);
-  const [database, setDatabase] = useState("postgres");
-  const [user, setUser] = useState("");
+  const [name, setName] = useState(initial?.name ?? "");
+  const [host, setHost] = useState(initial?.host ?? "localhost");
+  const [port, setPort] = useState<number>(initial?.port ?? DEFAULT_PORT.postgres);
+  const [database, setDatabase] = useState(initial?.database ?? "postgres");
+  const [user, setUser] = useState(initial?.user ?? "");
   const [password, setPassword] = useState("");
-  const [appName, setAppName] = useState("cellar");
+  const [appName, setAppName] = useState(initial?.application_name ?? "cellar");
 
   const [test, setTest] = useState<TestStatus>({ kind: "idle" });
   const [savingError, setSavingError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // Only snap the port/swatch to engine defaults when the user picks an engine
+  // for a *new* connection — never clobber values loaded for editing.
+  const userPickedEngine = useRef(false);
   useEffect(() => {
+    if (!userPickedEngine.current) return;
     setPort(DEFAULT_PORT[engine] || 5432);
     setSwatch(ENGINE_HEX[engine]);
   }, [engine]);
 
-  const id = useMemo(() => slugify(name || `${host}-${database}`), [name, host, database]);
+  const derivedId = useMemo(
+    () => slugify(name || `${host}-${database}`),
+    [name, host, database],
+  );
+  const id = isEdit && initial ? initial.id : derivedId;
 
   const buildConfig = (): ConnectionConfig => ({
     id,
@@ -144,7 +169,7 @@ export function ConnectionDialog({ onClose }: ConnectionDialogProps) {
             <Icon.database size={14} />
           </span>
           <span className="whitespace-nowrap text-[12.5px] font-semibold text-fg-0">
-            New connection
+            {isEdit ? "Edit connection" : "New connection"}
           </span>
         </div>
         <button className="icon-btn" onClick={onClose} title="Close">
@@ -162,7 +187,11 @@ export function ConnectionDialog({ onClose }: ConnectionDialogProps) {
             return (
               <button
                 key={e}
-                onClick={() => !disabled && setEngine(e)}
+                onClick={() => {
+                  if (disabled) return;
+                  userPickedEngine.current = true;
+                  setEngine(e);
+                }}
                 disabled={disabled}
                 title={disabled ? "coming soon" : m.label}
                 className={
@@ -276,12 +305,20 @@ export function ConnectionDialog({ onClose }: ConnectionDialogProps) {
               />
             </FormRow>
 
-            <FormRow label="Password" hint="Stored in OS keychain">
+            <FormRow
+              label="Password"
+              hint={
+                isEdit
+                  ? "Leave blank to keep the saved password"
+                  : "Stored in OS keychain"
+              }
+            >
               <input
                 className={CD_INPUT + " font-mono"}
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                placeholder={isEdit ? "•••••••• (unchanged)" : ""}
                 style={{ flex: 1 }}
                 autoComplete="new-password"
               />
@@ -401,7 +438,7 @@ export function ConnectionDialog({ onClose }: ConnectionDialogProps) {
             }}
           >
             <Icon.plus size={11} />
-            <span>{saving ? "Saving…" : "Save"}</span>
+            <span>{saving ? "Saving…" : isEdit ? "Save changes" : "Save"}</span>
           </button>
         </div>
       </div>

@@ -61,9 +61,9 @@ async introspect(connectionId: string, refresh: boolean | null) : Promise<Result
     else return { status: "error", error: e  as any };
 }
 },
-async runQuery(connectionId: string, sql: string, maxRows: number | null) : Promise<Result<QueryResult, CellarError>> {
+async runQuery(connectionId: string, sql: string, maxRows: number | null, database: string | null) : Promise<Result<QueryResult, CellarError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("run_query", { connectionId, sql, maxRows }) };
+    return { status: "ok", data: await TAURI_INVOKE("run_query", { connectionId, sql, maxRows, database }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };

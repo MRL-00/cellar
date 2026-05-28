@@ -104,8 +104,11 @@ async fn introspect_returns_seed_tables_with_keys() {
         .await
         .expect("connect");
     let dbs = driver.introspect(conn.as_ref()).await.expect("introspect");
-    assert_eq!(dbs.len(), 1);
-    let db = &dbs[0];
+    let db = dbs
+        .iter()
+        .find(|d| d.name == "postgres")
+        .expect("connected database in tree");
+    assert!(db.is_default);
     let public = db
         .schemas
         .iter()
@@ -129,6 +132,42 @@ async fn introspect_returns_seed_tables_with_keys() {
         .expect("fk to customers");
     assert_eq!(fk.referenced_table, "customers");
     assert_eq!(fk.referenced_columns, vec!["id".to_string()]);
+}
+
+#[tokio::test]
+async fn introspect_lists_every_database_on_the_server() {
+    let live = boot().await;
+    let driver = PostgresDriver::new();
+    let conn = driver
+        .connect(&live.config, Some(&live.password))
+        .await
+        .expect("connect");
+
+    // A second database on the same server should appear in the tree even
+    // though our connection is bound to `postgres`.
+    driver
+        .execute_query(conn.as_ref(), &Query::new("CREATE DATABASE extra_db"))
+        .await
+        .expect("create database");
+
+    let dbs = driver.introspect(conn.as_ref()).await.expect("introspect");
+    let names: Vec<&str> = dbs.iter().map(|d| d.name.as_str()).collect();
+    assert!(names.contains(&"postgres"), "got {names:?}");
+    assert!(names.contains(&"extra_db"), "got {names:?}");
+
+    // Querying the sibling database routes to its own pool.
+    let result = driver
+        .execute_query(
+            conn.as_ref(),
+            &Query::new("SELECT current_database() AS d").with_database("extra_db"),
+        )
+        .await
+        .expect("query sibling db");
+    if let CellValue::Text(d) = &result.rows[0][0] {
+        assert_eq!(d, "extra_db");
+    } else {
+        panic!("expected current_database text");
+    }
 }
 
 #[tokio::test]
