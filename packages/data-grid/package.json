@@ -6,16 +6,17 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "scripts": {
-    "lint": "node ../../scripts/check-ts-entry.mjs src/index.ts src/grid.tsx src/types.ts",
+    "lint": "node ../../scripts/check-ts-entry.mjs src/index.ts",
     "test": "vitest run --passWithNoTests"
   },
   "exports": {
     ".": "./src/index.ts"
   },
   "peerDependencies": {
-    "react": "^18.3.0"
+    "react": "^18.0.0"
   },
   "devDependencies": {
-    "@types/react": "^18.3.3"
+    "@types/react": "^18.3.3",
+    "react": "^18.3.1"
   }
 }

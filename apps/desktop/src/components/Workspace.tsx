@@ -1,4 +1,4 @@
-import { DataGrid } from "@cellar/data-grid";
+import { DataGrid, useGridState } from "@cellar/data-grid";
 
 import { Icon } from "./icons";
 import { useTabs, type TableTab } from "../state/tabs";
@@ -12,25 +12,61 @@ export function Workspace({ onCommit }: { onCommit?: () => void } = {}) {
   if (!active) {
     return <EmptyWorkspace onCommit={onCommit} />;
   }
-  return <TableTabPane tab={active} />;
+  // `key` resets the grid's local state (filters/selection) when the user
+  // switches to a different table tab.
+  return <TableTabPane key={active.id} tab={active} onCommit={onCommit} />;
 }
 
-function TableTabPane({ tab }: { tab: TableTab }) {
-  const data = useTableData(
-    tab.connectionId,
-    tab.database,
-    tab.schema,
-    tab.table,
-  );
+function TableTabPane({
+  tab,
+  onCommit,
+}: {
+  tab: TableTab;
+  onCommit?: () => void;
+}) {
+  const data = useTableData(tab.connectionId, tab.database, tab.schema, tab.table);
+  const grid = useGridState();
+
+  if (data.loading) {
+    return (
+      <PaneMessage>
+        <span className="animate-sb-pulse">loading {tab.schema}.{tab.table}…</span>
+      </PaneMessage>
+    );
+  }
+  if (data.error) {
+    return (
+      <PaneMessage>
+        <span className="text-warn">{data.error}</span>
+      </PaneMessage>
+    );
+  }
+
   return (
-    <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
+    <div className="flex flex-1 min-h-0 overflow-hidden">
       <DataGrid
         columns={data.columns}
         rows={data.rows}
-        truncated={data.truncated}
-        loading={data.loading}
-        error={data.error}
+        totalRows={data.truncated ? undefined : data.rows.length}
+        changes={grid.changes}
+        onChange={grid.setChanges}
+        selection={grid.selection}
+        onSelect={grid.setSelection}
+        editing={grid.editing}
+        onEdit={grid.setEditing}
+        filters={grid.filters}
+        onFiltersChange={grid.setFilters}
+        onCommit={onCommit}
+        onRevert={grid.revert}
       />
+    </div>
+  );
+}
+
+function PaneMessage({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex flex-1 items-center justify-center bg-bg-inset text-[11.5px] text-fg-3">
+      {children}
     </div>
   );
 }
@@ -59,9 +95,8 @@ function EmptyWorkspace({ onCommit }: { onCommit?: () => void }) {
           Open a table to begin
         </div>
         <div className="max-w-[360px] text-[11.5px] leading-[1.5] text-fg-3">
-          Add a Postgres connection in the sidebar, expand it, and double-click
-          a table to load real rows. The SQL editor and pending-changes flow
-          land in the next slice.
+          Add a Postgres connection in the sidebar, expand it, and click a
+          table to load real rows. The SQL editor lands in the next slice.
         </div>
       </div>
       <div className="flex gap-3 text-[10.5px] text-fg-3">

@@ -1,11 +1,6 @@
 import { commands, unwrap } from "@cellar/ipc";
 import type { CellValue, QueryResult } from "@cellar/ipc";
-import type {
-  GridCellValue,
-  GridColumn,
-  GridForeignKeyRef,
-  GridRow,
-} from "@cellar/data-grid";
+import type { CellAlign, GridColumn, GridRow } from "@cellar/data-grid";
 import { useEffect, useState } from "react";
 
 import { useConnections } from "../state/connections";
@@ -23,10 +18,10 @@ interface TableData {
 const DEFAULT_LIMIT = 500;
 
 /**
- * Pull a page of rows for the given table out of the live connection and
- * map it into the grid's columns/rows shape. Lossless types (numeric, uuid,
- * temporals) survive as strings; nulls land as JS `null` so the grid renders
- * them italic.
+ * Pull a page of rows for the given table out of the live connection and map
+ * it into the grid's `GridColumn[]` / `GridRow[]` shapes. Lossless types
+ * (numeric, uuid, temporals) survive as strings; SQL NULL maps to JS `null`
+ * so the grid renders it as the italic NULL marker.
  */
 export function useTableData(
   connectionId: string,
@@ -53,10 +48,10 @@ export function useTableData(
           commands.runQuery(connectionId, sql, DEFAULT_LIMIT, database),
         );
         if (cancelled) return;
-        const cols = columnsFor(connectionId, database, schema, table, result);
-        const rows = rowsFor(result);
+        const columns = columnsFor(connectionId, database, schema, table, result);
+        const rows = rowsFor(columns, result);
         setState({
-          columns: cols,
+          columns,
           rows,
           truncated: result.truncated,
           loading: false,
@@ -107,46 +102,55 @@ function columnsFor(
   return result.columns.map((c) => {
     const meta = tableMeta?.columns.find((mc) => mc.name === c.name);
     const fk = findForeignKey(tableMeta?.foreign_keys ?? [], c.name);
+    const numeric = isNumeric(c.data_type);
+    const align: CellAlign | undefined = numeric ? "right" : undefined;
     return {
-      id: c.name,
+      key: c.name,
       name: c.name,
       type: c.data_type,
+      width: widthFor(c.data_type),
+      pk: meta?.is_primary_key ?? false,
+      fk,
+      align,
+      mono: numeric || isMonoType(c.data_type),
       nullable: meta ? meta.nullable : c.nullable,
-      primaryKey: meta ? meta.is_primary_key : false,
-      foreignKey: fk,
     };
   });
 }
 
 function findForeignKey(
-  fks: { name: string; columns: string[]; referenced_schema: string; referenced_table: string; referenced_columns: string[] }[],
+  fks: {
+    columns: string[];
+    referenced_schema: string;
+    referenced_table: string;
+  }[],
   columnName: string,
-): GridForeignKeyRef | undefined {
+): string | undefined {
   for (const fk of fks) {
     if (fk.columns.length === 1 && fk.columns[0] === columnName) {
-      return {
-        schema: fk.referenced_schema,
-        table: fk.referenced_table,
-        columns: fk.referenced_columns,
-      };
+      return `${fk.referenced_schema}.${fk.referenced_table}`;
     }
   }
   return undefined;
 }
 
-function rowsFor(result: QueryResult): GridRow[] {
-  return result.rows.map((cells, i) => ({
-    id: i,
-    cells: cells.map(cellValueToGridCell),
-  }));
+function rowsFor(columns: GridColumn[], result: QueryResult): GridRow[] {
+  return result.rows.map((cells, i) => {
+    const row: GridRow = { id: String(i) };
+    cells.forEach((cell, ci) => {
+      const col = columns[ci];
+      if (col) row[col.key] = cellValueToGrid(cell);
+    });
+    return row;
+  });
 }
 
-function cellValueToGridCell(value: CellValue): GridCellValue {
+function cellValueToGrid(value: CellValue): string | number | null {
   switch (value.type) {
     case "Null":
       return null;
     case "Bool":
-      return value.value;
+      return value.value ? "true" : "false";
     case "Int":
     case "Float":
       return value.value;
@@ -166,6 +170,45 @@ function cellValueToGridCell(value: CellValue): GridCellValue {
     case "TimestampTz":
       return value.value;
   }
+}
+
+function isNumeric(type: string): boolean {
+  const t = type.toLowerCase();
+  return (
+    t === "int2" ||
+    t === "int4" ||
+    t === "int8" ||
+    t === "oid" ||
+    t === "float4" ||
+    t === "float8" ||
+    t === "numeric"
+  );
+}
+
+function isMonoType(type: string): boolean {
+  const t = type.toLowerCase();
+  return (
+    t === "uuid" ||
+    t === "json" ||
+    t === "jsonb" ||
+    t === "bytea" ||
+    t === "date" ||
+    t === "time" ||
+    t === "timetz" ||
+    t === "timestamp" ||
+    t === "timestamptz"
+  );
+}
+
+function widthFor(type: string): number {
+  const t = type.toLowerCase();
+  if (t === "uuid") return 290;
+  if (t === "timestamptz" || t === "timestamp") return 210;
+  if (t === "date") return 110;
+  if (t === "json" || t === "jsonb" || t === "bytea") return 260;
+  if (isNumeric(t)) return 110;
+  if (t === "bool") return 80;
+  return 180;
 }
 
 function bytesToHex(bytes: number[]): string {

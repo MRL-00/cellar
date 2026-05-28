@@ -17,12 +17,82 @@ type Panels = { left: boolean; right: boolean; bottom: boolean };
 type ModalId = "commit" | "palette" | "settings" | null;
 type ConnDialog = { mode: "new" | "edit"; initial?: ConnectionConfig } | null;
 
+const LEFT_MIN = 200;
+const LEFT_MAX = 600;
+const RIGHT_MIN = 280;
+const RIGHT_MAX = 720;
+const BOTTOM_MIN = 140;
+
+function startResize(
+  axis: "x" | "y",
+  startValue: number,
+  setValue: (v: number) => void,
+  sign: 1 | -1,
+  min: number,
+  max: number,
+) {
+  return (e: React.MouseEvent) => {
+    e.preventDefault();
+    const start = axis === "x" ? e.clientX : e.clientY;
+    const onMove = (ev: MouseEvent) => {
+      const cur = axis === "x" ? ev.clientX : ev.clientY;
+      const next = Math.max(min, Math.min(max, startValue + (cur - start) * sign));
+      setValue(next);
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    document.body.style.cursor = axis === "x" ? "col-resize" : "row-resize";
+    document.body.style.userSelect = "none";
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
+}
+
+function ResizeHandle({
+  axis,
+  onMouseDown,
+}: {
+  axis: "x" | "y";
+  onMouseDown: (e: React.MouseEvent) => void;
+}) {
+  const vertical = axis === "x";
+  return (
+    <div
+      role="separator"
+      aria-orientation={vertical ? "vertical" : "horizontal"}
+      onMouseDown={onMouseDown}
+      className={
+        "group relative z-10 shrink-0 " +
+        (vertical
+          ? "w-[7px] -mx-[3px] cursor-col-resize"
+          : "h-[7px] -my-[3px] cursor-row-resize")
+      }
+    >
+      <div
+        className={
+          "absolute bg-border-default transition-colors duration-100 group-hover:bg-accent-line group-active:bg-accent " +
+          (vertical
+            ? "inset-y-0 left-1/2 w-px -translate-x-1/2"
+            : "inset-x-0 top-1/2 h-px -translate-y-1/2")
+        }
+      />
+    </div>
+  );
+}
+
 export function App() {
   const [panels, setPanels] = useState<Panels>({
     left: true,
     right: true,
     bottom: true,
   });
+  const [leftWidth, setLeftWidth] = useState(256);
+  const [rightWidth, setRightWidth] = useState(380);
+  const [bottomHeight, setBottomHeight] = useState(280);
   const [modal, setModal] = useState<ModalId>(null);
   const [connDialog, setConnDialog] = useState<ConnDialog>(null);
   const [empty, setEmpty] = useState(false);
@@ -88,16 +158,29 @@ export function App() {
 
       <div className="flex flex-1 min-h-0">
         {!empty && panels.left && (
-          <div
-            className="flex min-w-0 flex-col border-r border-border-default bg-bg-1"
-            style={{ width: 256 }}
-          >
-            <Sidebar
-              onNewConnection={openNewConnection}
-              onEditConnection={editConnection}
-              onDuplicateConnection={duplicateConnection}
+          <>
+            <div
+              className="flex min-w-0 flex-col bg-bg-1"
+              style={{ width: leftWidth }}
+            >
+              <Sidebar
+                onNewConnection={openNewConnection}
+                onEditConnection={editConnection}
+                onDuplicateConnection={duplicateConnection}
+              />
+            </div>
+            <ResizeHandle
+              axis="x"
+              onMouseDown={startResize(
+                "x",
+                leftWidth,
+                setLeftWidth,
+                1,
+                LEFT_MIN,
+                LEFT_MAX,
+              )}
             />
-          </div>
+          </>
         )}
 
         <div className="flex flex-1 min-w-0 flex-col bg-bg-0">
@@ -108,21 +191,50 @@ export function App() {
               <TabBar />
               <Workspace onCommit={() => openModal("commit")} />
               {panels.bottom && (
-                <div className="flex h-[280px] flex-col border-t border-border-default bg-bg-1">
-                  <BottomPanel onClose={() => togglePanel("bottom")} />
-                </div>
+                <>
+                  <ResizeHandle
+                    axis="y"
+                    onMouseDown={startResize(
+                      "y",
+                      bottomHeight,
+                      setBottomHeight,
+                      -1,
+                      BOTTOM_MIN,
+                      Math.max(BOTTOM_MIN, Math.round(window.innerHeight * 0.7)),
+                    )}
+                  />
+                  <div
+                    className="flex flex-col bg-bg-1"
+                    style={{ height: bottomHeight }}
+                  >
+                    <BottomPanel onClose={() => togglePanel("bottom")} />
+                  </div>
+                </>
               )}
             </>
           )}
         </div>
 
         {!empty && panels.right && (
-          <div
-            className="flex min-w-0 flex-col border-l border-border-default bg-bg-1"
-            style={{ width: 380 }}
-          >
-            <AIPanel onClose={() => togglePanel("right")} />
-          </div>
+          <>
+            <ResizeHandle
+              axis="x"
+              onMouseDown={startResize(
+                "x",
+                rightWidth,
+                setRightWidth,
+                -1,
+                RIGHT_MIN,
+                RIGHT_MAX,
+              )}
+            />
+            <div
+              className="flex min-w-0 flex-col bg-bg-1"
+              style={{ width: rightWidth }}
+            >
+              <AIPanel onClose={() => togglePanel("right")} />
+            </div>
+          </>
         )}
       </div>
 

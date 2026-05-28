@@ -70,14 +70,13 @@ importers:
   packages/ai: {}
 
   packages/data-grid:
-    dependencies:
-      react:
-        specifier: ^18.3.0
-        version: 18.3.1
     devDependencies:
       '@types/react':
         specifier: ^18.3.3
         version: 18.3.29
+      react:
+        specifier: ^18.3.1
+        version: 18.3.1
 
   packages/ipc:
     dependencies:

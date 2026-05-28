@@ -1,45 +1,59 @@
+/** Public types for the Cellar data grid. */
+
+export type CellAlign = "left" | "right" | "center";
+
 /**
- * Cell value that the grid knows how to render. The IPC layer hands us
- * `CellValue`; the workspace lowers it to one of these shapes (numerics and
- * uuids as strings, dates as ISO strings, etc.) before passing into the grid.
+ * A single column definition. Mirrors a SQL column with enough metadata for the
+ * grid to render the type icon, format the value, and offer the right inline
+ * editor.
  */
-export type GridCellValue = string | number | boolean | null;
-
-export interface GridForeignKeyRef {
-  schema: string;
-  table: string;
-  columns: string[];
-}
-
-export interface GridColumn {
-  id: string;
+export type GridColumn = {
+  key: string;
   name: string;
-  /** Engine-native type tag, e.g. `int4`, `text`, `timestamptz`. */
   type: string;
-  nullable: boolean;
-  primaryKey: boolean;
-  foreignKey?: GridForeignKeyRef;
-}
+  width: number;
+  pk?: boolean;
+  fk?: string;
+  align?: CellAlign;
+  mono?: boolean;
+  nullable?: boolean;
+  enum?: readonly string[];
+};
 
-export interface GridRow {
-  /** Stable identity for React reconciliation. */
-  id: string | number;
-  cells: GridCellValue[];
-}
+/** Row values are keyed by column key. Use `null` for SQL NULL. */
+export type GridRow = {
+  id: string;
+  [key: string]: string | number | null | undefined;
+};
 
-/** Pending in-memory edits, kept by the grid until commit. SPEC §6.5. */
-export interface PendingChanges {
+export type ChangeKind = "insert" | "update" | "delete";
+
+export type CellChange = {
+  from: string | number | null;
+  to: string | number | null;
+};
+
+/**
+ * A pending change against a row. `edits` is sparse — only the columns the user
+ * has touched — and is empty for `delete` and dense for `insert`.
+ */
+export type PendingChange = {
+  kind: ChangeKind;
+  edits: Record<string, CellChange>;
+};
+
+export type PendingChanges = Record<string, PendingChange>;
+
+export type CellAddress = {
+  row: number;
+  col: number;
+};
+
+export type ColumnFilters = Record<string, string>;
+
+export type GridStatusCounts = {
+  total: number;
   inserts: number;
   updates: number;
   deletes: number;
-}
-
-export interface DataGridProps {
-  columns: GridColumn[];
-  rows: GridRow[];
-  pendingChanges?: PendingChanges;
-  /** `true` when the result was capped — the footer surfaces a "+ more" badge. */
-  truncated?: boolean;
-  loading?: boolean;
-  error?: string | null;
-}
+};

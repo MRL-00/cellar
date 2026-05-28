@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "./tokens.css";
 @import "./base.css";
+@import "./grid.css";
 
 /* Bridge: expose every design token from tokens.css as a Tailwind v4 theme key
    so utilities like `bg-bg-0`, `text-fg-1`, `border-border-default`, `font-mono`,
