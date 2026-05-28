@@ -1,0 +1,437 @@
+/* Cellar data grid styles — pairs with @cellar/data-grid components. */
+
+.grid-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  /* Stop the wide table inside from blowing out our flex parent. Without
+     `min-width: 0` a flex item's min-width defaults to its intrinsic content
+     width (~1850px here), so `.grid-scroll` never sees overflow to scroll. */
+  min-width: 0;
+  font-size: var(--fs-md);
+  background: var(--bg-inset);
+}
+
+/* ── filter bar ───────────────────────────────────────────── */
+.grid-filterbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 10px;
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--border-default);
+  flex-shrink: 0;
+  font-family: var(--font-sans);
+  font-size: 11px;
+}
+.grid-filterbar-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--fg-2);
+  font-weight: 500;
+}
+.grid-filterbar-chips {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+.grid-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 4px 0 7px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-line);
+  border-radius: 4px;
+  font-size: 10.5px;
+  color: var(--fg-0);
+}
+.grid-filter-chip .mono { font-family: var(--font-mono); }
+.grid-filter-op { color: var(--accent); }
+.grid-filter-chip button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 2px;
+  color: var(--fg-2);
+}
+.grid-filter-chip button:hover { background: rgba(0,0,0,0.2); color: var(--fg-0); }
+
+.grid-filter-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 20px;
+  padding: 0 6px;
+  border: 1px dashed var(--border-default);
+  border-radius: 4px;
+  font-size: 10.5px;
+  color: var(--fg-2);
+}
+.grid-filter-add:hover { color: var(--fg-0); border-color: var(--border-strong); }
+
+.grid-filterbar-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: auto;
+  font-size: 10.5px;
+}
+
+/* ── table scroll + rows ──────────────────────────────────── */
+.grid-scroll {
+  flex: 1;
+  overflow: auto;
+}
+.grid-table {
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1;
+}
+.grid-row {
+  display: flex;
+  height: var(--row-h);
+  border-bottom: 1px solid var(--border-divider);
+  position: relative;
+}
+.grid-header-row {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  height: 26px;
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--border-default);
+}
+.grid-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  position: relative;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border-divider);
+}
+.grid-row:hover { background: var(--bg-2); }
+
+.grid-row.is-update { background: var(--update-bg); }
+.grid-row.is-update:hover { background: color-mix(in oklab, var(--update-bg) 70%, var(--bg-3)); }
+.grid-row.is-insert { background: var(--insert-bg); }
+.grid-row.is-insert:hover { background: color-mix(in oklab, var(--insert-bg) 70%, var(--bg-3)); }
+.grid-row.is-delete { background: var(--delete-bg); }
+.grid-row.is-delete:hover { background: color-mix(in oklab, var(--delete-bg) 70%, var(--bg-3)); }
+.grid-row.is-delete .grid-cell:not(.grid-cell-rowno) {
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in oklab, var(--delete) 50%, transparent);
+  color: var(--fg-3);
+}
+
+/* ── row number gutter ────────────────────────────────────── */
+.grid-cell-rowno {
+  width: 36px;
+  min-width: 36px;
+  flex-basis: 36px !important;
+  justify-content: center;
+  color: var(--fg-3);
+  background: var(--bg-1);
+  border-right: 1px solid var(--border-divider);
+  font-size: 10px;
+  position: sticky;
+  left: 0;
+  z-index: 2;
+}
+.grid-row.is-update .grid-cell-rowno { background: color-mix(in oklab, var(--update-bg) 60%, var(--bg-1)); }
+.grid-row.is-insert .grid-cell-rowno { background: color-mix(in oklab, var(--insert-bg) 60%, var(--bg-1)); }
+.grid-row.is-delete .grid-cell-rowno { background: color-mix(in oklab, var(--delete-bg) 60%, var(--bg-1)); }
+.grid-rowno-num { font-variant-numeric: tabular-nums; }
+.grid-gutter-mark {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+}
+
+/* ── frozen columns + headers ─────────────────────────────── */
+.grid-cell.frozen {
+  background: var(--bg-inset);
+  position: sticky;
+  z-index: 2;
+}
+.grid-cell.frozen + .grid-cell:not(.frozen) {
+  box-shadow: inset 2px 0 0 -1px var(--border-strong);
+}
+.grid-header-cell {
+  height: 100%;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--fg-0);
+  text-transform: none;
+  background: var(--bg-1);
+  cursor: pointer;
+  border-right: 1px solid var(--border-default);
+}
+.grid-header-cell:hover { background: var(--bg-2); }
+.grid-header-cell.frozen { background: var(--bg-1); }
+.grid-header-icon { color: var(--fg-3); display: inline-flex; }
+.grid-header-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+}
+.grid-header-type {
+  font-size: 9.5px;
+  color: var(--fg-3);
+  font-family: var(--font-mono);
+  margin-left: auto;
+  text-transform: lowercase;
+}
+.grid-header-sort {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  color: var(--fg-3);
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+.grid-header-cell:hover .grid-header-sort { opacity: 1; }
+.grid-col-resize {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  cursor: col-resize;
+}
+.grid-col-resize:hover { background: var(--accent-line); }
+
+/* ── selection + cell edit states ─────────────────────────── */
+.grid-cell.is-selected {
+  outline: 1.5px solid var(--accent);
+  outline-offset: -1.5px;
+  background: var(--accent-soft);
+  z-index: 3;
+}
+.grid-cell.is-editing { outline: 2px solid var(--accent); padding: 0; }
+.grid-cell.is-edited { background: var(--update-bg); }
+.grid-row.is-update .grid-cell.is-edited {
+  background: color-mix(in oklab, var(--update) 18%, transparent);
+  box-shadow: inset 0 -2px 0 var(--update-line);
+}
+
+/* ── cell value variants ──────────────────────────────────── */
+.cell-null {
+  color: var(--fg-3);
+  font-style: italic;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+.cell-enum {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+}
+.cell-enum .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+.cell-fk {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
+.cell-fk-jump {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: auto;
+  border-radius: 2px;
+  color: var(--accent);
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+.grid-cell:hover .cell-fk-jump { opacity: 1; }
+.cell-fk-jump:hover { background: var(--accent-soft); }
+
+.cell-edit-input {
+  width: 100%;
+  height: 100%;
+  padding: 0 8px;
+  background: var(--bg-2);
+  border: none;
+  outline: none;
+  color: var(--fg-0);
+  font-size: 11.5px;
+}
+.cell-edit-enum {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 4px;
+  width: 100%;
+  height: 100%;
+  background: var(--bg-2);
+  overflow-x: auto;
+}
+.cell-edit-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 16px;
+  padding: 0 6px;
+  background: var(--bg-3);
+  border-radius: 3px;
+  font-size: 10px;
+  font-family: var(--font-sans);
+  color: var(--fg-1);
+  flex-shrink: 0;
+}
+.cell-edit-opt:hover { background: var(--bg-4); color: var(--fg-0); }
+.cell-edit-opt.active { background: var(--accent); color: var(--accent-fg); }
+.cell-edit-opt .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+/* ── previous-value badge on edited cells ─────────────────── */
+.grid-cell-prev {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 9.5px;
+  color: var(--fg-3);
+  pointer-events: none;
+  max-width: 50%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.grid-cell-prev-strike {
+  text-decoration: line-through;
+  padding: 0 4px;
+  background: rgba(0,0,0,0.25);
+  border-radius: 2px;
+}
+
+.grid-row-add {
+  height: 22px;
+  background: transparent;
+  color: var(--fg-3);
+  border-bottom: none;
+}
+.grid-row-add:hover {
+  background: var(--insert-bg);
+  color: var(--accent);
+}
+
+/* ── pending bar ──────────────────────────────────────────── */
+.grid-pending {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 32px;
+  padding: 0 10px;
+  background: var(--bg-1);
+  border-top: 1px solid var(--border-default);
+  font-family: var(--font-sans);
+  font-size: 11.5px;
+  flex-shrink: 0;
+}
+.grid-pending.empty { background: var(--bg-1); }
+.grid-pending-left,
+.grid-pending-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.grid-pending-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.grid-pending-divider { color: var(--fg-3); }
+.grid-pending-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 3px;
+  font-size: 10.5px;
+  font-weight: 500;
+}
+.grid-pending-chip .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+.grid-pending-chip-update { background: var(--update-bg); color: var(--update); }
+.grid-pending-chip-insert { background: var(--insert-bg); color: var(--insert); }
+.grid-pending-chip-delete { background: var(--delete-bg); color: var(--delete); }
+
+.grid-pending-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  border: 1px solid var(--border-default);
+  color: var(--fg-1);
+  background: transparent;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.grid-pending-btn:hover:not(:disabled) {
+  background: var(--bg-3);
+  color: var(--fg-0);
+  border-color: var(--border-strong);
+}
+.grid-pending-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.grid-pending-btn.primary {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: var(--accent);
+}
+.grid-pending-btn.primary:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--accent) 88%, white);
+  color: var(--accent-fg);
+  border-color: color-mix(in oklab, var(--accent) 88%, white);
+}
+.grid-pending-btn .kbd {
+  background: rgba(0, 0, 0, 0.18);
+  border-color: transparent;
+  color: inherit;
+}
+
+.tnum { font-variant-numeric: tabular-nums; }

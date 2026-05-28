@@ -21,6 +21,8 @@ const result = spawnSync(
     "bundler",
     "--lib",
     "ES2022,DOM,DOM.Iterable",
+    "--jsx",
+    "react-jsx",
     "--strict",
     "--noUncheckedIndexedAccess",
     "--noImplicitOverride",
