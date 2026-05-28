@@ -19,7 +19,7 @@
     user-select: none;
   }
 
-  #root { height: 100vh; }
+  #root { height: 100%; width: 100%; }
 
   button, input, textarea, select {
     font-family: inherit;

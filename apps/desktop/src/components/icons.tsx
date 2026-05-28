@@ -242,6 +242,14 @@ export const Icon = {
     </I>
   ),
   bracket: (p: IconProps) => <I {...p} d="M8 4H4v16h4M16 4h4v16h-4" />,
+  trash: (p: IconProps) => (
+    <I {...p}>
+      <path d="M3 6h18" />
+      <path d="M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2" />
+      <path d="M19 6l-1.4 13.1a2 2 0 01-2 1.9H8.4a2 2 0 01-2-1.9L5 6" />
+      <path d="M10 11v6M14 11v6" />
+    </I>
+  ),
 };
 
 export type IconName = keyof typeof Icon;
