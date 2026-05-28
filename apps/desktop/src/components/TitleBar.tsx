@@ -1,6 +1,17 @@
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Icon } from "./icons";
 
 type Panels = { left: boolean; right: boolean; bottom: boolean };
+
+function onTitleBarDoubleClick(e: React.MouseEvent<HTMLDivElement>) {
+  let el: HTMLElement | null = e.target as HTMLElement;
+  while (el && el !== e.currentTarget) {
+    if (getComputedStyle(el).getPropertyValue("-webkit-app-region") === "no-drag") return;
+    el = el.parentElement;
+  }
+  if (!("__TAURI_INTERNALS__" in window)) return;
+  void getCurrentWindow().toggleMaximize();
+}
 
 export function TitleBar({
   panels,
@@ -19,6 +30,7 @@ export function TitleBar({
 }) {
   return (
     <div
+      onDoubleClick={onTitleBarDoubleClick}
       className={
         "relative flex shrink-0 h-[34px] items-center gap-2.5 px-2.5 [-webkit-app-region:drag] " +
         (empty
