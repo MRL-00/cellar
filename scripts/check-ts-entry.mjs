@@ -28,6 +28,8 @@ const result = spawnSync(
     "--resolveJsonModule",
     "--skipLibCheck",
     "--forceConsistentCasingInFileNames",
+    "--jsx",
+    "react-jsx",
     ...entries,
   ],
   {

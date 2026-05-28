@@ -14,9 +14,12 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@cellar/data-grid": "workspace:*",
+    "@cellar/ipc": "workspace:*",
     "@tauri-apps/api": "^2.0.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "zustand": "^4.5.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4",

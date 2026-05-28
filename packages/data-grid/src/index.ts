@@ -1,2 +1,9 @@
-// Virtualized, editable data grid (TanStack Table v8) lands here.
-export {};
+export { DataGrid } from "./grid";
+export type {
+  DataGridProps,
+  GridCellValue,
+  GridColumn,
+  GridForeignKeyRef,
+  GridRow,
+  PendingChanges,
+} from "./types";

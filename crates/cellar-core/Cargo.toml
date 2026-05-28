@@ -5,3 +5,12 @@ edition.workspace = true
 license.workspace = true
 description = "Cellar — shared traits, types, and errors for drivers and the host"
 publish = false
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+async-trait = "0.1"
+specta = { version = "=2.0.0-rc.22", features = ["derive", "chrono", "uuid", "serde_json"] }
+chrono = { version = "0.4", features = ["serde"], default-features = false }
+uuid = { version = "1", features = ["serde", "v4"] }
