@@ -5,6 +5,9 @@ edition.workspace = true
 license.workspace = true
 description = "Cellar desktop app — Tauri shell"
 publish = false
+# `tauri dev` invokes `cargo run` with no --bin. Without this, Cargo errors
+# because the codegen binary makes the choice ambiguous.
+default-run = "cellar-desktop"
 
 [lib]
 name = "cellar_desktop_lib"
