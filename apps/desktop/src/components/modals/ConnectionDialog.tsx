@@ -44,11 +44,11 @@ const SSL_MODES: SslMode[] = [
 ];
 
 const ED_RUN_BASE =
-  "inline-flex h-[26px] items-center gap-[5px] whitespace-nowrap rounded-[4px] border border-transparent px-2.5 text-[11.5px] font-medium text-fg-1 transition-[background,color,border-color,filter] duration-[120ms]";
+  "inline-flex h-[26px] items-center gap-[5px] whitespace-nowrap rounded-[4px] border border-transparent px-2.5 text-[11.5px] font-medium transition-[background,color,border-color,filter] duration-[120ms]";
 
 const ED_RUN_SUBTLE =
   ED_RUN_BASE +
-  " bg-transparent border-border-default hover:bg-bg-3 hover:border-border-strong hover:text-fg-0 disabled:opacity-40 disabled:cursor-not-allowed";
+  " text-fg-1 bg-transparent border-border-default hover:bg-bg-3 hover:border-border-strong hover:text-fg-0 disabled:opacity-40 disabled:cursor-not-allowed";
 
 const ED_RUN_PRIMARY =
   ED_RUN_BASE +
@@ -422,15 +422,26 @@ function TestPill({ status }: { status: TestStatus }) {
   if (status.kind === "ok") {
     return (
       <span className="inline-flex items-center gap-1.5 text-[11px]">
-        <Icon.check size={10} stroke="var(--accent)" />
-        <span style={{ color: "var(--accent)" }}>Connected</span>
-        <span style={{ color: "var(--fg-3)" }}>·</span>
+        <span
+          className="inline-flex h-[15px] items-center gap-1 rounded-[3px] px-1.5 font-medium"
+          style={{
+            color: "var(--accent)",
+            background: "var(--accent-soft)",
+          }}
+        >
+          <Icon.check size={10} stroke="var(--accent)" />
+          Connection successful
+        </span>
         <span className="font-mono" style={{ color: "var(--fg-2)" }}>
           {status.durationMs} ms
         </span>
         <span style={{ color: "var(--fg-3)" }}>·</span>
-        <span className="font-mono" style={{ color: "var(--fg-2)" }}>
-          {truncate(status.info.version, 56)}
+        <span
+          className="font-mono"
+          style={{ color: "var(--fg-2)" }}
+          title={status.info.version}
+        >
+          {shortVersion(status.info.version)}
         </span>
       </span>
     );
@@ -445,6 +456,12 @@ function TestPill({ status }: { status: TestStatus }) {
 
 function truncate(s: string, n: number): string {
   return s.length <= n ? s : s.slice(0, n - 1) + "…";
+}
+
+function shortVersion(v: string): string {
+  // `PostgreSQL 16.12 on x86_64-pc-linux-gnu, compiled by …` → `PostgreSQL 16.12`
+  const match = v.match(/^(\S+\s+\d+(?:\.\d+)*)/);
+  return match?.[1] ?? truncate(v, 40);
 }
 
 function slugify(s: string): string {
