@@ -8,12 +8,14 @@ export function TitleBar({
   empty,
   onToggleEmpty,
   onOpenPalette,
+  onOpenSettings,
 }: {
   panels: Panels;
   onTogglePanel: (k: keyof Panels) => void;
   empty?: boolean;
   onToggleEmpty?: () => void;
   onOpenPalette?: () => void;
+  onOpenSettings?: () => void;
 }) {
   return (
     <div
@@ -125,7 +127,11 @@ export function TitleBar({
             <Icon.layout size={13} />
           </button>
         )}
-        <button className="icon-btn" title="Settings">
+        <button
+          className="icon-btn"
+          onClick={onOpenSettings}
+          title="Settings (⌘,)"
+        >
           <Icon.settings size={13} />
         </button>
       </div>

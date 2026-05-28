@@ -10,9 +10,10 @@ import { ConnectionDialog } from "./components/modals/ConnectionDialog";
 import { CommitModal } from "./components/modals/CommitModal";
 import { CommandPalette } from "./components/modals/CommandPalette";
 import { EmptyState } from "./components/modals/EmptyState";
+import { SettingsModal } from "./components/modals/Settings";
 
 type Panels = { left: boolean; right: boolean; bottom: boolean };
-type ModalId = "connection" | "commit" | "palette" | null;
+type ModalId = "connection" | "commit" | "palette" | "settings" | null;
 
 export function App() {
   const [panels, setPanels] = useState<Panels>({
@@ -47,6 +48,11 @@ export function App() {
       if (mod && e.key.toLowerCase() === "s") {
         e.preventDefault();
         setModal("commit");
+        return;
+      }
+      if (mod && e.key === ",") {
+        e.preventDefault();
+        setModal((m) => (m === "settings" ? null : "settings"));
       }
     };
     window.addEventListener("keydown", onKey);
@@ -54,13 +60,14 @@ export function App() {
   }, []);
 
   return (
-    <div className="flex h-screen w-screen flex-col bg-bg-0">
+    <div className="flex h-full w-full flex-col bg-bg-0">
       <TitleBar
         panels={panels}
         onTogglePanel={togglePanel}
         empty={empty}
         onToggleEmpty={() => setEmpty((v) => !v)}
         onOpenPalette={() => openModal("palette")}
+        onOpenSettings={() => openModal("settings")}
       />
 
       <div className="flex flex-1 min-h-0">
@@ -104,6 +111,7 @@ export function App() {
       {modal === "connection" && <ConnectionDialog onClose={closeModal} />}
       {modal === "commit" && <CommitModal onClose={closeModal} />}
       {modal === "palette" && <CommandPalette onClose={closeModal} />}
+      {modal === "settings" && <SettingsModal onClose={closeModal} />}
     </div>
   );
 }
