@@ -1,69 +1,27 @@
+import { useEffect, useMemo, useState } from "react";
+import type { PendingChange, PendingChanges } from "@cellar/data-grid";
+import {
+  commands,
+  unwrap,
+  type CellAssignment,
+  type Table,
+  type TableChangeRequest,
+  type TableCommitPreview,
+} from "@cellar/ipc";
+
 import { Icon } from "../icons";
 import { Modal } from "./Modal";
 import { tokenizeSql, tokensToLines, renderTokens } from "../../lib/sqlTokens";
+import { useConnections } from "../../state/connections";
+import { useStatus } from "../../state/status";
+import { useTabs, type TableTab } from "../../state/tabs";
 
-type Edit = { from: string | number | null; to: string | number | null };
-type UpdateChange = {
-  kind: "update";
-  row: { order_number: string };
-  edits: Record<string, Edit>;
-};
-type InsertChange = { kind: "insert"; row: Record<string, unknown> };
-type DeleteChange = { kind: "delete"; row: { order_number: string } };
-export type Change = UpdateChange | InsertChange | DeleteChange;
+type PreviewState =
+  | { kind: "idle" | "loading"; preview: null; error: null }
+  | { kind: "ready"; preview: TableCommitPreview; error: null }
+  | { kind: "error"; preview: null; error: string };
 
-export type ChangeSet = Record<string, Change>;
-
-export const SAMPLE_CHANGES: ChangeSet = {
-  "0a14b9b2-7f6c-4f2d-8a17-3e9f30caa101": {
-    kind: "update",
-    row: { order_number: "EU-0184237" },
-    edits: {
-      status: { from: "paid", to: "fulfilled" },
-      shipping_method: { from: "standard", to: "express" },
-    },
-  },
-  "2c4dd1a3-9914-4d12-9f8b-1c0e0a3bbf24": {
-    kind: "update",
-    row: { order_number: "EU-0184244" },
-    edits: {
-      status: { from: "paid", to: "cancelled" },
-      notes: { from: null, to: "customer requested cancel" },
-    },
-  },
-  "9f1c2c50-22d0-43a8-9d12-aa3f6e5210ef": {
-    kind: "insert",
-    row: {
-      id: "9f1c2c50-22d0-43a8-9d12-aa3f6e5210ef",
-      order_number: "EU-0184902",
-      customer_id: "1d4e2-...",
-      status: "pending",
-      total_eur: 84.5,
-      currency: "EUR",
-      channel: "web",
-      country: "DE",
-    },
-  },
-  "ba27e1f8-1d61-4b09-bc44-9e102239f48a": {
-    kind: "delete",
-    row: { order_number: "EU-0184121" },
-  },
-};
-
-function formatVal(v: unknown): string {
-  if (v === null || v === undefined) return "NULL";
-  if (typeof v === "number") return String(v);
-  if (typeof v === "boolean") return v ? "TRUE" : "FALSE";
-  return "'" + String(v).replaceAll("'", "''") + "'";
-}
-
-function quoteIdent(value: string): string {
-  return `"${value.replaceAll('"', '""')}"`;
-}
-
-function sqlComment(value: string): string {
-  return value.replaceAll("\n", " ").replaceAll("\r", " ");
-}
+const EMPTY_CHANGES: PendingChanges = {};
 
 const ED_RUN_BASE =
   "inline-flex h-[26px] items-center gap-[5px] whitespace-nowrap rounded-[4px] border border-transparent px-2.5 text-[11.5px] font-medium text-fg-1 transition-[background,color,border-color,filter] duration-[120ms]";
@@ -74,74 +32,132 @@ const ED_RUN_SUBTLE =
 
 const ED_RUN_DANGER =
   ED_RUN_BASE +
-  " bg-delete text-white hover:brightness-[1.07]";
+  " bg-delete text-white hover:brightness-[1.07] disabled:cursor-not-allowed disabled:opacity-60";
 
-export function CommitModal({
-  onClose,
-  changes = SAMPLE_CHANGES,
-  table = "orders",
-}: {
-  onClose: () => void;
-  changes?: ChangeSet;
-  table?: string;
-}) {
+export function CommitModal({ onClose }: { onClose: () => void }) {
+  const activeId = useTabs((s) => s.activeId);
+  const tabs = useTabs((s) => s.tabs);
+  const tableChanges = useTabs((s) => s.tableChanges);
+  const clearTableChanges = useTabs((s) => s.clearTableChanges);
+  const refreshTable = useTabs((s) => s.refreshTable);
+  const connections = useConnections((s) => s.connections);
+  const byId = useConnections((s) => s.byId);
+
+  const active = tabs.find((t) => t.id === activeId) ?? null;
+  const changes = active ? tableChanges[active.id] ?? EMPTY_CHANGES : EMPTY_CHANGES;
   const entries = Object.entries(changes);
-  const updates = entries.filter(([, c]) => c.kind === "update") as [
-    string,
-    UpdateChange,
-  ][];
-  const inserts = entries.filter(([, c]) => c.kind === "insert") as [
-    string,
-    InsertChange,
-  ][];
-  const deletes = entries.filter(([, c]) => c.kind === "delete") as [
-    string,
-    DeleteChange,
-  ][];
+  const activeConn = active
+    ? connections.find((c) => c.id === active.connectionId) ?? null
+    : null;
+  const tableMeta = active ? findTableMeta(active) : null;
 
-  const sqlLines: string[] = ["BEGIN;", ""];
-  const tableIdent = `public.${quoteIdent(table)}`;
-  updates.forEach(([id, c]) => {
-    sqlLines.push(`-- ${sqlComment(c.row.order_number)} · updated by alice@laptop`);
-    sqlLines.push(`UPDATE ${tableIdent}`);
-    const sets = Object.entries(c.edits).map(
-      ([col, e]) => `  ${quoteIdent(col)} = ${formatVal(e.to)}`,
-    );
-    sqlLines.push("SET");
-    sqlLines.push(sets.join(",\n"));
-    sqlLines.push(`WHERE ${quoteIdent("id")} = ${formatVal(id)};`);
-    sqlLines.push("");
+  const blockers = useMemo(
+    () => blockersFor(active, tableMeta, entries.length),
+    [active, tableMeta, entries.length],
+  );
+  const request = useMemo(
+    () =>
+      active && tableMeta && blockers.length === 0
+        ? buildRequest(active, tableMeta, changes)
+        : null,
+    [active, tableMeta, blockers.length, changes],
+  );
+  const [previewState, setPreviewState] = useState<PreviewState>({
+    kind: "idle",
+    preview: null,
+    error: null,
   });
-  inserts.forEach(([id, c]) => {
-    const cols = Object.keys(c.row);
-    const vals = cols.map((k) => formatVal(c.row[k]));
-    sqlLines.push(`INSERT INTO ${tableIdent} (${cols.map(quoteIdent).join(", ")})`);
-    sqlLines.push(`VALUES (${vals.join(", ")});`);
-    sqlLines.push("");
-    void id;
-  });
-  deletes.forEach(([id, c]) => {
-    sqlLines.push(`-- ${sqlComment(c.row.order_number)} · marked for deletion`);
-    sqlLines.push(`DELETE FROM ${tableIdent} WHERE ${quoteIdent("id")} = ${formatVal(id)};`);
-    sqlLines.push("");
-  });
-  sqlLines.push("COMMIT;");
-  const sqlText = sqlLines.join("\n");
-  const lines = tokensToLines(tokenizeSql(sqlText));
+  const [commitError, setCommitError] = useState<string | null>(null);
+  const [committing, setCommitting] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setCommitError(null);
+    if (!request) {
+      setPreviewState({ kind: "idle", preview: null, error: null });
+      return;
+    }
+    setPreviewState({ kind: "loading", preview: null, error: null });
+    void (async () => {
+      try {
+        const preview = await unwrap(commands.previewTableChanges(request));
+        if (!cancelled) setPreviewState({ kind: "ready", preview, error: null });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        if (!cancelled) {
+          setPreviewState({ kind: "error", preview: null, error: message });
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [request]);
+
+  const preview = previewState.preview;
+  const sqlText = preview?.sql ?? "";
+  const lines = preview ? tokensToLines(tokenizeSql(sqlText)) : [];
+  const updates = entries.filter(([, c]) => c.kind === "update");
+  const inserts = entries.filter(([, c]) => c.kind === "insert");
+  const deletes = entries.filter(([, c]) => c.kind === "delete");
+  const canCommit = !!active && !!request && !!preview && !committing;
+
+  useEffect(() => {
+    if (!canCommit) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Enter" || event.metaKey || event.ctrlKey || event.altKey) {
+        return;
+      }
+      const target = event.target;
+      if (target instanceof HTMLElement && isTextInput(target)) {
+        return;
+      }
+      event.preventDefault();
+      void handleCommit();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [canCommit, active, request, preview]);
+
+  async function handleCommit() {
+    if (!active || !request || !preview) return;
+    setCommitting(true);
+    setCommitError(null);
+    try {
+      const result = await unwrap(
+        commands.commitTableChanges(active.connectionId, request),
+      );
+      useStatus.getState().setLastQuery({
+        connectionId: active.connectionId,
+        rowCount: result.rows_affected,
+        truncated: false,
+        durationMs: result.duration_ms,
+      });
+      clearTableChanges(active.id);
+      refreshTable(active.id);
+      onClose();
+    } catch (err) {
+      setCommitError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setCommitting(false);
+    }
+  }
 
   return (
     <Modal onClose={onClose} width={880}>
       <div className="flex h-[38px] shrink-0 items-center justify-between border-b border-border-default pl-3.5 pr-2">
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           <span className="inline-flex text-accent">
             <Icon.commit size={14} />
           </span>
           <span className="whitespace-nowrap text-[12.5px] font-semibold text-fg-0">
             Review &amp; commit
           </span>
-          <span className="ml-1 border-l border-border-divider pl-1.5 font-mono text-[11px] text-fg-2">
-            public.{table} <span style={{ color: "var(--fg-3)" }}>·</span>{" "}
-            shop-eu (prod)
+          <span className="ml-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap border-l border-border-divider pl-1.5 font-mono text-[11px] text-fg-2">
+            {active ? `${active.schema}.${active.table}` : "no table"}{" "}
+            <span style={{ color: "var(--fg-3)" }}>·</span>{" "}
+            {activeConn?.name ?? "no connection"}
+            {activeConn?.env_tag ? ` (${activeConn.env_tag})` : ""}
           </span>
         </div>
         <button type="button" className="icon-btn" onClick={onClose} title="Close">
@@ -150,31 +166,13 @@ export function CommitModal({
       </div>
 
       <div className="flex shrink-0 items-center gap-4 border-b border-border-default bg-bg-2 px-4 py-2.5">
-        <SummaryItem
-          icon={<Icon.plus size={11} />}
-          bg="var(--insert-bg)"
-          color="var(--insert)"
-          n={inserts.length}
-          label={`insert${inserts.length === 1 ? "" : "s"}`}
-        />
-        <SummaryItem
-          icon={<Icon.diff size={11} />}
-          bg="var(--update-bg)"
-          color="var(--update)"
-          n={updates.length}
-          label={`update${updates.length === 1 ? "" : "s"}`}
-        />
-        <SummaryItem
-          icon={<Icon.close size={11} />}
-          bg="var(--delete-bg)"
-          color="var(--delete)"
-          n={deletes.length}
-          label={`delete${deletes.length === 1 ? "" : "s"}`}
-        />
+        <SummaryItem icon={<Icon.plus size={11} />} bg="var(--insert-bg)" color="var(--insert)" n={inserts.length} label={`insert${inserts.length === 1 ? "" : "s"}`} />
+        <SummaryItem icon={<Icon.diff size={11} />} bg="var(--update-bg)" color="var(--update)" n={updates.length} label={`update${updates.length === 1 ? "" : "s"}`} />
+        <SummaryItem icon={<Icon.close size={11} />} bg="var(--delete-bg)" color="var(--delete)" n={deletes.length} label={`delete${deletes.length === 1 ? "" : "s"}`} />
         <div className="flex-1" />
         <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-[4px] bg-bg-inset px-2 py-1 font-mono text-[10.5px] text-fg-2">
           <Icon.bracket size={10} />
-          <span>BEGIN … COMMIT — atomic</span>
+          <span>BEGIN ... COMMIT - atomic</span>
         </span>
       </div>
 
@@ -187,141 +185,63 @@ export function CommitModal({
             </span>
           </div>
           <div className="flex-1 overflow-y-auto py-1.5">
-            {updates.map(([id, c]) => (
-              <ChangeRow key={id} tag="UPDATE" tagBg="var(--update-bg)" tagColor="var(--update)">
-                <div className="flex items-center gap-1.5 text-[11px]">
-                  <span className="font-mono font-medium text-fg-0">
-                    {c.row.order_number}
-                  </span>
-                  <span style={{ color: "var(--fg-3)" }}>·</span>
-                  <span className="font-mono" style={{ color: "var(--fg-3)", fontSize: 10 }}>
-                    {id.slice(0, 8)}
-                  </span>
-                </div>
-                {Object.entries(c.edits).map(([col, e]) => (
-                  <div
-                    key={col}
-                    className="grid items-center gap-[5px] pl-1 font-mono text-[10.5px] grid-cols-[90px_auto_auto_auto]"
-                  >
-                    <span className="overflow-hidden text-ellipsis text-fg-2">
-                      {col}
-                    </span>
-                    <span
-                      className="overflow-hidden text-ellipsis rounded-[3px] px-1.5 py-px text-delete line-through"
-                      style={{
-                        background: "var(--delete-bg)",
-                        textDecorationColor: "rgba(255, 255, 255, 0.2)",
-                      }}
-                    >
-                      {formatVal(e.from)}
-                    </span>
-                    <Icon.chevronRight size={10} stroke="var(--fg-3)" />
-                    <span className="overflow-hidden text-ellipsis rounded-[3px] bg-accent-soft px-1.5 py-px text-accent">
-                      {formatVal(e.to)}
-                    </span>
-                  </div>
-                ))}
-              </ChangeRow>
-            ))}
-            {inserts.map(([id, c]) => (
-              <ChangeRow key={id} tag="INSERT" tagBg="var(--insert-bg)" tagColor="var(--insert)">
-                <div className="flex items-center gap-1.5 text-[11px]">
-                  <span className="font-mono font-medium text-fg-0">
-                    {String((c.row as { order_number?: string }).order_number ?? "new")}
-                  </span>
-                  <span style={{ color: "var(--fg-3)" }}>·</span>
-                  <span className="font-mono" style={{ color: "var(--fg-3)", fontSize: 10 }}>
-                    new
-                  </span>
-                </div>
-                <div
-                  className="pl-1 font-mono text-[10.5px] text-fg-2"
-                  style={{ display: "grid", gridTemplateColumns: "1fr", gap: 5 }}
-                >
-                  new row · {Object.keys(c.row).length} columns set
-                </div>
-              </ChangeRow>
-            ))}
-            {deletes.map(([id, c]) => (
-              <ChangeRow key={id} tag="DELETE" tagBg="var(--delete-bg)" tagColor="var(--delete)">
-                <div className="flex items-center gap-1.5 text-[11px]">
-                  <span className="font-mono font-medium text-fg-0 line-through">
-                    {c.row.order_number}
-                  </span>
-                  <span style={{ color: "var(--fg-3)" }}>·</span>
-                  <span className="font-mono" style={{ color: "var(--fg-3)", fontSize: 10 }}>
-                    {id.slice(0, 8)}
-                  </span>
-                </div>
-              </ChangeRow>
-            ))}
+            {entries.length === 0 ? (
+              <div className="px-3 py-3 text-[11px] text-fg-3">
+                No pending changes on the active table.
+              </div>
+            ) : (
+              entries.map(([rowId, change]) => (
+                <ChangePreview key={rowId} rowId={rowId} change={change} />
+              ))
+            )}
           </div>
         </div>
 
         <div className="flex min-h-0 flex-col bg-bg-inset">
           <div className="flex h-[26px] shrink-0 items-center justify-between border-b border-border-divider bg-bg-1 px-3 text-[10px] font-semibold uppercase tracking-[0.05em] text-fg-3">
             <span>Generated SQL</span>
-            <div className="flex gap-1">
-              <button
-                type="button"
-                disabled
-                title="SQL editing is not wired yet"
-                className="inline-flex h-[26px] cursor-not-allowed items-center gap-1 rounded-[4px] border border-border-default bg-bg-2 px-2 text-[11px] text-fg-2 opacity-70"
-              >
-                <Icon.edit size={11} />
-                <span>Edit</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => void navigator.clipboard?.writeText(sqlText)}
-                className="inline-flex h-[26px] items-center gap-1 rounded-[4px] border border-border-default bg-bg-2 px-2 text-[11px] text-fg-1 hover:bg-bg-3"
-              >
-                <Icon.copy size={11} />
-                <span>Copy</span>
-              </button>
-            </div>
+            <button
+              type="button"
+              disabled={!preview}
+              onClick={() => void navigator.clipboard?.writeText(sqlText)}
+              className="inline-flex h-[26px] items-center gap-1 rounded-[4px] border border-border-default bg-bg-2 px-2 text-[11px] text-fg-1 hover:bg-bg-3 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Icon.copy size={11} />
+              <span>Copy</span>
+            </button>
           </div>
           <div className="flex-1 overflow-auto py-2 font-mono text-[11.5px] leading-[1.55]">
-            {lines.map((toks, i) => (
-              <div key={i} className="flex px-3">
-                <span className="inline-flex w-7 shrink-0 select-none items-center justify-end pr-2.5 font-variant-numeric-tabular text-[10px] text-fg-3 font-mono">
-                  {i + 1}
-                </span>
-                <span className="whitespace-pre font-mono">
-                  {renderTokens(toks)}
-                </span>
-              </div>
-            ))}
+            {blockers.length > 0 ? (
+              <MessageList messages={blockers} tone="warn" />
+            ) : previewState.kind === "loading" ? (
+              <div className="px-3 text-[11px] text-fg-3">Generating preview...</div>
+            ) : previewState.kind === "error" ? (
+              <MessageList messages={[previewState.error]} tone="warn" />
+            ) : (
+              lines.map((toks, i) => (
+                <div key={i} className="flex px-3">
+                  <span className="inline-flex w-7 shrink-0 select-none items-center justify-end pr-2.5 font-variant-numeric-tabular text-[10px] text-fg-3 font-mono">
+                    {i + 1}
+                  </span>
+                  <span className="whitespace-pre font-mono">
+                    {renderTokens(toks)}
+                  </span>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>
 
-      <div className="flex h-11 shrink-0 items-center justify-between gap-3 border-t border-border-default bg-bg-2 px-3">
-        <div className="flex items-center gap-2">
-          <label className="inline-flex cursor-pointer items-center gap-1 text-[11px] text-fg-2">
-            <input
-              type="checkbox"
-              defaultChecked
-              className="h-3 w-3"
-              style={{ accentColor: "var(--accent)" }}
-            />
-            Rollback on error
-          </label>
-          <label className="inline-flex cursor-pointer items-center gap-1 text-[11px] text-fg-2">
-            <input
-              type="checkbox"
-              defaultChecked
-              className="h-3 w-3"
-              style={{ accentColor: "var(--accent)" }}
-            />
-            Confirm if rows affected &gt; 100
-          </label>
-          <span className="ml-2 inline-flex items-center gap-1.5 text-[10.5px]">
-            <Icon.warn size={10} stroke="var(--warn)" />
-            <span style={{ color: "var(--warn)" }}>prod</span>
-            <span style={{ color: "var(--fg-2)" }}>
-              · you'll be asked to type the connection name
-            </span>
+      <div className="flex min-h-11 shrink-0 items-center justify-between gap-3 border-t border-border-default bg-bg-2 px-3 py-2">
+        <div className="flex min-w-0 items-center gap-2 text-[10.5px]">
+          <Icon.warn size={10} stroke={activeConn?.env_tag === "prod" ? "var(--warn)" : "var(--fg-3)"} />
+          <span className={activeConn?.env_tag === "prod" ? "text-warn" : "text-fg-2"}>
+            {activeConn?.env_tag === "prod" ? "prod" : "transaction"}
+          </span>
+          <span className="min-w-0 text-fg-2">
+            {commitError ??
+              "commits rollback on error and require the expected row count"}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -339,19 +259,206 @@ export function CommitModal({
           </button>
           <button
             type="button"
-            disabled
-            title="Committing pending edits is not wired yet"
-            className={ED_RUN_DANGER + " cursor-not-allowed opacity-60"}
+            disabled={!canCommit}
+            onClick={() => void handleCommit()}
+            className={ED_RUN_DANGER}
             style={{
               borderColor: "color-mix(in oklab, var(--delete) 40%, black)",
             }}
           >
             <Icon.commit size={11} />
-            <span>Commit transaction</span>
+            <span>{committing ? "Committing..." : "Commit transaction"}</span>
+            <kbd className="kbd ml-1">Return</kbd>
           </button>
         </div>
       </div>
     </Modal>
+  );
+
+  function findTableMeta(tab: TableTab): Table | null {
+    return (
+      byId[tab.connectionId]?.databases
+        .find((d) => d.name === tab.database)
+        ?.schemas.find((s) => s.name === tab.schema)
+        ?.tables.find((t) => t.name === tab.table) ?? null
+    );
+  }
+}
+
+function ChangePreview({
+  rowId,
+  change,
+}: {
+  rowId: string;
+  change: PendingChange;
+}) {
+  const tag = change.kind.toUpperCase();
+  const tagBg =
+    change.kind === "insert"
+      ? "var(--insert-bg)"
+      : change.kind === "delete"
+        ? "var(--delete-bg)"
+        : "var(--update-bg)";
+  const tagColor =
+    change.kind === "insert"
+      ? "var(--insert)"
+      : change.kind === "delete"
+        ? "var(--delete)"
+        : "var(--update)";
+  const label = rowLabel(rowId);
+
+  return (
+    <ChangeRow tag={tag} tagBg={tagBg} tagColor={tagColor}>
+      <div className="flex items-center gap-1.5 text-[11px]">
+        <span className="font-mono font-medium text-fg-0">{label}</span>
+      </div>
+      {Object.entries(change.edits).map(([col, e]) => (
+        <div
+          key={col}
+          className="grid items-center gap-[5px] pl-1 font-mono text-[10.5px] grid-cols-[90px_auto_auto_auto]"
+        >
+          <span className="overflow-hidden text-ellipsis text-fg-2">{col}</span>
+          <span
+            className="overflow-hidden text-ellipsis rounded-[3px] px-1.5 py-px text-delete line-through"
+            style={{
+              background: "var(--delete-bg)",
+              textDecorationColor: "rgba(255, 255, 255, 0.2)",
+            }}
+          >
+            {formatVal(e.from)}
+          </span>
+          <Icon.chevronRight size={10} stroke="var(--fg-3)" />
+          <span className="overflow-hidden text-ellipsis rounded-[3px] bg-accent-soft px-1.5 py-px text-accent">
+            {formatVal(e.to)}
+          </span>
+        </div>
+      ))}
+    </ChangeRow>
+  );
+}
+
+function buildRequest(
+  tab: TableTab,
+  table: Table,
+  changes: PendingChanges,
+): TableChangeRequest {
+  return {
+    database: tab.database,
+    schema: tab.schema,
+    table: tab.table,
+    primary_key: table.primary_key,
+    columns: table.columns.map((c) => ({
+      name: c.name,
+      data_type: c.data_type,
+      nullable: c.nullable,
+    })),
+    changes: Object.entries(changes).map(([rowId, change]) => {
+      if (change.kind === "insert") {
+        return {
+          kind: "insert",
+          row_id: rowId,
+          values: editsToAssignments(change),
+        };
+      }
+      if (change.kind === "delete") {
+        return {
+          kind: "delete",
+          row_id: rowId,
+          keys: decodeRowKeys(rowId),
+        };
+      }
+      return {
+        kind: "update",
+        row_id: rowId,
+        keys: decodeRowKeys(rowId),
+        edits: editsToAssignments(change),
+      };
+    }),
+  };
+}
+
+function blockersFor(
+  active: TableTab | null,
+  table: Table | null,
+  changeCount: number,
+): string[] {
+  if (!active) return ["Open a table before reviewing changes."];
+  if (changeCount === 0) return ["There are no pending changes to commit."];
+  if (!table) return ["Schema metadata is still unavailable for this table."];
+  if (table.primary_key.length === 0) {
+    return ["Cellar needs a primary key before it can safely commit grid edits."];
+  }
+  return [];
+}
+
+function editsToAssignments(change: PendingChange): CellAssignment[] {
+  return Object.entries(change.edits).map(([column, edit]) => ({
+    column,
+    value: { value: primitiveToString(edit.to) },
+  }));
+}
+
+function decodeRowKeys(rowId: string): CellAssignment[] {
+  try {
+    const parsed = JSON.parse(rowId) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((entry) => {
+        if (!entry || typeof entry !== "object") return null;
+        const item = entry as { column?: unknown; value?: unknown };
+        if (typeof item.column !== "string") return null;
+        return {
+          column: item.column,
+          value: { value: primitiveToString(item.value) },
+        };
+      })
+      .filter((v): v is CellAssignment => v !== null);
+  } catch {
+    return [];
+  }
+}
+
+function rowLabel(rowId: string): string {
+  const keys = decodeRowKeys(rowId);
+  if (keys.length === 0) return rowId;
+  return keys
+    .map((k) => `${k.column}=${k.value.value ?? "NULL"}`)
+    .join(", ");
+}
+
+function primitiveToString(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  return String(value);
+}
+
+function isTextInput(target: HTMLElement): boolean {
+  return (
+    target.tagName === "INPUT" ||
+    target.tagName === "TEXTAREA" ||
+    target.isContentEditable
+  );
+}
+
+function formatVal(v: unknown): string {
+  if (v === null || v === undefined) return "NULL";
+  if (typeof v === "number") return String(v);
+  if (typeof v === "boolean") return v ? "TRUE" : "FALSE";
+  return "'" + String(v).replaceAll("'", "''") + "'";
+}
+
+function MessageList({
+  messages,
+  tone,
+}: {
+  messages: string[];
+  tone: "warn" | "muted";
+}) {
+  return (
+    <div className={tone === "warn" ? "px-3 text-[11px] text-warn" : "px-3 text-[11px] text-fg-3"}>
+      {messages.map((message) => (
+        <div key={message}>{message}</div>
+      ))}
+    </div>
   );
 }
 

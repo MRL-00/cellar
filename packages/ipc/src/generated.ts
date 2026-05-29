@@ -68,6 +68,22 @@ async runQuery(connectionId: string, sql: string, maxRows: number | null, databa
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async previewTableChanges(request: TableChangeRequest) : Promise<Result<TableCommitPreview, CellarError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("preview_table_changes", { request }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async commitTableChanges(connectionId: string, request: TableChangeRequest) : Promise<Result<TableCommitResult, CellarError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("commit_table_changes", { connectionId, request }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -81,6 +97,7 @@ async runQuery(connectionId: string, sql: string, maxRows: number | null, databa
 
 /** user-defined types **/
 
+export type CellAssignment = { column: string; value: DiffValue }
 /**
  * One cell value, tagged so the frontend can render the right editor and
  * preserve type fidelity through the IPC boundary.
@@ -155,6 +172,8 @@ color: string | null }
  * `pg_database` row, for MySQL to a single catalog, for SQLite the file.
  */
 export type Database = { name: string; is_default: boolean; schemas: Schema[] }
+export type DiffColumn = { name: string; data_type: string; nullable: boolean }
+export type DiffValue = { value: string | null }
 export type DriverInfo = { engine: Engine; 
 /**
  * Server version as reported by the engine, e.g. `PostgreSQL 16.2 on
@@ -189,6 +208,7 @@ duration_ms: number;
  * [`Query::max_rows`]. The grid uses this to show a "+ more" badge.
  */
 truncated: boolean }
+export type RowChange = { kind: "update"; row_id: string; keys: CellAssignment[]; edits: CellAssignment[] } | { kind: "insert"; row_id: string; values: CellAssignment[] } | { kind: "delete"; row_id: string; keys: CellAssignment[] }
 export type Schema = { name: string; tables: Table[]; views: View[] }
 export type SslMode = "disable" | "prefer" | "require" | "verify-ca" | "verify-full"
 export type Table = { name: string; schema: string; 
@@ -196,6 +216,9 @@ export type Table = { name: string; schema: string;
  * `None` until lazy row-count introspection has run.
  */
 row_count: number | null; columns: Column[]; primary_key: string[]; foreign_keys: ForeignKey[]; indexes: Index[] }
+export type TableChangeRequest = { database: string | null; schema: string; table: string; primary_key: string[]; columns: DiffColumn[]; changes: RowChange[] }
+export type TableCommitPreview = { sql: string; expected_rows: number; statement_count: number }
+export type TableCommitResult = { sql: string; rows_affected: number; duration_ms: number }
 export type View = { name: string; schema: string; columns: Column[]; definition: string | null }
 
 /** tauri-specta globals **/

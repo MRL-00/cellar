@@ -8,6 +8,7 @@
 pub mod connection;
 pub mod query;
 pub mod schema;
+pub mod transaction;
 
 use specta_typescript::{BigIntExportBehavior, Typescript};
 use tauri_specta::{collect_commands, Builder};
@@ -25,6 +26,8 @@ pub fn builder() -> Builder<tauri::Wry> {
         connection::disconnect,
         schema::introspect,
         query::run_query,
+        transaction::preview_table_changes,
+        transaction::commit_table_changes,
     ])
 }
 

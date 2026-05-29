@@ -7,6 +7,7 @@ use cellar_core::driver::{Connection, ConnectionConfig, Driver, Engine};
 use cellar_core::error::CellarResult;
 use cellar_core::query::{Query, QueryResult};
 use cellar_core::schema::Database;
+use cellar_diff::{TableChangeRequest, TableCommitResult};
 
 mod connect;
 mod decode;
@@ -24,6 +25,14 @@ impl PostgresDriver {
     pub fn new() -> Self {
         Self
     }
+}
+
+pub async fn commit_table_changes(
+    conn: &dyn Connection,
+    request: &TableChangeRequest,
+) -> CellarResult<TableCommitResult> {
+    let pg = connect::as_pg(conn)?;
+    query::commit_table_changes(pg, request).await
 }
 
 #[async_trait]

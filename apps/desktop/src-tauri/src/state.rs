@@ -5,6 +5,7 @@ use cellar_core::driver::{Connection, ConnectionConfig, Driver, DriverInfo, Engi
 use cellar_core::error::{CellarError, CellarResult};
 use cellar_core::query::{Query, QueryResult};
 use cellar_core::schema::Database;
+use cellar_diff::{TableChangeRequest, TableCommitResult};
 use cellar_driver_postgres::PostgresDriver;
 use tokio::fs;
 use tokio::sync::RwLock;
@@ -169,6 +170,28 @@ impl ConnectionRegistry {
             .ok_or_else(|| CellarError::NotConnected(format!("no open connection for {id}")))?;
         let driver = driver_for(open.config.engine)?;
         driver.execute_query(open.connection.as_ref(), &query).await
+    }
+
+    pub async fn commit_table_changes(
+        &self,
+        id: &str,
+        request: TableChangeRequest,
+    ) -> CellarResult<TableCommitResult> {
+        let inner = self.inner.read().await;
+        let open = inner
+            .open
+            .get(id)
+            .ok_or_else(|| CellarError::NotConnected(format!("no open connection for {id}")))?;
+        match open.config.engine {
+            Engine::Postgres => {
+                cellar_driver_postgres::commit_table_changes(open.connection.as_ref(), &request)
+                    .await
+            }
+            other => Err(CellarError::invalid_config(format!(
+                "engine {} does not support grid commits yet",
+                other.as_str()
+            ))),
+        }
     }
 
     async fn config_for(&self, id: &str) -> CellarResult<ConnectionConfig> {
