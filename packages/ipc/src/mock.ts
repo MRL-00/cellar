@@ -9,6 +9,7 @@ import type {
   ConnectionConfig,
   Database,
   DriverInfo,
+  QueryHistoryRecord,
   QueryResult,
   Result,
   TableChangeRequest,
@@ -54,6 +55,7 @@ export const mockCommands = {
     _sql: string,
     _maxRows: number | null,
     _database: string | null,
+    _tabId: string | null,
   ): Promise<Result<QueryResult, CellarError>> =>
     ok({
       columns: [],
@@ -80,10 +82,19 @@ export const mockCommands = {
   commitTableChanges: async (
     _connectionId: string,
     _request: TableChangeRequest,
+    _tabId: string | null,
   ): Promise<Result<TableCommitResult, CellarError>> =>
     ok({
       sql: "BEGIN;\n\nCOMMIT;",
       rows_affected: 0,
       duration_ms: 0,
     }),
+
+  listQueryHistory: async (
+    _connectionId: string | null,
+    _database: string | null,
+    _tabId: string | null,
+    _search: string | null,
+    _limit: number | null,
+  ): Promise<Result<QueryHistoryRecord[], CellarError>> => ok([]),
 };

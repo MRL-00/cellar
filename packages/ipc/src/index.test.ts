@@ -19,6 +19,7 @@ describe("@cellar/ipc", () => {
         "deleteConnection",
         "disconnect",
         "introspect",
+        "listQueryHistory",
         "listConnections",
         "previewTableChanges",
         "runQuery",
@@ -57,6 +58,7 @@ describe("@cellar/ipc", () => {
       "SELECT 1",
       10,
       null,
+      null,
     );
     expect(result.status).toBe("ok");
     if (result.status === "ok") {
@@ -70,6 +72,14 @@ describe("@cellar/ipc", () => {
         duration_ms: expect.any(Number),
         truncated: false,
       });
+    }
+  });
+
+  it("returns empty query history in mock mode", async () => {
+    const result = await commands.listQueryHistory("any", null, null, "select", 20);
+    expect(result.status).toBe("ok");
+    if (result.status === "ok") {
+      expect(result.data).toEqual([]);
     }
   });
 

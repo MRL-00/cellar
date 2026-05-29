@@ -6,6 +6,7 @@
 //!    and the invoke handler picks it up.
 
 pub mod connection;
+pub mod history;
 pub mod query;
 pub mod schema;
 pub mod transaction;
@@ -28,6 +29,7 @@ pub fn builder() -> Builder<tauri::Wry> {
         query::run_query,
         transaction::preview_table_changes,
         transaction::commit_table_changes,
+        history::list_query_history,
     ])
 }
 
