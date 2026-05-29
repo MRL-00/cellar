@@ -56,10 +56,17 @@ function load(): Settings {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULTS;
     const parsed = JSON.parse(raw) as Partial<Settings>;
-    return { ...DEFAULTS, ...parsed };
+    return sanitize({ ...DEFAULTS, ...parsed });
   } catch {
     return DEFAULTS;
   }
+}
+
+function sanitize(s: Settings): Settings {
+  return {
+    ...s,
+    fontSizePx: clamp(s.fontSizePx, FONT_SIZE_MIN, FONT_SIZE_MAX),
+  };
 }
 
 function applySideEffects(s: Settings) {
@@ -78,11 +85,11 @@ function applySideEffects(s: Settings) {
   html.style.setProperty("--accent", s.accent);
   html.style.setProperty(
     "--accent-soft",
-    hexToRgba(s.accent, s.theme === "light" ? 0.1 : 0.14),
+    hexToRgba(s.accent, resolvedTheme === "light" ? 0.1 : 0.14),
   );
   html.style.setProperty(
     "--accent-line",
-    hexToRgba(s.accent, s.theme === "light" ? 0.28 : 0.32),
+    hexToRgba(s.accent, resolvedTheme === "light" ? 0.28 : 0.32),
   );
 
   const scale = clamp(s.fontSizePx, FONT_SIZE_MIN, FONT_SIZE_MAX) / FONT_SIZE_BASELINE;
@@ -125,7 +132,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   const set = useCallback(<K extends keyof Settings>(key: K, value: Settings[K]) => {
     setSettings((prev) => {
-      const next = { ...prev, [key]: value };
+      const next = sanitize({ ...prev, [key]: value });
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       applySideEffects(next);
       return next;

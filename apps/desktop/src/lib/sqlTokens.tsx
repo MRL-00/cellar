@@ -61,8 +61,18 @@ export function tokenizeSql(sql: string): Token[] {
     }
     if (ch === "'") {
       let j = i + 1;
-      while (j < sql.length && sql.charAt(j) !== "'") j++;
-      j++;
+      while (j < sql.length) {
+        if (sql.charAt(j) !== "'") {
+          j++;
+          continue;
+        }
+        if (sql.charAt(j + 1) === "'") {
+          j += 2;
+          continue;
+        }
+        j++;
+        break;
+      }
       out.push({ kind: "str", text: sql.slice(i, j) });
       i = j;
       continue;

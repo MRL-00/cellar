@@ -20,29 +20,33 @@ Read `SPEC.md` before making product or architectural changes. It is the canonic
 
 ## Current Status
 
-This repo is pre-alpha scaffolding. Treat the visible desktop UI as a static shell unless you have verified otherwise.
+This repo is pre-alpha, but it is no longer just a static shell. Treat it as a working vertical slice with Postgres-only database connectivity, typed IPC, live schema browsing, and a read-only table-data path.
 
 Implemented today:
 
 - Tauri 2 + React 18 + TypeScript + Vite desktop shell.
-- Static frontend layout: title bar, sidebar, tab strip, workspace placeholder, bottom panel, AI panel, status bar.
-- Cargo and pnpm workspaces.
-- Placeholder Rust crates and TypeScript packages.
+- Tailwind v4 utility styling plus CSS design tokens in `apps/desktop/src/styles/tokens.css`.
+- Zustand stores for connection, tab, and status state.
+- `cellar-core` shared Rust contracts for engines, connections, schemas, queries, typed cell values, and errors.
+- `tauri-specta` command registration and generated TypeScript bindings in `packages/ipc/src/generated.ts`.
+- Tauri commands for listing/saving/deleting/testing/connecting/disconnecting connections, schema introspection, and query execution.
+- OS-keychain credential storage in `cellar-secrets`; encrypted file fallback is documented but not built.
+- First-party Postgres driver crate at `crates/cellar-drivers/postgres`.
+- Live Postgres connection management, schema introspection, sidebar tree, table tabs, and read-only table loading.
+- `@cellar/data-grid` package with editable-cell UI, pending-change state, filter chips, sticky/frozen-column styling, and commit/revert hooks.
+- Settings, command palette, connection dialog, commit-preview modal, empty state, resizable panels, and title-bar window behavior.
+- Scaffold tests/gates for Rust contracts, IPC, package lint/test tasks, and TypeScript typechecking.
 
 Not implemented yet:
 
-- Tauri command layer and generated IPC bindings.
-- Real connection management.
-- Credential storage.
-- Postgres/MySQL/SQLite/SQL Server/Azure SQL drivers.
-- Schema introspection.
-- SQL editor.
-- Query execution and cancellation.
-- Data grid.
-- Pending edit diff/review/commit flow.
+- MySQL, SQLite, SQL Server, and Azure SQL drivers.
+- SQL editor / CodeMirror integration.
+- Query cancellation, query history, execution plans, and streaming result events.
+- Server-side grid pagination, virtualization, sorting, and type-aware filtering at scale.
+- Real pending edit diff/review/commit execution through `cellar-diff`; current grid edits are local UI state only.
 - AI providers and context pipeline.
 - Plugin runtime.
-- Meaningful tests, linting, CI, signing, updater, or packaging gates.
+- Broad unit/integration/e2e coverage, CI, signing, updater, and release packaging.
 
 ## Architecture
 
@@ -50,7 +54,7 @@ Workspace layout:
 
 - `apps/desktop/` - Tauri app shell, React frontend, Rust app entrypoint.
 - `crates/cellar-core/` - shared traits, errors, schema/query types.
-- `crates/cellar-drivers/` - first-party database drivers.
+- `crates/cellar-drivers/` - driver workspace root; Postgres lives in `crates/cellar-drivers/postgres/`.
 - `crates/cellar-sql/` - SQL parsing, formatting, dialect support.
 - `crates/cellar-diff/` - pending grid edits to transactional SQL.
 - `crates/cellar-secrets/` - OS keychain and encrypted fallback credential storage.
@@ -66,13 +70,14 @@ The intended runtime is:
 
 React frontend -> typed Tauri IPC -> Rust command/state layer -> driver traits in `cellar-core` -> concrete drivers in `cellar-drivers`.
 
-Large query results should stream through Tauri events keyed by query ID. Do not design APIs that require loading huge result sets into memory at once.
+Current query execution is materialized: the Postgres driver uses `fetch_all`, applies a host-side cap, and reports `truncated`. Large query results should still be moved to Tauri events keyed by query ID before this is considered production-safe. Do not add new APIs that require loading huge result sets into memory at once.
 
 ## Build And Validation
 
 Common checks from the repo root:
 
 ```bash
+pnpm install
 pnpm typecheck
 pnpm build
 cargo check --workspace
@@ -81,7 +86,9 @@ pnpm lint
 pnpm test
 ```
 
-Current caveat: `pnpm lint` and `pnpm test` are scaffold-era gates. They run real checks, but they are not substitutes for future ESLint/Vitest/Playwright coverage once the app has behavior to protect.
+Run `pnpm install` after pulling `main` when package dependencies or workspace links have changed. Stale `node_modules` commonly shows up as missing `@cellar/*`, `zustand`, or Tailwind plugin types.
+
+Current caveat: `pnpm lint` and `pnpm test` run real checks, but they are not substitutes for future ESLint/Vitest/Playwright coverage once the app has more behavior to protect.
 
 Use Clawpatch for automated review when preparing substantial work:
 
@@ -104,15 +111,20 @@ If Clawpatch reports findings, triage them before claiming the project is ready 
 - Keep frontend TypeScript strict.
 - Keep Rust errors typed; avoid stringly-typed backend contracts.
 - Generated IPC types should come from Rust command/type definitions, not hand-maintained duplicates.
+- After changing Tauri commands or Rust IPC-facing types, regenerate `packages/ipc/src/generated.ts` with the desktop codegen binary before updating frontend call sites.
+- Do not hand-build executable SQL in React components. Use typed Rust/SQL/diff builders for execution paths; UI previews must at least quote identifiers and escape literals safely until the shared builder exists.
+- Do not render stub controls as if they work. Unimplemented buttons, toggles, and settings must be disabled/read-only or wired to real state and callbacks.
 - Pull request titles must not use `codex:` or `[codex]` prefixes. Use conventional prefixes such as `feat:`, `fix:`, `bug:`, `chore:`, `docs:`, `test:`, `build:`, `ci:`, or `refactor:`.
 - No human-authored source, documentation, or configuration file may exceed 800 lines. If a file approaches that size, split it by responsibility before adding more code. Generated lockfiles and binary assets are exempt, but do not hand-edit them except through their owning tools.
 
 ## Security And Privacy
 
 - Never write database credentials to plain-text config.
-- Store credentials through `cellar-secrets` once implemented: OS keychain first, encrypted fallback only with explicit user-controlled master password.
+- Store credentials through `cellar-secrets`: OS keychain first. The encrypted fallback is documented in `docs/architecture/adr/0001-secret-fallback.md` but not implemented yet.
+- Connection configs are persisted under `~/.cellar/connections.json`; that file must never contain passwords or secrets.
 - Keep Tauri capabilities narrow. Frontend must not gain arbitrary shell or file access.
 - Do not send credentials to AI providers.
+- Do not reuse AI provider keys for unrelated app encryption, sync, telemetry, or account features.
 - AI context must be inspectable before sending.
 - Destructive SQL needs explicit confirmation, especially on production-tagged connections.
 - Production-tagged connections should be visually distinct and may default to read-only.
@@ -121,25 +133,24 @@ If Clawpatch reports findings, triage them before claiming the project is ready 
 
 - The UI should be dense, technical, and work-focused.
 - Dark theme is default. Light theme should remain possible.
-- Spec says design tokens belong in `packages/ui/src/tokens/`; current scaffold keeps them in `apps/desktop/src/styles/tokens.css`.
-- The spec calls for CSS variables plus selective shadcn/ui source ownership. Tailwind is listed in the spec but is not currently installed.
+- Tailwind v4 is installed and used for most component styling. Design tokens still live in `apps/desktop/src/styles/tokens.css`.
+- Keep repeated modal/settings UI split into small files under `apps/desktop/src/components/modals/`; do not grow single modal files past the 800-line rule.
 - Use keyboard-first interaction patterns. The command palette is `Cmd+K`.
 - Use monospace for SQL, identifiers, and data.
 - Avoid telemetry, cloud sync, collaboration, ETL/job orchestration, and admin/cluster-management features for v1.
 
 ## Suggested Implementation Order
 
-The best next vertical slice is:
+Best next vertical slices from the current state:
 
-1. Define core Rust types and traits in `cellar-core`.
-2. Add typed Tauri command modules under `apps/desktop/src-tauri/src/commands/`.
-3. Generate/import TypeScript IPC bindings through `packages/ipc`.
-4. Implement minimal Postgres connection storage, connect, schema introspection, and simple query execution.
-5. Replace static sidebar data with real connection/schema state.
-6. Add a basic CodeMirror editor and read-only results grid.
-7. Add tests around every backend contract before expanding engines or edit flows.
+1. Stabilize the Postgres vertical slice: integration setup, clearer errors, reconnect behavior, query cancellation, and row-limit safety.
+2. Move query results from materialized `fetch_all` to streamed/page-style Tauri events before chasing huge-grid performance.
+3. Add the CodeMirror SQL editor and wire run-current-statement / run-selection through existing typed IPC.
+4. Implement `cellar-diff` for generated transactional SQL, then connect the grid's pending edits to a real Review & Commit path.
+5. Add server-side sort/filter/pagination and real virtualization to the data grid.
+6. Broaden tests around `cellar-core`, Postgres introspection/decoding, Tauri command contracts, and the grid's pending-change behavior.
 
-Do not start with the AI panel, plugin marketplace, or multi-engine breadth before the connection/query spine works end-to-end.
+Do not prioritize AI providers, plugin runtime, or multi-engine breadth until the Postgres query/edit spine is stable and tested.
 
 ## Known Spec Gaps To Resolve
 
