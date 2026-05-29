@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use cellar_core::driver::{Connection, ConnectionConfig, Driver, DriverInfo, Engine};
 use cellar_core::error::{CellarError, CellarResult};
@@ -15,7 +16,7 @@ const STORAGE_FILENAME: &str = "connections.json";
 
 pub struct OpenConnection {
     pub config: ConnectionConfig,
-    pub connection: Box<dyn Connection>,
+    pub connection: Arc<dyn Connection>,
 }
 
 #[derive(Default)]
@@ -113,16 +114,13 @@ impl ConnectionRegistry {
         let driver = driver_for(config.engine)?;
         let conn = driver.connect(&config, password).await?;
         let info = conn.info().clone();
+        let connection: Arc<dyn Connection> = conn.into();
         let mut inner = self.inner.write().await;
-        if let Some(prev) = inner.open.insert(
-            id.to_string(),
-            OpenConnection {
-                config,
-                connection: conn,
-            },
-        ) {
-            // Drop the old pool. We hold the write lock; do it async-but-quick
-            // before returning.
+        if let Some(prev) = inner
+            .open
+            .insert(id.to_string(), OpenConnection { config, connection })
+        {
+            // Close the old pool after releasing the registry lock.
             drop(inner);
             let _ = prev.connection.close().await;
         }
@@ -153,8 +151,12 @@ impl ConnectionRegistry {
                 .open
                 .get(id)
                 .ok_or_else(|| CellarError::NotConnected(format!("no open connection for {id}")))?;
-            let driver = driver_for(open.config.engine)?;
-            driver.introspect(open.connection.as_ref()).await?
+            let engine = open.config.engine;
+            let connection = Arc::clone(&open.connection);
+            drop(inner);
+
+            let driver = driver_for(engine)?;
+            driver.introspect(connection.as_ref()).await?
         };
         let mut w = self.inner.write().await;
         w.schema_cache.insert(id.to_string(), dbs.clone());
@@ -162,13 +164,16 @@ impl ConnectionRegistry {
     }
 
     pub async fn run_query(&self, id: &str, query: Query) -> CellarResult<QueryResult> {
-        let inner = self.inner.read().await;
-        let open = inner
-            .open
-            .get(id)
-            .ok_or_else(|| CellarError::NotConnected(format!("no open connection for {id}")))?;
-        let driver = driver_for(open.config.engine)?;
-        driver.execute_query(open.connection.as_ref(), &query).await
+        let (engine, connection) = {
+            let inner = self.inner.read().await;
+            let open = inner
+                .open
+                .get(id)
+                .ok_or_else(|| CellarError::NotConnected(format!("no open connection for {id}")))?;
+            (open.config.engine, Arc::clone(&open.connection))
+        };
+        let driver = driver_for(engine)?;
+        driver.execute_query(connection.as_ref(), &query).await
     }
 
     async fn config_for(&self, id: &str) -> CellarResult<ConnectionConfig> {
