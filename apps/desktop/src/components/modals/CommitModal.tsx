@@ -53,7 +53,16 @@ export const SAMPLE_CHANGES: ChangeSet = {
 function formatVal(v: unknown): string {
   if (v === null || v === undefined) return "NULL";
   if (typeof v === "number") return String(v);
-  return "'" + v + "'";
+  if (typeof v === "boolean") return v ? "TRUE" : "FALSE";
+  return "'" + String(v).replaceAll("'", "''") + "'";
+}
+
+function quoteIdent(value: string): string {
+  return `"${value.replaceAll('"', '""')}"`;
+}
+
+function sqlComment(value: string): string {
+  return value.replaceAll("\n", " ").replaceAll("\r", " ");
 }
 
 const ED_RUN_BASE =
@@ -91,32 +100,34 @@ export function CommitModal({
   ][];
 
   const sqlLines: string[] = ["BEGIN;", ""];
+  const tableIdent = `public.${quoteIdent(table)}`;
   updates.forEach(([id, c]) => {
-    sqlLines.push(`-- ${c.row.order_number} · updated by alice@laptop`);
-    sqlLines.push(`UPDATE public.${table}`);
+    sqlLines.push(`-- ${sqlComment(c.row.order_number)} · updated by alice@laptop`);
+    sqlLines.push(`UPDATE ${tableIdent}`);
     const sets = Object.entries(c.edits).map(
-      ([col, e]) => `  ${col} = ${formatVal(e.to)}`,
+      ([col, e]) => `  ${quoteIdent(col)} = ${formatVal(e.to)}`,
     );
     sqlLines.push("SET");
     sqlLines.push(sets.join(",\n"));
-    sqlLines.push(`WHERE id = '${id}';`);
+    sqlLines.push(`WHERE ${quoteIdent("id")} = ${formatVal(id)};`);
     sqlLines.push("");
   });
   inserts.forEach(([id, c]) => {
     const cols = Object.keys(c.row);
     const vals = cols.map((k) => formatVal(c.row[k]));
-    sqlLines.push(`INSERT INTO public.${table} (${cols.join(", ")})`);
+    sqlLines.push(`INSERT INTO ${tableIdent} (${cols.map(quoteIdent).join(", ")})`);
     sqlLines.push(`VALUES (${vals.join(", ")});`);
     sqlLines.push("");
     void id;
   });
   deletes.forEach(([id, c]) => {
-    sqlLines.push(`-- ${c.row.order_number} · marked for deletion`);
-    sqlLines.push(`DELETE FROM public.${table} WHERE id = '${id}';`);
+    sqlLines.push(`-- ${sqlComment(c.row.order_number)} · marked for deletion`);
+    sqlLines.push(`DELETE FROM ${tableIdent} WHERE ${quoteIdent("id")} = ${formatVal(id)};`);
     sqlLines.push("");
   });
   sqlLines.push("COMMIT;");
-  const lines = tokensToLines(tokenizeSql(sqlLines.join("\n")));
+  const sqlText = sqlLines.join("\n");
+  const lines = tokensToLines(tokenizeSql(sqlText));
 
   return (
     <Modal onClose={onClose} width={880}>
@@ -133,7 +144,7 @@ export function CommitModal({
             shop-eu (prod)
           </span>
         </div>
-        <button className="icon-btn" onClick={onClose} title="Close">
+        <button type="button" className="icon-btn" onClick={onClose} title="Close">
           <Icon.close size={13} />
         </button>
       </div>
@@ -251,11 +262,20 @@ export function CommitModal({
           <div className="flex h-[26px] shrink-0 items-center justify-between border-b border-border-divider bg-bg-1 px-3 text-[10px] font-semibold uppercase tracking-[0.05em] text-fg-3">
             <span>Generated SQL</span>
             <div className="flex gap-1">
-              <button className="inline-flex h-[26px] items-center gap-1 rounded-[4px] border border-border-default bg-bg-2 px-2 text-[11px] text-fg-1 hover:bg-bg-3">
+              <button
+                type="button"
+                disabled
+                title="SQL editing is not wired yet"
+                className="inline-flex h-[26px] cursor-not-allowed items-center gap-1 rounded-[4px] border border-border-default bg-bg-2 px-2 text-[11px] text-fg-2 opacity-70"
+              >
                 <Icon.edit size={11} />
                 <span>Edit</span>
               </button>
-              <button className="inline-flex h-[26px] items-center gap-1 rounded-[4px] border border-border-default bg-bg-2 px-2 text-[11px] text-fg-1 hover:bg-bg-3">
+              <button
+                type="button"
+                onClick={() => void navigator.clipboard?.writeText(sqlText)}
+                className="inline-flex h-[26px] items-center gap-1 rounded-[4px] border border-border-default bg-bg-2 px-2 text-[11px] text-fg-1 hover:bg-bg-3"
+              >
                 <Icon.copy size={11} />
                 <span>Copy</span>
               </button>
@@ -305,15 +325,23 @@ export function CommitModal({
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <button className={ED_RUN_SUBTLE} onClick={onClose}>
+          <button type="button" className={ED_RUN_SUBTLE} onClick={onClose}>
             Cancel
           </button>
-          <button className={ED_RUN_SUBTLE}>
+          <button
+            type="button"
+            disabled
+            title="Migration export is not wired yet"
+            className={ED_RUN_SUBTLE + " cursor-not-allowed opacity-60"}
+          >
             <Icon.undo size={11} />
             <span>Save as migration</span>
           </button>
           <button
-            className={ED_RUN_DANGER}
+            type="button"
+            disabled
+            title="Committing pending edits is not wired yet"
+            className={ED_RUN_DANGER + " cursor-not-allowed opacity-60"}
             style={{
               borderColor: "color-mix(in oklab, var(--delete) 40%, black)",
             }}
