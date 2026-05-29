@@ -1,7 +1,10 @@
+use std::time::Instant;
+
 use cellar_core::error::CellarError;
 use cellar_diff::{build_postgres_plan, TableChangeRequest, TableCommitPreview, TableCommitResult};
 use tauri::State;
 
+use crate::history::{HistoryStore, NewQueryHistoryRecord};
 use crate::state::ConnectionRegistry;
 
 #[tauri::command]
@@ -18,8 +21,55 @@ pub fn preview_table_changes(
 #[specta::specta]
 pub async fn commit_table_changes(
     registry: State<'_, ConnectionRegistry>,
+    history: State<'_, HistoryStore>,
     connection_id: String,
     request: TableChangeRequest,
+    tab_id: Option<String>,
 ) -> Result<TableCommitResult, CellarError> {
-    registry.commit_table_changes(&connection_id, request).await
+    let history_database = request.database.clone();
+    let history_sql = build_postgres_plan(&request)
+        .map(|plan| plan.preview.sql)
+        .unwrap_or_else(|err| {
+            format!(
+                "-- failed to build table change SQL for {}.{}: {}",
+                request.schema, request.table, err
+            )
+        });
+    let context = registry.history_context(&connection_id).await;
+    let started = Instant::now();
+    let result = registry.commit_table_changes(&connection_id, request).await;
+    let duration_ms = result
+        .as_ref()
+        .map(|r| r.duration_ms)
+        .unwrap_or_else(|_| started.elapsed().as_millis() as u64) as i64;
+
+    let record = match &result {
+        Ok(commit_result) => NewQueryHistoryRecord {
+            connection_id: connection_id.clone(),
+            connection_name: context.name,
+            tab_id,
+            database: history_database.or(context.database),
+            sql: commit_result.sql.clone(),
+            duration_ms,
+            success: true,
+            row_count: Some(commit_result.rows_affected.min(i64::MAX as u64) as i64),
+            truncated: false,
+            error_summary: None,
+        },
+        Err(err) => NewQueryHistoryRecord {
+            connection_id: connection_id.clone(),
+            connection_name: context.name,
+            tab_id,
+            database: history_database.or(context.database),
+            sql: history_sql,
+            duration_ms,
+            success: false,
+            row_count: None,
+            truncated: false,
+            error_summary: Some(err.to_string()),
+        },
+    };
+    let _ = history.insert(record).await;
+
+    result
 }

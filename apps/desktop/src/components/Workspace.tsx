@@ -40,6 +40,7 @@ function TableTabPane({
     tab.schema,
     tab.table,
     refreshKey,
+    tab.id,
   );
   const grid = useGridState();
 

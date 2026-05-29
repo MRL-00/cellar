@@ -18,6 +18,8 @@ interface TableData {
 
 const DEFAULT_LIMIT = 500;
 
+const inflightTableLoads = new Map<string, Promise<QueryResult>>();
+
 /**
  * Pull a page of rows for the given table out of the live connection and map
  * it into the grid's `GridColumn[]` / `GridRow[]` shapes. Lossless types
@@ -30,6 +32,7 @@ export function useTableData(
   schema: string,
   table: string,
   refreshKey = 0,
+  tabId?: string,
 ): TableData {
   const [state, setState] = useState<TableData>({
     columns: [],
@@ -47,8 +50,14 @@ export function useTableData(
     const sql = tableSelectSql(schema, table, primaryKey);
     void (async () => {
       try {
-        const result = await unwrap(
-          commands.runQuery(connectionId, sql, DEFAULT_LIMIT, database),
+        const result = await loadTableQuery(
+          connectionId,
+          database,
+          schema,
+          table,
+          refreshKey,
+          tabId,
+          sql,
         );
         if (cancelled) return;
         const columns = columnsFor(connectionId, database, schema, table, result);
@@ -71,6 +80,7 @@ export function useTableData(
         );
         useStatus.getState().setLastQuery({
           connectionId,
+          tabId: tabId ?? null,
           rowCount: rows.length,
           truncated: result.truncated,
           durationMs: result.duration_ms,
@@ -91,7 +101,7 @@ export function useTableData(
     return () => {
       cancelled = true;
     };
-  }, [connectionId, database, schema, table, refreshKey]);
+  }, [connectionId, database, schema, table, refreshKey, tabId]);
 
   return state;
 }
@@ -103,6 +113,38 @@ function tableTabId(
   table: string,
 ): string {
   return `${connectionId}::${database}.${schema}.${table}`;
+}
+
+function loadTableQuery(
+  connectionId: string,
+  database: string,
+  schema: string,
+  table: string,
+  refreshKey: number,
+  tabId: string | undefined,
+  sql: string,
+): Promise<QueryResult> {
+  const key = [
+    connectionId,
+    database,
+    schema,
+    table,
+    refreshKey,
+    tabId ?? "",
+    sql,
+  ].join("\u001f");
+  const existing = inflightTableLoads.get(key);
+  if (existing) return existing;
+
+  const promise = unwrap(
+    commands.runQuery(connectionId, sql, DEFAULT_LIMIT, database, tabId ?? null),
+  ).finally(() => {
+    if (inflightTableLoads.get(key) === promise) {
+      inflightTableLoads.delete(key);
+    }
+  });
+  inflightTableLoads.set(key, promise);
+  return promise;
 }
 
 function tableSelectSql(
