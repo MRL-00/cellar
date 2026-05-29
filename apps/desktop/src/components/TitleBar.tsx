@@ -1,16 +1,30 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Icon } from "./icons";
+import { useTabs } from "../state/tabs";
+import { useConnections } from "../state/connections";
+import { ENGINE_META } from "./EngineBadge";
 
 type Panels = { left: boolean; right: boolean; bottom: boolean };
 
-function onTitleBarDoubleClick(e: React.MouseEvent<HTMLDivElement>) {
-  let el: HTMLElement | null = e.target as HTMLElement;
-  while (el && el !== e.currentTarget) {
-    if (getComputedStyle(el).getPropertyValue("-webkit-app-region") === "no-drag") return;
-    el = el.parentElement;
-  }
+// WKWebView ignores Electron's `-webkit-app-region`, so window dragging and
+// double-click-to-maximize are driven manually. The catch: calling
+// `startDragging()` on the first press consumes the native click sequence, so
+// WebKit's own double-click counter (`e.detail`) never reaches 2 on the second
+// press. We therefore detect the double-click ourselves by timing the gap
+// between presses (with `e.detail` kept as a fallback), and call
+// `toggleMaximize()` explicitly so it doesn't depend on the macOS
+// "double-click a window's title bar to…" system setting.
+let lastTitleBarPress = 0;
+
+function onTitleBarMouseDown(e: React.MouseEvent<HTMLDivElement>) {
+  if (e.button !== 0) return;
+  if ((e.target as HTMLElement).closest("button, input, a")) return;
   if (!("__TAURI_INTERNALS__" in window)) return;
-  void getCurrentWindow().toggleMaximize();
+  const win = getCurrentWindow();
+  const doubleClick = e.detail === 2 || e.timeStamp - lastTitleBarPress < 400;
+  lastTitleBarPress = doubleClick ? 0 : e.timeStamp;
+  if (doubleClick) void win.toggleMaximize();
+  else void win.startDragging();
 }
 
 export function TitleBar({
@@ -28,17 +42,25 @@ export function TitleBar({
   onOpenPalette?: () => void;
   onOpenSettings?: () => void;
 }) {
+  const activeId = useTabs((s) => s.activeId);
+  const tabs = useTabs((s) => s.tabs);
+  const connections = useConnections((s) => s.connections);
+  const activeTab = tabs.find((t) => t.id === activeId) ?? null;
+  const activeConn = activeTab
+    ? connections.find((c) => c.id === activeTab.connectionId) ?? null
+    : null;
+
   return (
     <div
-      onDoubleClick={onTitleBarDoubleClick}
+      onMouseDown={onTitleBarMouseDown}
       className={
-        "relative flex shrink-0 h-[34px] items-center gap-2.5 px-2.5 [-webkit-app-region:drag] " +
+        "relative flex shrink-0 h-[34px] items-center gap-2.5 px-2.5 " +
         (empty
           ? "bg-bg-0 border-b border-transparent"
           : "bg-bg-1 border-b border-border-default")
       }
     >
-      <div className="flex shrink-0 items-center gap-1.5 [-webkit-app-region:no-drag]">
+      <div className="flex shrink-0 items-center gap-1.5">
         {/* Reserves room for macOS native traffic lights (positioned via
             tauri.conf.json `trafficLightPosition`). */}
         <div
@@ -66,23 +88,23 @@ export function TitleBar({
             Cellar
           </span>
         </div>
-        {!empty && (
+        {!empty && activeTab && (
           <>
             <div className="mx-0.5 h-4 w-px bg-border-default" />
             <div className="flex items-center gap-0.5 max-[1080px]:[&_svg]:hidden">
               <button className="inline-flex items-center gap-[5px] whitespace-nowrap rounded-[4px] px-1.5 py-[3px] text-[11.5px] text-fg-1 transition-[background] duration-100 hover:bg-bg-3 hover:text-fg-0">
                 <Icon.database size={12} />
-                <span>shop-eu (prod)</span>
+                <span>{activeConn?.name ?? activeTab.connectionId}</span>
               </button>
               <Icon.chevronRight size={11} style={{ opacity: 0.4 }} />
               <button className="inline-flex items-center gap-[5px] whitespace-nowrap rounded-[4px] px-1.5 py-[3px] text-[11.5px] text-fg-1 transition-[background] duration-100 hover:bg-bg-3 hover:text-fg-0 max-[1080px]:hidden">
-                <span style={{ color: "var(--eng-postgres)" }}>●</span>
-                <span>shop_eu</span>
+                <span style={{ color: ENGINE_META[activeConn?.engine ?? "postgres"].color }}>●</span>
+                <span>{activeTab.database}</span>
               </button>
               <Icon.chevronRight size={11} style={{ opacity: 0.4 }} />
               <button className="inline-flex items-center gap-[5px] whitespace-nowrap rounded-[4px] px-1.5 py-[3px] text-[11.5px] text-fg-1 transition-[background] duration-100 hover:bg-bg-3 hover:text-fg-0 max-[1080px]:hidden">
                 <Icon.schema size={11} />
-                <span>public</span>
+                <span>{activeTab.schema}</span>
               </button>
             </div>
           </>
@@ -91,7 +113,7 @@ export function TitleBar({
 
       <button
         onClick={onOpenPalette}
-        className="absolute left-1/2 top-1/2 flex h-[22px] min-w-0 w-[320px] max-w-[320px] -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-[5px] border border-border-default bg-bg-inset px-2 text-[11px] text-fg-3 transition-[border-color] duration-150 hover:border-border-strong [-webkit-app-region:no-drag]"
+        className="absolute left-1/2 top-1/2 flex h-[22px] min-w-0 w-[320px] max-w-[320px] -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-[5px] border border-border-default bg-bg-inset px-2 text-[11px] text-fg-3 transition-[border-color] duration-150 hover:border-border-strong"
       >
         <Icon.search size={11} />
         <span className="flex-1 text-left">
@@ -103,7 +125,7 @@ export function TitleBar({
         </span>
       </button>
 
-      <div className="ml-auto flex shrink-0 items-center gap-1.5 [-webkit-app-region:no-drag]">
+      <div className="ml-auto flex shrink-0 items-center gap-1.5">
         {!empty && (
           <>
             <button
