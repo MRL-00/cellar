@@ -1,8 +1,14 @@
-import { DataGrid, useGridState } from "@cellar/data-grid";
+import {
+  DataGrid,
+  useGridState,
+  type PendingChanges,
+} from "@cellar/data-grid";
 
 import { Icon } from "./icons";
 import { useTabs, type TableTab } from "../state/tabs";
 import { useTableData } from "../hooks/useTableData";
+
+const EMPTY_CHANGES: PendingChanges = {};
 
 export function Workspace({ onCommit }: { onCommit?: () => void } = {}) {
   const tabs = useTabs((s) => s.tabs);
@@ -24,7 +30,17 @@ function TableTabPane({
   tab: TableTab;
   onCommit?: () => void;
 }) {
-  const data = useTableData(tab.connectionId, tab.database, tab.schema, tab.table);
+  const refreshKey = useTabs((s) => s.refreshKeys[tab.id] ?? 0);
+  const changes = useTabs((s) => s.tableChanges[tab.id] ?? EMPTY_CHANGES);
+  const setTableChanges = useTabs((s) => s.setTableChanges);
+  const clearTableChanges = useTabs((s) => s.clearTableChanges);
+  const data = useTableData(
+    tab.connectionId,
+    tab.database,
+    tab.schema,
+    tab.table,
+    refreshKey,
+  );
   const grid = useGridState();
 
   if (data.loading) {
@@ -48,8 +64,8 @@ function TableTabPane({
         columns={data.columns}
         rows={data.rows}
         totalRows={data.truncated ? undefined : data.rows.length}
-        changes={grid.changes}
-        onChange={grid.setChanges}
+        changes={changes}
+        onChange={(next) => setTableChanges(tab.id, next)}
         selection={grid.selection}
         onSelect={grid.setSelection}
         editing={grid.editing}
@@ -57,7 +73,7 @@ function TableTabPane({
         filters={grid.filters}
         onFiltersChange={grid.setFilters}
         onCommit={onCommit}
-        onRevert={grid.revert}
+        onRevert={() => clearTableChanges(tab.id)}
       />
     </div>
   );

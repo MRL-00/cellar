@@ -57,7 +57,7 @@ pnpm install
 pnpm dev
 ```
 
-That's it. `pnpm dev` runs `tauri dev` inside `apps/desktop`, which spawns the Vite dev server on `localhost:1430` and a Cargo build of the Rust shell, then opens the app window.
+That's it. `pnpm dev` runs `tauri dev` inside `apps/desktop`, which spawns the Vite dev server starting at `localhost:1430` and falls forward to the next free port if needed, then opens the app window.
 
 Other useful scripts (all from the repo root):
 

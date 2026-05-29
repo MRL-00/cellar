@@ -2,19 +2,20 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
-// Tauri expects a fixed port and to know if it's iOS/Android.
+// Tauri expects a known port and to know if it's iOS/Android.
 // See https://v2.tauri.app/start/frontend/vite/
 const host = process.env.TAURI_DEV_HOST;
+const devPort = Number(process.env.CELLAR_DEV_PORT ?? 1430);
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   clearScreen: false,
   server: {
-    port: 1430,
-    strictPort: true,
+    port: devPort,
+    strictPort: !!process.env.CELLAR_DEV_PORT,
     host: host || false,
     hmr: host
-      ? { protocol: "ws", host, port: 1431 }
+      ? { protocol: "ws", host, port: devPort + 1 }
       : undefined,
     watch: {
       ignored: ["**/src-tauri/**"],

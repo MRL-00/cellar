@@ -8,6 +8,7 @@ publish = false
 
 [dependencies]
 cellar-core = { path = "../../cellar-core" }
+cellar-diff = { path = "../../cellar-diff" }
 async-trait = "0.1"
 futures = "0.3"
 serde = { workspace = true }
