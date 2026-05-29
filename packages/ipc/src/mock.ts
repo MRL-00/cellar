@@ -11,6 +11,9 @@ import type {
   DriverInfo,
   QueryResult,
   Result,
+  TableChangeRequest,
+  TableCommitPreview,
+  TableCommitResult,
 } from "./generated";
 
 function ok<T>(data: T): Result<T, CellarError> {
@@ -58,5 +61,24 @@ export const mockCommands = {
       rows_affected: null,
       duration_ms: 0,
       truncated: false,
+    }),
+
+  previewTableChanges: async (
+    _request: TableChangeRequest,
+  ): Promise<Result<TableCommitPreview, CellarError>> =>
+    ok({
+      sql: "BEGIN;\n\n-- preview unavailable in web mode\n\nCOMMIT;",
+      expected_rows: 0,
+      statement_count: 0,
+    }),
+
+  commitTableChanges: async (
+    _connectionId: string,
+    _request: TableChangeRequest,
+  ): Promise<Result<TableCommitResult, CellarError>> =>
+    ok({
+      sql: "BEGIN;\n\nCOMMIT;",
+      rows_affected: 0,
+      duration_ms: 0,
     }),
 };

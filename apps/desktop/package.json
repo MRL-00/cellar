@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tauri dev",
+    "dev": "node scripts/dev.mjs",
     "dev:web": "vite",
     "build": "tsc --noEmit && vite build",
     "build:tauri": "tauri build",

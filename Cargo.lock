@@ -396,6 +396,7 @@ version = "0.1.0-alpha"
 dependencies = [
  "async-trait",
  "cellar-core",
+ "cellar-diff",
  "cellar-driver-postgres",
  "cellar-secrets",
  "dirs 5.0.1",
@@ -413,6 +414,11 @@ dependencies = [
 [[package]]
 name = "cellar-diff"
 version = "0.1.0-alpha"
+dependencies = [
+ "serde",
+ "specta",
+ "thiserror 1.0.69",
+]
 
 [[package]]
 name = "cellar-driver-postgres"
@@ -420,6 +426,7 @@ version = "0.1.0-alpha"
 dependencies = [
  "async-trait",
  "cellar-core",
+ "cellar-diff",
  "chrono",
  "futures",
  "serde",

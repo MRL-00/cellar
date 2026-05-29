@@ -28,6 +28,7 @@ export function useTableData(
   database: string,
   schema: string,
   table: string,
+  refreshKey = 0,
 ): TableData {
   const [state, setState] = useState<TableData>({
     columns: [],
@@ -40,8 +41,9 @@ export function useTableData(
 
   useEffect(() => {
     let cancelled = false;
-    setState((s) => ({ ...s, loading: true, error: null }));
-    const sql = `SELECT * FROM ${quoteIdent(schema)}.${quoteIdent(table)} LIMIT ${DEFAULT_LIMIT}`;
+    setState((s) => ({ ...s, loading: s.rows.length === 0, error: null }));
+    const primaryKey = tablePrimaryKey(connectionId, database, schema, table);
+    const sql = tableSelectSql(schema, table, primaryKey);
     void (async () => {
       try {
         const result = await unwrap(
@@ -49,7 +51,11 @@ export function useTableData(
         );
         if (cancelled) return;
         const columns = columnsFor(connectionId, database, schema, table, result);
-        const rows = rowsFor(columns, result);
+        const rows = rowsFor(
+          columns,
+          result,
+          primaryKey,
+        );
         setState({
           columns,
           rows,
@@ -80,9 +86,22 @@ export function useTableData(
     return () => {
       cancelled = true;
     };
-  }, [connectionId, database, schema, table]);
+  }, [connectionId, database, schema, table, refreshKey]);
 
   return state;
+}
+
+function tableSelectSql(
+  schema: string,
+  table: string,
+  primaryKey: string[],
+): string {
+  const tableIdent = `${quoteIdent(schema)}.${quoteIdent(table)}`;
+  const orderBy =
+    primaryKey.length > 0
+      ? ` ORDER BY ${primaryKey.map(quoteIdent).join(", ")}`
+      : "";
+  return `SELECT * FROM ${tableIdent}${orderBy} LIMIT ${DEFAULT_LIMIT}`;
 }
 
 function columnsFor(
@@ -118,6 +137,22 @@ function columnsFor(
   });
 }
 
+function tablePrimaryKey(
+  connectionId: string,
+  database: string,
+  schema: string,
+  table: string,
+): string[] {
+  const cache = useConnections.getState().byId[connectionId];
+  return (
+    cache?.databases
+      .filter((d) => d.name === database)
+      .flatMap((d) => d.schemas)
+      .find((s) => s.name === schema)
+      ?.tables.find((t) => t.name === table)?.primary_key ?? []
+  );
+}
+
 function findForeignKey(
   fks: {
     columns: string[];
@@ -134,15 +169,30 @@ function findForeignKey(
   return undefined;
 }
 
-function rowsFor(columns: GridColumn[], result: QueryResult): GridRow[] {
+function rowsFor(
+  columns: GridColumn[],
+  result: QueryResult,
+  primaryKey: string[],
+): GridRow[] {
   return result.rows.map((cells, i) => {
     const row: GridRow = { id: String(i) };
     cells.forEach((cell, ci) => {
       const col = columns[ci];
       if (col) row[col.key] = cellValueToGrid(cell);
     });
+    row.id = rowIdFor(row, primaryKey, i);
     return row;
   });
+}
+
+function rowIdFor(row: GridRow, primaryKey: string[], index: number): string {
+  if (primaryKey.length === 0) return `row:${index}`;
+  return JSON.stringify(
+    primaryKey.map((column) => ({
+      column,
+      value: gridValueToString(row[column] ?? null),
+    })),
+  );
 }
 
 function cellValueToGrid(value: CellValue): string | number | null {
@@ -170,6 +220,13 @@ function cellValueToGrid(value: CellValue): string | number | null {
     case "TimestampTz":
       return value.value;
   }
+}
+
+function gridValueToString(
+  value: string | number | null | undefined,
+): string | null {
+  if (value === null || value === undefined) return null;
+  return String(value);
 }
 
 function isNumeric(type: string): boolean {

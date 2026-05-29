@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { PendingChanges } from "@cellar/data-grid";
 
 export interface TableTab {
   id: string;
@@ -12,6 +13,8 @@ export interface TableTab {
 interface TabsStore {
   tabs: TableTab[];
   activeId: string | null;
+  tableChanges: Record<string, PendingChanges>;
+  refreshKeys: Record<string, number>;
   openTable: (
     connectionId: string,
     database: string,
@@ -20,6 +23,9 @@ interface TabsStore {
   ) => void;
   closeTab: (id: string) => void;
   setActive: (id: string) => void;
+  setTableChanges: (id: string, changes: PendingChanges) => void;
+  clearTableChanges: (id: string) => void;
+  refreshTable: (id: string) => void;
 }
 
 function tableKey(
@@ -34,6 +40,8 @@ function tableKey(
 export const useTabs = create<TabsStore>((set, get) => ({
   tabs: [],
   activeId: null,
+  tableChanges: {},
+  refreshKeys: {},
 
   openTable(connectionId, database, schema, table) {
     const id = tableKey(connectionId, database, schema, table);
@@ -56,11 +64,30 @@ export const useTabs = create<TabsStore>((set, get) => ({
       const tabs = s.tabs.filter((t) => t.id !== id);
       const activeId =
         s.activeId === id ? tabs[tabs.length - 1]?.id ?? null : s.activeId;
-      return { tabs, activeId };
+      const { [id]: _changes, ...tableChanges } = s.tableChanges;
+      const { [id]: _refresh, ...refreshKeys } = s.refreshKeys;
+      return { tabs, activeId, tableChanges, refreshKeys };
     });
   },
 
   setActive(id) {
     set({ activeId: id });
+  },
+
+  setTableChanges(id, changes) {
+    set((s) => ({ tableChanges: { ...s.tableChanges, [id]: changes } }));
+  },
+
+  clearTableChanges(id) {
+    set((s) => {
+      const { [id]: _changes, ...tableChanges } = s.tableChanges;
+      return { tableChanges };
+    });
+  },
+
+  refreshTable(id) {
+    set((s) => ({
+      refreshKeys: { ...s.refreshKeys, [id]: (s.refreshKeys[id] ?? 0) + 1 },
+    }));
   },
 }));

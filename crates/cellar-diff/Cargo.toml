@@ -5,3 +5,8 @@ edition.workspace = true
 license.workspace = true
 description = "Cellar — pending row-level edits → transactional SQL"
 publish = false
+
+[dependencies]
+serde = { workspace = true }
+specta = { version = "=2.0.0-rc.22", features = ["derive"] }
+thiserror = { workspace = true }
