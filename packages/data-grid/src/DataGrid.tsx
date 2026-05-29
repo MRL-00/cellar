@@ -144,7 +144,12 @@ export function DataGrid({
                 </span>
                 <span className="grid-header-name">{c.name}</span>
                 <span className="grid-header-type">{c.type}</span>
-                <button className="grid-header-sort" aria-label={`Sort ${c.name}`}>
+                <button
+                  className="grid-header-sort"
+                  aria-label={`Sort ${c.name}`}
+                  disabled
+                  title="Sorting is not available yet"
+                >
                   <GridIcon.sortAsc size={10} />
                 </button>
                 <span className="grid-col-resize" />
@@ -245,15 +250,6 @@ export function DataGrid({
               </div>
             );
           })}
-
-          <div className="grid-row grid-row-add">
-            <div className="grid-cell grid-cell-rowno">
-              <GridIcon.plus size={9} stroke="var(--fg-3)" />
-            </div>
-            <div className="grid-cell" style={{ width: 600 }}>
-              <span style={{ color: "var(--fg-3)" }}>Insert new row…</span>
-            </div>
-          </div>
         </div>
       </div>
 
