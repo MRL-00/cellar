@@ -14,11 +14,13 @@ describe("@cellar/ipc", () => {
     // If a command name changes, this test should fail so the UI gets a heads-up.
     expect(Object.keys(commands).sort()).toEqual(
       [
+        "commitTableChanges",
         "connect",
         "deleteConnection",
         "disconnect",
         "introspect",
         "listConnections",
+        "previewTableChanges",
         "runQuery",
         "saveConnection",
         "testConnection",
@@ -61,6 +63,10 @@ describe("@cellar/ipc", () => {
       expect(result.data).toMatchObject({
         columns: expect.any(Array),
         rows: expect.any(Array),
+        notices: expect.any(Array),
+        notice_capture: {
+          supported: expect.any(Boolean),
+        },
         duration_ms: expect.any(Number),
         truncated: false,
       });

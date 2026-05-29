@@ -58,6 +58,11 @@ export const mockCommands = {
     ok({
       columns: [],
       rows: [],
+      notices: [],
+      notice_capture: {
+        supported: false,
+        reason: "Mock IPC mode does not connect to a database server.",
+      },
       rows_affected: null,
       duration_ms: 0,
       truncated: false,

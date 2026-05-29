@@ -4,6 +4,7 @@ import type { CellAlign, GridColumn, GridRow } from "@cellar/data-grid";
 import { useEffect, useState } from "react";
 
 import { useConnections } from "../state/connections";
+import { useNotices } from "../state/notices";
 import { useStatus } from "../state/status";
 
 interface TableData {
@@ -64,6 +65,10 @@ export function useTableData(
           error: null,
           durationMs: result.duration_ms,
         });
+        useNotices.getState().recordQueryResult(
+          { tabId: tableTabId(connectionId, database, schema, table), connectionId, database },
+          result,
+        );
         useStatus.getState().setLastQuery({
           connectionId,
           rowCount: rows.length,
@@ -89,6 +94,15 @@ export function useTableData(
   }, [connectionId, database, schema, table, refreshKey]);
 
   return state;
+}
+
+function tableTabId(
+  connectionId: string,
+  database: string,
+  schema: string,
+  table: string,
+): string {
+  return `${connectionId}::${database}.${schema}.${table}`;
 }
 
 function tableSelectSql(
