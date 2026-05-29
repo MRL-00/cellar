@@ -61,6 +61,10 @@ describe("@cellar/ipc", () => {
       expect(result.data).toMatchObject({
         columns: expect.any(Array),
         rows: expect.any(Array),
+        notices: expect.any(Array),
+        notice_capture: {
+          supported: expect.any(Boolean),
+        },
         duration_ms: expect.any(Number),
         truncated: false,
       });
