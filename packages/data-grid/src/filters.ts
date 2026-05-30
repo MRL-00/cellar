@@ -180,12 +180,12 @@ function displayValue(
 }
 
 function compareOrdered(
-  value: string | number | null,
+  value: GridRow[string],
   needle: string,
   category: ReturnType<typeof columnCategory>,
   operator: "greaterThan" | "lessThan",
 ): boolean {
-  if (value === null) return false;
+  if (value === null || value === undefined) return false;
 
   let left: number;
   let right: number;
@@ -215,8 +215,8 @@ function columnCategory(
   return "unknown";
 }
 
-function normalizeString(value: string | number | null): string {
-  if (value === null) return "";
+function normalizeString(value: GridRow[string]): string {
+  if (value === null || value === undefined) return "";
   return String(value).toLowerCase();
 }
 

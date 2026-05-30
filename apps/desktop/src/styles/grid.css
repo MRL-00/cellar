@@ -304,7 +304,19 @@
   border-right: 1px solid var(--border-default);
 }
 .grid-header-cell:hover { background: var(--bg-2); }
+.grid-header-cell:focus-visible {
+  outline: 1.5px solid var(--accent);
+  outline-offset: -1.5px;
+  z-index: 4;
+}
 .grid-header-cell.frozen { background: var(--bg-1); }
+.grid-header-cell.is-sorted {
+  color: var(--fg-0);
+  background: color-mix(in oklab, var(--accent-soft) 42%, var(--bg-1));
+}
+.grid-header-cell.is-sorted.frozen {
+  background: color-mix(in oklab, var(--accent-soft) 42%, var(--bg-1));
+}
 .grid-header-icon { color: var(--fg-3); display: inline-flex; }
 .grid-header-name {
   overflow: hidden;
@@ -326,10 +338,15 @@
   width: 14px;
   height: 14px;
   color: var(--fg-3);
-  opacity: 0;
-  transition: opacity 0.1s;
+  opacity: 0.35;
+  transition: color 0.1s, opacity 0.1s;
 }
-.grid-header-cell:hover .grid-header-sort { opacity: 1; }
+.grid-header-cell:hover .grid-header-sort,
+.grid-header-cell:focus-visible .grid-header-sort { opacity: 1; }
+.grid-header-cell.is-sorted .grid-header-sort {
+  color: var(--accent);
+  opacity: 1;
+}
 .grid-col-resize {
   position: absolute;
   right: 0;

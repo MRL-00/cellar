@@ -1,6 +1,7 @@
 /** Public types for the Cellar data grid. */
 
 export type CellAlign = "left" | "right" | "center";
+export type GridValue = string | number | boolean | null;
 
 /**
  * A single column definition. Mirrors a SQL column with enough metadata for the
@@ -23,15 +24,28 @@ export type GridColumn = {
 /** Row values are keyed by column key. Use `null` for SQL NULL. */
 export type GridRow = {
   id: string;
-  [key: string]: string | number | null | undefined;
+  [key: string]: GridValue | undefined;
 };
 
 export type ChangeKind = "insert" | "update" | "delete";
 
 export type CellChange = {
-  from: string | number | null;
-  to: string | number | null;
+  from: GridValue;
+  to: GridValue;
 };
+
+export type SortDirection = "asc" | "desc";
+
+/**
+ * Single-column sort intent. The host can map this to a server request later;
+ * the grid uses the same model for local page sorting in the current slice.
+ */
+export type SortClause = {
+  columnKey: string;
+  direction: SortDirection;
+};
+
+export type SortState = SortClause | null;
 
 /**
  * A pending change against a row. `edits` is sparse — only the columns the user
