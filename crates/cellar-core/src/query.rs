@@ -160,3 +160,57 @@ pub struct PlanDetail {
     pub label: String,
     pub value: String,
 }
+
+/// Typed request for browsing one table through the grid. This deliberately
+/// does not carry executable SQL; each driver owns safe dialect-specific
+/// rendering and value binding.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]
+pub struct TableBrowseRequest {
+    pub connection_id: String,
+    pub database: Option<String>,
+    pub schema: String,
+    pub table: String,
+    pub limit: Option<u32>,
+    pub sorts: Vec<TableSortClause>,
+    pub filters: Vec<TableFilterClause>,
+    /// When no explicit sort is requested, order by the table primary key if
+    /// metadata is available. This keeps table tabs stable without the UI
+    /// building an `ORDER BY` string.
+    pub primary_key_fallback_ordering: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]
+pub struct TableSortClause {
+    pub column: String,
+    pub direction: SortDirection,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum SortDirection {
+    Asc,
+    Desc,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]
+pub struct TableFilterClause {
+    pub column: String,
+    pub operator: TableFilterOperator,
+    /// User-entered scalar value. Null checks intentionally use operators
+    /// instead of overloading this field.
+    pub value: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum TableFilterOperator {
+    Equals,
+    NotEquals,
+    Contains,
+    IsNull,
+    IsNotNull,
+    GreaterThan,
+    GreaterThanOrEqual,
+    LessThan,
+    LessThanOrEqual,
+}

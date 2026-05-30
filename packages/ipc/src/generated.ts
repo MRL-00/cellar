@@ -77,6 +77,14 @@ async explainQuery(connectionId: string, sql: string, mode: PlanMode, database: 
     else return { status: "error", error: e  as any };
 }
 },
+async browseTable(request: TableBrowseRequest) : Promise<Result<QueryResult, CellarError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("browse_table", { request }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async previewTableChanges(request: TableChangeRequest) : Promise<Result<TableCommitPreview, CellarError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("preview_table_changes", { request }) };
@@ -262,15 +270,36 @@ duration_ms: number;
 truncated: boolean }
 export type RowChange = { kind: "update"; row_id: string; keys: CellAssignment[]; edits: CellAssignment[] } | { kind: "insert"; row_id: string; values: CellAssignment[] } | { kind: "delete"; row_id: string; keys: CellAssignment[] }
 export type Schema = { name: string; tables: Table[]; views: View[] }
+export type SortDirection = "asc" | "desc"
 export type SslMode = "disable" | "prefer" | "require" | "verify-ca" | "verify-full"
 export type Table = { name: string; schema: string;
 /**
  * `None` until lazy row-count introspection has run.
  */
 row_count: number | null; columns: Column[]; primary_key: string[]; foreign_keys: ForeignKey[]; indexes: Index[] }
+/**
+ * Typed request for browsing one table through the grid. This deliberately
+ * does not carry executable SQL; each driver owns safe dialect-specific
+ * rendering and value binding.
+ */
+export type TableBrowseRequest = { connection_id: string; database: string | null; schema: string; table: string; limit: number | null; sorts: TableSortClause[]; filters: TableFilterClause[];
+/**
+ * When no explicit sort is requested, order by the table primary key if
+ * metadata is available. This keeps table tabs stable without the UI
+ * building an `ORDER BY` string.
+ */
+primary_key_fallback_ordering: boolean }
 export type TableChangeRequest = { database: string | null; schema: string; table: string; primary_key: string[]; columns: DiffColumn[]; changes: RowChange[] }
 export type TableCommitPreview = { sql: string; expected_rows: number; statement_count: number }
 export type TableCommitResult = { sql: string; rows_affected: number; duration_ms: number }
+export type TableFilterClause = { column: string; operator: TableFilterOperator;
+/**
+ * User-entered scalar value. Null checks intentionally use operators
+ * instead of overloading this field.
+ */
+value: string | null }
+export type TableFilterOperator = "equals" | "not_equals" | "contains" | "is_null" | "is_not_null" | "greater_than" | "greater_than_or_equal" | "less_than" | "less_than_or_equal"
+export type TableSortClause = { column: string; direction: SortDirection }
 export type View = { name: string; schema: string; columns: Column[]; definition: string | null }
 
 /** tauri-specta globals **/

@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 use cellar_core::driver::{Connection, ConnectionConfig, Driver, DriverInfo, Engine};
 use cellar_core::error::{CellarError, CellarResult};
-use cellar_core::query::{PlanMode, Query, QueryPlan, QueryResult};
-use cellar_core::schema::Database;
+use cellar_core::query::{PlanMode, Query, QueryPlan, QueryResult, TableBrowseRequest};
+use cellar_core::schema::{Database, Table};
 use cellar_diff::{TableChangeRequest, TableCommitResult};
 use cellar_driver_postgres::PostgresDriver;
 use tokio::fs;
@@ -118,7 +118,10 @@ impl ConnectionRegistry {
 
     pub async fn open_info(&self, id: &str) -> Option<DriverInfo> {
         let inner = self.inner.read().await;
-        inner.open.get(id).map(|open| open.connection.info().clone())
+        inner
+            .open
+            .get(id)
+            .map(|open| open.connection.info().clone())
     }
 
     pub async fn connect(&self, id: &str, password: Option<&str>) -> CellarResult<DriverInfo> {
@@ -196,6 +199,33 @@ impl ConnectionRegistry {
         driver.execute_query(connection.as_ref(), &query).await
     }
 
+    pub async fn browse_table(&self, request: TableBrowseRequest) -> CellarResult<QueryResult> {
+        let target_database = self.target_database_for(&request).await?;
+        let dbs = self.introspect(&request.connection_id, false).await?;
+        let table = find_table(&dbs, &target_database, &request.schema, &request.table)?;
+
+        let (engine, connection) = {
+            let inner = self.inner.read().await;
+            let open = inner.open.get(&request.connection_id).ok_or_else(|| {
+                CellarError::NotConnected(format!(
+                    "no open connection for {}",
+                    request.connection_id
+                ))
+            })?;
+            (open.config.engine, Arc::clone(&open.connection))
+        };
+
+        match engine {
+            Engine::Postgres => {
+                cellar_driver_postgres::browse_table(connection.as_ref(), &request, &table).await
+            }
+            other => Err(CellarError::invalid_config(format!(
+                "engine {} does not support table browsing yet",
+                other.as_str()
+            ))),
+        }
+    }
+
     pub async fn commit_table_changes(
         &self,
         id: &str,
@@ -261,6 +291,34 @@ impl ConnectionRegistry {
             .cloned()
             .ok_or_else(|| CellarError::invalid_config(format!("unknown connection {id}")))
     }
+
+    async fn target_database_for(&self, request: &TableBrowseRequest) -> CellarResult<String> {
+        if let Some(database) = &request.database {
+            if database.trim().is_empty() {
+                return Err(CellarError::invalid_config("database name is empty"));
+            }
+            return Ok(database.clone());
+        }
+
+        let inner = self.inner.read().await;
+        let open = inner.open.get(&request.connection_id).ok_or_else(|| {
+            CellarError::NotConnected(format!("no open connection for {}", request.connection_id))
+        })?;
+        Ok(open.config.database.clone())
+    }
+}
+
+fn find_table(dbs: &[Database], database: &str, schema: &str, table: &str) -> CellarResult<Table> {
+    dbs.iter()
+        .find(|db| db.name == database)
+        .and_then(|db| db.schemas.iter().find(|s| s.name == schema))
+        .and_then(|s| s.tables.iter().find(|t| t.name == table))
+        .cloned()
+        .ok_or_else(|| {
+            CellarError::invalid_config(format!(
+                "table {database}.{schema}.{table} was not found in schema metadata"
+            ))
+        })
 }
 
 fn driver_for(engine: Engine) -> CellarResult<Box<dyn Driver>> {
