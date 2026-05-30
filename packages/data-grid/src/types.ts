@@ -49,7 +49,28 @@ export type CellAddress = {
   col: number;
 };
 
-export type ColumnFilters = Record<string, string>;
+export type FilterLogic = "and" | "or";
+
+export type FilterOperator =
+  | "equals"
+  | "notEquals"
+  | "contains"
+  | "startsWith"
+  | "greaterThan"
+  | "lessThan"
+  | "isNull"
+  | "isNotNull";
+
+export type FilterClause = {
+  id: string;
+  columnKey: string;
+  operator: FilterOperator;
+  value?: string;
+  /** Joins this clause to the previous clause. Ignored for the first clause. */
+  logic: FilterLogic;
+};
+
+export type ColumnFilters = FilterClause[];
 
 export type GridStatusCounts = {
   total: number;
