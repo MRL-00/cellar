@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { GridIcon } from "./icons";
 import { statusDotColor, statusTextColor } from "./status";
-import type { GridColumn } from "./types";
+import type { GridColumn, GridValue } from "./types";
 
-type Value = string | number | null | undefined;
+type Value = GridValue | undefined;
 
 export function CellValue({ col, value }: { col: GridColumn; value: Value }) {
   if (value === null || value === undefined) {
@@ -21,7 +21,7 @@ export function CellValue({ col, value }: { col: GridColumn; value: Value }) {
   if (col.fk) {
     return (
       <span className="cell-fk">
-        <span className={col.mono ? "mono" : ""}>{value}</span>
+        <span className={col.mono ? "mono" : ""}>{String(value)}</span>
         <button className="cell-fk-jump" title={`Jump to ${col.fk}`}>
           <GridIcon.link2 size={9} />
         </button>
@@ -31,11 +31,11 @@ export function CellValue({ col, value }: { col: GridColumn; value: Value }) {
   if (col.align === "right") {
     return (
       <span className="mono tnum" style={{ textAlign: "right", width: "100%" }}>
-        {value}
+        {String(value)}
       </span>
     );
   }
-  return <span className={col.mono ? "mono" : ""}>{value}</span>;
+  return <span className={col.mono ? "mono" : ""}>{String(value)}</span>;
 }
 
 export type CellEditorProps = {

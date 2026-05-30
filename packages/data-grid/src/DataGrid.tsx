@@ -1,9 +1,10 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CellEditor, CellValue } from "./Cell";
 import { FilterBar } from "./FilterBar";
 import { filterRows } from "./filters";
 import { GridIcon } from "./icons";
 import { PendingBar } from "./PendingBar";
+import { cycleSortState, sortGridRows } from "./sort";
 import { TypeIcon } from "./TypeIcon";
 import type {
   CellAddress,
@@ -13,6 +14,7 @@ import type {
   GridRow,
   PendingChange,
   PendingChanges,
+  SortState,
 } from "./types";
 
 const ROWNO_WIDTH = 36;
@@ -33,6 +35,9 @@ export type DataGridProps = {
 
   filters: ColumnFilters;
   onFiltersChange: (next: ColumnFilters) => void;
+
+  sort?: SortState;
+  onSortChange?: (next: SortState) => void;
 
   /**
    * Number of leftmost columns to freeze. The frozen columns stick to the left
@@ -68,21 +73,89 @@ export function DataGrid({
   onEdit,
   filters,
   onFiltersChange,
+  sort,
+  onSortChange,
   frozenCount = 2,
   totalRows,
   onCommit,
   onRevert,
   readOnly = false,
 }: DataGridProps) {
+  const [internalSort, setInternalSort] = useState<SortState>(null);
+  const activeSort = sort ?? internalSort;
+
   // Local search across visible page. Server-side filtering happens upstream
   // for large tables; the chips drive both.
-  const visibleRows = useMemo(() => {
+  const filteredRows = useMemo(() => {
     return filterRows(rows, columns, filters, changes);
   }, [rows, columns, filters, changes]);
+
+  const visibleRows = useMemo(
+    () => sortGridRows(filteredRows, columns, activeSort, changes),
+    [filteredRows, columns, activeSort, changes],
+  );
 
   const minTableWidth = useMemo(
     () => columns.reduce((acc, c) => acc + c.width, ROWNO_WIDTH + 8),
     [columns],
+  );
+
+  const applySort = useCallback(
+    (next: SortState) => {
+      if (sort === undefined) setInternalSort(next);
+      onSortChange?.(next);
+    },
+    [onSortChange, sort],
+  );
+
+  const translateAddress = useCallback(
+    (
+      address: CellAddress | null,
+      before: readonly GridRow[],
+      after: readonly GridRow[],
+    ): CellAddress | null => {
+      if (!address) return null;
+      const row = before[address.row];
+      if (!row) return null;
+      const nextRow = after.findIndex((candidate) => candidate.id === row.id);
+      if (nextRow === -1) return null;
+      return { row: nextRow, col: address.col };
+    },
+    [],
+  );
+
+  const sameAddress = useCallback(
+    (left: CellAddress | null, right: CellAddress | null) =>
+      left?.row === right?.row && left?.col === right?.col,
+    [],
+  );
+
+  const previousVisibleRows = useRef<readonly GridRow[]>(visibleRows);
+  useEffect(() => {
+    const before = previousVisibleRows.current;
+    previousVisibleRows.current = visibleRows;
+    if (before === visibleRows) return;
+
+    const nextSelection = translateAddress(selection, before, visibleRows);
+    const nextEditing = translateAddress(editing, before, visibleRows);
+    if (!sameAddress(nextSelection, selection)) onSelect(nextSelection);
+    if (!sameAddress(nextEditing, editing)) onEdit(nextEditing);
+  }, [
+    editing,
+    onEdit,
+    onSelect,
+    sameAddress,
+    selection,
+    translateAddress,
+    visibleRows,
+  ]);
+
+  const handleSort = useCallback(
+    (columnKey: string) => {
+      const next = cycleSortState(activeSort, columnKey);
+      applySort(next);
+    },
+    [activeSort, applySort],
   );
 
   const handleCellEdit = useCallback(
@@ -129,31 +202,58 @@ export function DataGrid({
             <div className="grid-cell grid-cell-rowno">
               <GridIcon.hash size={9} stroke="var(--fg-3)" />
             </div>
-            {columns.map((c, ci) => (
-              <div
-                key={c.key}
-                className={
-                  "grid-cell grid-header-cell" +
-                  (ci < frozenCount ? " frozen" : "")
-                }
-                style={{ width: c.width, flexBasis: c.width }}
-              >
-                <span className="grid-header-icon">
-                  <TypeIcon col={c} />
-                </span>
-                <span className="grid-header-name">{c.name}</span>
-                <span className="grid-header-type">{c.type}</span>
-                <button
-                  className="grid-header-sort"
-                  aria-label={`Sort ${c.name}`}
-                  disabled
-                  title="Sorting is not available yet"
+            {columns.map((c, ci) => {
+              const sorted = activeSort?.columnKey === c.key ? activeSort : null;
+              const ariaSort =
+                sorted?.direction === "asc"
+                  ? "ascending"
+                  : sorted?.direction === "desc"
+                    ? "descending"
+                    : "none";
+              const SortIcon =
+                sorted?.direction === "desc"
+                  ? GridIcon.sortDesc
+                  : GridIcon.sortAsc;
+              const nextSortLabel =
+                sorted?.direction === "asc"
+                  ? "Sort descending"
+                  : sorted?.direction === "desc"
+                    ? "Clear sort"
+                    : "Sort ascending";
+              return (
+                <div
+                  key={c.key}
+                  className={
+                    "grid-cell grid-header-cell" +
+                    (ci < frozenCount ? " frozen" : "") +
+                    (sorted ? " is-sorted" : "")
+                  }
+                  role="columnheader"
+                  aria-sort={ariaSort}
+                  aria-label={`${c.name}, ${c.type}. ${nextSortLabel}.`}
+                  tabIndex={0}
+                  style={{ width: c.width, flexBasis: c.width }}
+                  title={nextSortLabel}
+                  onClick={() => handleSort(c.key)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      handleSort(c.key);
+                    }
+                  }}
                 >
-                  <GridIcon.sortAsc size={10} />
-                </button>
-                <span className="grid-col-resize" />
-              </div>
-            ))}
+                  <span className="grid-header-icon">
+                    <TypeIcon col={c} />
+                  </span>
+                  <span className="grid-header-name">{c.name}</span>
+                  <span className="grid-header-type">{c.type}</span>
+                  <span className="grid-header-sort" aria-hidden="true">
+                    <SortIcon size={10} />
+                  </span>
+                  <span className="grid-col-resize" />
+                </div>
+              );
+            })}
           </div>
 
           {visibleRows.map((row, ri) => {
@@ -242,7 +342,9 @@ export function DataGrid({
                           title={`Was: ${cellChange.from ?? "NULL"}`}
                         >
                           <span className="grid-cell-prev-strike">
-                            {cellChange.from === null ? "NULL" : cellChange.from}
+                            {cellChange.from === null
+                              ? "NULL"
+                              : String(cellChange.from)}
                           </span>
                         </span>
                       )}
@@ -275,6 +377,7 @@ export function DataGrid({
 export type UseGridStateOptions = {
   initialFilters?: ColumnFilters;
   initialChanges?: PendingChanges;
+  initialSort?: SortState;
 };
 
 /**
@@ -285,9 +388,11 @@ export type UseGridStateOptions = {
 export function useGridState({
   initialFilters = [],
   initialChanges = {},
+  initialSort = null,
 }: UseGridStateOptions = {}) {
   const [filters, setFilters] = useState<ColumnFilters>(initialFilters);
   const [changes, setChanges] = useState<PendingChanges>(initialChanges);
+  const [sort, setSort] = useState<SortState>(initialSort);
   const [selection, setSelection] = useState<CellAddress | null>(null);
   const [editing, setEditing] = useState<CellAddress | null>(null);
 
@@ -298,6 +403,8 @@ export function useGridState({
     setFilters,
     changes,
     setChanges,
+    sort,
+    setSort,
     selection,
     setSelection,
     editing,

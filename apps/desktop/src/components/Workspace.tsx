@@ -85,6 +85,8 @@ function TableTabPane({
         onEdit={grid.setEditing}
         filters={grid.filters}
         onFiltersChange={grid.setFilters}
+        sort={grid.sort}
+        onSortChange={grid.setSort}
         onCommit={onCommit}
         onRevert={() => clearTableChanges(tab.id)}
       />

@@ -58,6 +58,11 @@ export const GridIcon = {
       <path d="M7 4v16M3 16l4 4 4-4" />
     </I>
   ),
+  sortDesc: (p: IconProps) => (
+    <I {...p}>
+      <path d="M7 20V4M3 8l4-4 4 4" />
+    </I>
+  ),
   key: (p: IconProps) => (
     <I {...p}>
       <circle cx="8" cy="15" r="4" />

@@ -1,6 +1,11 @@
 import { commands, unwrap } from "@cellar/ipc";
 import type { CellValue, QueryResult, TableBrowseRequest } from "@cellar/ipc";
-import type { CellAlign, GridColumn, GridRow } from "@cellar/data-grid";
+import type {
+  CellAlign,
+  GridColumn,
+  GridRow,
+  GridValue,
+} from "@cellar/data-grid";
 import { useEffect, useState } from "react";
 
 import { useConnections } from "../state/connections";
@@ -272,12 +277,12 @@ function rowIdFor(row: GridRow, primaryKey: string[], index: number): string {
   );
 }
 
-function cellValueToGrid(value: CellValue): string | number | null {
+function cellValueToGrid(value: CellValue): GridValue {
   switch (value.type) {
     case "Null":
       return null;
     case "Bool":
-      return value.value ? "true" : "false";
+      return value.value;
     case "Int":
     case "Float":
       return value.value;
@@ -300,7 +305,7 @@ function cellValueToGrid(value: CellValue): string | number | null {
 }
 
 function gridValueToString(
-  value: string | number | null | undefined,
+  value: GridValue | undefined,
 ): string | null {
   if (value === null || value === undefined) return null;
   return String(value);
