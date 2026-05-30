@@ -15,6 +15,7 @@ describe("@cellar/ipc", () => {
     // If a command name changes, this test should fail so the UI gets a heads-up.
     expect(Object.keys(commands).sort()).toEqual(
       [
+        "browseTable",
         "commitTableChanges",
         "connect",
         "deleteConnection",
@@ -102,6 +103,32 @@ describe("@cellar/ipc", () => {
           children: expect.any(Array),
         },
         duration_ms: expect.any(Number),
+      });
+    }
+  });
+
+  it("browseTable returns the QueryResult shape in mock mode", async () => {
+    const result: Result<QueryResult, CellarError> = await commands.browseTable({
+      connection_id: "any",
+      database: null,
+      schema: "public",
+      table: "users",
+      limit: 10,
+      sorts: [],
+      filters: [],
+      primary_key_fallback_ordering: true,
+    });
+    expect(result.status).toBe("ok");
+    if (result.status === "ok") {
+      expect(result.data).toMatchObject({
+        columns: expect.any(Array),
+        rows: expect.any(Array),
+        notices: expect.any(Array),
+        notice_capture: {
+          supported: expect.any(Boolean),
+        },
+        duration_ms: expect.any(Number),
+        truncated: false,
       });
     }
   });

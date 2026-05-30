@@ -1,5 +1,5 @@
 import { commands, unwrap } from "@cellar/ipc";
-import type { CellValue, QueryResult } from "@cellar/ipc";
+import type { CellValue, QueryResult, TableBrowseRequest } from "@cellar/ipc";
 import type { CellAlign, GridColumn, GridRow } from "@cellar/data-grid";
 import { useEffect, useState } from "react";
 
@@ -55,7 +55,16 @@ export function useTableData(
     let cancelled = false;
     setState((s) => ({ ...s, loading: s.rows.length === 0, error: null }));
     const primaryKey = tablePrimaryKey(connectionId, database, schema, table);
-    const sql = tableSelectSql(schema, table, primaryKey);
+    const request: TableBrowseRequest = {
+      connection_id: connectionId,
+      database,
+      schema,
+      table,
+      limit: DEFAULT_LIMIT,
+      sorts: [],
+      filters: [],
+      primary_key_fallback_ordering: true,
+    };
     const messageTabId = tabId ?? tableTabId(connectionId, database, schema, table);
     const queryContext: TableQueryContext = {
       tabId: messageTabId,
@@ -63,7 +72,6 @@ export function useTableData(
       database,
       schema,
       table,
-      sql,
       maxRows: DEFAULT_LIMIT,
     };
     if (tabId) {
@@ -81,7 +89,7 @@ export function useTableData(
           table,
           refreshKey,
           tabId,
-          sql,
+          request,
         );
         if (cancelled) return;
         const columns = columnsFor(connectionId, database, schema, table, result);
@@ -152,7 +160,7 @@ function loadTableQuery(
   table: string,
   refreshKey: number,
   tabId: string | undefined,
-  sql: string,
+  request: TableBrowseRequest,
 ): Promise<QueryResult> {
   const key = [
     connectionId,
@@ -161,14 +169,11 @@ function loadTableQuery(
     table,
     refreshKey,
     tabId ?? "",
-    sql,
   ].join("\u001f");
   const existing = inflightTableLoads.get(key);
   if (existing) return existing;
 
-  const promise = unwrap(
-    commands.runQuery(connectionId, sql, DEFAULT_LIMIT, database, tabId ?? null),
-  ).finally(() => {
+  const promise = unwrap(commands.browseTable(request)).finally(() => {
     if (inflightTableLoads.get(key) === promise) {
       inflightTableLoads.delete(key);
     }
@@ -176,20 +181,6 @@ function loadTableQuery(
   inflightTableLoads.set(key, promise);
   return promise;
 }
-
-function tableSelectSql(
-  schema: string,
-  table: string,
-  primaryKey: string[],
-): string {
-  const tableIdent = `${quoteIdent(schema)}.${quoteIdent(table)}`;
-  const orderBy =
-    primaryKey.length > 0
-      ? ` ORDER BY ${primaryKey.map(quoteIdent).join(", ")}`
-      : "";
-  return `SELECT * FROM ${tableIdent}${orderBy} LIMIT ${DEFAULT_LIMIT}`;
-}
-
 function columnsFor(
   connectionId: string,
   database: string,
@@ -364,8 +355,4 @@ function bytesToHex(bytes: number[]): string {
   }
   if (bytes.length > limit) out += `… (${bytes.length} bytes)`;
   return out;
-}
-
-function quoteIdent(s: string): string {
-  return `"${s.replaceAll('"', '""')}"`;
 }

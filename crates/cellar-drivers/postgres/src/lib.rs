@@ -5,14 +5,15 @@
 use async_trait::async_trait;
 use cellar_core::driver::{Connection, ConnectionConfig, Driver, Engine};
 use cellar_core::error::CellarResult;
-use cellar_core::query::{PlanMode, Query, QueryPlan, QueryResult};
-use cellar_core::schema::Database;
+use cellar_core::query::{PlanMode, Query, QueryPlan, QueryResult, TableBrowseRequest};
+use cellar_core::schema::{Database, Table};
 use cellar_diff::{TableChangeRequest, TableCommitResult};
 
 mod connect;
 mod decode;
 mod introspect;
 mod query;
+mod table_browse;
 
 pub use connect::{open_pool, PgConnection};
 
@@ -33,6 +34,15 @@ pub async fn commit_table_changes(
 ) -> CellarResult<TableCommitResult> {
     let pg = connect::as_pg(conn)?;
     query::commit_table_changes(pg, request).await
+}
+
+pub async fn browse_table(
+    conn: &dyn Connection,
+    request: &TableBrowseRequest,
+    table: &Table,
+) -> CellarResult<QueryResult> {
+    let pg = connect::as_pg(conn)?;
+    table_browse::browse_table(pg, request, table).await
 }
 
 #[async_trait]

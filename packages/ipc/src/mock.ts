@@ -13,6 +13,7 @@ import type {
   QueryHistoryRecord,
   QueryResult,
   Result,
+  TableBrowseRequest,
   TableChangeRequest,
   TableCommitPreview,
   TableCommitResult,
@@ -104,6 +105,22 @@ export const mockCommands = {
       execution_time_ms: null,
       duration_ms: 0,
       raw_json: [{ Plan: { "Node Type": "Result" } }],
+    }),
+
+  browseTable: async (
+    _request: TableBrowseRequest,
+  ): Promise<Result<QueryResult, CellarError>> =>
+    ok({
+      columns: [],
+      rows: [],
+      notices: [],
+      notice_capture: {
+        supported: false,
+        reason: "Mock IPC mode does not connect to a database server.",
+      },
+      rows_affected: null,
+      duration_ms: 0,
+      truncated: false,
     }),
 
   previewTableChanges: async (

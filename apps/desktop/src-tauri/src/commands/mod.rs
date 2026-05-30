@@ -28,6 +28,7 @@ pub fn builder() -> Builder<tauri::Wry> {
         schema::introspect,
         query::run_query,
         query::explain_query,
+        query::browse_table,
         transaction::preview_table_changes,
         transaction::commit_table_changes,
         history::list_query_history,

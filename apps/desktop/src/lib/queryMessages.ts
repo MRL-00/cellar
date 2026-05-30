@@ -42,7 +42,7 @@ export interface TableQueryContext {
   database: string;
   schema: string;
   table: string;
-  sql: string;
+  sql?: string;
   maxRows: number;
 }
 
