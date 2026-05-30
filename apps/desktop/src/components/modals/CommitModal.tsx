@@ -125,10 +125,11 @@ export function CommitModal({ onClose }: { onClose: () => void }) {
     setCommitError(null);
     try {
       const result = await unwrap(
-        commands.commitTableChanges(active.connectionId, request),
+        commands.commitTableChanges(active.connectionId, request, active.id),
       );
       useStatus.getState().setLastQuery({
         connectionId: active.connectionId,
+        tabId: active.id,
         rowCount: result.rows_affected,
         truncated: false,
         durationMs: result.duration_ms,

@@ -40,6 +40,7 @@ function TableTabPane({
     tab.schema,
     tab.table,
     refreshKey,
+    tab.id,
   );
   const grid = useGridState();
 
@@ -53,7 +54,7 @@ function TableTabPane({
   if (data.error) {
     return (
       <PaneMessage>
-        <span className="text-warn">{data.error}</span>
+        <span className="text-warn">Table load failed. See Messages for details.</span>
       </PaneMessage>
     );
   }

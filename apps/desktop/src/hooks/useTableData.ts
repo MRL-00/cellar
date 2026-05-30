@@ -4,7 +4,16 @@ import type { CellAlign, GridColumn, GridRow } from "@cellar/data-grid";
 import { useEffect, useState } from "react";
 
 import { useConnections } from "../state/connections";
+import { useNotices } from "../state/notices";
+import { useQueryMessages } from "../state/queryMessages";
 import { useStatus } from "../state/status";
+import { useTabResults } from "../state/tabResults";
+import {
+  buildQueryErrorMessage,
+  buildQueryResultMessages,
+  buildTableLoadStartedMessage,
+  type TableQueryContext,
+} from "../lib/queryMessages";
 
 interface TableData {
   columns: GridColumn[];
@@ -16,6 +25,8 @@ interface TableData {
 }
 
 const DEFAULT_LIMIT = 500;
+
+const inflightTableLoads = new Map<string, Promise<QueryResult>>();
 
 /**
  * Pull a page of rows for the given table out of the live connection and map
@@ -29,6 +40,7 @@ export function useTableData(
   schema: string,
   table: string,
   refreshKey = 0,
+  tabId?: string,
 ): TableData {
   const [state, setState] = useState<TableData>({
     columns: [],
@@ -44,10 +56,32 @@ export function useTableData(
     setState((s) => ({ ...s, loading: s.rows.length === 0, error: null }));
     const primaryKey = tablePrimaryKey(connectionId, database, schema, table);
     const sql = tableSelectSql(schema, table, primaryKey);
+    const messageTabId = tabId ?? tableTabId(connectionId, database, schema, table);
+    const queryContext: TableQueryContext = {
+      tabId: messageTabId,
+      connectionId,
+      database,
+      schema,
+      table,
+      sql,
+      maxRows: DEFAULT_LIMIT,
+    };
+    if (tabId) {
+      useTabResults.getState().clearTab(tabId);
+    }
+    useQueryMessages
+      .getState()
+      .replaceForTab(messageTabId, [buildTableLoadStartedMessage(queryContext)]);
     void (async () => {
       try {
-        const result = await unwrap(
-          commands.runQuery(connectionId, sql, DEFAULT_LIMIT, database),
+        const result = await loadTableQuery(
+          connectionId,
+          database,
+          schema,
+          table,
+          refreshKey,
+          tabId,
+          sql,
         );
         if (cancelled) return;
         const columns = columnsFor(connectionId, database, schema, table, result);
@@ -64,8 +98,16 @@ export function useTableData(
           error: null,
           durationMs: result.duration_ms,
         });
+        useNotices.getState().recordQueryResult(
+          { tabId: tableTabId(connectionId, database, schema, table), connectionId, database },
+          result,
+        );
+        useQueryMessages
+          .getState()
+          .addMessages(buildQueryResultMessages(queryContext, result));
         useStatus.getState().setLastQuery({
           connectionId,
+          tabId: tabId ?? null,
           rowCount: rows.length,
           truncated: result.truncated,
           durationMs: result.duration_ms,
@@ -81,14 +123,58 @@ export function useTableData(
           error: message,
           durationMs: 0,
         });
+        useQueryMessages
+          .getState()
+          .addMessage(buildQueryErrorMessage(queryContext, err));
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [connectionId, database, schema, table, refreshKey]);
+  }, [connectionId, database, schema, table, refreshKey, tabId]);
 
   return state;
+}
+
+function tableTabId(
+  connectionId: string,
+  database: string,
+  schema: string,
+  table: string,
+): string {
+  return `${connectionId}::${database}.${schema}.${table}`;
+}
+
+function loadTableQuery(
+  connectionId: string,
+  database: string,
+  schema: string,
+  table: string,
+  refreshKey: number,
+  tabId: string | undefined,
+  sql: string,
+): Promise<QueryResult> {
+  const key = [
+    connectionId,
+    database,
+    schema,
+    table,
+    refreshKey,
+    tabId ?? "",
+    sql,
+  ].join("\u001f");
+  const existing = inflightTableLoads.get(key);
+  if (existing) return existing;
+
+  const promise = unwrap(
+    commands.runQuery(connectionId, sql, DEFAULT_LIMIT, database, tabId ?? null),
+  ).finally(() => {
+    if (inflightTableLoads.get(key) === promise) {
+      inflightTableLoads.delete(key);
+    }
+  });
+  inflightTableLoads.set(key, promise);
+  return promise;
 }
 
 function tableSelectSql(

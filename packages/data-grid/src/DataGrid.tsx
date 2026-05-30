@@ -44,6 +44,9 @@ export type DataGridProps = {
 
   onCommit?: () => void;
   onRevert?: () => void;
+
+  /** Read-only result grids can still select/filter, but do not expose edits. */
+  readOnly?: boolean;
 };
 
 /**
@@ -68,6 +71,7 @@ export function DataGrid({
   totalRows,
   onCommit,
   onRevert,
+  readOnly = false,
 }: DataGridProps) {
   // Local search across visible page. Server-side filtering happens upstream
   // for large tables; the chips drive both.
@@ -197,7 +201,8 @@ export function DataGrid({
                 {columns.map((c, ci) => {
                   const isSel =
                     selection?.row === ri && selection?.col === ci;
-                  const isEdit = editing?.row === ri && editing?.col === ci;
+                  const isEdit =
+                    !readOnly && editing?.row === ri && editing?.col === ci;
                   const cellChange = change?.edits?.[c.key];
                   const displayed = cellChange ? cellChange.to : row[c.key];
                   const original = row[c.key] ?? null;
@@ -214,7 +219,9 @@ export function DataGrid({
                       }
                       style={{ width: c.width, flexBasis: c.width }}
                       onClick={() => onSelect({ row: ri, col: ci })}
-                      onDoubleClick={() => onEdit({ row: ri, col: ci })}
+                      onDoubleClick={() => {
+                        if (!readOnly) onEdit({ row: ri, col: ci });
+                      }}
                     >
                       {isEdit ? (
                         <CellEditor
@@ -250,10 +257,22 @@ export function DataGrid({
               </div>
             );
           })}
+          {!readOnly && (
+            <div className="grid-row grid-row-add">
+              <div className="grid-cell grid-cell-rowno">
+                <GridIcon.plus size={9} stroke="var(--fg-3)" />
+              </div>
+              <div className="grid-cell" style={{ width: 600 }}>
+                <span style={{ color: "var(--fg-3)" }}>Insert new row…</span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      <PendingBar changes={changes} onCommit={onCommit} onRevert={onRevert} />
+      {!readOnly && (
+        <PendingBar changes={changes} onCommit={onCommit} onRevert={onRevert} />
+      )}
     </div>
   );
 }

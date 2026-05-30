@@ -10,7 +10,7 @@ pub mod value;
 
 pub use driver::{Connection, ConnectionConfig, Driver, DriverInfo, Engine, EnvTag, SslMode};
 pub use error::{CellarError, CellarResult};
-pub use query::{Query, QueryResult};
+pub use query::{DatabaseNotice, NoticeCapture, NoticeSeverity, Query, QueryResult};
 pub use schema::{Column, Database, ForeignKey, Index, Schema, Table, View};
 pub use value::{CellValue, ColumnMeta, Row};
 
@@ -102,6 +102,18 @@ mod tests {
                 vec![CellValue::Int(1), CellValue::Text("a@b.co".into())],
                 vec![CellValue::Int(2), CellValue::Null],
             ],
+            notices: vec![DatabaseNotice {
+                severity: NoticeSeverity::Notice,
+                code: Some("00000".into()),
+                message: "loaded fixtures".into(),
+                detail: Some("two rows materialized".into()),
+                hint: None,
+                timestamp: "2026-05-30T00:00:00Z".into(),
+                connection_id: Some("local".into()),
+                database: Some("postgres".into()),
+                query_id: Some("query-1".into()),
+            }],
+            notice_capture: NoticeCapture::supported(),
             rows_affected: None,
             duration_ms: 12,
             truncated: false,
@@ -110,6 +122,8 @@ mod tests {
         let back: QueryResult = serde_json::from_str(&s).expect("deserialize");
         assert_eq!(back.rows.len(), 2);
         assert_eq!(back.columns.len(), 2);
+        assert_eq!(back.notices.len(), 1);
+        assert!(back.notice_capture.supported);
         assert!(matches!(back.rows[1][1], CellValue::Null));
     }
 

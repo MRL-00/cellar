@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use cellar_core::error::{CellarError, CellarResult};
-use cellar_core::query::{Query, QueryResult};
+use cellar_core::query::{NoticeCapture, Query, QueryResult};
 use cellar_core::value::{ColumnMeta, Row};
 use cellar_diff::{build_postgres_plan, TableChangeRequest, TableCommitResult};
 use futures::TryStreamExt;
@@ -69,6 +69,15 @@ pub async fn execute_query(conn: &PgConnection, query: &Query) -> CellarResult<Q
     Ok(QueryResult {
         columns: columns.unwrap_or_default(),
         rows: materialized,
+        notices: Vec::new(),
+        // SQLx decodes Postgres NoticeResponse frames, but PgPool consumes
+        // them inside the connection stream and only emits a log/tracing
+        // message. That path drops SQLSTATE/detail/hint and has no query
+        // correlation hook, so Cellar reports the gap instead of pretending
+        // RAISE NOTICE is captured.
+        notice_capture: NoticeCapture::unsupported(
+            "Postgres server notices are parsed by sqlx, but the current PgPool query path consumes NoticeResponse frames internally and exposes only log/tracing output without SQLSTATE, detail, hint, or query correlation.",
+        ),
         rows_affected: None,
         duration_ms,
         truncated,

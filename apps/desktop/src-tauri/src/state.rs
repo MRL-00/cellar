@@ -20,6 +20,12 @@ pub struct OpenConnection {
     pub connection: Arc<dyn Connection>,
 }
 
+#[derive(Debug, Clone)]
+pub struct ConnectionHistoryContext {
+    pub name: Option<String>,
+    pub database: Option<String>,
+}
+
 #[derive(Default)]
 struct RegistryInner {
     /// Configs the user has saved. Mirrors `~/.cellar/connections.json`.
@@ -209,6 +215,18 @@ impl ConnectionRegistry {
                 "engine {} does not support grid commits yet",
                 other.as_str()
             ))),
+        }
+    }
+
+    pub async fn history_context(&self, id: &str) -> ConnectionHistoryContext {
+        let inner = self.inner.read().await;
+        let config = inner
+            .configs
+            .get(id)
+            .or_else(|| inner.open.get(id).map(|o| &o.config));
+        ConnectionHistoryContext {
+            name: config.map(|c| c.name.clone()),
+            database: config.map(|c| c.database.clone()),
         }
     }
 
