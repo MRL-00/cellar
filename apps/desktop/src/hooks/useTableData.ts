@@ -5,8 +5,15 @@ import { useEffect, useState } from "react";
 
 import { useConnections } from "../state/connections";
 import { useNotices } from "../state/notices";
+import { useQueryMessages } from "../state/queryMessages";
 import { useStatus } from "../state/status";
 import { useTabResults } from "../state/tabResults";
+import {
+  buildQueryErrorMessage,
+  buildQueryResultMessages,
+  buildTableLoadStartedMessage,
+  type TableQueryContext,
+} from "../lib/queryMessages";
 
 interface TableData {
   columns: GridColumn[];
@@ -49,9 +56,22 @@ export function useTableData(
     setState((s) => ({ ...s, loading: s.rows.length === 0, error: null }));
     const primaryKey = tablePrimaryKey(connectionId, database, schema, table);
     const sql = tableSelectSql(schema, table, primaryKey);
+    const messageTabId = tabId ?? tableTabId(connectionId, database, schema, table);
+    const queryContext: TableQueryContext = {
+      tabId: messageTabId,
+      connectionId,
+      database,
+      schema,
+      table,
+      sql,
+      maxRows: DEFAULT_LIMIT,
+    };
     if (tabId) {
       useTabResults.getState().clearTab(tabId);
     }
+    useQueryMessages
+      .getState()
+      .replaceForTab(messageTabId, [buildTableLoadStartedMessage(queryContext)]);
     void (async () => {
       try {
         const result = await loadTableQuery(
@@ -82,6 +102,9 @@ export function useTableData(
           { tabId: tableTabId(connectionId, database, schema, table), connectionId, database },
           result,
         );
+        useQueryMessages
+          .getState()
+          .addMessages(buildQueryResultMessages(queryContext, result));
         useStatus.getState().setLastQuery({
           connectionId,
           tabId: tabId ?? null,
@@ -100,6 +123,9 @@ export function useTableData(
           error: message,
           durationMs: 0,
         });
+        useQueryMessages
+          .getState()
+          .addMessage(buildQueryErrorMessage(queryContext, err));
       }
     })();
     return () => {

@@ -31,6 +31,8 @@ import {
   useTabResults,
   type TabResult,
 } from "../state/tabResults";
+import { useQueryMessages } from "../state/queryMessages";
+import { MessagesView } from "./BottomMessagesPanel";
 import { Icon } from "./icons";
 
 type BottomTabId = "results" | "messages" | "plan" | "history" | "notices";
@@ -45,7 +47,7 @@ type BPTab = {
 
 const BASE_TABS: Omit<BPTab, "count">[] = [
   { id: "results", label: "Results", icon: <Icon.table size={11} />, enabled: true },
-  { id: "messages", label: "Messages", icon: <Icon.info size={11} />, enabled: false },
+  { id: "messages", label: "Messages", icon: <Icon.info size={11} />, enabled: true },
   { id: "plan", label: "Plan", icon: <Icon.tree size={11} />, enabled: false },
   { id: "history", label: "History", icon: <Icon.history size={11} />, enabled: true },
   { id: "notices", label: "Notices", icon: <Icon.warn size={11} />, enabled: true },
@@ -57,7 +59,12 @@ export function BottomPanel({ onClose }: { onClose: () => void }) {
   const activeTabId = useTabs((s) => s.activeId);
   const tabs = useTabs((s) => s.tabs);
   const connections = useConnections((s) => s.connections);
+  const messages = useQueryMessages((s) => s.messages);
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? null;
+  const activeMessages = useMemo(
+    () => messages.filter((m) => m.tabId === activeTabId),
+    [activeTabId, messages],
+  );
   const result = useTabResults((s) =>
     activeTabId ? s.byTabId[activeTabId] ?? null : null,
   );
@@ -86,6 +93,8 @@ export function BottomPanel({ onClose }: { onClose: () => void }) {
     count:
       tab.id === "notices"
         ? noticeEntry.notices.length
+        : tab.id === "messages"
+          ? activeMessages.length || null
         : tab.id === "history"
           ? historyCount
           : tab.id === "results"
@@ -150,6 +159,11 @@ export function BottomPanel({ onClose }: { onClose: () => void }) {
       <div className="min-h-0 flex-1 overflow-hidden">
         {active === "results" ? (
           <ResultsBody activeTab={activeTab} result={result} />
+        ) : active === "messages" ? (
+          <MessagesView
+            messages={activeMessages}
+            hasActiveTab={activeTabId != null}
+          />
         ) : active === "history" ? (
           <HistoryPanel activeTab={activeTab} onCountChange={setHistoryCount} />
         ) : active === "notices" ? (
@@ -719,7 +733,7 @@ function labelFor(id: BottomTabId) {
     case "results":
       return "Run a query to see results here";
     case "messages":
-      return "No messages yet";
+      return "No execution messages";
     case "plan":
       return "Execution plans appear here";
     case "history":
@@ -736,7 +750,7 @@ function subFor(id: BottomTabId) {
     case "results":
       return "Open a query tab, ⌘⏎ to run the statement under the cursor.";
     case "messages":
-      return "Query truncation, validation, and app-side execution status land here as this panel grows.";
+      return "Execution status, row-limit warnings, and failures appear here.";
     case "plan":
       return "EXPLAIN ANALYZE renders as a tree with a cost heatmap.";
     case "history":
