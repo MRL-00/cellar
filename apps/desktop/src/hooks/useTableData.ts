@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { useConnections } from "../state/connections";
 import { useNotices } from "../state/notices";
 import { useStatus } from "../state/status";
+import { useTabResults } from "../state/tabResults";
 
 interface TableData {
   columns: GridColumn[];
@@ -48,6 +49,9 @@ export function useTableData(
     setState((s) => ({ ...s, loading: s.rows.length === 0, error: null }));
     const primaryKey = tablePrimaryKey(connectionId, database, schema, table);
     const sql = tableSelectSql(schema, table, primaryKey);
+    if (tabId) {
+      useTabResults.getState().clearTab(tabId);
+    }
     void (async () => {
       try {
         const result = await loadTableQuery(

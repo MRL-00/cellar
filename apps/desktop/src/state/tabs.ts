@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { PendingChanges } from "@cellar/data-grid";
+import { useTabResults } from "./tabResults";
 
 export interface TableTab {
   id: string;
@@ -68,6 +69,7 @@ export const useTabs = create<TabsStore>((set, get) => ({
       const { [id]: _refresh, ...refreshKeys } = s.refreshKeys;
       return { tabs, activeId, tableChanges, refreshKeys };
     });
+    useTabResults.getState().clearTab(id);
   },
 
   setActive(id) {
