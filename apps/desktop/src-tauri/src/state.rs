@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use cellar_core::driver::{Connection, ConnectionConfig, Driver, DriverInfo, Engine};
 use cellar_core::error::{CellarError, CellarResult};
-use cellar_core::query::{Query, QueryResult};
+use cellar_core::query::{PlanMode, Query, QueryPlan, QueryResult};
 use cellar_core::schema::Database;
 use cellar_diff::{TableChangeRequest, TableCommitResult};
 use cellar_driver_postgres::PostgresDriver;
@@ -215,6 +215,29 @@ impl ConnectionRegistry {
             name: config.map(|c| c.name.clone()),
             database: config.map(|c| c.database.clone()),
         }
+    }
+
+    pub async fn explain_query(
+        &self,
+        id: &str,
+        query: Query,
+        mode: PlanMode,
+    ) -> CellarResult<QueryPlan> {
+        let inner = self.inner.read().await;
+        let open = inner
+            .open
+            .get(id)
+            .ok_or_else(|| CellarError::NotConnected(format!("no open connection for {id}")))?;
+        if open.config.engine != Engine::Postgres {
+            return Err(CellarError::invalid_config(format!(
+                "execution plans are not available for {} yet",
+                open.config.engine.as_str()
+            )));
+        }
+        let driver = driver_for(open.config.engine)?;
+        driver
+            .explain_query(open.connection.as_ref(), &query, mode)
+            .await
     }
 
     async fn config_for(&self, id: &str) -> CellarResult<ConnectionConfig> {

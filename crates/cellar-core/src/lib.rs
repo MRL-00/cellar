@@ -10,7 +10,10 @@ pub mod value;
 
 pub use driver::{Connection, ConnectionConfig, Driver, DriverInfo, Engine, EnvTag, SslMode};
 pub use error::{CellarError, CellarResult};
-pub use query::{DatabaseNotice, NoticeCapture, NoticeSeverity, Query, QueryResult};
+pub use query::{
+    DatabaseNotice, NoticeCapture, NoticeSeverity, PlanDetail, PlanMode, PlanNode, Query,
+    QueryPlan, QueryResult,
+};
 pub use schema::{Column, Database, ForeignKey, Index, Schema, Table, View};
 pub use value::{CellValue, ColumnMeta, Row};
 
@@ -125,6 +128,46 @@ mod tests {
         assert_eq!(back.notices.len(), 1);
         assert!(back.notice_capture.supported);
         assert!(matches!(back.rows[1][1], CellValue::Null));
+    }
+
+    #[test]
+    fn round_trips_a_query_plan() {
+        let plan = QueryPlan {
+            mode: PlanMode::Estimate,
+            engine: "postgres".into(),
+            database: Some("postgres".into()),
+            sql: "SELECT 1".into(),
+            root: PlanNode {
+                node_type: "Result".into(),
+                relation_name: None,
+                schema_name: None,
+                alias: None,
+                index_name: None,
+                join_type: None,
+                startup_cost: Some(0.0),
+                total_cost: Some(0.01),
+                plan_rows: Some(1),
+                plan_width: Some(4),
+                actual_startup_time_ms: None,
+                actual_total_time_ms: None,
+                actual_rows: None,
+                actual_loops: None,
+                details: vec![PlanDetail {
+                    label: "Output".into(),
+                    value: "1".into(),
+                }],
+                children: vec![],
+            },
+            planning_time_ms: Some(0.1),
+            execution_time_ms: None,
+            duration_ms: 3,
+            raw_json: json!([{"Plan": {"Node Type": "Result"}}]),
+        };
+        let s = serde_json::to_string(&plan).expect("serialize");
+        let back: QueryPlan = serde_json::from_str(&s).expect("deserialize");
+        assert_eq!(back.mode, PlanMode::Estimate);
+        assert_eq!(back.root.node_type, "Result");
+        assert_eq!(back.root.details[0].label, "Output");
     }
 
     #[test]

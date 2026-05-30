@@ -69,6 +69,14 @@ async runQuery(connectionId: string, sql: string, maxRows: number | null, databa
     else return { status: "error", error: e  as any };
 }
 },
+async explainQuery(connectionId: string, sql: string, mode: PlanMode, database: string | null) : Promise<Result<QueryPlan, CellarError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("explain_query", { connectionId, sql, mode, database }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async previewTableChanges(request: TableChangeRequest) : Promise<Result<TableCommitPreview, CellarError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("preview_table_changes", { request }) };
@@ -109,41 +117,41 @@ export type CellAssignment = { column: string; value: DiffValue }
 /**
  * One cell value, tagged so the frontend can render the right editor and
  * preserve type fidelity through the IPC boundary.
- * 
+ *
  * `Numeric` is intentionally a `String`: Postgres `numeric` has arbitrary
  * precision and JavaScript `number` does not. Drivers that decode it as a
  * float would lose digits, so we round-trip it as text.
  */
-export type CellValue = { type: "Null" } | { type: "Bool"; value: boolean } | { type: "Int"; value: number } | { type: "Float"; value: number } | 
+export type CellValue = { type: "Null" } | { type: "Bool"; value: boolean } | { type: "Int"; value: number } | { type: "Float"; value: number } |
 /**
  * Arbitrary-precision decimal as a string to preserve precision.
  */
-{ type: "Numeric"; value: string } | { type: "Text"; value: string } | { type: "Bytes"; value: number[] } | { type: "Json"; value: JsonValue } | { type: "Uuid"; value: string } | 
+{ type: "Numeric"; value: string } | { type: "Text"; value: string } | { type: "Bytes"; value: number[] } | { type: "Json"; value: JsonValue } | { type: "Uuid"; value: string } |
 /**
  * Calendar date with no timezone.
  */
-{ type: "Date"; value: string } | 
+{ type: "Date"; value: string } |
 /**
  * Wall-clock time with no date or timezone.
  */
-{ type: "Time"; value: string } | 
+{ type: "Time"; value: string } |
 /**
  * Local timestamp without a timezone (Postgres `timestamp`).
  */
-{ type: "Timestamp"; value: string } | 
+{ type: "Timestamp"; value: string } |
 /**
  * Absolute timestamp with UTC offset (Postgres `timestamptz`).
  */
 { type: "TimestampTz"; value: string }
 /**
  * Typed error surface for every public API in `cellar-core` and driver crates.
- * 
+ *
  * Crossing the IPC boundary requires serializable values, so the error is a
  * closed enum rather than a string. Drivers map their native errors into one
  * of these variants and stash the original message in `detail`.
  */
 export type CellarError = { kind: "Connection"; detail: string } | { kind: "Authentication"; detail: string } | { kind: "Tls"; detail: string } | { kind: "Query"; detail: string } | { kind: "Introspection"; detail: string } | { kind: "UnsupportedType"; detail: string } | { kind: "Decode"; detail: string } | { kind: "Timeout"; detail: string } | { kind: "NotConnected"; detail: string } | { kind: "InvalidConfig"; detail: string } | { kind: "Io"; detail: string } | { kind: "Internal"; detail: string }
-export type Column = { name: string; 
+export type Column = { name: string;
 /**
  * The engine-native type name as reported by the catalog (e.g. `int4`,
  * `varchar(64)`). Drivers must not normalize this — the UI relies on the
@@ -155,11 +163,11 @@ data_type: string; nullable: boolean; default: string | null; is_primary_key: bo
  * schema lives in [`crate::schema::Column`]; this only carries what the grid
  * needs to render headers.
  */
-export type ColumnMeta = { name: string; 
+export type ColumnMeta = { name: string;
 /**
  * The engine-native type name (e.g. `int4`, `text`, `jsonb`).
  */
-data_type: string; 
+data_type: string;
 /**
  * Whether the column came back as a known nullable position. Result-set
  * columns are nullable by default — drivers can sharpen this where they
@@ -170,7 +178,7 @@ nullable: boolean }
  * Inputs required to open a connection. Passwords never live here — they
  * come out of [`cellar-secrets`](../cellar_secrets) at connect time.
  */
-export type ConnectionConfig = { id: string; name: string; engine: Engine; host: string; port: number; database: string; user: string; ssl_mode: SslMode; env_tag: EnvTag | null; application_name: string | null; 
+export type ConnectionConfig = { id: string; name: string; engine: Engine; host: string; port: number; database: string; user: string; ssl_mode: SslMode; env_tag: EnvTag | null; application_name: string | null;
 /**
  * Color swatch used by the sidebar accent strip; opaque hex like `#4f8ff7`.
  */
@@ -180,18 +188,18 @@ color: string | null }
  * `pg_database` row, for MySQL to a single catalog, for SQLite the file.
  */
 export type Database = { name: string; is_default: boolean; schemas: Schema[] }
-export type DatabaseNotice = { severity: NoticeSeverity; 
+export type DatabaseNotice = { severity: NoticeSeverity;
 /**
  * Engine-native code when available. For Postgres this is the SQLSTATE.
  */
-code: string | null; message: string; detail: string | null; hint: string | null; 
+code: string | null; message: string; detail: string | null; hint: string | null;
 /**
  * RFC 3339 timestamp generated by the host when it observes the notice.
  */
 timestamp: string; connection_id: string | null; database: string | null; query_id: string | null }
 export type DiffColumn = { name: string; data_type: string; nullable: boolean }
 export type DiffValue = { value: string | null }
-export type DriverInfo = { engine: Engine; 
+export type DriverInfo = { engine: Engine;
 /**
  * Server version as reported by the engine, e.g. `PostgreSQL 16.2 on
  * x86_64-linux-gnu`.
@@ -212,27 +220,41 @@ export type Index = { name: string; columns: string[]; unique: boolean; primary:
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
 export type NoticeCapture = { supported: boolean; reason: string | null }
 export type NoticeSeverity = "panic" | "fatal" | "error" | "warning" | "notice" | "info" | "log" | "debug" | "unknown"
+export type PlanDetail = { label: string; value: string }
+/**
+ * Whether an execution plan should only estimate the plan or run the
+ * statement to collect actual timings. `Analyze` is intentionally explicit:
+ * Postgres `EXPLAIN ANALYZE` executes the supplied SQL.
+ */
+export type PlanMode = "estimate" | "analyze"
+export type PlanNode = { node_type: string; relation_name: string | null; schema_name: string | null; alias: string | null; index_name: string | null; join_type: string | null; startup_cost: number | null; total_cost: number | null; plan_rows: number | null; plan_width: number | null; actual_startup_time_ms: number | null; actual_total_time_ms: number | null; actual_rows: number | null; actual_loops: number | null; details: PlanDetail[]; children: PlanNode[] }
 export type QueryHistoryRecord = { id: number; connection_id: string; connection_name: string | null; tab_id: string | null; database: string | null; sql: string; executed_at_ms: number; duration_ms: number; success: boolean; row_count: number | null; truncated: boolean; error_summary: string | null }
-export type QueryResult = { columns: ColumnMeta[]; rows: CellValue[][]; 
+export type QueryPlan = { mode: PlanMode; engine: string; database: string | null; sql: string; root: PlanNode; planning_time_ms: number | null; execution_time_ms: number | null; duration_ms: number;
+/**
+ * Original engine plan payload for advanced inspection and future richer
+ * renderers. The typed tree above is the stable UI contract.
+ */
+raw_json: JsonValue }
+export type QueryResult = { columns: ColumnMeta[]; rows: CellValue[][];
 /**
  * Database-emitted notices captured while executing this query. Host-side
  * warnings, validation messages, and truncation badges belong in the
  * Messages panel, not here.
  */
-notices: DatabaseNotice[]; 
+notices: DatabaseNotice[];
 /**
  * Whether the current driver path can observe server notice frames.
  */
-notice_capture: NoticeCapture; 
+notice_capture: NoticeCapture;
 /**
  * Server-reported affected-row count for DML, or `None` for SELECT-like
  * statements where it isn't meaningful.
  */
-rows_affected: number | null; 
+rows_affected: number | null;
 /**
  * Total elapsed time for the round-trip, measured in the host.
  */
-duration_ms: number; 
+duration_ms: number;
 /**
  * `true` when the driver truncated the result because it hit
  * [`Query::max_rows`]. The grid uses this to show a "+ more" badge.
@@ -241,7 +263,7 @@ truncated: boolean }
 export type RowChange = { kind: "update"; row_id: string; keys: CellAssignment[]; edits: CellAssignment[] } | { kind: "insert"; row_id: string; values: CellAssignment[] } | { kind: "delete"; row_id: string; keys: CellAssignment[] }
 export type Schema = { name: string; tables: Table[]; views: View[] }
 export type SslMode = "disable" | "prefer" | "require" | "verify-ca" | "verify-full"
-export type Table = { name: string; schema: string; 
+export type Table = { name: string; schema: string;
 /**
  * `None` until lazy row-count introspection has run.
  */

@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use cellar_core::error::CellarError;
-use cellar_core::query::{Query, QueryResult};
+use cellar_core::query::{PlanMode, Query, QueryPlan, QueryResult};
 use tauri::State;
 
 use crate::history::{HistoryStore, NewQueryHistoryRecord};
@@ -68,4 +68,20 @@ pub async fn run_query(
     let _ = history.insert(record).await;
 
     result
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn explain_query(
+    registry: State<'_, ConnectionRegistry>,
+    connection_id: String,
+    sql: String,
+    mode: PlanMode,
+    database: Option<String>,
+) -> Result<QueryPlan, CellarError> {
+    let mut query = Query::new(sql);
+    if let Some(db) = database {
+        query = query.with_database(db);
+    }
+    registry.explain_query(&connection_id, query, mode).await
 }

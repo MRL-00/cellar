@@ -103,8 +103,12 @@ export function TitleBar({
               </button>
               <Icon.chevronRight size={11} style={{ opacity: 0.4 }} />
               <button className="inline-flex items-center gap-[5px] whitespace-nowrap rounded-[4px] px-1.5 py-[3px] text-[11.5px] text-fg-1 transition-[background] duration-100 hover:bg-bg-3 hover:text-fg-0 max-[1080px]:hidden">
-                <Icon.schema size={11} />
-                <span>{activeTab.schema}</span>
+                {activeTab.kind === "query" ? (
+                  <Icon.terminal size={11} />
+                ) : (
+                  <Icon.schema size={11} />
+                )}
+                <span>{activeTab.kind === "query" ? activeTab.title : activeTab.schema}</span>
               </button>
             </div>
           </>
