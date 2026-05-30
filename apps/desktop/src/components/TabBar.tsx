@@ -36,10 +36,14 @@ export function TabBar() {
                 style={{ background: "var(--eng-postgres)" }}
               />
               <span className="inline-flex" style={{ color: "var(--fg-1)" }}>
-                <Icon.table size={11} />
+                {t.kind === "query" ? (
+                  <Icon.terminal size={11} />
+                ) : (
+                  <Icon.table size={11} />
+                )}
               </span>
               <span className="overflow-hidden text-ellipsis whitespace-nowrap font-mono">
-                {t.schema}.{t.table}
+                {t.kind === "query" ? t.title : `${t.schema}.${t.table}`}
               </span>
               <button
                 onClick={(e) => {

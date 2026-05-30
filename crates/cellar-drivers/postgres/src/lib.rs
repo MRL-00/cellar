@@ -5,7 +5,7 @@
 use async_trait::async_trait;
 use cellar_core::driver::{Connection, ConnectionConfig, Driver, Engine};
 use cellar_core::error::CellarResult;
-use cellar_core::query::{Query, QueryResult};
+use cellar_core::query::{PlanMode, Query, QueryPlan, QueryResult};
 use cellar_core::schema::Database;
 use cellar_diff::{TableChangeRequest, TableCommitResult};
 
@@ -58,5 +58,15 @@ impl Driver for PostgresDriver {
     async fn execute_query(&self, conn: &dyn Connection, q: &Query) -> CellarResult<QueryResult> {
         let pg = connect::as_pg(conn)?;
         query::execute_query(pg, q).await
+    }
+
+    async fn explain_query(
+        &self,
+        conn: &dyn Connection,
+        q: &Query,
+        mode: PlanMode,
+    ) -> CellarResult<QueryPlan> {
+        let pg = connect::as_pg(conn)?;
+        query::explain_query(pg, q, mode).await
     }
 }

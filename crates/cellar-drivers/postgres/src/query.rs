@@ -1,10 +1,13 @@
 use std::time::Instant;
 
 use cellar_core::error::{CellarError, CellarResult};
-use cellar_core::query::{NoticeCapture, Query, QueryResult};
+use cellar_core::query::{
+    NoticeCapture, PlanDetail, PlanMode, PlanNode, Query, QueryPlan, QueryResult,
+};
 use cellar_core::value::{ColumnMeta, Row};
 use cellar_diff::{build_postgres_plan, TableChangeRequest, TableCommitResult};
 use futures::TryStreamExt;
+use serde_json::{Map, Value};
 use sqlx::{Column as _, Row as _, TypeInfo as _};
 
 use crate::connect::PgConnection;
@@ -129,4 +132,329 @@ pub async fn commit_table_changes(
         rows_affected,
         duration_ms: started.elapsed().as_millis() as u64,
     })
+}
+
+pub async fn explain_query(
+    conn: &PgConnection,
+    query: &Query,
+    mode: PlanMode,
+) -> CellarResult<QueryPlan> {
+    let database = query
+        .database
+        .as_deref()
+        .unwrap_or(conn.config().database.as_str());
+    let pool = conn.pool_for_database(database).await?;
+    let statement = normalize_single_statement(&query.sql)?;
+    let explain_sql = match mode {
+        PlanMode::Estimate => format!("EXPLAIN (FORMAT JSON) {statement}"),
+        PlanMode::Analyze => format!("EXPLAIN (ANALYZE, FORMAT JSON) {statement}"),
+    };
+
+    let started = Instant::now();
+    let raw_json: Value = sqlx::query_scalar(&explain_sql)
+        .fetch_one(&pool)
+        .await
+        .map_err(|e| CellarError::query(e.to_string()))?;
+    let duration_ms = started.elapsed().as_millis() as u64;
+
+    let root_doc = raw_json
+        .as_array()
+        .and_then(|a| a.first())
+        .and_then(Value::as_object)
+        .ok_or_else(|| CellarError::decode("Postgres returned an unexpected EXPLAIN JSON shape"))?;
+    let root = root_doc
+        .get("Plan")
+        .ok_or_else(|| CellarError::decode("Postgres EXPLAIN JSON did not include a Plan"))?;
+
+    Ok(QueryPlan {
+        mode,
+        engine: "postgres".into(),
+        database: Some(database.to_string()),
+        sql: statement,
+        root: parse_plan_node(root)?,
+        planning_time_ms: f64_field(root_doc, "Planning Time"),
+        execution_time_ms: f64_field(root_doc, "Execution Time"),
+        duration_ms,
+        raw_json,
+    })
+}
+
+fn parse_plan_node(value: &Value) -> CellarResult<PlanNode> {
+    let obj = value
+        .as_object()
+        .ok_or_else(|| CellarError::decode("Postgres plan node was not an object"))?;
+    let children = obj
+        .get("Plans")
+        .and_then(Value::as_array)
+        .map(|plans| {
+            plans
+                .iter()
+                .map(parse_plan_node)
+                .collect::<CellarResult<Vec<_>>>()
+        })
+        .transpose()?
+        .unwrap_or_default();
+
+    Ok(PlanNode {
+        node_type: string_field(obj, "Node Type").unwrap_or_else(|| "Unknown".into()),
+        relation_name: string_field(obj, "Relation Name"),
+        schema_name: string_field(obj, "Schema"),
+        alias: string_field(obj, "Alias"),
+        index_name: string_field(obj, "Index Name"),
+        join_type: string_field(obj, "Join Type"),
+        startup_cost: f64_field(obj, "Startup Cost"),
+        total_cost: f64_field(obj, "Total Cost"),
+        plan_rows: u64_field(obj, "Plan Rows"),
+        plan_width: u64_field(obj, "Plan Width"),
+        actual_startup_time_ms: f64_field(obj, "Actual Startup Time"),
+        actual_total_time_ms: f64_field(obj, "Actual Total Time"),
+        actual_rows: f64_field(obj, "Actual Rows"),
+        actual_loops: u64_field(obj, "Actual Loops"),
+        details: detail_fields(obj),
+        children,
+    })
+}
+
+fn string_field(obj: &Map<String, Value>, key: &str) -> Option<String> {
+    obj.get(key).and_then(Value::as_str).map(ToOwned::to_owned)
+}
+
+fn f64_field(obj: &Map<String, Value>, key: &str) -> Option<f64> {
+    obj.get(key).and_then(Value::as_f64)
+}
+
+fn u64_field(obj: &Map<String, Value>, key: &str) -> Option<u64> {
+    obj.get(key).and_then(Value::as_u64)
+}
+
+fn detail_fields(obj: &Map<String, Value>) -> Vec<PlanDetail> {
+    const STRUCTURAL: &[&str] = &[
+        "Node Type",
+        "Relation Name",
+        "Schema",
+        "Alias",
+        "Index Name",
+        "Join Type",
+        "Startup Cost",
+        "Total Cost",
+        "Plan Rows",
+        "Plan Width",
+        "Actual Startup Time",
+        "Actual Total Time",
+        "Actual Rows",
+        "Actual Loops",
+        "Plans",
+        "Parent Relationship",
+        "Parallel Aware",
+        "Async Capable",
+    ];
+    let mut details: Vec<_> = obj
+        .iter()
+        .filter(|(k, _)| !STRUCTURAL.contains(&k.as_str()))
+        .filter_map(|(label, value)| {
+            format_detail(value).map(|value| PlanDetail {
+                label: label.clone(),
+                value,
+            })
+        })
+        .collect();
+    details.sort_by(|a, b| a.label.cmp(&b.label));
+    details
+}
+
+fn format_detail(value: &Value) -> Option<String> {
+    match value {
+        Value::Null => None,
+        Value::Bool(v) => Some(v.to_string()),
+        Value::Number(v) => Some(v.to_string()),
+        Value::String(v) => Some(v.clone()),
+        Value::Array(values) => Some(
+            values
+                .iter()
+                .filter_map(format_detail)
+                .collect::<Vec<_>>()
+                .join(", "),
+        ),
+        Value::Object(_) => Some(value.to_string()),
+    }
+}
+
+fn normalize_single_statement(sql: &str) -> CellarResult<String> {
+    let trimmed = sql.trim();
+    if trimmed.is_empty() {
+        return Err(CellarError::query("cannot explain an empty SQL statement"));
+    }
+
+    if let Some(idx) = first_top_level_semicolon(trimmed) {
+        let after = &trimmed[idx + 1..];
+        if has_sql_tokens(after) {
+            return Err(CellarError::query(
+                "EXPLAIN only accepts one statement; run statements separately",
+            ));
+        }
+        Ok(trimmed[..idx].trim().to_string())
+    } else {
+        Ok(trimmed.to_string())
+    }
+}
+
+fn has_sql_tokens(sql: &str) -> bool {
+    for (idx, ch) in sql.char_indices() {
+        if !ch.is_whitespace() {
+            if sql[idx..].starts_with("--") {
+                return sql[idx..]
+                    .find('\n')
+                    .is_some_and(|line_end| has_sql_tokens(&sql[idx + line_end + 1..]));
+            }
+            if sql[idx..].starts_with("/*") {
+                return sql[idx + 2..]
+                    .find("*/")
+                    .is_none_or(|end| has_sql_tokens(&sql[idx + end + 4..]));
+            }
+            return true;
+        }
+    }
+    false
+}
+
+fn first_top_level_semicolon(sql: &str) -> Option<usize> {
+    let bytes = sql.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'\'' => i = skip_single_quote(bytes, i + 1),
+            b'"' => i = skip_double_quote(bytes, i + 1),
+            b'-' if bytes.get(i + 1) == Some(&b'-') => i = skip_line_comment(bytes, i + 2),
+            b'/' if bytes.get(i + 1) == Some(&b'*') => i = skip_block_comment(bytes, i + 2),
+            b'$' => {
+                if let Some(next) = skip_dollar_quote(sql, i) {
+                    i = next;
+                } else {
+                    i += 1;
+                }
+            }
+            b';' => return Some(i),
+            _ => i += 1,
+        }
+    }
+    None
+}
+
+fn skip_single_quote(bytes: &[u8], mut i: usize) -> usize {
+    while i < bytes.len() {
+        if bytes[i] == b'\'' {
+            if bytes.get(i + 1) == Some(&b'\'') {
+                i += 2;
+            } else {
+                return i + 1;
+            }
+        } else {
+            i += 1;
+        }
+    }
+    i
+}
+
+fn skip_double_quote(bytes: &[u8], mut i: usize) -> usize {
+    while i < bytes.len() {
+        if bytes[i] == b'"' {
+            if bytes.get(i + 1) == Some(&b'"') {
+                i += 2;
+            } else {
+                return i + 1;
+            }
+        } else {
+            i += 1;
+        }
+    }
+    i
+}
+
+fn skip_line_comment(bytes: &[u8], mut i: usize) -> usize {
+    while i < bytes.len() && bytes[i] != b'\n' {
+        i += 1;
+    }
+    i
+}
+
+fn skip_block_comment(bytes: &[u8], mut i: usize) -> usize {
+    let mut depth = 1;
+    while i + 1 < bytes.len() {
+        if bytes[i] == b'/' && bytes[i + 1] == b'*' {
+            depth += 1;
+            i += 2;
+        } else if bytes[i] == b'*' && bytes[i + 1] == b'/' {
+            depth -= 1;
+            i += 2;
+            if depth == 0 {
+                return i;
+            }
+        } else {
+            i += 1;
+        }
+    }
+    bytes.len()
+}
+
+fn skip_dollar_quote(sql: &str, start: usize) -> Option<usize> {
+    let bytes = sql.as_bytes();
+    let mut end = start + 1;
+    while end < bytes.len() {
+        let b = bytes[end];
+        if b == b'$' {
+            let tag = &sql[start..=end];
+            return sql[end + 1..]
+                .find(tag)
+                .map(|close| end + 1 + close + tag.len());
+        }
+        if !(b == b'_' || b.is_ascii_alphanumeric()) {
+            return None;
+        }
+        end += 1;
+    }
+    None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn normalizes_a_single_statement_with_trailing_comments() {
+        let sql = " SELECT ';' AS semi; -- ok\n /* done */ ";
+        assert_eq!(
+            normalize_single_statement(sql).expect("single statement"),
+            "SELECT ';' AS semi"
+        );
+    }
+
+    #[test]
+    fn rejects_multiple_statements() {
+        let err = normalize_single_statement("SELECT 1; DROP TABLE users")
+            .expect_err("multiple statements rejected");
+        assert!(err.to_string().contains("one statement"));
+    }
+
+    #[test]
+    fn ignores_semicolons_in_dollar_quotes() {
+        let sql = "SELECT $$semi;colon$$ AS body";
+        assert_eq!(normalize_single_statement(sql).unwrap(), sql);
+    }
+
+    #[test]
+    fn parses_json_plan_nodes() {
+        let plan = json!({
+            "Node Type": "Seq Scan",
+            "Relation Name": "orders",
+            "Startup Cost": 0.0,
+            "Total Cost": 12.5,
+            "Plan Rows": 10,
+            "Filter": "(total > 10)"
+        });
+        let parsed = parse_plan_node(&plan).expect("parse plan");
+        assert_eq!(parsed.node_type, "Seq Scan");
+        assert_eq!(parsed.relation_name.as_deref(), Some("orders"));
+        assert_eq!(parsed.details[0].label, "Filter");
+    }
 }

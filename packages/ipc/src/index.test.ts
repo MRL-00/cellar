@@ -4,6 +4,7 @@ import { commands, IpcError, isTauri, unwrap } from "./index";
 import type {
   CellValue,
   Database,
+  QueryPlan,
   QueryResult,
   Result,
   CellarError,
@@ -18,6 +19,7 @@ describe("@cellar/ipc", () => {
         "connect",
         "deleteConnection",
         "disconnect",
+        "explainQuery",
         "introspect",
         "listQueryHistory",
         "listConnections",
@@ -80,6 +82,27 @@ describe("@cellar/ipc", () => {
     expect(result.status).toBe("ok");
     if (result.status === "ok") {
       expect(result.data).toEqual([]);
+    }
+  });
+
+  it("preserves the QueryPlan shape end-to-end", async () => {
+    const result: Result<QueryPlan, CellarError> = await commands.explainQuery(
+      "any",
+      "SELECT 1",
+      "estimate",
+      null,
+    );
+    expect(result.status).toBe("ok");
+    if (result.status === "ok") {
+      expect(result.data).toMatchObject({
+        mode: "estimate",
+        engine: "postgres",
+        root: {
+          node_type: "Result",
+          children: expect.any(Array),
+        },
+        duration_ms: expect.any(Number),
+      });
     }
   });
 

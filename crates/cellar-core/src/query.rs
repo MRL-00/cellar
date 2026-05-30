@@ -109,3 +109,54 @@ impl NoticeCapture {
         }
     }
 }
+
+/// Whether an execution plan should only estimate the plan or run the
+/// statement to collect actual timings. `Analyze` is intentionally explicit:
+/// Postgres `EXPLAIN ANALYZE` executes the supplied SQL.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum PlanMode {
+    Estimate,
+    Analyze,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq)]
+pub struct QueryPlan {
+    pub mode: PlanMode,
+    pub engine: String,
+    pub database: Option<String>,
+    pub sql: String,
+    pub root: PlanNode,
+    pub planning_time_ms: Option<f64>,
+    pub execution_time_ms: Option<f64>,
+    pub duration_ms: u64,
+    /// Original engine plan payload for advanced inspection and future richer
+    /// renderers. The typed tree above is the stable UI contract.
+    pub raw_json: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq)]
+pub struct PlanNode {
+    pub node_type: String,
+    pub relation_name: Option<String>,
+    pub schema_name: Option<String>,
+    pub alias: Option<String>,
+    pub index_name: Option<String>,
+    pub join_type: Option<String>,
+    pub startup_cost: Option<f64>,
+    pub total_cost: Option<f64>,
+    pub plan_rows: Option<u64>,
+    pub plan_width: Option<u64>,
+    pub actual_startup_time_ms: Option<f64>,
+    pub actual_total_time_ms: Option<f64>,
+    pub actual_rows: Option<f64>,
+    pub actual_loops: Option<u64>,
+    pub details: Vec<PlanDetail>,
+    pub children: Vec<PlanNode>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]
+pub struct PlanDetail {
+    pub label: String,
+    pub value: String,
+}

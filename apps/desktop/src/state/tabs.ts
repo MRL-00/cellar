@@ -11,8 +11,19 @@ export interface TableTab {
   table: string;
 }
 
+export interface QueryTab {
+  id: string;
+  kind: "query";
+  connectionId: string;
+  database: string;
+  title: string;
+  sql: string;
+}
+
+export type WorkspaceTab = TableTab | QueryTab;
+
 interface TabsStore {
-  tabs: TableTab[];
+  tabs: WorkspaceTab[];
   activeId: string | null;
   tableChanges: Record<string, PendingChanges>;
   refreshKeys: Record<string, number>;

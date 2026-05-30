@@ -32,6 +32,7 @@ import {
   type TabResult,
 } from "../state/tabResults";
 import { useQueryMessages } from "../state/queryMessages";
+import { PlanPanel } from "./BottomPlanPanel";
 import { MessagesView } from "./BottomMessagesPanel";
 import { Icon } from "./icons";
 
@@ -48,7 +49,7 @@ type BPTab = {
 const BASE_TABS: Omit<BPTab, "count">[] = [
   { id: "results", label: "Results", icon: <Icon.table size={11} />, enabled: true },
   { id: "messages", label: "Messages", icon: <Icon.info size={11} />, enabled: true },
-  { id: "plan", label: "Plan", icon: <Icon.tree size={11} />, enabled: false },
+  { id: "plan", label: "Plan", icon: <Icon.tree size={11} />, enabled: true },
   { id: "history", label: "History", icon: <Icon.history size={11} />, enabled: true },
   { id: "notices", label: "Notices", icon: <Icon.warn size={11} />, enabled: true },
 ];
@@ -171,14 +172,18 @@ export function BottomPanel({ onClose }: { onClose: () => void }) {
             activeConnectionName={activeConnection?.name ?? null}
             activeEngine={activeConnection?.engine ?? null}
             activeTabLabel={
-              activeTab
-                ? `${activeTab.database}.${activeTab.schema}.${activeTab.table}`
-                : null
+                activeTab
+                  ? activeTab.kind === "query"
+                    ? `${activeTab.database}.${activeTab.title}`
+                    : `${activeTab.database}.${activeTab.schema}.${activeTab.table}`
+                  : null
             }
             entry={noticeEntry}
             onClear={() => clearNotices(noticeScope)}
             onRetainChange={(retain) => setRetain(noticeScope, retain)}
           />
+        ) : active === "plan" ? (
+          <PlanPanel activeTab={activeTab} />
         ) : (
           <Placeholder tab={active} />
         )}
@@ -191,7 +196,7 @@ function HeaderMeta({
   activeTab,
   result,
 }: {
-  activeTab: TableTab | null;
+  activeTab: ReturnType<typeof useTabs.getState>["tabs"][number] | null;
   result: TabResult | null;
 }) {
   const items = headerItems(activeTab, result);
@@ -211,8 +216,12 @@ function HeaderMeta({
   );
 }
 
-function headerItems(activeTab: TableTab | null, result: TabResult | null): string[] {
+function headerItems(
+  activeTab: ReturnType<typeof useTabs.getState>["tabs"][number] | null,
+  result: TabResult | null,
+): string[] {
   if (!activeTab) return ["no active tab"];
+  if (activeTab.kind === "query") return [activeTab.title, "query tab"];
   if (!result) return [tableLabel(activeTab), "table rows shown above"];
 
   const context = resultContextLabel(result.source);
@@ -237,7 +246,7 @@ function ResultsBody({
   activeTab,
   result,
 }: {
-  activeTab: TableTab | null;
+  activeTab: ReturnType<typeof useTabs.getState>["tabs"][number] | null;
   result: TabResult | null;
 }) {
   if (!activeTab) {
@@ -250,6 +259,14 @@ function ResultsBody({
   }
 
   if (!result) {
+    if (activeTab.kind === "query") {
+      return (
+        <EmptyPanel
+          title="Run a query to see results"
+          detail={`${activeTab.title} has not produced a result set yet.`}
+        />
+      );
+    }
     return (
       <EmptyPanel
         title="Table rows are already shown"
@@ -359,7 +376,7 @@ function HistoryPanel({
   activeTab,
   onCountChange,
 }: {
-  activeTab: TableTab | null;
+  activeTab: ReturnType<typeof useTabs.getState>["tabs"][number] | null;
   onCountChange: (count: number | null) => void;
 }) {
   const [search, setSearch] = useState("");
@@ -421,6 +438,7 @@ function HistoryPanel({
 
   const scopeLabel = useMemo(() => {
     if (!activeTab) return "No active tab";
+    if (activeTab.kind === "query") return `${activeTab.database}.${activeTab.title}`;
     return `${activeTab.database}.${activeTab.schema}.${activeTab.table}`;
   }, [activeTab]);
 

@@ -44,23 +44,26 @@ export function CommitModal({ onClose }: { onClose: () => void }) {
   const byId = useConnections((s) => s.byId);
 
   const active = tabs.find((t) => t.id === activeId) ?? null;
-  const changes = active ? tableChanges[active.id] ?? EMPTY_CHANGES : EMPTY_CHANGES;
+  const activeTable = active?.kind === "table" ? active : null;
+  const changes = activeTable
+    ? tableChanges[activeTable.id] ?? EMPTY_CHANGES
+    : EMPTY_CHANGES;
   const entries = Object.entries(changes);
-  const activeConn = active
-    ? connections.find((c) => c.id === active.connectionId) ?? null
+  const activeConn = activeTable
+    ? connections.find((c) => c.id === activeTable.connectionId) ?? null
     : null;
-  const tableMeta = active ? findTableMeta(active) : null;
+  const tableMeta = activeTable ? findTableMeta(activeTable) : null;
 
   const blockers = useMemo(
-    () => blockersFor(active, tableMeta, entries.length),
-    [active, tableMeta, entries.length],
+    () => blockersFor(activeTable, tableMeta, entries.length),
+    [activeTable, tableMeta, entries.length],
   );
   const request = useMemo(
     () =>
-      active && tableMeta && blockers.length === 0
-        ? buildRequest(active, tableMeta, changes)
+      activeTable && tableMeta && blockers.length === 0
+        ? buildRequest(activeTable, tableMeta, changes)
         : null,
-    [active, tableMeta, blockers.length, changes],
+    [activeTable, tableMeta, blockers.length, changes],
   );
   const [previewState, setPreviewState] = useState<PreviewState>({
     kind: "idle",
@@ -100,7 +103,7 @@ export function CommitModal({ onClose }: { onClose: () => void }) {
   const updates = entries.filter(([, c]) => c.kind === "update");
   const inserts = entries.filter(([, c]) => c.kind === "insert");
   const deletes = entries.filter(([, c]) => c.kind === "delete");
-  const canCommit = !!active && !!request && !!preview && !committing;
+  const canCommit = !!activeTable && !!request && !!preview && !committing;
 
   useEffect(() => {
     if (!canCommit) return;
@@ -117,25 +120,25 @@ export function CommitModal({ onClose }: { onClose: () => void }) {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [canCommit, active, request, preview]);
+  }, [canCommit, activeTable, request, preview]);
 
   async function handleCommit() {
-    if (!active || !request || !preview) return;
+    if (!activeTable || !request || !preview) return;
     setCommitting(true);
     setCommitError(null);
     try {
       const result = await unwrap(
-        commands.commitTableChanges(active.connectionId, request, active.id),
+        commands.commitTableChanges(activeTable.connectionId, request, activeTable.id),
       );
       useStatus.getState().setLastQuery({
-        connectionId: active.connectionId,
-        tabId: active.id,
+        connectionId: activeTable.connectionId,
+        tabId: activeTable.id,
         rowCount: result.rows_affected,
         truncated: false,
         durationMs: result.duration_ms,
       });
-      clearTableChanges(active.id);
-      refreshTable(active.id);
+      clearTableChanges(activeTable.id);
+      refreshTable(activeTable.id);
       onClose();
     } catch (err) {
       setCommitError(err instanceof Error ? err.message : String(err));
@@ -155,7 +158,7 @@ export function CommitModal({ onClose }: { onClose: () => void }) {
             Review &amp; commit
           </span>
           <span className="ml-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap border-l border-border-divider pl-1.5 font-mono text-[11px] text-fg-2">
-            {active ? `${active.schema}.${active.table}` : "no table"}{" "}
+            {activeTable ? `${activeTable.schema}.${activeTable.table}` : "no table"}{" "}
             <span style={{ color: "var(--fg-3)" }}>·</span>{" "}
             {activeConn?.name ?? "no connection"}
             {activeConn?.env_tag ? ` (${activeConn.env_tag})` : ""}

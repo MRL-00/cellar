@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 
 use crate::error::CellarResult;
-use crate::query::{Query, QueryResult};
+use crate::query::{PlanMode, Query, QueryPlan, QueryResult};
 use crate::schema::Database;
 
 /// User-facing identifier for which driver to load. Lives in connection
@@ -125,4 +125,14 @@ pub trait Driver: Send + Sync {
         conn: &dyn Connection,
         query: &Query,
     ) -> CellarResult<QueryResult>;
+
+    /// Return a structured execution plan. `PlanMode::Estimate` must not run
+    /// the supplied statement; `PlanMode::Analyze` may execute it and callers
+    /// must gate that path explicitly in the UI.
+    async fn explain_query(
+        &self,
+        conn: &dyn Connection,
+        query: &Query,
+        mode: PlanMode,
+    ) -> CellarResult<QueryPlan>;
 }
