@@ -5,6 +5,7 @@ import {
   type NoticeSeverity,
   type QueryHistoryRecord,
 } from "@cellar/ipc";
+import { DataGrid, useGridState } from "@cellar/data-grid";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import {
@@ -23,6 +24,13 @@ import {
 } from "../state/notices";
 import { useStatus } from "../state/status";
 import { useTabs, type TableTab } from "../state/tabs";
+import {
+  maxRowsLabel,
+  resultContextLabel,
+  rowCountLabel,
+  useTabResults,
+  type TabResult,
+} from "../state/tabResults";
 import { Icon } from "./icons";
 
 type BottomTabId = "results" | "messages" | "plan" | "history" | "notices";
@@ -32,14 +40,15 @@ type BPTab = {
   label: string;
   count: number | null;
   icon: ReactNode;
+  enabled: boolean;
 };
 
 const BASE_TABS: Omit<BPTab, "count">[] = [
-  { id: "results", label: "Results", icon: <Icon.table size={11} /> },
-  { id: "messages", label: "Messages", icon: <Icon.info size={11} /> },
-  { id: "plan", label: "Plan", icon: <Icon.tree size={11} /> },
-  { id: "history", label: "History", icon: <Icon.history size={11} /> },
-  { id: "notices", label: "Notices", icon: <Icon.warn size={11} /> },
+  { id: "results", label: "Results", icon: <Icon.table size={11} />, enabled: true },
+  { id: "messages", label: "Messages", icon: <Icon.info size={11} />, enabled: false },
+  { id: "plan", label: "Plan", icon: <Icon.tree size={11} />, enabled: false },
+  { id: "history", label: "History", icon: <Icon.history size={11} />, enabled: true },
+  { id: "notices", label: "Notices", icon: <Icon.warn size={11} />, enabled: true },
 ];
 
 export function BottomPanel({ onClose }: { onClose: () => void }) {
@@ -49,6 +58,13 @@ export function BottomPanel({ onClose }: { onClose: () => void }) {
   const tabs = useTabs((s) => s.tabs);
   const connections = useConnections((s) => s.connections);
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? null;
+  const result = useTabResults((s) =>
+    activeTabId ? s.byTabId[activeTabId] ?? null : null,
+  );
+  const resultCount =
+    result?.status === "ready" && result.source.kind === "query"
+      ? result.rowCount
+      : null;
   const activeConnection = activeTab
     ? connections.find((c) => c.id === activeTab.connectionId) ?? null
     : null;
@@ -72,7 +88,9 @@ export function BottomPanel({ onClose }: { onClose: () => void }) {
         ? noticeEntry.notices.length
         : tab.id === "history"
           ? historyCount
-          : null,
+          : tab.id === "results"
+            ? resultCount
+            : null,
   }));
 
   return (
@@ -84,12 +102,16 @@ export function BottomPanel({ onClose }: { onClose: () => void }) {
             return (
               <button
                 key={t.id}
-                onClick={() => setActive(t.id)}
+                onClick={() => {
+                  if (t.enabled) setActive(t.id);
+                }}
+                disabled={!t.enabled}
+                title={t.enabled ? t.label : `${t.label} is not wired yet`}
                 className={
-                  "mt-[3px] inline-flex h-[22px] items-center gap-1.5 rounded-[4px] px-2 text-[11px] " +
+                  "mt-[3px] inline-flex h-[22px] items-center gap-1.5 rounded-[4px] px-2 text-[11px] disabled:cursor-default disabled:opacity-45 " +
                   (isActive
                     ? "bg-accent-soft text-accent"
-                    : "text-fg-2 hover:bg-bg-2 hover:text-fg-0")
+                    : "text-fg-2 hover:bg-bg-2 hover:text-fg-0 disabled:hover:bg-transparent disabled:hover:text-fg-2")
                 }
               >
                 <span className={"inline-flex " + (isActive ? "text-accent" : "text-fg-3")}>
@@ -110,13 +132,7 @@ export function BottomPanel({ onClose }: { onClose: () => void }) {
             );
           })}
           <div className="mx-1.5 h-[18px] w-px self-center bg-border-divider" />
-          <div className="inline-flex min-w-0 items-center gap-1.5 font-mono text-[10.5px]">
-            <span className="truncate text-fg-3">
-              {activeTab
-                ? `${activeTab.database}.${activeTab.schema}.${activeTab.table}`
-                : "no active tab"}
-            </span>
-          </div>
+          <HeaderMeta activeTab={activeTab} result={result} />
         </div>
         <div className="flex items-center gap-px">
           <button className="icon-btn opacity-45" disabled title="Export not implemented yet">
@@ -132,7 +148,9 @@ export function BottomPanel({ onClose }: { onClose: () => void }) {
       </div>
 
       <div className="min-h-0 flex-1 overflow-hidden">
-        {active === "history" ? (
+        {active === "results" ? (
+          <ResultsBody activeTab={activeTab} result={result} />
+        ) : active === "history" ? (
           <HistoryPanel activeTab={activeTab} onCountChange={setHistoryCount} />
         ) : active === "notices" ? (
           <NoticesPanel
@@ -153,6 +171,174 @@ export function BottomPanel({ onClose }: { onClose: () => void }) {
       </div>
     </div>
   );
+}
+
+function HeaderMeta({
+  activeTab,
+  result,
+}: {
+  activeTab: TableTab | null;
+  result: TabResult | null;
+}) {
+  const items = headerItems(activeTab, result);
+
+  return (
+    <div className="inline-flex min-w-0 items-center gap-1.5 overflow-hidden font-mono text-[10.5px]">
+      {items.map((item, i) => (
+        <span
+          key={`${item}-${i}`}
+          className={i === 0 ? "truncate text-fg-2" : "shrink-0 text-fg-3"}
+        >
+          {i > 0 && <span className="text-fg-4">· </span>}
+          {item}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function headerItems(activeTab: TableTab | null, result: TabResult | null): string[] {
+  if (!activeTab) return ["no active tab"];
+  if (!result) return [tableLabel(activeTab), "table rows shown above"];
+
+  const context = resultContextLabel(result.source);
+  if (result.source.kind === "table") {
+    return [context, "table rows shown above"];
+  }
+  if (result.status === "loading") {
+    return [context, "loading", maxRowsLabel(result.source.maxRows, false)];
+  }
+  if (result.status === "error") {
+    return [context, "failed"];
+  }
+  return [
+    context,
+    rowCountLabel(result.rowCount, result.truncated),
+    maxRowsLabel(result.source.maxRows, result.truncated),
+    `${result.durationMs} ms`,
+  ];
+}
+
+function ResultsBody({
+  activeTab,
+  result,
+}: {
+  activeTab: TableTab | null;
+  result: TabResult | null;
+}) {
+  if (!activeTab) {
+    return (
+      <EmptyPanel
+        title="No active tab"
+        detail="Open a table from the sidebar to load rows. SQL query-tab results will use this panel when the editor slice lands."
+      />
+    );
+  }
+
+  if (!result) {
+    return (
+      <EmptyPanel
+        title="Table rows are already shown"
+        detail={`${tableLabel(activeTab)} is a table-browsing tab. The Results grid is reserved for SQL query output, so it will light up when SQL editor tabs land.`}
+      />
+    );
+  }
+
+  if (result.source.kind === "table") {
+    return (
+      <EmptyPanel
+        title="Table rows are already shown"
+        detail="This tab's table data lives in the main grid. The bottom Results grid is reserved for SQL query output."
+      />
+    );
+  }
+
+  if (result.status === "loading") {
+    return (
+      <EmptyPanel
+        title="Loading rows"
+        detail={`Running ${result.source.statement}`}
+      />
+    );
+  }
+
+  if (result.status === "error") {
+    return (
+      <EmptyPanel
+        title="Could not load results"
+        detail={result.message}
+        tone="warn"
+      />
+    );
+  }
+
+  if (result.columns.length === 0) {
+    return (
+      <EmptyPanel
+        title="Statement returned no columns"
+        detail="Rows-affected messages are not surfaced in the bottom panel yet."
+      />
+    );
+  }
+
+  return <ReadOnlyResultGrid key={result.tabId} result={result} />;
+}
+
+function ReadOnlyResultGrid({
+  result,
+}: {
+  result: Extract<TabResult, { status: "ready" }>;
+}) {
+  const grid = useGridState();
+
+  return (
+    <div className="flex h-full min-h-0 overflow-hidden">
+      <DataGrid
+        columns={result.columns}
+        rows={result.rows}
+        totalRows={result.truncated ? undefined : result.rows.length}
+        changes={grid.changes}
+        onChange={grid.setChanges}
+        selection={grid.selection}
+        onSelect={grid.setSelection}
+        editing={grid.editing}
+        onEdit={grid.setEditing}
+        filters={grid.filters}
+        onFiltersChange={grid.setFilters}
+        readOnly
+      />
+    </div>
+  );
+}
+
+function EmptyPanel({
+  title,
+  detail,
+  tone = "muted",
+}: {
+  title: string;
+  detail: string;
+  tone?: "muted" | "warn";
+}) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-1.5 bg-bg-inset p-6 text-center text-[11.5px] text-fg-3">
+      <div
+        className={
+          "text-[12px] font-medium " +
+          (tone === "warn" ? "text-warn" : "text-fg-1")
+        }
+      >
+        {title}
+      </div>
+      <div className="max-w-[460px] text-[10.5px] leading-[1.5] text-fg-3">
+        {detail}
+      </div>
+    </div>
+  );
+}
+
+function tableLabel(tab: TableTab): string {
+  return `${tab.database}.${tab.schema}.${tab.table}`;
 }
 
 function HistoryPanel({
