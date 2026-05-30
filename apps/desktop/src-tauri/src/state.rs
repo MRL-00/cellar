@@ -110,21 +110,34 @@ impl ConnectionRegistry {
         Ok(info)
     }
 
+    pub async fn open_info(&self, id: &str) -> Option<DriverInfo> {
+        let inner = self.inner.read().await;
+        inner.open.get(id).map(|open| open.connection.info().clone())
+    }
+
     pub async fn connect(&self, id: &str, password: Option<&str>) -> CellarResult<DriverInfo> {
         let config = self.config_for(id).await?;
+        {
+            let inner = self.inner.read().await;
+            if let Some(open) = inner.open.get(id) {
+                return Ok(open.connection.info().clone());
+            }
+        }
+
         let driver = driver_for(config.engine)?;
         let conn = driver.connect(&config, password).await?;
         let info = conn.info().clone();
         let connection: Arc<dyn Connection> = conn.into();
         let mut inner = self.inner.write().await;
-        if let Some(prev) = inner
-            .open
-            .insert(id.to_string(), OpenConnection { config, connection })
-        {
-            // Close the old pool after releasing the registry lock.
+        if let Some(open) = inner.open.get(id) {
+            let existing = open.connection.info().clone();
             drop(inner);
-            let _ = prev.connection.close().await;
+            let _ = connection.close().await;
+            return Ok(existing);
         }
+        inner
+            .open
+            .insert(id.to_string(), OpenConnection { config, connection });
         Ok(info)
     }
 

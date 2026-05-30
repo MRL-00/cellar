@@ -35,6 +35,8 @@ interface ConnectionsStore {
   refreshSchema: (id: string) => Promise<void>;
 }
 
+const connectInflight = new Map<string, Promise<void>>();
+
 function emptyState(id: string): ConnectionState {
   return {
     id,
@@ -91,25 +93,35 @@ export const useConnections = create<ConnectionsStore>((set, get) => ({
   },
 
   async connect(id) {
-    setStatus(set, id, "connecting", null);
-    try {
-      const info = await unwrap(commands.connect(id));
-      set((s) => ({
-        byId: {
-          ...s.byId,
-          [id]: {
-            ...(s.byId[id] ?? emptyState(id)),
-            status: "connected",
-            driverInfo: info,
-            error: null,
+    const existing = connectInflight.get(id);
+    if (existing) return existing;
+    if (get().byId[id]?.status === "connected") return;
+
+    const task = (async () => {
+      setStatus(set, id, "connecting", null);
+      try {
+        const info = await unwrap(commands.connect(id));
+        set((s) => ({
+          byId: {
+            ...s.byId,
+            [id]: {
+              ...(s.byId[id] ?? emptyState(id)),
+              status: "connected",
+              driverInfo: info,
+              error: null,
+            },
           },
-        },
-      }));
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      setStatus(set, id, "error", message);
-      throw err;
-    }
+        }));
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        setStatus(set, id, "error", message);
+        throw err;
+      } finally {
+        connectInflight.delete(id);
+      }
+    })();
+    connectInflight.set(id, task);
+    return task;
   },
 
   async disconnect(id) {
