@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { CellEditor, CellValue } from "./Cell";
 import { FilterBar } from "./FilterBar";
+import { filterRows } from "./filters";
 import { GridIcon } from "./icons";
 import { PendingBar } from "./PendingBar";
 import { TypeIcon } from "./TypeIcon";
@@ -76,16 +77,8 @@ export function DataGrid({
   // Local search across visible page. Server-side filtering happens upstream
   // for large tables; the chips drive both.
   const visibleRows = useMemo(() => {
-    const entries = Object.entries(filters);
-    if (entries.length === 0) return rows;
-    return rows.filter((row) =>
-      entries.every(([k, needle]) =>
-        String(row[k] ?? "")
-          .toLowerCase()
-          .includes(String(needle).toLowerCase()),
-      ),
-    );
-  }, [rows, filters]);
+    return filterRows(rows, columns, filters, changes);
+  }, [rows, columns, filters, changes]);
 
   const minTableWidth = useMemo(
     () => columns.reduce((acc, c) => acc + c.width, ROWNO_WIDTH + 8),
@@ -122,10 +115,12 @@ export function DataGrid({
   return (
     <div className="grid-root mono">
       <FilterBar
+        columns={columns}
         filters={filters}
         setFilters={onFiltersChange}
-        totalRows={totalRows ?? rows.length}
+        totalRows={rows.length}
         filteredRows={visibleRows.length}
+        serverRows={totalRows}
       />
 
       <div className="grid-scroll">
@@ -288,7 +283,7 @@ export type UseGridStateOptions = {
  * a store and the grid stays exactly the same.
  */
 export function useGridState({
-  initialFilters = {},
+  initialFilters = [],
   initialChanges = {},
 }: UseGridStateOptions = {}) {
   const [filters, setFilters] = useState<ColumnFilters>(initialFilters);
