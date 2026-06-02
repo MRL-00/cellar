@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { commands, unwrap, type PlanNode, type QueryPlan } from "@cellar/ipc";
 
+import { useBottomPanel } from "../state/bottomPanel";
 import { useConnections } from "../state/connections";
 import { useTabs, type QueryTab } from "../state/tabs";
 import { Icon } from "./icons";
@@ -25,6 +26,17 @@ export function PlanPanel({ activeTab }: { activeTab: WorkspaceTab | null }) {
     () => unavailableReason(activeTab, queryTab, connection, connected, sql),
     [activeTab, queryTab, connection, connected, sql],
   );
+
+  // The editor's "Explain plan" toolbar button bumps `explainNonce`; run a
+  // fresh plan when that happens (and the statement can actually be explained).
+  const explainNonce = useBottomPanel((s) => s.explainNonce);
+  const seenNonce = useRef(explainNonce);
+  useEffect(() => {
+    if (explainNonce === seenNonce.current) return;
+    seenNonce.current = explainNonce;
+    if (!unavailable && !loading) void loadPlan();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [explainNonce]);
 
   async function loadPlan() {
     if (!queryTab || unavailable) return;

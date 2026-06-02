@@ -5,7 +5,8 @@ import {
 } from "@cellar/data-grid";
 
 import { Icon } from "./icons";
-import { useTabs, type QueryTab, type TableTab } from "../state/tabs";
+import { SqlEditor } from "./SqlEditor";
+import { useTabs, type TableTab } from "../state/tabs";
 import { useTableData } from "../hooks/useTableData";
 
 const EMPTY_CHANGES: PendingChanges = {};
@@ -19,20 +20,12 @@ export function Workspace({ onCommit }: { onCommit?: () => void } = {}) {
     return <EmptyWorkspace onCommit={onCommit} />;
   }
   if (active.kind === "query") {
-    return <QueryTabPane tab={active} />;
+    // `key` gives each query tab its own caret/wrap state.
+    return <SqlEditor key={active.id} tab={active} />;
   }
   // `key` resets the grid's local state (filters/selection) when the user
   // switches to a different table tab.
   return <TableTabPane key={active.id} tab={active} onCommit={onCommit} />;
-}
-
-function QueryTabPane({ tab }: { tab: QueryTab }) {
-  return (
-    <PaneMessage>
-      <span className="font-mono text-fg-2">{tab.title}</span>
-      <span className="ml-2">SQL editor is not wired yet.</span>
-    </PaneMessage>
-  );
 }
 
 function TableTabPane({
@@ -127,7 +120,8 @@ function EmptyWorkspace({ onCommit }: { onCommit?: () => void }) {
         </div>
         <div className="max-w-[360px] text-[11.5px] leading-[1.5] text-fg-3">
           Add a Postgres connection in the sidebar, expand it, and click a
-          table to load real rows. The SQL editor lands in the next slice.
+          table to load real rows — or hit <span className="font-mono">+</span>{" "}
+          in the tab bar to open a SQL editor.
         </div>
       </div>
       <div className="flex gap-3 text-[10.5px] text-fg-3">

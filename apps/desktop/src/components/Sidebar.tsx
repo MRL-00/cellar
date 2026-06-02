@@ -66,6 +66,7 @@ export function Sidebar({
   const disconnect = useConnections((s) => s.disconnect);
   const deleteConnection = useConnections((s) => s.deleteConnection);
   const openTable = useTabs((s) => s.openTable);
+  const newQueryTab = useTabs((s) => s.newQueryTab);
   const activeTabId = useTabs((s) => s.activeId);
 
   useEffect(() => {
@@ -89,6 +90,18 @@ export function Sidebar({
       x: e.clientX,
       y: e.clientY,
       items: [
+        {
+          label: "New SQL query",
+          icon: <Icon.terminal size={12} />,
+          onClick: () => {
+            const dbs = byId[config.id]?.databases ?? [];
+            const database =
+              dbs.find((d) => d.is_default)?.name ??
+              dbs[0]?.name ??
+              config.database;
+            newQueryTab(config.id, database);
+          },
+        },
         {
           label: "Edit…",
           icon: <Icon.edit size={12} />,

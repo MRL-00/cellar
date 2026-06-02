@@ -18,9 +18,13 @@ export interface QueryTab {
   database: string;
   title: string;
   sql: string;
+  /** `true` when the buffer has unsaved edits since the tab was last run. */
+  dirty: boolean;
 }
 
 export type WorkspaceTab = TableTab | QueryTab;
+
+let queryTabSeq = 0;
 
 interface TabsStore {
   tabs: WorkspaceTab[];
@@ -33,6 +37,9 @@ interface TabsStore {
     schema: string,
     table: string,
   ) => void;
+  newQueryTab: (connectionId: string, database: string) => string;
+  setQuerySql: (id: string, sql: string) => void;
+  markQueryRun: (id: string) => void;
   closeTab: (id: string) => void;
   setActive: (id: string) => void;
   setTableChanges: (id: string, changes: PendingChanges) => void;
@@ -68,6 +75,45 @@ export const useTabs = create<TabsStore>((set, get) => ({
         { id, kind: "table", connectionId, database, schema, table },
       ],
       activeId: id,
+    }));
+  },
+
+  newQueryTab(connectionId, database) {
+    const id = `query:${++queryTabSeq}:${connectionId}`;
+    const title = `untitled-${queryTabSeq}.sql`;
+    set((s) => ({
+      tabs: [
+        ...s.tabs,
+        {
+          id,
+          kind: "query",
+          connectionId,
+          database,
+          title,
+          sql: "",
+          dirty: false,
+        },
+      ],
+      activeId: id,
+    }));
+    return id;
+  },
+
+  setQuerySql(id, sql) {
+    set((s) => ({
+      tabs: s.tabs.map((t) =>
+        t.id === id && t.kind === "query"
+          ? { ...t, sql, dirty: sql !== t.sql ? true : t.dirty }
+          : t,
+      ),
+    }));
+  },
+
+  markQueryRun(id) {
+    set((s) => ({
+      tabs: s.tabs.map((t) =>
+        t.id === id && t.kind === "query" ? { ...t, dirty: false } : t,
+      ),
     }));
   },
 

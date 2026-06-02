@@ -1,11 +1,43 @@
 import { Icon } from "./icons";
+import { useConnections } from "../state/connections";
 import { useTabs } from "../state/tabs";
+
+/**
+ * Pick the connection + database a new query tab should bind to: the active
+ * tab's, else the first connected connection, else the first configured one.
+ */
+function pickQueryTarget(): { connectionId: string; database: string } | null {
+  const tabState = useTabs.getState();
+  const active = tabState.tabs.find((t) => t.id === tabState.activeId);
+  if (active) {
+    return { connectionId: active.connectionId, database: active.database };
+  }
+  const conn = useConnections.getState();
+  const connectedId = conn.connections.find(
+    (c) => conn.byId[c.id]?.status === "connected",
+  )?.id;
+  const targetId = connectedId ?? conn.connections[0]?.id;
+  if (!targetId) return null;
+  const cfg = conn.connections.find((c) => c.id === targetId);
+  if (!cfg) return null;
+  const dbs = conn.byId[targetId]?.databases ?? [];
+  const database =
+    dbs.find((d) => d.is_default)?.name ?? dbs[0]?.name ?? cfg.database;
+  return { connectionId: targetId, database };
+}
 
 export function TabBar() {
   const tabs = useTabs((s) => s.tabs);
   const activeId = useTabs((s) => s.activeId);
   const setActive = useTabs((s) => s.setActive);
   const closeTab = useTabs((s) => s.closeTab);
+  const newQueryTab = useTabs((s) => s.newQueryTab);
+  const hasConnections = useConnections((s) => s.connections.length > 0);
+
+  const onNewQuery = () => {
+    const target = pickQueryTarget();
+    if (target) newQueryTab(target.connectionId, target.database);
+  };
 
   return (
     <div className="flex h-[30px] items-stretch shrink-0 border-b border-border-default bg-bg-1">
@@ -45,6 +77,12 @@ export function TabBar() {
               <span className="overflow-hidden text-ellipsis whitespace-nowrap font-mono">
                 {t.kind === "query" ? t.title : `${t.schema}.${t.table}`}
               </span>
+              {t.kind === "query" && t.dirty && (
+                <span
+                  title="Unsaved edits"
+                  className="h-1.5 w-1.5 shrink-0 rounded-full bg-fg-3 group-hover:opacity-0"
+                />
+              )}
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -61,6 +99,18 @@ export function TabBar() {
             </div>
           );
         })}
+        <button
+          onClick={onNewQuery}
+          disabled={!hasConnections}
+          title={
+            hasConnections
+              ? "New SQL query"
+              : "Add a connection to open a query tab"
+          }
+          className="inline-flex h-full w-7 shrink-0 items-center justify-center text-fg-3 hover:bg-bg-2 hover:text-fg-0 disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-fg-3"
+        >
+          <Icon.plus size={12} />
+        </button>
       </div>
       <div className="flex items-center gap-px border-l border-border-default px-1.5">
         <button className="icon-btn" title="Split horizontal">

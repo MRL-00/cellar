@@ -22,6 +22,7 @@ import {
   type NoticeLogEntry,
   type NoticeScope,
 } from "../state/notices";
+import { useBottomPanel, type BottomTabId } from "../state/bottomPanel";
 import { useStatus } from "../state/status";
 import { useTabs, type TableTab } from "../state/tabs";
 import {
@@ -35,8 +36,6 @@ import { useQueryMessages } from "../state/queryMessages";
 import { PlanPanel } from "./BottomPlanPanel";
 import { MessagesView } from "./BottomMessagesPanel";
 import { Icon } from "./icons";
-
-type BottomTabId = "results" | "messages" | "plan" | "history" | "notices";
 
 type BPTab = {
   id: BottomTabId;
@@ -55,7 +54,8 @@ const BASE_TABS: Omit<BPTab, "count">[] = [
 ];
 
 export function BottomPanel({ onClose }: { onClose: () => void }) {
-  const [active, setActive] = useState<BottomTabId>("results");
+  const active = useBottomPanel((s) => s.active);
+  const setActive = useBottomPanel((s) => s.setActive);
   const [historyCount, setHistoryCount] = useState<number | null>(null);
   const activeTabId = useTabs((s) => s.activeId);
   const tabs = useTabs((s) => s.tabs);
@@ -253,7 +253,7 @@ function ResultsBody({
     return (
       <EmptyPanel
         title="No active tab"
-        detail="Open a table from the sidebar to load rows. SQL query-tab results will use this panel when the editor slice lands."
+        detail="Open a table from the sidebar to load rows, or open a SQL editor with + in the tab bar and run a query to populate this panel."
       />
     );
   }
@@ -270,7 +270,7 @@ function ResultsBody({
     return (
       <EmptyPanel
         title="Table rows are already shown"
-        detail={`${tableLabel(activeTab)} is a table-browsing tab. The Results grid is reserved for SQL query output, so it will light up when SQL editor tabs land.`}
+        detail={`${tableLabel(activeTab)} is a table-browsing tab. The Results grid is reserved for SQL query output — open a query tab and run a statement to use it.`}
       />
     );
   }
@@ -385,6 +385,8 @@ function HistoryPanel({
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const lastQuery = useStatus((s) => s.lastQuery);
+  const newQueryTab = useTabs((s) => s.newQueryTab);
+  const setQuerySql = useTabs((s) => s.setQuerySql);
   const trimmedSearch = search.trim();
   const refreshKey =
     activeTab &&
@@ -487,6 +489,13 @@ function HistoryPanel({
                     window.setTimeout(() => setCopiedId(null), 1100);
                   });
                 }}
+                onReuse={() => {
+                  const id = newQueryTab(
+                    record.connection_id,
+                    record.database ?? "",
+                  );
+                  setQuerySql(id, record.sql);
+                }}
               />
             ))}
           </div>
@@ -500,10 +509,12 @@ function HistoryRow({
   record,
   copied,
   onCopy,
+  onReuse,
 }: {
   record: QueryHistoryRecord;
   copied: boolean;
   onCopy: () => void;
+  onReuse: () => void;
 }) {
   return (
     <div className="group grid grid-cols-[minmax(0,1fr)_auto] gap-3 px-2.5 py-2 hover:bg-bg-1">
@@ -539,7 +550,7 @@ function HistoryRow({
         <button className="icon-btn" onClick={onCopy} title="Copy SQL">
           {copied ? <Icon.check size={11} /> : <Icon.copy size={11} />}
         </button>
-        <button className="icon-btn opacity-45" disabled title="Reuse waits for the SQL editor">
+        <button className="icon-btn" onClick={onReuse} title="Open in a new query tab">
           <Icon.edit size={11} />
         </button>
       </div>
