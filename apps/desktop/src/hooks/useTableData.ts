@@ -1,5 +1,5 @@
 import { commands, unwrap } from "@cellar/ipc";
-import type { CellValue, QueryResult, TableBrowseRequest } from "@cellar/ipc";
+import type { QueryResult, TableBrowseRequest } from "@cellar/ipc";
 import type {
   CellAlign,
   GridColumn,
@@ -8,6 +8,12 @@ import type {
 } from "@cellar/data-grid";
 import { useEffect, useState } from "react";
 
+import {
+  cellValueToGrid,
+  gridWidthFor,
+  isMonoType,
+  isNumericType,
+} from "../lib/gridMapping";
 import { useConnections } from "../state/connections";
 import { useNotices } from "../state/notices";
 import { useQueryMessages } from "../state/queryMessages";
@@ -203,13 +209,13 @@ function columnsFor(
   return result.columns.map((c) => {
     const meta = tableMeta?.columns.find((mc) => mc.name === c.name);
     const fk = findForeignKey(tableMeta?.foreign_keys ?? [], c.name);
-    const numeric = isNumeric(c.data_type);
+    const numeric = isNumericType(c.data_type);
     const align: CellAlign | undefined = numeric ? "right" : undefined;
     return {
       key: c.name,
       name: c.name,
       type: c.data_type,
-      width: widthFor(c.data_type),
+      width: gridWidthFor(c.data_type),
       pk: meta?.is_primary_key ?? false,
       fk,
       align,
@@ -277,87 +283,9 @@ function rowIdFor(row: GridRow, primaryKey: string[], index: number): string {
   );
 }
 
-function cellValueToGrid(value: CellValue): GridValue {
-  switch (value.type) {
-    case "Null":
-      return null;
-    case "Bool":
-      return value.value;
-    case "Int":
-    case "Float":
-      return value.value;
-    case "Numeric":
-      return value.value;
-    case "Text":
-      return value.value;
-    case "Bytes":
-      return bytesToHex(value.value);
-    case "Json":
-      return JSON.stringify(value.value);
-    case "Uuid":
-      return value.value;
-    case "Date":
-    case "Time":
-    case "Timestamp":
-    case "TimestampTz":
-      return value.value;
-  }
-}
-
 function gridValueToString(
   value: GridValue | undefined,
 ): string | null {
   if (value === null || value === undefined) return null;
   return String(value);
-}
-
-function isNumeric(type: string): boolean {
-  const t = type.toLowerCase();
-  return (
-    t === "int2" ||
-    t === "int4" ||
-    t === "int8" ||
-    t === "oid" ||
-    t === "float4" ||
-    t === "float8" ||
-    t === "numeric"
-  );
-}
-
-function isMonoType(type: string): boolean {
-  const t = type.toLowerCase();
-  return (
-    t === "uuid" ||
-    t === "json" ||
-    t === "jsonb" ||
-    t === "bytea" ||
-    t === "date" ||
-    t === "time" ||
-    t === "timetz" ||
-    t === "timestamp" ||
-    t === "timestamptz"
-  );
-}
-
-function widthFor(type: string): number {
-  const t = type.toLowerCase();
-  if (t === "uuid") return 290;
-  if (t === "timestamptz" || t === "timestamp") return 210;
-  if (t === "date") return 110;
-  if (t === "json" || t === "jsonb" || t === "bytea") return 260;
-  if (isNumeric(t)) return 110;
-  if (t === "bool") return 80;
-  return 180;
-}
-
-function bytesToHex(bytes: number[]): string {
-  if (bytes.length === 0) return "\\x";
-  const limit = Math.min(bytes.length, 32);
-  let out = "\\x";
-  for (let i = 0; i < limit; i++) {
-    const b = bytes[i] ?? 0;
-    out += b.toString(16).padStart(2, "0");
-  }
-  if (bytes.length > limit) out += `… (${bytes.length} bytes)`;
-  return out;
 }

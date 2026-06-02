@@ -235,6 +235,28 @@ export const Icon = {
   bolt: (p: IconProps) => (
     <I {...p} fill="currentColor" stroke="none" d="M13 2L4 14h6l-1 8 9-12h-6z" />
   ),
+  play: (p: IconProps) => (
+    <I {...p} fill="currentColor" stroke="none" d="M7 4.5v15l12-7.5z" />
+  ),
+  playSm: (p: IconProps) => (
+    <I {...p} fill="currentColor" stroke="none" d="M8 5.5v13l10-6.5z" />
+  ),
+  format: (p: IconProps) => (
+    <I {...p} d="M4 6h16M4 10h10M4 14h16M4 18h8" />
+  ),
+  wrap: (p: IconProps) => (
+    <I {...p}>
+      <path d="M4 6h16M4 18h6" />
+      <path d="M4 12h14a3 3 0 010 6h-3" />
+      <path d="M12 15l-2 3 2 3" />
+    </I>
+  ),
+  star: (p: IconProps) => (
+    <I {...p} d="M12 3l2.6 5.6 6 .7-4.4 4.1 1.2 6L12 16.9 6.6 19.4l1.2-6L3.4 9.3l6-.7z" />
+  ),
+  pin: (p: IconProps) => (
+    <I {...p} d="M9 4h6l-1 6 3 3H7l3-3-1-6zM12 13v7" />
+  ),
   layout: (p: IconProps) => (
     <I {...p}>
       <rect x="3" y="3" width="18" height="18" rx="1.5" />

@@ -117,6 +117,84 @@ export function buildQueryErrorMessage(
   };
 }
 
+export interface QueryRunContext {
+  tabId: string;
+  connectionId: string;
+  database?: string;
+  /** Short label for the run, e.g. "statement 2 of 3" or "all statements". */
+  label: string;
+  sql: string;
+  maxRows: number;
+}
+
+export function buildRunStartedMessage(
+  context: QueryRunContext,
+): PendingQueryMessage {
+  return {
+    tabId: context.tabId,
+    connectionId: context.connectionId,
+    database: context.database,
+    severity: "info",
+    source: "client",
+    text: `Running ${context.label} with row limit ${context.maxRows}.`,
+    sql: context.sql,
+  };
+}
+
+export function buildRunResultMessages(
+  context: QueryRunContext,
+  result: QueryResult,
+): PendingQueryMessage[] {
+  const rowCount = result.rows_affected ?? result.rows.length;
+  const messages: PendingQueryMessage[] = [
+    {
+      tabId: context.tabId,
+      connectionId: context.connectionId,
+      database: context.database,
+      severity: "success",
+      source: "execution",
+      text:
+        result.rows_affected == null
+          ? `Returned ${formatCount(result.rows.length, "row")} in ${formatDuration(result.duration_ms)}.`
+          : `Query OK: ${formatCount(result.rows_affected, "row")} affected in ${formatDuration(result.duration_ms)}.`,
+      sql: context.sql,
+      durationMs: result.duration_ms,
+      rowCount,
+    },
+  ];
+
+  if (result.truncated) {
+    messages.push({
+      tabId: context.tabId,
+      connectionId: context.connectionId,
+      database: context.database,
+      severity: "warning",
+      source: "execution",
+      text: `Result hit row limit ${context.maxRows}; showing first ${formatCount(result.rows.length, "row")}.`,
+      sql: context.sql,
+      durationMs: result.duration_ms,
+      rowCount: result.rows.length,
+    });
+  }
+
+  return messages;
+}
+
+export function buildRunErrorMessage(
+  context: QueryRunContext,
+  error: unknown,
+): PendingQueryMessage {
+  return {
+    tabId: context.tabId,
+    connectionId: context.connectionId,
+    database: context.database,
+    severity: "error",
+    source: "driver",
+    text: `Failed to run ${context.label}: ${errorMessage(error)}`,
+    sql: context.sql,
+  };
+}
+
 export function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms} ms`;
   return `${(ms / 1000).toFixed(ms < 10_000 ? 2 : 1)} s`;
