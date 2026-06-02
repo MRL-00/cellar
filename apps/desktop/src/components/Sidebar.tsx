@@ -3,9 +3,29 @@ import type { ConnectionConfig, Schema, Table } from "@cellar/ipc";
 
 import { Icon } from "./icons";
 import { EngineBadge, type Engine } from "./EngineBadge";
-import { ContextMenu, type ContextMenuState } from "./ContextMenu";
+import {
+  ContextMenu,
+  type ContextMenuState,
+  type MenuItem,
+} from "./ContextMenu";
 import { useConnections, type ConnStatus } from "../state/connections";
 import { useTabs } from "../state/tabs";
+import { qualifiedName, selectAllStatement } from "../lib/sqlIdent";
+
+/** A right-clickable node in the schema tree. */
+type SidebarNode =
+  | { kind: "database"; connectionId: string; database: string }
+  | { kind: "schema"; connectionId: string; database: string; schema: string }
+  | {
+      kind: "relation";
+      connectionId: string;
+      database: string;
+      schema: string;
+      name: string;
+      isView: boolean;
+    };
+
+type NodeMenuHandler = (e: React.MouseEvent, node: SidebarNode) => void;
 
 function StatusDot({ status }: { status: ConnStatus }) {
   const color =
@@ -65,8 +85,10 @@ export function Sidebar({
   const connect = useConnections((s) => s.connect);
   const disconnect = useConnections((s) => s.disconnect);
   const deleteConnection = useConnections((s) => s.deleteConnection);
+  const refreshSchema = useConnections((s) => s.refreshSchema);
   const openTable = useTabs((s) => s.openTable);
   const newQueryTab = useTabs((s) => s.newQueryTab);
+  const setQuerySql = useTabs((s) => s.setQuerySql);
   const activeTabId = useTabs((s) => s.activeId);
 
   useEffect(() => {
@@ -80,6 +102,100 @@ export function Sidebar({
     if (!q) return connections;
     return connections.filter((c) => c.name.toLowerCase().includes(q));
   }, [filter, connections]);
+
+  const copyText = (text: string) => {
+    if (navigator.clipboard) void navigator.clipboard.writeText(text);
+  };
+
+  const queryFor = (connectionId: string, database: string, sql?: string) => {
+    const id = newQueryTab(connectionId, database);
+    if (sql) setQuerySql(id, sql);
+  };
+
+  const nodeMenuItems = (node: SidebarNode): MenuItem[] => {
+    switch (node.kind) {
+      case "database":
+        return [
+          {
+            label: "New SQL query",
+            icon: <Icon.terminal size={12} />,
+            onClick: () => queryFor(node.connectionId, node.database),
+          },
+          {
+            label: "Refresh schemas",
+            icon: <Icon.history size={12} />,
+            onClick: () => void refreshSchema(node.connectionId),
+          },
+          {
+            label: "Copy name",
+            icon: <Icon.copy size={12} />,
+            onClick: () => copyText(node.database),
+          },
+        ];
+      case "schema":
+        return [
+          {
+            label: "New SQL query",
+            icon: <Icon.terminal size={12} />,
+            onClick: () => queryFor(node.connectionId, node.database),
+          },
+          {
+            label: "Copy qualified name",
+            icon: <Icon.copy size={12} />,
+            onClick: () => copyText(qualifiedName(node.database, node.schema)),
+          },
+          {
+            label: "Copy name",
+            icon: <Icon.copy size={12} />,
+            onClick: () => copyText(node.schema),
+          },
+        ];
+      case "relation":
+        return [
+          {
+            label: "Open",
+            icon: node.isView ? (
+              <Icon.tree size={12} />
+            ) : (
+              <Icon.table size={12} />
+            ),
+            onClick: () =>
+              openTable(
+                node.connectionId,
+                node.database,
+                node.schema,
+                node.name,
+              ),
+          },
+          {
+            label: "Query SELECT *",
+            icon: <Icon.terminal size={12} />,
+            onClick: () =>
+              queryFor(
+                node.connectionId,
+                node.database,
+                selectAllStatement(node.schema, node.name),
+              ),
+          },
+          {
+            label: "Copy qualified name",
+            icon: <Icon.copy size={12} />,
+            onClick: () => copyText(qualifiedName(node.schema, node.name)),
+          },
+          {
+            label: "Copy name",
+            icon: <Icon.copy size={12} />,
+            onClick: () => copyText(node.name),
+          },
+        ];
+    }
+  };
+
+  const openNodeMenu: NodeMenuHandler = (e, node) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setMenu({ x: e.clientX, y: e.clientY, items: nodeMenuItems(node) });
+  };
 
   const openConnectionMenu = (e: React.MouseEvent, config: ConnectionConfig) => {
     e.preventDefault();
@@ -195,6 +311,7 @@ export function Sidebar({
               onToggle={() => toggleExpand(c.id)}
               onDisconnect={() => void disconnect(c.id)}
               onContextMenu={(e) => openConnectionMenu(e, c)}
+              onNodeContextMenu={openNodeMenu}
               onOpenTable={(database, schema, table) =>
                 openTable(c.id, database, schema, table)
               }
@@ -227,6 +344,7 @@ interface ConnectionRowProps {
   onToggle: () => void;
   onDisconnect: () => void;
   onContextMenu: (e: React.MouseEvent) => void;
+  onNodeContextMenu: NodeMenuHandler;
   onOpenTable: (database: string, schema: string, table: string) => void;
   activeTabId: string | null;
 }
@@ -241,6 +359,7 @@ function ConnectionRow({
   onToggle,
   onDisconnect,
   onContextMenu,
+  onNodeContextMenu,
   onOpenTable,
   activeTabId,
 }: ConnectionRowProps) {
@@ -330,9 +449,11 @@ function ConnectionRow({
         databases.map((db) => (
           <DatabaseRow
             key={db.name}
+            connectionId={config.id}
             dbName={db.name}
             isDefault={db.is_default}
             schemas={db.schemas}
+            onNodeContextMenu={onNodeContextMenu}
             onOpenTable={onOpenTable}
             activeTabId={activeTabId}
           />
@@ -342,15 +463,19 @@ function ConnectionRow({
 }
 
 function DatabaseRow({
+  connectionId,
   dbName,
   isDefault,
   schemas,
+  onNodeContextMenu,
   onOpenTable,
   activeTabId,
 }: {
+  connectionId: string;
   dbName: string;
   isDefault: boolean;
   schemas: Schema[];
+  onNodeContextMenu: NodeMenuHandler;
   onOpenTable: (database: string, schema: string, table: string) => void;
   activeTabId: string | null;
 }) {
@@ -363,6 +488,9 @@ function DatabaseRow({
         className={ROW_BASE + " cursor-pointer"}
         style={{ paddingLeft: 18 }}
         onClick={() => !empty && setOpen((v) => !v)}
+        onContextMenu={(e) =>
+          onNodeContextMenu(e, { kind: "database", connectionId, database: dbName })
+        }
         title={empty ? "no accessible schemas" : undefined}
       >
         <button className={TWISTY}>
@@ -393,8 +521,10 @@ function DatabaseRow({
         schemas.map((sch) => (
           <SchemaRow
             key={sch.name}
+            connectionId={connectionId}
             database={dbName}
             schema={sch}
+            onNodeContextMenu={onNodeContextMenu}
             onOpenTable={onOpenTable}
             activeTabId={activeTabId}
           />
@@ -404,13 +534,17 @@ function DatabaseRow({
 }
 
 function SchemaRow({
+  connectionId,
   database,
   schema,
+  onNodeContextMenu,
   onOpenTable,
   activeTabId,
 }: {
+  connectionId: string;
   database: string;
   schema: Schema;
+  onNodeContextMenu: NodeMenuHandler;
   onOpenTable: (database: string, schema: string, table: string) => void;
   activeTabId: string | null;
 }) {
@@ -421,6 +555,14 @@ function SchemaRow({
         className={ROW_BASE + " cursor-pointer"}
         style={{ paddingLeft: 30 }}
         onClick={() => setOpen((v) => !v)}
+        onContextMenu={(e) =>
+          onNodeContextMenu(e, {
+            kind: "schema",
+            connectionId,
+            database,
+            schema: schema.name,
+          })
+        }
       >
         <button className={TWISTY}>
           {open ? (
@@ -445,10 +587,12 @@ function SchemaRow({
           {schema.tables.map((t) => (
             <TableRow
               key={t.name}
+              connectionId={connectionId}
               database={database}
               schema={schema.name}
               table={t}
               onOpen={() => onOpenTable(database, schema.name, t.name)}
+              onNodeContextMenu={onNodeContextMenu}
               activeTabId={activeTabId}
             />
           ))}
@@ -461,6 +605,16 @@ function SchemaRow({
                   className={ROW_BASE + " cursor-pointer"}
                   style={{ paddingLeft: 54 }}
                   onClick={() => onOpenTable(database, schema.name, v.name)}
+                  onContextMenu={(e) =>
+                    onNodeContextMenu(e, {
+                      kind: "relation",
+                      connectionId,
+                      database,
+                      schema: schema.name,
+                      name: v.name,
+                      isView: true,
+                    })
+                  }
                   title="click to open"
                 >
                   <span className={TWISTY + " invisible"} />
@@ -497,16 +651,20 @@ function GroupHeader({ label, count }: { label: string; count: number }) {
 }
 
 function TableRow({
+  connectionId,
   database,
   schema,
   table,
   onOpen,
+  onNodeContextMenu,
   activeTabId,
 }: {
+  connectionId: string;
   database: string;
   schema: string;
   table: Table;
   onOpen: () => void;
+  onNodeContextMenu: NodeMenuHandler;
   activeTabId: string | null;
 }) {
   const tabId = `${database}.${schema}.${table.name}`;
@@ -517,6 +675,16 @@ function TableRow({
       className={ROW_BASE + " cursor-pointer" + (active ? " " + ROW_ACTIVE : "")}
       style={{ paddingLeft: 54 }}
       onClick={onOpen}
+      onContextMenu={(e) =>
+        onNodeContextMenu(e, {
+          kind: "relation",
+          connectionId,
+          database,
+          schema,
+          name: table.name,
+          isView: false,
+        })
+      }
       title="click to open"
     >
       <span className={TWISTY + " invisible"} />
