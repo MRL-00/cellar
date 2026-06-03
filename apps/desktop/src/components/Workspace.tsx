@@ -4,7 +4,6 @@ import {
   type PendingChanges,
 } from "@cellar/data-grid";
 
-import { Icon } from "./icons";
 import { SqlEditor } from "./SqlEditor";
 import { useTabs, type TableTab } from "../state/tabs";
 import { useTableData } from "../hooks/useTableData";
@@ -17,7 +16,7 @@ export function Workspace({ onCommit }: { onCommit?: () => void } = {}) {
   const active = tabs.find((t) => t.id === activeId) ?? null;
 
   if (!active) {
-    return <EmptyWorkspace onCommit={onCommit} />;
+    return <EmptyWorkspace />;
   }
   if (active.kind === "query") {
     // `key` gives each query tab its own caret/wrap state.
@@ -95,7 +94,7 @@ function PaneMessage({ children }: { children: React.ReactNode }) {
   );
 }
 
-function EmptyWorkspace({ onCommit }: { onCommit?: () => void }) {
+function EmptyWorkspace() {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-[14px] bg-bg-inset px-10 py-10 text-center text-[12.5px] text-fg-2">
       <span
@@ -134,17 +133,6 @@ function EmptyWorkspace({ onCommit }: { onCommit?: () => void }) {
           <kbd className="kbd">K</kbd>&nbsp;command palette
         </span>
       </div>
-      {onCommit && (
-        <button
-          onClick={onCommit}
-          title="Open the commit review modal"
-          className="mt-1 inline-flex h-[26px] items-center gap-[5px] whitespace-nowrap rounded-[4px] border border-border-default bg-transparent px-2.5 text-[11.5px] font-medium text-fg-1 transition-[background,color,border-color] duration-[120ms] hover:border-border-strong hover:bg-bg-3 hover:text-fg-0"
-        >
-          <Icon.commit size={11} />
-          <span>Review &amp; commit (preview)</span>
-          <kbd className="kbd ml-1">⌘S</kbd>
-        </button>
-      )}
     </div>
   );
 }

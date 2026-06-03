@@ -280,20 +280,28 @@ export function Sidebar({
         </div>
       </div>
 
-      <div className="mx-2 mb-1.5 flex h-6 shrink-0 items-center gap-1.5 rounded-[4px] border border-border-default bg-bg-inset px-2 focus-within:border-accent-line">
+      <div className="mx-2 mb-1.5 flex min-h-7 shrink-0 items-center gap-1.5 rounded-[4px] border border-border-default bg-bg-inset px-2 py-1 focus-within:border-accent-line">
         <Icon.search size={11} style={{ color: "var(--fg-3)" }} />
         <input
           placeholder="Filter…"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          className="flex-1 border-none bg-transparent text-[11.5px] text-fg-0 outline-none placeholder:text-fg-3"
+          className="flex-1 border-none bg-transparent py-0.5 text-[11.5px] leading-4 text-fg-0 outline-none placeholder:text-fg-3"
         />
         <span className="kbd">⌘F</span>
       </div>
 
       <div className="flex-1 overflow-y-auto pb-3">
+        <button
+          onClick={onNewConnection}
+          className="mx-2 mt-1 mb-3 flex w-[calc(100%-16px)] items-center gap-1.5 rounded-[4px] border border-dashed border-border-default px-2 py-1.5 text-[11.5px] text-fg-2 transition-[border-color,color,background] duration-150 hover:border-solid hover:border-accent-line hover:bg-accent-soft hover:text-accent"
+        >
+          <Icon.plus size={11} />
+          <span>New connection</span>
+        </button>
+
         {filtered.length === 0 && (
-          <div className="px-3 py-6 text-center text-[11px] text-fg-3">
+          <div className="px-3 py-5 text-center text-[11px] text-fg-3">
             no connections yet
           </div>
         )}
@@ -320,13 +328,6 @@ export function Sidebar({
           );
         })}
 
-        <button
-          onClick={onNewConnection}
-          className="m-2 flex w-[calc(100%-16px)] items-center gap-1.5 rounded-[4px] border border-dashed border-border-default px-2 py-1.5 text-[11.5px] text-fg-2 transition-[border-color,color,background] duration-150 hover:border-solid hover:border-accent-line hover:bg-accent-soft hover:text-accent"
-        >
-          <Icon.plus size={11} />
-          <span>New connection</span>
-        </button>
       </div>
 
       <ContextMenu state={menu} onClose={() => setMenu(null)} />
