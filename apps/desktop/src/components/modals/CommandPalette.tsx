@@ -1,66 +1,289 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { countChanges } from "@cellar/data-grid";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+
+import { useBottomPanel, type BottomTabId } from "../../state/bottomPanel";
+import { useConnections } from "../../state/connections";
+import { useTabs, type WorkspaceTab } from "../../state/tabs";
 import { Icon } from "../icons";
 
-type Group = "Recent" | "Actions" | "Navigate" | "AI" | "View";
+type Panels = { left: boolean; right: boolean; bottom: boolean };
+type Group = "Actions" | "Tabs" | "Connections" | "Catalog" | "Columns" | "View";
 
 type Entry = {
+  id: string;
   grp: Group;
   label: string;
   hint?: string;
   kbd?: string[];
+  search: string;
+  action: () => void;
 };
 
-const ENTRIES: Entry[] = [
-  { grp: "Recent", label: "public.orders", hint: "table" },
-  { grp: "Recent", label: "revenue_by_country.sql", hint: "query tab" },
-  { grp: "Recent", label: "shop-eu (prod)", hint: "connection" },
-  { grp: "Actions", label: "Run current statement", hint: "executes statement under cursor", kbd: ["⌘", "⏎"] },
-  { grp: "Actions", label: "Run all", hint: "executes the full editor", kbd: ["⌘", "⇧", "⏎"] },
-  { grp: "Actions", label: "Commit pending changes", hint: "review SQL diff before commit", kbd: ["⌘", "S"] },
-  { grp: "Actions", label: "Revert pending changes", hint: "discard 4 staged edits", kbd: ["⌘", "⇧", "Z"] },
-  { grp: "Navigate", label: "Go to table…", hint: "search across all schemas", kbd: ["⌘", "O"] },
-  { grp: "Navigate", label: "Go to column…", hint: "fuzzy across catalog", kbd: ["⌘", "⇧", "O"] },
-  { grp: "Navigate", label: "Switch connection…", hint: "6 connections", kbd: ["⌘", "K", "C"] },
-  { grp: "AI", label: "Ask AI about selected text", hint: "starts a new thread", kbd: ["⌘", "L"] },
-  { grp: "AI", label: "Generate query from prompt…", hint: "context: public.orders", kbd: ["⌘", "I"] },
-  { grp: "AI", label: "Explain selected SQL", hint: "shows plan + line notes" },
-  { grp: "View", label: "Split editor horizontally", kbd: ["⌘", "\\"] },
-  { grp: "View", label: "Split editor vertically", kbd: ["⌘", "⇧", "\\"] },
-  { grp: "View", label: "Toggle AI panel", kbd: ["⌘", "J"] },
+type CommandPaletteProps = {
+  panels: Panels;
+  onClose: () => void;
+  onNewConnection: () => void;
+  onOpenCommit: () => void;
+  onOpenSettings: () => void;
+  onTogglePanel: (k: keyof Panels) => void;
+};
+
+const GROUP_ORDER: Group[] = [
+  "Actions",
+  "Tabs",
+  "Connections",
+  "Catalog",
+  "Columns",
+  "View",
 ];
 
-function groupIcon(grp: Group): ReactNode {
-  switch (grp) {
-    case "AI":
-      return <Icon.sparkles size={11} stroke="var(--accent)" />;
-    case "Actions":
-      return <Icon.bolt size={11} stroke="var(--update)" />;
-    case "Navigate":
-      return <Icon.chevronRight size={11} stroke="var(--fg-2)" />;
-    case "View":
-      return <Icon.layout size={11} stroke="var(--fg-2)" />;
-    case "Recent":
-      return <Icon.history size={11} stroke="var(--fg-2)" />;
-  }
-}
-
-export function CommandPalette({ onClose }: { onClose: () => void }) {
+export function CommandPalette({
+  panels,
+  onClose,
+  onNewConnection,
+  onOpenCommit,
+  onOpenSettings,
+  onTogglePanel,
+}: CommandPaletteProps) {
   const [q, setQ] = useState("");
+  const [active, setActive] = useState(0);
+  const connections = useConnections((s) => s.connections);
+  const byId = useConnections((s) => s.byId);
+  const loaded = useConnections((s) => s.loaded);
+  const load = useConnections((s) => s.load);
+  const connect = useConnections((s) => s.connect);
+  const disconnect = useConnections((s) => s.disconnect);
+  const refreshSchema = useConnections((s) => s.refreshSchema);
+  const tabs = useTabs((s) => s.tabs);
+  const activeTabId = useTabs((s) => s.activeId);
+  const tableChanges = useTabs((s) => s.tableChanges);
+  const openTable = useTabs((s) => s.openTable);
+  const newQueryTab = useTabs((s) => s.newQueryTab);
+  const setActiveTab = useTabs((s) => s.setActive);
+  const clearTableChanges = useTabs((s) => s.clearTableChanges);
+  const bottomTab = useBottomPanel((s) => s.active);
+  const setBottomTab = useBottomPanel((s) => s.setActive);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+    if (!loaded) void load();
+  }, [loaded, load]);
+
+  const pending = useMemo(() => {
+    let total = 0;
+    for (const changes of Object.values(tableChanges)) {
+      total += countChanges(changes).total;
+    }
+    return total;
+  }, [tableChanges]);
+
+  const entries = useMemo<Entry[]>(() => {
+    const list: Entry[] = [];
+    const target = pickQueryTarget(tabs, activeTabId, connections, byId);
+
+    const add = (entry: Omit<Entry, "search"> & { search?: string }) => {
+      list.push({
+        ...entry,
+        search: `${entry.label} ${entry.hint ?? ""} ${entry.search ?? ""}`.toLowerCase(),
+      });
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
 
-  const filtered = q
-    ? ENTRIES.filter((c) => c.label.toLowerCase().includes(q.toLowerCase()))
-    : ENTRIES;
+    add({
+      id: "new-connection",
+      grp: "Actions",
+      label: "New connection",
+      hint: "create a saved database connection",
+      kbd: ["⌘", "N"],
+      action: onNewConnection,
+    });
 
-  const grouped: Record<string, Entry[]> = {};
-  for (const c of filtered) (grouped[c.grp] ||= []).push(c);
+    if (target) {
+      add({
+        id: "new-query",
+        grp: "Actions",
+        label: "New SQL query",
+        hint: target.database,
+        action: () => newQueryTab(target.connectionId, target.database),
+      });
+    }
+
+    add({
+      id: "commit",
+      grp: "Actions",
+      label: "Review pending changes",
+      hint: pending > 0 ? `${pending} pending` : "no pending changes",
+      kbd: ["⌘", "S"],
+      action: onOpenCommit,
+    });
+
+    if (pending > 0) {
+      add({
+        id: "revert-active",
+        grp: "Actions",
+        label: "Revert active table changes",
+        hint: "discard pending edits on the active table",
+        action: () => {
+          const activeTab = tabs.find((t) => t.id === activeTabId);
+          if (activeTab?.kind === "table") clearTableChanges(activeTab.id);
+        },
+      });
+    }
+
+    for (const tab of tabs) {
+      add({
+        id: `tab:${tab.id}`,
+        grp: "Tabs",
+        label: tabLabel(tab),
+        hint: tab.kind === "query" ? "query tab" : tab.database,
+        search: `${tab.connectionId} ${tab.database}`,
+        action: () => setActiveTab(tab.id),
+      });
+    }
+
+    for (const connection of connections) {
+      const state = byId[connection.id];
+      const connected = state?.status === "connected";
+      add({
+        id: `conn:${connection.id}`,
+        grp: "Connections",
+        label: connection.name,
+        hint: connected ? "connected" : state?.status ?? "disconnected",
+        search: `${connection.engine} ${connection.host} ${connection.database}`,
+        action: () => {
+          if (connected) void disconnect(connection.id);
+          else void connect(connection.id);
+        },
+      });
+      if (connected) {
+        add({
+          id: `conn-refresh:${connection.id}`,
+          grp: "Connections",
+          label: `Refresh ${connection.name} schema`,
+          hint: state?.loadingSchema ? "loading" : "introspect catalog",
+          search: connection.database,
+          action: () => void refreshSchema(connection.id),
+        });
+      }
+
+      for (const db of state?.databases ?? []) {
+        for (const schema of db.schemas) {
+          for (const table of schema.tables) {
+            const rel = `${schema.name}.${table.name}`;
+            add({
+              id: `table:${connection.id}:${db.name}:${rel}`,
+              grp: "Catalog",
+              label: rel,
+              hint: `${connection.name} · ${db.name}`,
+              search: `${connection.name} ${db.name} table`,
+              action: () =>
+                openTable(connection.id, db.name, schema.name, table.name),
+            });
+            for (const column of table.columns) {
+              add({
+                id: `column:${connection.id}:${db.name}:${rel}.${column.name}`,
+                grp: "Columns",
+                label: `${rel}.${column.name}`,
+                hint: column.data_type,
+                search: `${connection.name} ${db.name} column ${column.comment ?? ""}`,
+                action: () =>
+                  openTable(connection.id, db.name, schema.name, table.name),
+              });
+            }
+          }
+          for (const view of schema.views) {
+            const rel = `${schema.name}.${view.name}`;
+            add({
+              id: `view:${connection.id}:${db.name}:${rel}`,
+              grp: "Catalog",
+              label: rel,
+              hint: `${connection.name} · view`,
+              search: `${connection.name} ${db.name} view`,
+              action: () =>
+                openTable(connection.id, db.name, schema.name, view.name),
+            });
+          }
+        }
+      }
+    }
+
+    addPanelEntry(add, panels.left, "left", "Connections panel", onTogglePanel);
+    addPanelEntry(add, panels.bottom, "bottom", "Output panel", onTogglePanel);
+    addPanelEntry(add, panels.right, "right", "AI panel", onTogglePanel);
+
+    for (const id of ["results", "messages", "plan", "history", "notices"] as BottomTabId[]) {
+      add({
+        id: `bottom:${id}`,
+        grp: "View",
+        label: `Show ${titleCase(id)}`,
+        hint: bottomTab === id ? "active" : "output panel",
+        action: () => setBottomTab(id),
+      });
+    }
+
+    add({
+      id: "settings",
+      grp: "View",
+      label: "Open settings",
+      kbd: ["⌘", ","],
+      action: onOpenSettings,
+    });
+
+    return list;
+  }, [
+    activeTabId,
+    bottomTab,
+    byId,
+    clearTableChanges,
+    connect,
+    connections,
+    disconnect,
+    newQueryTab,
+    onNewConnection,
+    onOpenCommit,
+    onOpenSettings,
+    onTogglePanel,
+    openTable,
+    panels,
+    pending,
+    refreshSchema,
+    setActiveTab,
+    setBottomTab,
+    tabs,
+  ]);
+
+  const filtered = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    if (!needle) {
+      return entries.filter((e) => e.grp !== "Columns").slice(0, 80);
+    }
+    return entries.filter((e) => e.search.includes(needle)).slice(0, 120);
+  }, [entries, q]);
+
+  useEffect(() => {
+    setActive(0);
+  }, [q]);
+
+  useEffect(() => {
+    if (active >= filtered.length) setActive(Math.max(0, filtered.length - 1));
+  }, [active, filtered.length]);
+
+  const runEntry = (entry: Entry | undefined) => {
+    if (!entry) return;
+    entry.action();
+    onClose();
+  };
+
+  const grouped = useMemo(() => {
+    const groups = new Map<Group, Entry[]>();
+    for (const entry of filtered) {
+      const items = groups.get(entry.grp) ?? [];
+      items.push(entry);
+      groups.set(entry.grp, items);
+    }
+    return GROUP_ORDER.flatMap((grp) => {
+      const items = groups.get(grp);
+      return items?.length ? [[grp, items] as const] : [];
+    });
+  }, [filtered]);
 
   return (
     <div
@@ -74,9 +297,22 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
         <div className="flex h-[38px] items-center gap-[9px] border-b border-border-default px-3">
           <Icon.search size={13} stroke="var(--fg-3)" />
           <input
-            placeholder="Search tables, columns, commands, AI prompts…"
+            placeholder="Search tables, columns, commands…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") onClose();
+              else if (e.key === "ArrowDown") {
+                e.preventDefault();
+                setActive((i) => Math.min(filtered.length - 1, i + 1));
+              } else if (e.key === "ArrowUp") {
+                e.preventDefault();
+                setActive((i) => Math.max(0, i - 1));
+              } else if (e.key === "Enter") {
+                e.preventDefault();
+                runEntry(filtered[active]);
+              }
+            }}
             autoFocus
             className="flex-1 border-none bg-transparent text-[13px] text-fg-0 outline-none placeholder:text-fg-3"
           />
@@ -84,16 +320,20 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="max-h-[420px] overflow-y-auto pt-1 pb-2">
-          {Object.entries(grouped).map(([grp, items]) => (
+          {grouped.map(([grp, items]) => (
             <div key={grp} className="pt-1.5 pb-1">
               <div className="px-3.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-fg-3">
                 {grp}
               </div>
-              {items.map((c, i) => {
-                const isActive = grp === "Recent" && i === 0;
+              {items.map((entry) => {
+                const isActive = filtered[active]?.id === entry.id;
                 return (
                   <button
-                    key={c.label}
+                    key={entry.id}
+                    onClick={() => runEntry(entry)}
+                    onMouseEnter={() =>
+                      setActive(filtered.findIndex((e) => e.id === entry.id))
+                    }
                     className={
                       "flex w-full items-center gap-2.5 px-3.5 py-1.5 text-left text-[12px] " +
                       (isActive
@@ -102,19 +342,19 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
                     }
                   >
                     <span className="inline-flex w-[18px] shrink-0 items-center justify-center">
-                      {groupIcon(grp as Group)}
+                      {groupIcon(entry.grp)}
                     </span>
-                    <span className="shrink-0 whitespace-nowrap font-medium">
-                      {c.label}
+                    <span className="min-w-0 shrink overflow-hidden text-ellipsis whitespace-nowrap font-medium">
+                      {entry.label}
                     </span>
-                    {c.hint && (
+                    {entry.hint && (
                       <span className="ml-auto min-w-0 overflow-hidden text-ellipsis whitespace-nowrap pr-1.5 text-[11px] text-fg-3">
-                        {c.hint}
+                        {entry.hint}
                       </span>
                     )}
-                    {c.kbd && (
+                    {entry.kbd && (
                       <span className="inline-flex shrink-0 gap-0.5">
-                        {c.kbd.map((k, j) => (
+                        {entry.kbd.map((k, j) => (
                           <kbd key={j} className="kbd">
                             {k}
                           </kbd>
@@ -142,17 +382,68 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
             <kbd className="kbd">⏎</kbd>
             <span>select</span>
           </span>
-          <span className="inline-flex items-center gap-1">
-            <kbd className="kbd">⌘⏎</kbd>
-            <span>open in new tab</span>
-          </span>
           <div className="flex-1" />
-          <span className="inline-flex items-center gap-1">
-            <Icon.sparkles size={10} stroke="var(--accent)" />
-            <span style={{ color: "var(--accent)" }}>type / to ask AI</span>
-          </span>
+          <span>{filtered.length} matches</span>
         </div>
       </div>
     </div>
   );
+}
+
+function groupIcon(grp: Group): ReactNode {
+  switch (grp) {
+    case "Actions":
+      return <Icon.bolt size={11} stroke="var(--update)" />;
+    case "Catalog":
+      return <Icon.table size={11} stroke="var(--fg-2)" />;
+    case "Columns":
+      return <Icon.bracket size={11} stroke="var(--fg-2)" />;
+    case "Connections":
+      return <Icon.database size={11} stroke="var(--fg-2)" />;
+    case "Tabs":
+      return <Icon.terminal size={11} stroke="var(--fg-2)" />;
+    case "View":
+      return <Icon.layout size={11} stroke="var(--fg-2)" />;
+  }
+}
+
+function addPanelEntry(
+  add: (entry: Omit<Entry, "search"> & { search?: string }) => void,
+  visible: boolean,
+  panel: keyof Panels,
+  label: string,
+  onTogglePanel: (k: keyof Panels) => void,
+) {
+  add({
+    id: `panel:${panel}`,
+    grp: "View",
+    label: `${visible ? "Hide" : "Show"} ${label}`,
+    hint: visible ? "visible" : "hidden",
+    action: () => onTogglePanel(panel),
+  });
+}
+
+function pickQueryTarget(
+  tabs: WorkspaceTab[],
+  activeTabId: string | null,
+  connections: ReturnType<typeof useConnections.getState>["connections"],
+  byId: ReturnType<typeof useConnections.getState>["byId"],
+): { connectionId: string; database: string } | null {
+  const active = tabs.find((t) => t.id === activeTabId);
+  if (active) return { connectionId: active.connectionId, database: active.database };
+  const connected = connections.find((c) => byId[c.id]?.status === "connected");
+  const target = connected ?? connections[0];
+  if (!target) return null;
+  const dbs = byId[target.id]?.databases ?? [];
+  const database =
+    dbs.find((d) => d.is_default)?.name ?? dbs[0]?.name ?? target.database;
+  return { connectionId: target.id, database };
+}
+
+function tabLabel(tab: WorkspaceTab): string {
+  return tab.kind === "query" ? tab.title : `${tab.schema}.${tab.table}`;
+}
+
+function titleCase(value: string): string {
+  return value.slice(0, 1).toUpperCase() + value.slice(1);
 }

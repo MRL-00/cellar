@@ -248,7 +248,16 @@ export function App() {
         />
       )}
       {modal === "commit" && <CommitModal onClose={closeModal} />}
-      {modal === "palette" && <CommandPalette onClose={closeModal} />}
+      {modal === "palette" && (
+        <CommandPalette
+          panels={panels}
+          onClose={closeModal}
+          onNewConnection={openNewConnection}
+          onOpenCommit={() => openModal("commit")}
+          onOpenSettings={() => openModal("settings")}
+          onTogglePanel={togglePanel}
+        />
+      )}
       {modal === "settings" && <SettingsModal onClose={closeModal} />}
     </div>
   );
