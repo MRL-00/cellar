@@ -3,13 +3,30 @@
   "version": "0.1.0-alpha",
   "private": true,
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./src/index.tsx",
+  "types": "./src/index.tsx",
   "scripts": {
-    "lint": "node ../../scripts/check-ts-entry.mjs src/index.ts",
+    "lint": "node ../../scripts/check-ts-entry.mjs src/index.tsx",
     "test": "vitest run --passWithNoTests"
   },
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.tsx"
+  },
+  "dependencies": {
+    "@codemirror/autocomplete": "^6.20.2",
+    "@codemirror/commands": "^6.10.3",
+    "@codemirror/lang-sql": "^6.10.0",
+    "@codemirror/language": "^6.12.3",
+    "@codemirror/search": "^6.7.0",
+    "@codemirror/state": "^6.6.0",
+    "@codemirror/view": "^6.43.0",
+    "@lezer/highlight": "^1.2.3"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "react": "^18.3.1"
   }
 }
