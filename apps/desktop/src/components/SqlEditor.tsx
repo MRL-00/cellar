@@ -1,13 +1,11 @@
 import {
   useCallback,
-  useLayoutEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
-import type { Engine } from "@cellar/ipc";
+import type { Database, Engine } from "@cellar/ipc";
+import { SqlCodeEditor } from "@cellar/sql-editor";
 
-import { renderTokens, tokenizeSql, tokensToLines } from "../lib/sqlTokens";
 import {
   splitStatements,
   statementAtOffset,
@@ -31,9 +29,14 @@ const DIALECTS: Record<Engine, string> = {
 const PLACEHOLDER =
   "Write SQL here…  ⌘⏎ runs the statement under the cursor, ⌘⇧⏎ runs all.";
 
+const EMPTY_DATABASES: Database[] = [];
+
 export function SqlEditor({ tab }: { tab: QueryTab }) {
   const setQuerySql = useTabs((s) => s.setQuerySql);
   const status = useConnections((s) => s.byId[tab.connectionId]?.status);
+  const databases = useConnections(
+    (s) => s.byId[tab.connectionId]?.databases ?? EMPTY_DATABASES,
+  );
   const engine = useConnections(
     (s) => s.connections.find((c) => c.id === tab.connectionId)?.engine,
   );
@@ -42,8 +45,6 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
 
   const { running, errorLine, run, clearError } = useQueryRunner(tab);
 
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const pendingCaret = useRef<number | null>(null);
   const [caret, setCaret] = useState(0);
   const [wrap, setWrap] = useState(false);
 
@@ -51,7 +52,6 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
   const connected = status === "connected";
   const isPostgres = engine === "postgres" || engine === undefined;
 
-  const lines = useMemo(() => tokensToLines(tokenizeSql(sql)), [sql]);
   const statements = useMemo(() => splitStatements(sql), [sql]);
   const current = useMemo(
     () => statementAtOffset(sql, caret),
@@ -59,27 +59,16 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
   );
   const range = current ? ([current.startLine, current.endLine] as const) : null;
 
-  // Restore the caret after a programmatic edit (Tab insertion) lands.
-  useLayoutEffect(() => {
-    if (pendingCaret.current != null && textareaRef.current) {
-      const pos = pendingCaret.current;
-      textareaRef.current.selectionStart = pos;
-      textareaRef.current.selectionEnd = pos;
-      pendingCaret.current = null;
-      setCaret(pos);
-    }
-  }, [sql]);
-
-  const syncCaret = useCallback((el: HTMLTextAreaElement) => {
-    setCaret(el.selectionStart);
-  }, []);
-
-  const runStatement = useCallback(() => {
-    const stmt = statementAtOffset(sql, caret);
+  const runStatementAt = useCallback((offset: number) => {
+    const stmt = statementAtOffset(sql, offset);
     if (!stmt) return;
     setBottomTab("results");
     run(stmt.text, { label: statementLabel(stmt, statements), errorLine: stmt.startLine });
-  }, [sql, caret, run, setBottomTab, statements]);
+  }, [sql, run, setBottomTab, statements]);
+
+  const runStatement = useCallback(() => {
+    runStatementAt(caret);
+  }, [caret, runStatementAt]);
 
   const runAll = useCallback(() => {
     if (statements.length === 0) return;
@@ -90,30 +79,10 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
     });
   }, [sql, statements, run, setBottomTab]);
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    const mod = e.metaKey || e.ctrlKey;
-    if (mod && e.key === "Enter") {
-      e.preventDefault();
-      if (e.shiftKey) runAll();
-      else runStatement();
-      return;
-    }
-    if (e.key === "Tab") {
-      e.preventDefault();
-      const el = e.currentTarget;
-      const start = el.selectionStart;
-      const end = el.selectionEnd;
-      const next = sql.slice(0, start) + "  " + sql.slice(end);
-      pendingCaret.current = start + 2;
-      setQuerySql(tab.id, next);
-    }
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setQuerySql(tab.id, e.target.value);
-    syncCaret(e.target);
+  const handleEditorChange = useCallback((next: string) => {
+    setQuerySql(tab.id, next);
     if (errorLine != null) clearError();
-  };
+  }, [clearError, errorLine, setQuerySql, tab.id]);
 
   const canRunStatement = connected && !running && current != null;
   const canRunAll = connected && !running && statements.length > 0;
@@ -207,45 +176,20 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
       </div>
 
       <div className="ed-scroll">
-        <div className="ed-doc">
-          <div className="ed-grid" aria-hidden="true">
-            {lines.map((lineTokens, idx) => {
-              const lineNo = idx + 1;
-              const inStmt = range != null && lineNo >= range[0] && lineNo <= range[1];
-              const isError = errorLine === lineNo;
-              return (
-                <div className="ed-row" key={idx}>
-                  <div className={"ed-gutter" + (inStmt ? " in-stmt" : "")}>
-                    <span className="ed-lineno">{lineNo}</span>
-                  </div>
-                  <div
-                    className={
-                      "ed-line" +
-                      (inStmt ? " in-stmt" : "") +
-                      (isError ? " has-error" : "")
-                    }
-                  >
-                    {renderTokens(lineTokens)}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <textarea
-            ref={textareaRef}
-            className="ed-input"
-            value={sql}
-            spellCheck={false}
-            autoCapitalize="off"
-            autoCorrect="off"
-            wrap={wrap ? "soft" : "off"}
-            placeholder={PLACEHOLDER}
-            onChange={handleChange}
-            onKeyDown={handleKeyDown}
-            onSelect={(e) => syncCaret(e.currentTarget)}
-            onClick={(e) => syncCaret(e.currentTarget)}
-          />
-        </div>
+        <SqlCodeEditor
+          value={sql}
+          engine={engine}
+          databases={databases}
+          database={tab.database}
+          placeholder={PLACEHOLDER}
+          wrap={wrap}
+          currentStatementRange={range}
+          errorLine={errorLine}
+          onChange={handleEditorChange}
+          onCursorChange={setCaret}
+          onRunStatement={runStatementAt}
+          onRunAll={runAll}
+        />
 
         <div className="ed-ai-strip" aria-hidden="true">
           <span className="ed-ai-strip-prompt">
