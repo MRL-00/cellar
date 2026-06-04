@@ -92,30 +92,31 @@ export function TitleBar({
           <>
             <div className="mx-0.5 h-4 w-px bg-border-default" />
             <div className="flex items-center gap-0.5 max-[1080px]:[&_svg]:hidden">
-              <button className="inline-flex items-center gap-[5px] whitespace-nowrap rounded-[4px] px-1.5 py-[3px] text-[11.5px] text-fg-1 transition-[background] duration-100 hover:bg-bg-3 hover:text-fg-0">
+              <span className="inline-flex items-center gap-[5px] whitespace-nowrap rounded-[4px] px-1.5 py-[3px] text-[11.5px] text-fg-1">
                 <Icon.database size={12} />
                 <span>{activeConn?.name ?? activeTab.connectionId}</span>
-              </button>
+              </span>
               <Icon.chevronRight size={11} style={{ opacity: 0.4 }} />
-              <button className="inline-flex items-center gap-[5px] whitespace-nowrap rounded-[4px] px-1.5 py-[3px] text-[11.5px] text-fg-1 transition-[background] duration-100 hover:bg-bg-3 hover:text-fg-0 max-[1080px]:hidden">
+              <span className="inline-flex items-center gap-[5px] whitespace-nowrap rounded-[4px] px-1.5 py-[3px] text-[11.5px] text-fg-1 max-[1080px]:hidden">
                 <span style={{ color: ENGINE_META[activeConn?.engine ?? "postgres"].color }}>●</span>
                 <span>{activeTab.database}</span>
-              </button>
+              </span>
               <Icon.chevronRight size={11} style={{ opacity: 0.4 }} />
-              <button className="inline-flex items-center gap-[5px] whitespace-nowrap rounded-[4px] px-1.5 py-[3px] text-[11.5px] text-fg-1 transition-[background] duration-100 hover:bg-bg-3 hover:text-fg-0 max-[1080px]:hidden">
+              <span className="inline-flex items-center gap-[5px] whitespace-nowrap rounded-[4px] px-1.5 py-[3px] text-[11.5px] text-fg-1 max-[1080px]:hidden">
                 {activeTab.kind === "query" ? (
                   <Icon.terminal size={11} />
                 ) : (
                   <Icon.schema size={11} />
                 )}
                 <span>{activeTab.kind === "query" ? activeTab.title : activeTab.schema}</span>
-              </button>
+              </span>
             </div>
           </>
         )}
       </div>
 
       <button
+        type="button"
         onClick={onOpenPalette}
         className="absolute left-1/2 top-1/2 flex h-[22px] min-w-0 w-[320px] max-w-[320px] -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-[5px] border border-border-default bg-bg-inset px-2 text-[11px] text-fg-3 transition-[border-color] duration-150 hover:border-border-strong"
       >
@@ -133,6 +134,7 @@ export function TitleBar({
         {!empty && (
           <>
             <button
+              type="button"
               className={"icon-btn" + (panels.left ? " active" : "")}
               onClick={() => onTogglePanel("left")}
               title="Toggle connections panel"
@@ -140,6 +142,7 @@ export function TitleBar({
               <Icon.panelLeft size={13} />
             </button>
             <button
+              type="button"
               className={"icon-btn" + (panels.bottom ? " active" : "")}
               onClick={() => onTogglePanel("bottom")}
               title="Toggle output panel"
@@ -147,6 +150,7 @@ export function TitleBar({
               <Icon.panelBottom size={13} />
             </button>
             <button
+              type="button"
               className={"icon-btn" + (panels.right ? " active" : "")}
               onClick={() => onTogglePanel("right")}
               title="Toggle AI panel"
@@ -158,6 +162,7 @@ export function TitleBar({
         )}
         {onToggleEmpty && (
           <button
+            type="button"
             className={"icon-btn" + (empty ? " active" : "")}
             onClick={onToggleEmpty}
             title={empty ? "Show workspace" : "Show empty state"}
@@ -166,6 +171,7 @@ export function TitleBar({
           </button>
         )}
         <button
+          type="button"
           className="icon-btn"
           onClick={onOpenSettings}
           title="Settings (⌘,)"

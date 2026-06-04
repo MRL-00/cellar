@@ -24,7 +24,7 @@ import {
   ED_RUN_SUBTLE,
 } from "./settingsPrimitives";
 
-type CatId =
+export type SettingsCatId =
   | "general"
   | "appearance"
   | "editor"
@@ -38,7 +38,7 @@ type CatId =
   | "updates"
   | "about";
 
-type CatItem = { id: CatId; label: string; icon: IconName; badge?: string };
+type CatItem = { id: SettingsCatId; label: string; icon: IconName; badge?: string };
 type CatGroup = { group: string; items: CatItem[] };
 
 const SETTINGS_CATS: CatGroup[] = [
@@ -81,9 +81,9 @@ export function SettingsModal({
   initialCat = "appearance",
 }: {
   onClose: () => void;
-  initialCat?: CatId;
+  initialCat?: SettingsCatId;
 }) {
-  const [cat, setCat] = useState<CatId>(initialCat);
+  const [cat, setCat] = useState<SettingsCatId>(initialCat);
   const [q, setQ] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -193,8 +193,8 @@ function SettingsNav({
   setCat,
   q,
 }: {
-  cat: CatId;
-  setCat: (c: CatId) => void;
+  cat: SettingsCatId;
+  setCat: (c: SettingsCatId) => void;
   q: string;
 }) {
   const filter = q.toLowerCase().trim();
@@ -255,7 +255,12 @@ function SettingsNav({
       <div className="mt-auto flex items-center gap-1.5 border-t border-border-divider px-[14px] py-2.5 text-[10px]">
         <span className="font-mono text-fg-3">v0.1.0-alpha</span>
         <span className="text-fg-3">·</span>
-        <button type="button" className="text-[10px] text-accent underline underline-offset-2">
+        <button
+          type="button"
+          disabled
+          className="cursor-not-allowed text-[10px] text-fg-3 underline underline-offset-2 opacity-70"
+          title="Documentation links are not wired in the desktop shell yet"
+        >
           docs
         </button>
       </div>

@@ -135,19 +135,39 @@ export function SettingsAbout() {
               <span>commit unavailable</span>
             </div>
             <div className="flex gap-1.5 text-[11px]">
-              <button type="button" className="text-accent underline underline-offset-2">
+              <button
+                type="button"
+                disabled
+                className="cursor-not-allowed text-fg-3 underline underline-offset-2 opacity-70"
+                title="Documentation links are not wired in the desktop shell yet"
+              >
                 docs
               </button>
               <span className="text-fg-3">·</span>
-              <button type="button" className="text-accent underline underline-offset-2">
+              <button
+                type="button"
+                disabled
+                className="cursor-not-allowed text-fg-3 underline underline-offset-2 opacity-70"
+                title="External links are not wired in the desktop shell yet"
+              >
                 github
               </button>
               <span className="text-fg-3">·</span>
-              <button type="button" className="text-accent underline underline-offset-2">
+              <button
+                type="button"
+                disabled
+                className="cursor-not-allowed text-fg-3 underline underline-offset-2 opacity-70"
+                title="Changelog links are not wired in the desktop shell yet"
+              >
                 changelog
               </button>
               <span className="text-fg-3">·</span>
-              <button type="button" className="text-accent underline underline-offset-2">
+              <button
+                type="button"
+                disabled
+                className="cursor-not-allowed text-fg-3 underline underline-offset-2 opacity-70"
+                title="Acknowledgements links are not wired in the desktop shell yet"
+              >
                 acknowledgements
               </button>
             </div>

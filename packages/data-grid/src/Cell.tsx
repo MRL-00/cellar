@@ -22,9 +22,9 @@ export function CellValue({ col, value }: { col: GridColumn; value: Value }) {
     return (
       <span className="cell-fk">
         <span className={col.mono ? "mono" : ""}>{String(value)}</span>
-        <button className="cell-fk-jump" title={`Jump to ${col.fk}`}>
+        <span className="cell-fk-jump" title={`Foreign key: ${col.fk}`}>
           <GridIcon.link2 size={9} />
-        </button>
+        </span>
       </span>
     );
   }

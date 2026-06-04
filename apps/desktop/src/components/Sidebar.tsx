@@ -272,6 +272,33 @@ export function Sidebar({
     setMenu({ x: e.clientX, y: e.clientY, items });
   };
 
+  const openSidebarMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const connected = connections.filter(
+      (c) => byId[c.id]?.status === "connected",
+    );
+    setMenu({
+      x: e.clientX,
+      y: e.clientY,
+      items: [
+        {
+          label: "New connection",
+          icon: <Icon.plus size={12} />,
+          onClick: () => onNewConnection?.(),
+        },
+        {
+          label: "Refresh connected schemas",
+          icon: <Icon.history size={12} />,
+          disabled: connected.length === 0,
+          onClick: () => {
+            for (const c of connected) void refreshSchema(c.id);
+          },
+        },
+      ],
+    });
+  };
+
   return (
     <div className="flex h-full flex-col text-[11.5px]">
       <div className="flex shrink-0 items-center justify-between pt-[7px] pb-[5px] pl-2.5 pr-2">
@@ -283,13 +310,19 @@ export function Sidebar({
         </div>
         <div className="flex gap-px">
           <button
+            type="button"
             className="icon-btn"
             title="New connection"
             onClick={onNewConnection}
           >
             <Icon.plus size={12} />
           </button>
-          <button className="icon-btn" title="More">
+          <button
+            type="button"
+            className="icon-btn"
+            title="Connection actions"
+            onClick={openSidebarMenu}
+          >
             <Icon.more size={12} />
           </button>
         </div>
@@ -308,6 +341,7 @@ export function Sidebar({
 
       <div className="flex-1 overflow-y-auto pb-3">
         <button
+          type="button"
           onClick={onNewConnection}
           className="mx-2 mt-1 mb-3 flex w-[calc(100%-16px)] items-center gap-1.5 rounded-[4px] border border-dashed border-border-default px-2 py-1.5 text-[11.5px] text-fg-2 transition-[border-color,color,background] duration-150 hover:border-solid hover:border-accent-line hover:bg-accent-soft hover:text-accent"
         >
@@ -398,6 +432,7 @@ function ConnectionRow({
         onContextMenu={onContextMenu}
       >
         <button
+          type="button"
           className={TWISTY}
           onClick={(e) => {
             e.stopPropagation();
@@ -425,6 +460,7 @@ function ConnectionRow({
         )}
         <StatusDot status={status} />
         <button
+          type="button"
           className="icon-btn ml-1 opacity-0 transition-opacity duration-100 group-hover:opacity-100"
           title="Actions"
           onClick={(e) => {
@@ -436,6 +472,7 @@ function ConnectionRow({
         </button>
         {status === "connected" && (
           <button
+            type="button"
             className="icon-btn opacity-0 transition-opacity duration-100 group-hover:opacity-100"
             title="Disconnect"
             onClick={(e) => {
@@ -526,7 +563,7 @@ function DatabaseRow({
         }
         title={empty ? "no accessible schemas" : undefined}
       >
-        <button className={TWISTY}>
+        <button type="button" className={TWISTY} aria-label={open ? "Collapse database" : "Expand database"}>
           {empty ? (
             <span className={TWISTY + " invisible"} />
           ) : open ? (
@@ -597,7 +634,7 @@ function SchemaRow({
           })
         }
       >
-        <button className={TWISTY}>
+        <button type="button" className={TWISTY} aria-label={open ? "Collapse schema" : "Expand schema"}>
           {open ? (
             <Icon.chevronDown size={10} />
           ) : (

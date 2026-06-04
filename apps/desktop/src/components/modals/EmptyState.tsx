@@ -71,11 +71,19 @@ export function EmptyState({ onNew }: { onNew: () => void }) {
             <Icon.plus size={12} />
             <span>New connection</span>
           </button>
-          <button className="flex h-8 items-center justify-center gap-2 whitespace-nowrap rounded-[6px] border border-border-default bg-bg-2 px-3 text-xs text-fg-0 transition-[background,border-color] duration-[120ms] hover:border-border-strong hover:bg-bg-3">
+          <button
+            disabled
+            title="Connection import is not wired yet"
+            className="flex h-8 cursor-not-allowed items-center justify-center gap-2 whitespace-nowrap rounded-[6px] border border-border-default bg-bg-2 px-3 text-xs text-fg-2 opacity-55"
+          >
             <Icon.fileText size={12} />
             <span>Import from DataGrip / DBeaver</span>
           </button>
-          <button className="flex h-8 items-center justify-center gap-2 whitespace-nowrap rounded-[6px] border border-border-default bg-bg-2 px-3 text-xs text-fg-0 transition-[background,border-color] duration-[120ms] hover:border-border-strong hover:bg-bg-3">
+          <button
+            disabled
+            title="Demo database provisioning is not wired yet"
+            className="flex h-8 cursor-not-allowed items-center justify-center gap-2 whitespace-nowrap rounded-[6px] border border-border-default bg-bg-2 px-3 text-xs text-fg-2 opacity-55"
+          >
             <Icon.cloud size={12} />
             <span>Connect to demo database</span>
           </button>
@@ -88,12 +96,19 @@ export function EmptyState({ onNew }: { onNew: () => void }) {
           {ENGINE_ORDER.map((e) => {
             const m = ENGINE_META[e];
             const hex = ENGINE_HEX[e];
+            const available = e === "postgres";
             return (
               <button
                 key={e}
-                onClick={onNew}
-                title={m.label}
-                className="flex flex-col items-center gap-1.5 rounded-[6px] border border-border-default bg-bg-2 px-1.5 pt-2.5 pb-2 transition-all duration-150 hover:-translate-y-px hover:border-border-strong"
+                onClick={available ? onNew : undefined}
+                disabled={!available}
+                title={available ? m.label : `${m.label} support is coming soon`}
+                className={
+                  "flex flex-col items-center gap-1.5 rounded-[6px] border border-border-default bg-bg-2 px-1.5 pt-2.5 pb-2 transition-all duration-150 " +
+                  (available
+                    ? "hover:-translate-y-px hover:border-border-strong"
+                    : "cursor-not-allowed opacity-45")
+                }
               >
                 <span
                   className="inline-flex h-[26px] w-[26px] items-center justify-center rounded-[5px] border font-mono text-xs font-semibold"
@@ -134,11 +149,19 @@ export function EmptyState({ onNew }: { onNew: () => void }) {
         <div className="border-t border-border-divider pt-4 text-[10.5px] text-fg-3">
           <span>
             v0.1.0 · MIT licensed ·{" "}
-            <button className="bg-transparent text-[10.5px] text-accent underline underline-offset-2">
+            <button
+              disabled
+              title="Documentation links are not wired in the desktop shell yet"
+              className="cursor-not-allowed bg-transparent text-[10.5px] text-fg-3 underline underline-offset-2 opacity-70"
+            >
               docs
             </button>{" "}
             ·{" "}
-            <button className="bg-transparent text-[10.5px] text-accent underline underline-offset-2">
+            <button
+              disabled
+              title="External links are not wired in the desktop shell yet"
+              className="cursor-not-allowed bg-transparent text-[10.5px] text-fg-3 underline underline-offset-2 opacity-70"
+            >
               github
             </button>
           </span>
