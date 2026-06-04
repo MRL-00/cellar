@@ -1,6 +1,14 @@
+import { useState, type MouseEvent as ReactMouseEvent } from "react";
+
+import {
+  ContextMenu,
+  type ContextMenuState,
+  type MenuItem,
+} from "./ContextMenu";
 import { Icon } from "./icons";
+import { qualifiedName, selectAllStatement } from "../lib/sqlIdent";
 import { useConnections } from "../state/connections";
-import { useTabs } from "../state/tabs";
+import { useTabs, type WorkspaceTab } from "../state/tabs";
 
 /**
  * Pick the connection + database a new query tab should bind to: the active
@@ -27,6 +35,7 @@ function pickQueryTarget(): { connectionId: string; database: string } | null {
 }
 
 export function TabBar() {
+  const [menu, setMenu] = useState<ContextMenuState | null>(null);
   const tabs = useTabs((s) => s.tabs);
   const activeId = useTabs((s) => s.activeId);
   const split = useTabs((s) => s.split);
@@ -35,13 +44,87 @@ export function TabBar() {
   const closeTab = useTabs((s) => s.closeTab);
   const splitActiveTab = useTabs((s) => s.splitActiveTab);
   const reopenClosedTab = useTabs((s) => s.reopenClosedTab);
+  const closeOtherTabs = useTabs((s) => s.closeOtherTabs);
+  const closeTabsToRight = useTabs((s) => s.closeTabsToRight);
   const newQueryTab = useTabs((s) => s.newQueryTab);
+  const setQuerySql = useTabs((s) => s.setQuerySql);
+  const refreshTable = useTabs((s) => s.refreshTable);
   const hasConnections = useConnections((s) => s.connections.length > 0);
   const canSplit = tabs.length > 1 && activeId != null;
 
   const onNewQuery = () => {
     const target = pickQueryTarget();
     if (target) newQueryTab(target.connectionId, target.database);
+  };
+
+  const copyText = (text: string) => {
+    if (navigator.clipboard) void navigator.clipboard.writeText(text);
+  };
+
+  const queryFor = (tab: WorkspaceTab, sql?: string) => {
+    const id = newQueryTab(tab.connectionId, tab.database);
+    if (sql) {
+      setQuerySql(id, sql);
+    }
+  };
+
+  const menuItemsFor = (tab: WorkspaceTab): MenuItem[] => {
+    const index = tabs.findIndex((t) => t.id === tab.id);
+    const hasRightTabs = index >= 0 && index < tabs.length - 1;
+    const name =
+      tab.kind === "query" ? tab.title : qualifiedName(tab.schema, tab.table);
+
+    return [
+      {
+        label: "New SQL query",
+        icon: <Icon.terminal size={12} />,
+        onClick: () => queryFor(tab),
+      },
+      ...(tab.kind === "table"
+        ? [
+            {
+              label: "Refresh",
+              icon: <Icon.history size={12} />,
+              onClick: () => refreshTable(tab.id),
+            },
+            {
+              label: "Query SELECT *",
+              icon: <Icon.terminal size={12} />,
+              onClick: () =>
+                queryFor(tab, selectAllStatement(tab.schema, tab.table)),
+            },
+          ]
+        : []),
+      {
+        label: tab.kind === "query" ? "Copy title" : "Copy qualified name",
+        icon: <Icon.copy size={12} />,
+        onClick: () => copyText(name),
+      },
+      {
+        label: "Close",
+        icon: <Icon.close size={12} />,
+        onClick: () => closeTab(tab.id),
+      },
+      {
+        label: "Close Others",
+        icon: <Icon.close size={12} />,
+        disabled: tabs.length < 2,
+        onClick: () => closeOtherTabs(tab.id),
+      },
+      {
+        label: "Close Tabs to the Right",
+        icon: <Icon.close size={12} />,
+        disabled: !hasRightTabs,
+        onClick: () => closeTabsToRight(tab.id),
+      },
+    ];
+  };
+
+  const openTabMenu = (e: ReactMouseEvent, tab: WorkspaceTab) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setActive(tab.id);
+    setMenu({ x: e.clientX, y: e.clientY, items: menuItemsFor(tab) });
   };
 
   return (
@@ -58,6 +141,7 @@ export function TabBar() {
             <div
               key={t.id}
               onClick={() => setActive(t.id)}
+              onContextMenu={(e) => openTabMenu(e, t)}
               className={
                 "group relative inline-flex items-center gap-1.5 h-full pl-2.5 pr-2 max-w-[260px] shrink-0 border-r border-border-default text-[11.5px] cursor-pointer transition-[background,color] duration-100 " +
                 (isActive
@@ -157,6 +241,7 @@ export function TabBar() {
           <Icon.history size={12} />
         </button>
       </div>
+      <ContextMenu state={menu} onClose={() => setMenu(null)} />
     </div>
   );
 }

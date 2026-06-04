@@ -1,6 +1,21 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
+import type { PendingChanges } from "@cellar/data-grid";
+import { tableResultSource, useTabResults } from "./tabResults";
 import { useTabs } from "./tabs";
+
+const source = tableResultSource(
+  "conn-1",
+  "app",
+  "public",
+  "orders",
+  "SELECT * FROM public.orders LIMIT 100",
+  100,
+);
+
+const changes: PendingChanges = {
+  "row-1": { kind: "update", edits: { name: { from: "old", to: "new" } } },
+};
 
 describe("tab workspace state", () => {
   beforeEach(() => {
@@ -12,6 +27,7 @@ describe("tab workspace state", () => {
       tableChanges: {},
       refreshKeys: {},
     });
+    useTabResults.setState({ byTabId: {} });
   });
 
   it("splits the active tab against a neighboring tab", () => {
@@ -69,5 +85,45 @@ describe("tab workspace state", () => {
     expect(reopened).toMatchObject({ id, kind: "query", sql: "select 1;" });
     expect(useTabs.getState().activeId).toBe(id);
     expect(useTabs.getState().closedTabs).toHaveLength(0);
+  });
+
+  it("closes other tabs and clears their scoped state", () => {
+    const store = useTabs.getState();
+    store.openTable("conn-1", "app", "public", "orders");
+    store.openTable("conn-1", "app", "public", "customers");
+    store.openTable("conn-1", "app", "events", "devices");
+
+    const keepId = "conn-1::app.public.customers";
+    const closedId = "conn-1::app.public.orders";
+    useTabs.getState().setTableChanges(closedId, changes);
+    useTabs.getState().refreshTable(closedId);
+    useTabResults.getState().setLoading(closedId, source);
+    useTabResults.getState().setLoading(keepId, source);
+
+    useTabs.getState().closeOtherTabs(keepId);
+
+    expect(useTabs.getState().tabs.map((t) => t.id)).toEqual([keepId]);
+    expect(useTabs.getState().activeId).toBe(keepId);
+    expect(useTabs.getState().closedTabs).toHaveLength(2);
+    expect(useTabs.getState().split).toBeNull();
+    expect(useTabs.getState().tableChanges[closedId]).toBeUndefined();
+    expect(useTabs.getState().refreshKeys[closedId]).toBeUndefined();
+    expect(useTabResults.getState().byTabId[closedId]).toBeUndefined();
+    expect(useTabResults.getState().byTabId[keepId]?.status).toBe("loading");
+  });
+
+  it("moves focus left when closing tabs to the right of a tab", () => {
+    const store = useTabs.getState();
+    store.openTable("conn-1", "app", "public", "orders");
+    store.openTable("conn-1", "app", "public", "customers");
+    store.openTable("conn-1", "app", "events", "devices");
+
+    useTabs.getState().closeTabsToRight("conn-1::app.public.orders");
+
+    expect(useTabs.getState().tabs.map((t) => t.id)).toEqual([
+      "conn-1::app.public.orders",
+    ]);
+    expect(useTabs.getState().activeId).toBe("conn-1::app.public.orders");
+    expect(useTabs.getState().closedTabs).toHaveLength(2);
   });
 });

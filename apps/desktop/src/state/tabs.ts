@@ -53,6 +53,8 @@ interface TabsStore {
   reopenClosedTab: () => void;
   splitActiveTab: (orientation: SplitOrientation) => void;
   clearSplit: () => void;
+  closeOtherTabs: (id: string) => void;
+  closeTabsToRight: (id: string) => void;
   setActive: (id: string) => void;
   setTableChanges: (id: string, changes: PendingChanges) => void;
   clearTableChanges: (id: string) => void;
@@ -66,6 +68,48 @@ function tableKey(
   table: string,
 ): string {
   return `${connectionId}::${database}.${schema}.${table}`;
+}
+
+function dropTabScopedState(
+  ids: string[],
+  tableChanges: Record<string, PendingChanges>,
+  refreshKeys: Record<string, number>,
+): {
+  tableChanges: Record<string, PendingChanges>;
+  refreshKeys: Record<string, number>;
+} {
+  const closed = new Set(ids);
+  return {
+    tableChanges: Object.fromEntries(
+      Object.entries(tableChanges).filter(([id]) => !closed.has(id)),
+    ),
+    refreshKeys: Object.fromEntries(
+      Object.entries(refreshKeys).filter(([id]) => !closed.has(id)),
+    ),
+  };
+}
+
+function clearTabResults(ids: string[]) {
+  const results = useTabResults.getState();
+  ids.forEach((id) => results.clearTab(id));
+}
+
+function splitForTabs(
+  tabs: WorkspaceTab[],
+  split: WorkspaceSplit | null,
+): WorkspaceSplit | null {
+  return split &&
+    tabs.some((t) => t.id === split.primaryId) &&
+    tabs.some((t) => t.id === split.secondaryId)
+    ? split
+    : null;
+}
+
+function stackClosedTabs(
+  closed: WorkspaceTab[],
+  current: WorkspaceTab[],
+): WorkspaceTab[] {
+  return [...closed, ...current].slice(0, 12);
 }
 
 export const useTabs = create<TabsStore>((set, get) => ({
@@ -137,25 +181,73 @@ export const useTabs = create<TabsStore>((set, get) => ({
       const tabs = s.tabs.filter((t) => t.id !== id);
       const activeId =
         s.activeId === id ? tabs[tabs.length - 1]?.id ?? null : s.activeId;
-      const { [id]: _changes, ...tableChanges } = s.tableChanges;
-      const { [id]: _refresh, ...refreshKeys } = s.refreshKeys;
-      const currentSplit = s.split;
-      const split =
-        currentSplit &&
-        tabs.some((t) => t.id === currentSplit.primaryId) &&
-        tabs.some((t) => t.id === currentSplit.secondaryId)
-          ? currentSplit
-          : null;
+      const { tableChanges, refreshKeys } = dropTabScopedState(
+        [id],
+        s.tableChanges,
+        s.refreshKeys,
+      );
       return {
         tabs,
         activeId,
         closedTabs: closed ? [closed, ...s.closedTabs].slice(0, 12) : s.closedTabs,
-        split,
+        split: splitForTabs(tabs, s.split),
         tableChanges,
         refreshKeys,
       };
     });
-    useTabResults.getState().clearTab(id);
+    clearTabResults([id]);
+  },
+
+  closeOtherTabs(id) {
+    if (!get().tabs.some((t) => t.id === id)) return;
+    const closedIds = get()
+      .tabs.filter((t) => t.id !== id)
+      .map((t) => t.id);
+    set((s) => {
+      const tabs = s.tabs.filter((t) => t.id === id);
+      const closed = s.tabs.filter((t) => t.id !== id);
+      const { tableChanges, refreshKeys } = dropTabScopedState(
+        closedIds,
+        s.tableChanges,
+        s.refreshKeys,
+      );
+      return {
+        tabs,
+        activeId: tabs[0]?.id ?? null,
+        closedTabs: stackClosedTabs(closed, s.closedTabs),
+        split: null,
+        tableChanges,
+        refreshKeys,
+      };
+    });
+    clearTabResults(closedIds);
+  },
+
+  closeTabsToRight(id) {
+    const tabIndex = get().tabs.findIndex((t) => t.id === id);
+    if (tabIndex < 0) return;
+    const closedIds = get()
+      .tabs.slice(tabIndex + 1)
+      .map((t) => t.id);
+    set((s) => {
+      const tabs = s.tabs.slice(0, tabIndex + 1);
+      const closed = s.tabs.slice(tabIndex + 1);
+      const activeId = closedIds.includes(s.activeId ?? "") ? id : s.activeId;
+      const { tableChanges, refreshKeys } = dropTabScopedState(
+        closedIds,
+        s.tableChanges,
+        s.refreshKeys,
+      );
+      return {
+        tabs,
+        activeId,
+        closedTabs: stackClosedTabs(closed, s.closedTabs),
+        split: splitForTabs(tabs, s.split),
+        tableChanges,
+        refreshKeys,
+      };
+    });
+    clearTabResults(closedIds);
   },
 
   reopenClosedTab() {
