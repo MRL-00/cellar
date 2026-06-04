@@ -126,10 +126,19 @@ impl ConnectionRegistry {
 
     pub async fn connect(&self, id: &str, password: Option<&str>) -> CellarResult<DriverInfo> {
         let config = self.config_for(id).await?;
-        {
+        let existing = {
             let inner = self.inner.read().await;
-            if let Some(open) = inner.open.get(id) {
-                return Ok(open.connection.info().clone());
+            inner
+                .open
+                .get(id)
+                .map(|open| (open.connection.info().clone(), Arc::clone(&open.connection)))
+        };
+        if let Some((info, connection)) = existing {
+            if connection.ping().await.is_ok() {
+                return Ok(info);
+            }
+            if let Some(open) = self.remove_open_if_same(id, &connection).await {
+                let _ = open.connection.close().await;
             }
         }
 
@@ -148,6 +157,13 @@ impl ConnectionRegistry {
             .open
             .insert(id.to_string(), OpenConnection { config, connection });
         Ok(info)
+    }
+
+    pub async fn reconnect(&self, id: &str, password: Option<&str>) -> CellarResult<DriverInfo> {
+        if let Some(open) = self.remove_open(id).await {
+            let _ = open.connection.close().await;
+        }
+        self.connect(id, password).await
     }
 
     pub async fn disconnect(&self, id: &str) -> CellarResult<()> {
@@ -179,7 +195,10 @@ impl ConnectionRegistry {
             drop(inner);
 
             let driver = driver_for(engine)?;
-            driver.introspect(connection.as_ref()).await?
+            match driver.introspect(connection.as_ref()).await {
+                Ok(dbs) => dbs,
+                Err(err) => return Err(self.handle_operation_error(id, err).await),
+            }
         };
         let mut w = self.inner.write().await;
         w.schema_cache.insert(id.to_string(), dbs.clone());
@@ -196,7 +215,10 @@ impl ConnectionRegistry {
             (open.config.engine, Arc::clone(&open.connection))
         };
         let driver = driver_for(engine)?;
-        driver.execute_query(connection.as_ref(), &query).await
+        match driver.execute_query(connection.as_ref(), &query).await {
+            Ok(result) => Ok(result),
+            Err(err) => Err(self.handle_operation_error(id, err).await),
+        }
     }
 
     pub async fn browse_table(&self, request: TableBrowseRequest) -> CellarResult<QueryResult> {
@@ -217,7 +239,14 @@ impl ConnectionRegistry {
 
         match engine {
             Engine::Postgres => {
-                cellar_driver_postgres::browse_table(connection.as_ref(), &request, &table).await
+                match cellar_driver_postgres::browse_table(connection.as_ref(), &request, &table)
+                    .await
+                {
+                    Ok(result) => Ok(result),
+                    Err(err) => Err(self
+                        .handle_operation_error(&request.connection_id, err)
+                        .await),
+                }
             }
             other => Err(CellarError::invalid_config(format!(
                 "engine {} does not support table browsing yet",
@@ -231,15 +260,22 @@ impl ConnectionRegistry {
         id: &str,
         request: TableChangeRequest,
     ) -> CellarResult<TableCommitResult> {
-        let inner = self.inner.read().await;
-        let open = inner
-            .open
-            .get(id)
-            .ok_or_else(|| CellarError::NotConnected(format!("no open connection for {id}")))?;
-        match open.config.engine {
+        let (engine, connection) = {
+            let inner = self.inner.read().await;
+            let open = inner
+                .open
+                .get(id)
+                .ok_or_else(|| CellarError::NotConnected(format!("no open connection for {id}")))?;
+            (open.config.engine, Arc::clone(&open.connection))
+        };
+        match engine {
             Engine::Postgres => {
-                cellar_driver_postgres::commit_table_changes(open.connection.as_ref(), &request)
+                match cellar_driver_postgres::commit_table_changes(connection.as_ref(), &request)
                     .await
+                {
+                    Ok(result) => Ok(result),
+                    Err(err) => Err(self.handle_operation_error(id, err).await),
+                }
             }
             other => Err(CellarError::invalid_config(format!(
                 "engine {} does not support grid commits yet",
@@ -266,21 +302,28 @@ impl ConnectionRegistry {
         query: Query,
         mode: PlanMode,
     ) -> CellarResult<QueryPlan> {
-        let inner = self.inner.read().await;
-        let open = inner
-            .open
-            .get(id)
-            .ok_or_else(|| CellarError::NotConnected(format!("no open connection for {id}")))?;
-        if open.config.engine != Engine::Postgres {
+        let (engine, connection) = {
+            let inner = self.inner.read().await;
+            let open = inner
+                .open
+                .get(id)
+                .ok_or_else(|| CellarError::NotConnected(format!("no open connection for {id}")))?;
+            (open.config.engine, Arc::clone(&open.connection))
+        };
+        if engine != Engine::Postgres {
             return Err(CellarError::invalid_config(format!(
                 "execution plans are not available for {} yet",
-                open.config.engine.as_str()
+                engine.as_str()
             )));
         }
-        let driver = driver_for(open.config.engine)?;
-        driver
-            .explain_query(open.connection.as_ref(), &query, mode)
+        let driver = driver_for(engine)?;
+        match driver
+            .explain_query(connection.as_ref(), &query, mode)
             .await
+        {
+            Ok(plan) => Ok(plan),
+            Err(err) => Err(self.handle_operation_error(id, err).await),
+        }
     }
 
     async fn config_for(&self, id: &str) -> CellarResult<ConnectionConfig> {
@@ -306,6 +349,53 @@ impl ConnectionRegistry {
         })?;
         Ok(open.config.database.clone())
     }
+
+    async fn remove_open(&self, id: &str) -> Option<OpenConnection> {
+        let mut inner = self.inner.write().await;
+        inner.schema_cache.remove(id);
+        inner.open.remove(id)
+    }
+
+    async fn remove_open_if_same(
+        &self,
+        id: &str,
+        connection: &Arc<dyn Connection>,
+    ) -> Option<OpenConnection> {
+        let mut inner = self.inner.write().await;
+        let same = inner
+            .open
+            .get(id)
+            .map(|open| Arc::ptr_eq(&open.connection, connection))
+            .unwrap_or(false);
+        if !same {
+            return None;
+        }
+        inner.schema_cache.remove(id);
+        inner.open.remove(id)
+    }
+
+    async fn handle_operation_error(&self, id: &str, err: CellarError) -> CellarError {
+        if !should_evict_connection(&err) {
+            return err;
+        }
+        if let Some(open) = self.remove_open(id).await {
+            let _ = open.connection.close().await;
+        }
+        reconnectable_error(err)
+    }
+}
+
+fn should_evict_connection(err: &CellarError) -> bool {
+    matches!(
+        err,
+        CellarError::Connection(_) | CellarError::Tls(_) | CellarError::NotConnected(_)
+    )
+}
+
+fn reconnectable_error(err: CellarError) -> CellarError {
+    CellarError::NotConnected(format!(
+        "The database connection was lost and the stale pool was closed. Reconnect and retry the action. Last error: {err}"
+    ))
 }
 
 fn find_table(dbs: &[Database], database: &str, schema: &str, table: &str) -> CellarResult<Table> {

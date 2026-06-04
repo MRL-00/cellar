@@ -83,6 +83,7 @@ export function Sidebar({
   const load = useConnections((s) => s.load);
   const toggleExpand = useConnections((s) => s.toggleExpand);
   const connect = useConnections((s) => s.connect);
+  const reconnect = useConnections((s) => s.reconnect);
   const disconnect = useConnections((s) => s.disconnect);
   const deleteConnection = useConnections((s) => s.deleteConnection);
   const refreshSchema = useConnections((s) => s.refreshSchema);
@@ -201,60 +202,74 @@ export function Sidebar({
     e.preventDefault();
     e.stopPropagation();
     const status = byId[config.id]?.status ?? "disconnected";
-    const connected = status === "connected" || status === "connecting";
-    setMenu({
-      x: e.clientX,
-      y: e.clientY,
-      items: [
-        {
-          label: "New SQL query",
-          icon: <Icon.terminal size={12} />,
-          onClick: () => {
-            const dbs = byId[config.id]?.databases ?? [];
-            const database =
-              dbs.find((d) => d.is_default)?.name ??
-              dbs[0]?.name ??
-              config.database;
-            newQueryTab(config.id, database);
-          },
+    const connected = status === "connected";
+    const connecting = status === "connecting";
+    const items: MenuItem[] = [
+      {
+        label: "New SQL query",
+        icon: <Icon.terminal size={12} />,
+        onClick: () => {
+          const dbs = byId[config.id]?.databases ?? [];
+          const database =
+            dbs.find((d) => d.is_default)?.name ??
+            dbs[0]?.name ??
+            config.database;
+          newQueryTab(config.id, database);
         },
-        {
-          label: "Edit…",
-          icon: <Icon.edit size={12} />,
-          onClick: () => onEditConnection?.(config),
-        },
-        {
-          label: "Duplicate",
-          icon: <Icon.copy size={12} />,
-          onClick: () => onDuplicateConnection?.(config),
-        },
-        connected
+      },
+      {
+        label: "Edit…",
+        icon: <Icon.edit size={12} />,
+        onClick: () => onEditConnection?.(config),
+      },
+      {
+        label: "Duplicate",
+        icon: <Icon.copy size={12} />,
+        onClick: () => onDuplicateConnection?.(config),
+      },
+    ];
+    if (status === "connected" || status === "error") {
+      items.push({
+        label: status === "error" ? "Retry connection" : "Reconnect",
+        icon: <Icon.history size={12} />,
+        onClick: () => void reconnect(config.id),
+      });
+    }
+    items.push(
+      connecting
+        ? {
+            label: "Connecting...",
+            icon: <Icon.history size={12} />,
+            disabled: true,
+            onClick: () => {},
+          }
+        : connected
           ? {
               label: "Disconnect",
               icon: <Icon.power size={12} />,
-              onClick: () => void disconnect(config.id),
-            }
-          : {
-              label: "Connect",
-              icon: <Icon.power size={12} />,
-              onClick: () => void connect(config.id),
-            },
-        {
-          label: "Remove",
-          icon: <Icon.trash size={12} />,
-          danger: true,
-          onClick: () => {
-            if (
-              window.confirm(
-                `Remove connection "${config.name}"? This deletes its saved password from the keychain.`,
-              )
-            ) {
-              void deleteConnection(config.id);
-            }
+            onClick: () => void disconnect(config.id),
+          }
+        : {
+            label: "Connect",
+            icon: <Icon.power size={12} />,
+            onClick: () => void connect(config.id),
           },
+      {
+        label: "Remove",
+        icon: <Icon.trash size={12} />,
+        danger: true,
+        onClick: () => {
+          if (
+            window.confirm(
+              `Remove connection "${config.name}"? This deletes its saved password from the keychain.`,
+            )
+          ) {
+            void deleteConnection(config.id);
+          }
         },
-      ],
-    });
+      },
+    );
+    setMenu({ x: e.clientX, y: e.clientY, items });
   };
 
   return (
@@ -317,6 +332,7 @@ export function Sidebar({
               databases={state?.databases ?? []}
               error={state?.error ?? null}
               onToggle={() => toggleExpand(c.id)}
+              onReconnect={() => void reconnect(c.id)}
               onDisconnect={() => void disconnect(c.id)}
               onContextMenu={(e) => openConnectionMenu(e, c)}
               onNodeContextMenu={openNodeMenu}
@@ -343,6 +359,7 @@ interface ConnectionRowProps {
   databases: { name: string; is_default: boolean; schemas: Schema[] }[];
   error: string | null;
   onToggle: () => void;
+  onReconnect: () => void;
   onDisconnect: () => void;
   onContextMenu: (e: React.MouseEvent) => void;
   onNodeContextMenu: NodeMenuHandler;
@@ -358,6 +375,7 @@ function ConnectionRow({
   databases,
   error,
   onToggle,
+  onReconnect,
   onDisconnect,
   onContextMenu,
   onNodeContextMenu,
@@ -431,8 +449,22 @@ function ConnectionRow({
       </div>
 
       {expanded && error && (
-        <div className="px-3 py-1 text-[10.5px] text-warn" style={{ paddingLeft: 32 }}>
-          {error}
+        <div
+          className="flex items-start gap-2 px-3 py-1 text-[10.5px] text-warn"
+          style={{ paddingLeft: 32 }}
+        >
+          <span className="min-w-0 flex-1">{error}</span>
+          <button
+            className="inline-flex h-[20px] shrink-0 items-center gap-1 rounded-[4px] border border-warn/40 px-1.5 text-[10px] text-warn hover:bg-bg-2"
+            title="Reconnect"
+            onClick={(e) => {
+              e.stopPropagation();
+              onReconnect();
+            }}
+          >
+            <Icon.history size={10} />
+            Retry
+          </button>
         </div>
       )}
 

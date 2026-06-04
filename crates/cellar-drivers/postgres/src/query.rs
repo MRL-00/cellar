@@ -38,11 +38,7 @@ pub async fn execute_query(conn: &PgConnection, query: &Query) -> CellarResult<Q
     let mut materialized: Vec<Row> = Vec::with_capacity(capacity);
     let mut truncated = false;
 
-    while let Some(r) = stream
-        .try_next()
-        .await
-        .map_err(|e| CellarError::query(e.to_string()))?
-    {
+    while let Some(r) = stream.try_next().await.map_err(query_sqlx_err)? {
         if columns.is_none() {
             columns = Some(
                 r.columns()
@@ -99,33 +95,26 @@ pub async fn commit_table_changes(
     let plan = build_postgres_plan(request).map_err(|e| CellarError::query(e.to_string()))?;
 
     let started = Instant::now();
-    let mut tx = pool
-        .begin()
-        .await
-        .map_err(|e| CellarError::query(e.to_string()))?;
+    let mut tx = pool.begin().await.map_err(query_sqlx_err)?;
     let mut rows_affected = 0u64;
 
     for statement in &plan.statements {
         let result = sqlx::query(statement)
             .execute(&mut *tx)
             .await
-            .map_err(|e| CellarError::query(e.to_string()))?;
+            .map_err(query_sqlx_err)?;
         rows_affected += result.rows_affected();
     }
 
     if rows_affected != plan.preview.expected_rows {
-        tx.rollback()
-            .await
-            .map_err(|e| CellarError::query(e.to_string()))?;
+        tx.rollback().await.map_err(query_sqlx_err)?;
         return Err(CellarError::query(format!(
             "expected {} affected rows but database reported {}; the table may have changed since it was loaded",
             plan.preview.expected_rows, rows_affected
         )));
     }
 
-    tx.commit()
-        .await
-        .map_err(|e| CellarError::query(e.to_string()))?;
+    tx.commit().await.map_err(query_sqlx_err)?;
 
     Ok(TableCommitResult {
         sql: plan.preview.sql,
@@ -154,7 +143,7 @@ pub async fn explain_query(
     let raw_json: Value = sqlx::query_scalar(&explain_sql)
         .fetch_one(&pool)
         .await
-        .map_err(|e| CellarError::query(e.to_string()))?;
+        .map_err(query_sqlx_err)?;
     let duration_ms = started.elapsed().as_millis() as u64;
 
     let root_doc = raw_json
@@ -296,6 +285,10 @@ fn normalize_single_statement(sql: &str) -> CellarResult<String> {
     } else {
         Ok(trimmed.to_string())
     }
+}
+
+fn query_sqlx_err(err: sqlx::Error) -> CellarError {
+    crate::connect::map_sqlx_err_for_runtime(err, "query execution", CellarError::query)
 }
 
 fn has_sql_tokens(sql: &str) -> bool {

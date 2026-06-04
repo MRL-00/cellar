@@ -92,3 +92,15 @@ export type GridStatusCounts = {
   updates: number;
   deletes: number;
 };
+
+export type GridPagination = {
+  offset: number;
+  limit: number;
+  pageSizeOptions?: readonly number[];
+  hasPrevious: boolean;
+  hasNext: boolean;
+  loading?: boolean;
+  onPrevious: () => void;
+  onNext: () => void;
+  onPageSizeChange?: (next: number) => void;
+};

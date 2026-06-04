@@ -23,12 +23,21 @@ export interface QueryTab {
 }
 
 export type WorkspaceTab = TableTab | QueryTab;
+export type SplitOrientation = "horizontal" | "vertical";
+
+export interface WorkspaceSplit {
+  orientation: SplitOrientation;
+  primaryId: string;
+  secondaryId: string;
+}
 
 let queryTabSeq = 0;
 
 interface TabsStore {
   tabs: WorkspaceTab[];
   activeId: string | null;
+  closedTabs: WorkspaceTab[];
+  split: WorkspaceSplit | null;
   tableChanges: Record<string, PendingChanges>;
   refreshKeys: Record<string, number>;
   openTable: (
@@ -41,6 +50,9 @@ interface TabsStore {
   setQuerySql: (id: string, sql: string) => void;
   markQueryRun: (id: string) => void;
   closeTab: (id: string) => void;
+  reopenClosedTab: () => void;
+  splitActiveTab: (orientation: SplitOrientation) => void;
+  clearSplit: () => void;
   setActive: (id: string) => void;
   setTableChanges: (id: string, changes: PendingChanges) => void;
   clearTableChanges: (id: string) => void;
@@ -59,6 +71,8 @@ function tableKey(
 export const useTabs = create<TabsStore>((set, get) => ({
   tabs: [],
   activeId: null,
+  closedTabs: [],
+  split: null,
   tableChanges: {},
   refreshKeys: {},
 
@@ -119,18 +133,86 @@ export const useTabs = create<TabsStore>((set, get) => ({
 
   closeTab(id) {
     set((s) => {
+      const closed = s.tabs.find((t) => t.id === id);
       const tabs = s.tabs.filter((t) => t.id !== id);
       const activeId =
         s.activeId === id ? tabs[tabs.length - 1]?.id ?? null : s.activeId;
       const { [id]: _changes, ...tableChanges } = s.tableChanges;
       const { [id]: _refresh, ...refreshKeys } = s.refreshKeys;
-      return { tabs, activeId, tableChanges, refreshKeys };
+      const currentSplit = s.split;
+      const split =
+        currentSplit &&
+        tabs.some((t) => t.id === currentSplit.primaryId) &&
+        tabs.some((t) => t.id === currentSplit.secondaryId)
+          ? currentSplit
+          : null;
+      return {
+        tabs,
+        activeId,
+        closedTabs: closed ? [closed, ...s.closedTabs].slice(0, 12) : s.closedTabs,
+        split,
+        tableChanges,
+        refreshKeys,
+      };
     });
     useTabResults.getState().clearTab(id);
   },
 
+  reopenClosedTab() {
+    set((s) => {
+      const [closed, ...closedTabs] = s.closedTabs;
+      if (!closed) return {};
+
+      const existing = s.tabs.find((t) => t.id === closed.id);
+      if (existing) {
+        return { activeId: existing.id, closedTabs };
+      }
+
+      return {
+        tabs: [...s.tabs, closed],
+        activeId: closed.id,
+        closedTabs,
+      };
+    });
+  },
+
+  splitActiveTab(orientation) {
+    set((s) => {
+      if (!s.activeId || s.tabs.length < 2) return {};
+
+      if (s.split?.orientation === orientation) {
+        return { split: null };
+      }
+
+      const activeIndex = s.tabs.findIndex((t) => t.id === s.activeId);
+      if (activeIndex === -1) return {};
+
+      const secondary =
+        s.tabs[activeIndex + 1] ?? s.tabs[activeIndex - 1] ?? null;
+      if (!secondary) return {};
+
+      return {
+        split: {
+          orientation,
+          primaryId: s.activeId,
+          secondaryId: secondary.id,
+        },
+      };
+    });
+  },
+
+  clearSplit() {
+    set({ split: null });
+  },
+
   setActive(id) {
-    set({ activeId: id });
+    set((s) => ({
+      activeId: id,
+      split:
+        s.split && id !== s.split.primaryId && id !== s.split.secondaryId
+          ? { ...s.split, primaryId: id }
+          : s.split,
+    }));
   },
 
   setTableChanges(id, changes) {

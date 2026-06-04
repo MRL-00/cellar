@@ -58,12 +58,18 @@ pub async fn connect(
     registry: State<'_, ConnectionRegistry>,
     id: String,
 ) -> Result<DriverInfo, CellarError> {
-    if let Some(info) = registry.open_info(&id).await {
-        return Ok(info);
-    }
-
     let password = cellar_secrets::load(&id).ok().flatten();
     registry.connect(&id, password.as_deref()).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn reconnect(
+    registry: State<'_, ConnectionRegistry>,
+    id: String,
+) -> Result<DriverInfo, CellarError> {
+    let password = cellar_secrets::load(&id).ok().flatten();
+    registry.reconnect(&id, password.as_deref()).await
 }
 
 #[tauri::command]

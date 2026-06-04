@@ -11,6 +11,7 @@ import type {
   CellChange,
   ColumnFilters,
   GridColumn,
+  GridPagination,
   GridRow,
   PendingChange,
   PendingChanges,
@@ -47,6 +48,7 @@ export type DataGridProps = {
 
   /** Total row count on the server (the grid usually only holds a page). */
   totalRows?: number;
+  pagination?: GridPagination;
 
   onCommit?: () => void;
   onRevert?: () => void;
@@ -77,6 +79,7 @@ export function DataGrid({
   onSortChange,
   frozenCount = 2,
   totalRows,
+  pagination,
   onCommit,
   onRevert,
   readOnly = false,
@@ -270,7 +273,9 @@ export function DataGrid({
                 }
               >
                 <div className="grid-cell grid-cell-rowno">
-                  <span className="grid-rowno-num tnum">{ri + 1}</span>
+                  <span className="grid-rowno-num tnum">
+                    {(pagination?.offset ?? 0) + ri + 1}
+                  </span>
                   {kind === "update" && (
                     <span
                       className="grid-gutter-mark"
@@ -367,11 +372,91 @@ export function DataGrid({
         </div>
       </div>
 
+      {pagination && (
+        <PaginationBar pagination={pagination} rowCount={rows.length} />
+      )}
+
       {!readOnly && (
         <PendingBar changes={changes} onCommit={onCommit} onRevert={onRevert} />
       )}
     </div>
   );
+}
+
+function PaginationBar({
+  pagination,
+  rowCount,
+}: {
+  pagination: GridPagination;
+  rowCount: number;
+}) {
+  const options = pagination.pageSizeOptions ?? [100, 250, 500];
+  const firstRow = rowCount === 0 ? pagination.offset : pagination.offset + 1;
+  const lastRow = pagination.offset + rowCount;
+  const range =
+    rowCount === 0
+      ? `No rows at offset ${pagination.offset}`
+      : `Rows ${formatNumber(firstRow)}-${formatNumber(lastRow)}`;
+  const nextRangeStart = pagination.offset + pagination.limit + 1;
+  const nextRangeEnd = pagination.offset + pagination.limit * 2;
+
+  return (
+    <div className="grid-pagination">
+      <div className="grid-pagination-range">
+        <span className="tnum">{range}</span>
+        {pagination.hasNext && (
+          <span className="grid-pagination-more">more available</span>
+        )}
+      </div>
+      <div className="grid-pagination-controls">
+        {pagination.onPageSizeChange && (
+          <label className="grid-pagination-size">
+            <span>Page size</span>
+            <select
+              value={pagination.limit}
+              onChange={(e) => pagination.onPageSizeChange?.(Number(e.target.value))}
+              disabled={pagination.loading}
+              aria-label="Page size"
+            >
+              {options.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        <button
+          className="grid-pagination-btn"
+          type="button"
+          onClick={pagination.onPrevious}
+          disabled={!pagination.hasPrevious || pagination.loading}
+          title="Previous page"
+          aria-label="Previous page"
+        >
+          <GridIcon.chevronLeft size={12} />
+        </button>
+        <button
+          className="grid-pagination-btn"
+          type="button"
+          onClick={pagination.onNext}
+          disabled={!pagination.hasNext || pagination.loading}
+          title={
+            pagination.hasNext
+              ? `Next page: rows ${formatNumber(nextRangeStart)}-${formatNumber(nextRangeEnd)}`
+              : "Next page"
+          }
+          aria-label="Next page"
+        >
+          <GridIcon.chevronRight size={12} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function formatNumber(value: number): string {
+  return new Intl.NumberFormat("en-US").format(value);
 }
 
 export type UseGridStateOptions = {

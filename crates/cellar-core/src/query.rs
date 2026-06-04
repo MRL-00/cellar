@@ -171,6 +171,10 @@ pub struct TableBrowseRequest {
     pub schema: String,
     pub table: String,
     pub limit: Option<u32>,
+    /// Zero-based row offset for page-style table browsing. Drivers should
+    /// combine this with deterministic ordering when available so table tabs
+    /// stay stable as users move between pages.
+    pub offset: Option<u32>,
     pub sorts: Vec<TableSortClause>,
     pub filters: Vec<TableFilterClause>,
     /// When no explicit sort is requested, order by the table primary key if

@@ -45,6 +45,8 @@ export const mockCommands = {
 
   connect: async (_id: string): Promise<Result<DriverInfo, CellarError>> => ok(mockDriverInfo),
 
+  reconnect: async (_id: string): Promise<Result<DriverInfo, CellarError>> => ok(mockDriverInfo),
+
   disconnect: async (_id: string): Promise<Result<null, CellarError>> => ok(null),
 
   introspect: async (

@@ -10,6 +10,7 @@ export type {
   GridColumn,
   GridRow,
   GridValue,
+  GridPagination,
   GridStatusCounts,
   PendingChange,
   PendingChanges,

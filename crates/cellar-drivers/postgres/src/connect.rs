@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use cellar_core::driver::{Connection, ConnectionConfig, DriverInfo, Engine, SslMode};
 use cellar_core::error::{CellarError, CellarResult};
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions, PgSslMode};
-use sqlx::{PgPool, Row};
+use sqlx::{Error as SqlxError, PgPool, Row};
 use tokio::sync::Mutex;
 
 const DEFAULT_POOL_SIZE: u32 = 4;
@@ -61,6 +61,16 @@ impl Connection for PgConnection {
         &self.info
     }
 
+    async fn ping(&self) -> CellarResult<()> {
+        sqlx::query("SELECT 1")
+            .execute(&self.pool)
+            .await
+            .map(|_| ())
+            .map_err(|e| {
+                map_sqlx_err_for_runtime(e, "connection health check", CellarError::connection)
+            })
+    }
+
     async fn close(&self) -> CellarResult<()> {
         self.pool.close().await;
         let guard = self.siblings.lock().await;
@@ -84,7 +94,9 @@ pub async fn open_pool(
     let version = sqlx::query("SELECT version() AS v")
         .fetch_one(&pool)
         .await
-        .map_err(|e| CellarError::Connection(e.to_string()))?;
+        .map_err(|e| {
+            map_sqlx_err_for_runtime(e, "initial server version check", CellarError::connection)
+        })?;
     let version: String = version
         .try_get::<String, _>("v")
         .map_err(|e| CellarError::Decode(e.to_string()))?;
@@ -139,10 +151,10 @@ fn map_ssl_mode(mode: SslMode) -> PgSslMode {
     }
 }
 
-fn map_sqlx_err_for_connect(err: sqlx::Error) -> CellarError {
+fn map_sqlx_err_for_connect(err: SqlxError) -> CellarError {
     let msg = err.to_string();
     match err {
-        sqlx::Error::Database(ref db) => {
+        SqlxError::Database(ref db) => {
             // 28P01 invalid_password, 28000 invalid_authorization_specification
             if matches!(db.code().as_deref(), Some("28P01") | Some("28000")) {
                 CellarError::Authentication(msg)
@@ -150,10 +162,42 @@ fn map_sqlx_err_for_connect(err: sqlx::Error) -> CellarError {
                 CellarError::Connection(msg)
             }
         }
-        sqlx::Error::Tls(_) => CellarError::Tls(msg),
-        sqlx::Error::PoolTimedOut | sqlx::Error::PoolClosed => CellarError::Timeout(msg),
-        sqlx::Error::Io(_) => CellarError::Connection(msg),
+        SqlxError::Tls(_) => CellarError::Tls(format!("TLS handshake failed: {msg}")),
+        SqlxError::PoolTimedOut => CellarError::Timeout(
+            "timed out while opening the Postgres connection pool; check host reachability and retry"
+                .into(),
+        ),
+        SqlxError::PoolClosed => CellarError::NotConnected(
+            "Postgres connection pool closed before the connection finished opening".into(),
+        ),
+        SqlxError::Io(_) => {
+            CellarError::Connection(format!("could not reach Postgres: {msg}"))
+        }
         _ => CellarError::Connection(msg),
+    }
+}
+
+pub(crate) fn map_sqlx_err_for_runtime(
+    err: SqlxError,
+    operation: &str,
+    database_error: fn(String) -> CellarError,
+) -> CellarError {
+    let msg = err.to_string();
+    match err {
+        SqlxError::PoolClosed => CellarError::NotConnected(format!(
+            "{operation} failed because the connection pool is closed. Reconnect and retry."
+        )),
+        SqlxError::PoolTimedOut => CellarError::Timeout(format!(
+            "{operation} timed out waiting for an available database connection. Retry, or reconnect if it keeps happening."
+        )),
+        SqlxError::Io(_) => CellarError::connection(format!(
+            "{operation} lost the database connection: {msg}. Reconnect and retry."
+        )),
+        SqlxError::Tls(_) => CellarError::Tls(format!(
+            "{operation} failed because the TLS session is no longer usable: {msg}. Reconnect and retry."
+        )),
+        SqlxError::Database(_) => database_error(msg),
+        other => database_error(other.to_string()),
     }
 }
 

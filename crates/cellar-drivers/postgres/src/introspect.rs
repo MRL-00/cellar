@@ -371,5 +371,5 @@ async fn list_view_definitions(pool: &PgPool) -> CellarResult<BTreeMap<(String, 
 }
 
 fn intro_err(e: sqlx::Error) -> CellarError {
-    CellarError::introspection(e.to_string())
+    crate::connect::map_sqlx_err_for_runtime(e, "schema introspection", CellarError::introspection)
 }

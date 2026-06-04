@@ -90,6 +90,7 @@ pub struct DriverInfo {
 #[async_trait]
 pub trait Connection: Send + Sync + Any {
     fn info(&self) -> &DriverInfo;
+    async fn ping(&self) -> CellarResult<()>;
     async fn close(&self) -> CellarResult<()>;
 
     /// Escape hatch so drivers can downcast their own concrete handle from a

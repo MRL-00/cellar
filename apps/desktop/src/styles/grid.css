@@ -485,6 +485,70 @@
   color: var(--accent);
 }
 
+/* ── pagination footer ───────────────────────────────────── */
+.grid-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 30px;
+  padding: 0 10px;
+  background: var(--bg-1);
+  border-top: 1px solid var(--border-default);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--fg-2);
+  flex-shrink: 0;
+}
+.grid-pagination-range,
+.grid-pagination-controls,
+.grid-pagination-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.grid-pagination-more {
+  color: var(--fg-3);
+}
+.grid-pagination-size span {
+  color: var(--fg-3);
+}
+.grid-pagination-size select {
+  height: 22px;
+  min-width: 66px;
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  background: var(--bg-inset);
+  color: var(--fg-0);
+  font-size: 11px;
+  outline: none;
+}
+.grid-pagination-size select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-line);
+}
+.grid-pagination-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 22px;
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--fg-1);
+}
+.grid-pagination-btn:hover:not(:disabled) {
+  background: var(--bg-3);
+  color: var(--fg-0);
+  border-color: var(--border-strong);
+}
+.grid-pagination-btn:disabled,
+.grid-pagination-size select:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 /* ── pending bar ──────────────────────────────────────────── */
 .grid-pending {
   display: flex;

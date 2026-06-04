@@ -1,10 +1,4 @@
-/* SQL editor — ported from the Cellar design (app/styles-2.css `.ed-*`).
-   The prototype was a static syntax highlighter; here the same line/gutter
-   layout doubles as the highlight layer for a real, editable buffer. A
-   transparent <textarea> is overlaid on top so the browser owns caret,
-   selection, and input while the layer underneath paints the colors,
-   in-statement band, and error squiggle. Both layers share identical font
-   metrics and padding so the caret tracks the rendered tokens exactly. */
+/* SQL editor shell around the shared CodeMirror package wrapper. */
 
 .ed-root {
   display: flex;
@@ -124,144 +118,25 @@
 
 .ed-scroll {
   flex: 1;
-  overflow: auto;
   position: relative;
-}
-.ed-doc {
-  position: relative;
-  width: max-content;
-  min-width: 100%;
-  min-height: 100%;
-}
-
-.ed-grid {
-  display: flex;
-  flex-direction: column;
-  padding: 6px 0 60px;
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-  line-height: 1.55;
-  pointer-events: none;
-  position: relative;
-  z-index: 1;
-}
-.ed-row {
-  display: flex;
-  align-items: stretch;
-}
-.ed-gutter {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 3px;
-  width: 48px;
-  flex: none;
-  padding: 0 8px 0 4px;
-  color: var(--fg-3);
-  font-size: 10.5px;
-  user-select: none;
-  position: relative;
-}
-.ed-gutter.in-stmt {
-  background: linear-gradient(90deg, transparent, var(--accent-soft) 40%);
-  color: var(--accent);
-}
-.ed-lineno {
-  font-variant-numeric: tabular-nums;
-}
-.ed-bp {
-  width: 8px;
-  height: 8px;
-  background: var(--delete);
-  border-radius: 50%;
-}
-.ed-line {
-  flex: 1 1 auto;
-  min-height: 1.55em;
-  padding-left: 8px;
-  padding-right: 16px;
-  white-space: pre;
-  position: relative;
-  color: var(--fg-0);
-}
-.ed-line.in-stmt {
-  background: linear-gradient(
-    90deg,
-    var(--accent-soft),
-    color-mix(in oklab, var(--accent-soft) 50%, transparent)
-  );
-}
-.ed-line.has-error::after {
-  content: "";
-  position: absolute;
-  left: 8px;
-  right: 16px;
-  bottom: 0;
-  height: 3px;
-  background: repeating-linear-gradient(
-    135deg,
-    var(--syn-error) 0 2px,
-    transparent 2px 4px
-  );
-  opacity: 0.7;
-}
-
-/* The transparent input overlay — text is invisible, only the caret shows. */
-.ed-input {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 48px;
-  right: 0;
-  z-index: 2;
-  margin: 0;
-  padding: 6px 16px 60px 8px;
-  border: none;
-  outline: none;
-  resize: none;
-  background: transparent;
-  color: transparent;
-  -webkit-text-fill-color: transparent;
-  caret-color: var(--fg-0);
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-  line-height: 1.55;
-  white-space: pre;
   overflow: hidden;
-  tab-size: 2;
+  min-height: 0;
 }
-.ed-input::selection {
-  background: var(--accent-line);
-}
-.ed-input::placeholder {
-  color: var(--fg-4);
-  -webkit-text-fill-color: var(--fg-4);
-}
-
-/* Wrap-lines toggle — both layers wrap at the same width so they stay aligned. */
-.ed-root.wrap .ed-doc {
-  width: auto;
-}
-.ed-root.wrap .ed-line {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.ed-root.wrap .ed-input {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+.ed-cm {
+  height: 100%;
+  min-height: 0;
 }
 
 /* AI inline strip — a non-interactive affordance for the future AI slice. */
 .ed-ai-strip {
-  position: sticky;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  right: 12px;
   z-index: 3;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin: 12px 12px 0;
   padding: 6px 10px;
   background: color-mix(in oklab, var(--bg-1) 90%, transparent);
   backdrop-filter: blur(8px);

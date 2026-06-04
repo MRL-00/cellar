@@ -29,6 +29,8 @@ pub enum TableBrowseError {
     EmptyLimit,
     #[error("table browse limit cannot exceed {MAX_TABLE_BROWSE_ROWS} rows")]
     LimitTooLarge,
+    #[error("table browse offset is too large")]
+    OffsetTooLarge,
     #[error("unknown column {0}")]
     UnknownColumn(String),
     #[error("operator {operator:?} requires a value for column {column}")]
@@ -158,6 +160,10 @@ fn build_table_browse_query<'args>(
     let fetch_limit = normalized_limit(request)? + 1;
     builder.push(" LIMIT ");
     builder.push_bind(fetch_limit as i64);
+    if let Some(offset) = normalized_offset(request)? {
+        builder.push(" OFFSET ");
+        builder.push_bind(offset as i64);
+    }
 
     Ok(builder)
 }
@@ -176,6 +182,7 @@ fn validate_table_request(
         return Err(TableBrowseError::TableMetadataMismatch);
     }
     normalized_limit(request)?;
+    normalized_offset(request)?;
     for sort in &request.sorts {
         column_for(table, &sort.column)?;
     }
@@ -194,6 +201,14 @@ fn normalized_limit(request: &TableBrowseRequest) -> Result<u32, TableBrowseErro
         return Err(TableBrowseError::LimitTooLarge);
     }
     Ok(limit)
+}
+
+fn normalized_offset(request: &TableBrowseRequest) -> Result<Option<u32>, TableBrowseError> {
+    match request.offset {
+        Some(offset) if offset > i32::MAX as u32 => Err(TableBrowseError::OffsetTooLarge),
+        Some(0) | None => Ok(None),
+        Some(offset) => Ok(Some(offset)),
+    }
 }
 
 fn push_filter<'args>(
@@ -396,6 +411,7 @@ mod tests {
             schema: "public".into(),
             table: "users".into(),
             limit: Some(500),
+            offset: None,
             sorts: Vec::new(),
             filters: Vec::new(),
             primary_key_fallback_ordering: true,
@@ -541,6 +557,19 @@ mod tests {
         req.limit = Some(MAX_TABLE_BROWSE_ROWS + 1);
 
         assert_eq!(sql_for(&req).unwrap_err(), TableBrowseError::LimitTooLarge);
+    }
+
+    #[test]
+    fn appends_offset_for_later_pages() {
+        let mut req = request();
+        req.offset = Some(500);
+
+        let sql = sql_for(&req).expect("sql");
+
+        assert_eq!(
+            sql,
+            r#"SELECT * FROM "public"."users" ORDER BY "id" LIMIT $1 OFFSET $2"#
+        );
     }
 }
 
