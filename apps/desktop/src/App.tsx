@@ -11,7 +11,10 @@ import { ConnectionDialog } from "./components/modals/ConnectionDialog";
 import { CommitModal } from "./components/modals/CommitModal";
 import { CommandPalette } from "./components/modals/CommandPalette";
 import { EmptyState } from "./components/modals/EmptyState";
-import { SettingsModal } from "./components/modals/Settings";
+import {
+  SettingsModal,
+  type SettingsCatId,
+} from "./components/modals/Settings";
 
 type Panels = { left: boolean; right: boolean; bottom: boolean };
 type ModalId = "commit" | "palette" | "settings" | null;
@@ -96,6 +99,8 @@ export function App() {
   const [modal, setModal] = useState<ModalId>(null);
   const [connDialog, setConnDialog] = useState<ConnDialog>(null);
   const [empty, setEmpty] = useState(false);
+  const [settingsInitialCat, setSettingsInitialCat] =
+    useState<SettingsCatId>("appearance");
 
   const togglePanel = useCallback(
     (k: keyof Panels) => setPanels((p) => ({ ...p, [k]: !p[k] })),
@@ -104,6 +109,10 @@ export function App() {
 
   const openModal = useCallback((m: ModalId) => setModal(m), []);
   const closeModal = useCallback(() => setModal(null), []);
+  const openSettings = useCallback((initialCat: SettingsCatId = "appearance") => {
+    setSettingsInitialCat(initialCat);
+    setModal("settings");
+  }, []);
   const openNewConnection = useCallback(() => setConnDialog({ mode: "new" }), []);
   const editConnection = useCallback(
     (initial: ConnectionConfig) => setConnDialog({ mode: "edit", initial }),
@@ -153,7 +162,7 @@ export function App() {
         empty={empty}
         onToggleEmpty={() => setEmpty((v) => !v)}
         onOpenPalette={() => openModal("palette")}
-        onOpenSettings={() => openModal("settings")}
+        onOpenSettings={() => openSettings()}
       />
 
       <div className="flex flex-1 min-h-0">
@@ -232,7 +241,10 @@ export function App() {
               className="flex min-w-0 flex-col bg-bg-1"
               style={{ width: rightWidth }}
             >
-              <AIPanel onClose={() => togglePanel("right")} />
+              <AIPanel
+                onClose={() => togglePanel("right")}
+                onOpenSettings={() => openSettings("ai")}
+              />
             </div>
           </>
         )}
@@ -254,11 +266,16 @@ export function App() {
           onClose={closeModal}
           onNewConnection={openNewConnection}
           onOpenCommit={() => openModal("commit")}
-          onOpenSettings={() => openModal("settings")}
+          onOpenSettings={() => openSettings()}
           onTogglePanel={togglePanel}
         />
       )}
-      {modal === "settings" && <SettingsModal onClose={closeModal} />}
+      {modal === "settings" && (
+        <SettingsModal
+          onClose={closeModal}
+          initialCat={settingsInitialCat}
+        />
+      )}
     </div>
   );
 }

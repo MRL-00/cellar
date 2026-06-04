@@ -410,7 +410,6 @@
   transition: opacity 0.1s;
 }
 .grid-cell:hover .cell-fk-jump { opacity: 1; }
-.cell-fk-jump:hover { background: var(--accent-soft); }
 
 .cell-edit-input {
   width: 100%;

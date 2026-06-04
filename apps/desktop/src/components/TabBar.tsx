@@ -173,6 +173,7 @@ export function TabBar() {
                 />
               )}
               <button
+                type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   closeTab(t.id);
@@ -189,6 +190,7 @@ export function TabBar() {
           );
         })}
         <button
+          type="button"
           onClick={onNewQuery}
           disabled={!hasConnections}
           title={
@@ -203,6 +205,7 @@ export function TabBar() {
       </div>
       <div className="flex items-center gap-px border-l border-border-default px-1.5">
         <button
+          type="button"
           className={"icon-btn" + (split?.orientation === "horizontal" ? " active" : "")}
           onClick={() => splitActiveTab("horizontal")}
           disabled={!canSplit}
@@ -218,6 +221,7 @@ export function TabBar() {
           <Icon.splitH size={12} />
         </button>
         <button
+          type="button"
           className={"icon-btn" + (split?.orientation === "vertical" ? " active" : "")}
           onClick={() => splitActiveTab("vertical")}
           disabled={!canSplit}
@@ -233,6 +237,7 @@ export function TabBar() {
           <Icon.splitV size={12} />
         </button>
         <button
+          type="button"
           className="icon-btn"
           onClick={reopenClosedTab}
           disabled={closedCount === 0}

@@ -37,7 +37,18 @@ function ContextChip({ kind, value }: { kind: ChipKind; value: string }) {
   );
 }
 
-export function AIPanel({ onClose }: { onClose: () => void }) {
+const DISABLED_ICON =
+  "icon-btn cursor-not-allowed opacity-45 hover:bg-transparent hover:text-fg-2";
+const DISABLED_PILL =
+  "inline-flex h-[22px] cursor-not-allowed items-center gap-1 rounded-[4px] px-2 text-[11px] text-fg-3 opacity-60";
+
+export function AIPanel({
+  onClose,
+  onOpenSettings,
+}: {
+  onClose: () => void;
+  onOpenSettings?: () => void;
+}) {
   const [draft, setDraft] = useState("");
   return (
     <div className="flex h-full flex-col bg-bg-1 text-[12.5px]">
@@ -54,13 +65,25 @@ export function AIPanel({ onClose }: { onClose: () => void }) {
           </span>
         </div>
         <div className="flex gap-px">
-          <button className="icon-btn" title="History">
+          <button
+            className={DISABLED_ICON}
+            disabled
+            title="AI history is not wired yet"
+          >
             <Icon.history size={12} />
           </button>
-          <button className="icon-btn" title="New thread">
+          <button
+            className={DISABLED_ICON}
+            disabled
+            title="AI threads are not wired yet"
+          >
             <Icon.plus size={12} />
           </button>
-          <button className="icon-btn" title="Settings">
+          <button
+            className="icon-btn"
+            onClick={onOpenSettings}
+            title="AI settings"
+          >
             <Icon.settings size={12} />
           </button>
           <button className="icon-btn" onClick={onClose} title="Close">
@@ -77,7 +100,11 @@ export function AIPanel({ onClose }: { onClose: () => void }) {
         <div className="flex flex-1 flex-wrap gap-1">
           <ContextChip kind="schema" value="public" />
           <ContextChip kind="table" value="orders" />
-          <button className="inline-flex h-5 items-center gap-[3px] rounded-[4px] border border-dashed border-border-default px-1.5 text-[10px] text-fg-3 hover:border-border-strong hover:text-fg-0">
+          <button
+            className="inline-flex h-5 cursor-not-allowed items-center gap-[3px] rounded-[4px] border border-dashed border-border-default px-1.5 text-[10px] text-fg-3 opacity-60"
+            disabled
+            title="Context editing is not wired yet"
+          >
             <Icon.plus size={9} />
             <span>add</span>
           </button>
@@ -94,31 +121,47 @@ export function AIPanel({ onClose }: { onClose: () => void }) {
           </div>
           <div className="max-w-[280px] text-[10.5px] leading-[1.5] text-fg-3">
             Generate SQL with full schema context, explain a result, or have it
-            review a slow query. Bring your own API key — Cellar never proxies.
+            review a slow query. Bring your own API key; Cellar never proxies.
           </div>
         </div>
       </div>
 
       <div className="shrink-0 border-t border-border-default bg-bg-1">
         <div className="flex items-center gap-0.5 border-b border-border-divider px-1.5 py-[5px]">
-          <button className="inline-flex h-[22px] items-center gap-1 rounded-[4px] bg-accent-soft px-2 text-[11px] text-accent">
+          <button
+            className={DISABLED_PILL + " bg-accent-soft text-accent"}
+            disabled
+            title="AI generation is not wired yet"
+          >
             <Icon.sparkles size={10} />
             <span>generate</span>
           </button>
-          <button className="inline-flex h-[22px] items-center gap-1 rounded-[4px] px-2 text-[11px] text-fg-2 hover:bg-bg-2 hover:text-fg-0">
+          <button
+            className={DISABLED_PILL}
+            disabled
+            title="AI explanation is not wired yet"
+          >
             explain
           </button>
-          <button className="inline-flex h-[22px] items-center gap-1 rounded-[4px] px-2 text-[11px] text-fg-2 hover:bg-bg-2 hover:text-fg-0">
+          <button
+            className={DISABLED_PILL}
+            disabled
+            title="AI optimization is not wired yet"
+          >
             optimize
           </button>
-          <button className="inline-flex h-[22px] items-center gap-1 rounded-[4px] px-2 text-[11px] text-fg-2 hover:bg-bg-2 hover:text-fg-0">
+          <button
+            className={DISABLED_PILL}
+            disabled
+            title="AI migrations are not wired yet"
+          >
             migrate
           </button>
           <div className="flex-1" />
-          <button className="inline-flex h-[22px] items-center gap-1 rounded-[4px] px-2 text-[10.5px] text-fg-3 hover:bg-bg-2">
+          <span className="inline-flex h-[22px] items-center gap-1 rounded-[4px] px-2 text-[10.5px] text-fg-3">
             <span style={{ color: "var(--fg-2)" }}>ask</span>
             <span style={{ color: "var(--fg-3)" }}> · read-only</span>
-          </button>
+          </span>
         </div>
         <div className="px-1.5 py-1.5">
           <textarea
@@ -130,10 +173,18 @@ export function AIPanel({ onClose }: { onClose: () => void }) {
           />
           <div className="mt-1.5 flex items-center justify-between">
             <div className="flex items-center gap-1">
-              <button className="icon-btn" title="Attach query">
+              <button
+                className={DISABLED_ICON}
+                disabled
+                title="Query attachments are not wired yet"
+              >
                 <Icon.paperclip size={11} />
               </button>
-              <button className="icon-btn" title="Add table">
+              <button
+                className={DISABLED_ICON}
+                disabled
+                title="Table context attachments are not wired yet"
+              >
                 <Icon.table size={11} />
               </button>
               <span className="ml-1.5 inline-flex items-center gap-[3px] text-[10.5px]">
