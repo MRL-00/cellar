@@ -796,5 +796,7 @@ function engineDefaultColor(engine: Engine): string {
       return "var(--eng-azure)";
     case "sqlite":
       return "var(--eng-sqlite)";
+    case "firestore":
+      return "var(--eng-firestore)";
   }
 }

@@ -25,6 +25,7 @@ const DIALECTS: Record<Engine, string> = {
   sqlite: "SQLite",
   mssql: "SQL Server",
   azure: "Azure SQL",
+  firestore: "Firestore",
 };
 
 const PLACEHOLDER =
@@ -53,6 +54,7 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
   const sql = tab.sql;
   const connected = status === "connected";
   const isPostgres = engine === "postgres" || engine === undefined;
+  const supportsSql = engine !== "firestore";
 
   const statements = useMemo(() => splitStatements(sql), [sql]);
   const current = useMemo(
@@ -97,17 +99,20 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
     tab.connectionId,
   ]);
 
-  const canRunStatement = connected && !running && current != null;
-  const canRunAll = connected && !running && statements.length > 0;
+  const canRunStatement = connected && supportsSql && !running && current != null;
+  const canRunAll = connected && supportsSql && !running && statements.length > 0;
   const canExplain = connected && !running && current != null && isPostgres;
   const runTitle = !connected
     ? "Connect this tab's database to run SQL"
+    : !supportsSql
+      ? "Firestore query execution is not supported yet"
     : current
       ? "Run the statement under the cursor"
       : "Place the cursor in a statement to run it";
 
   const dialect = engine ? DIALECTS[engine] : "PostgreSQL";
   const dotEngine: Engine = engine ?? "postgres";
+  const sqlEditorEngine = supportsSql ? engine : undefined;
   const preview = current ? firstLine(current.text) : "—";
 
   return (
@@ -128,7 +133,13 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
             className="ed-run subtle"
             onClick={runAll}
             disabled={!canRunAll}
-            title={connected ? "Run the entire editor buffer" : "Connect to run SQL"}
+            title={
+              !connected
+                ? "Connect to run SQL"
+                : supportsSql
+                  ? "Run the entire editor buffer"
+                  : "Firestore query execution is not supported yet"
+            }
           >
             <Icon.play size={11} />
             <span>Run all</span>
@@ -191,7 +202,7 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
       <div className="ed-scroll">
         <SqlCodeEditor
           value={sql}
-          engine={engine}
+          engine={sqlEditorEngine}
           databases={databases}
           database={tab.database}
           placeholder={PLACEHOLDER}

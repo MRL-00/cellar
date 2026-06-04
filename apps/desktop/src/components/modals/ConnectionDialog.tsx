@@ -7,7 +7,7 @@ import { ENGINE_META, type Engine } from "../EngineBadge";
 import { Modal } from "./Modal";
 import { useConnections } from "../../state/connections";
 
-const ENGINE_ORDER: Engine[] = ["postgres", "mssql", "azure", "mysql", "sqlite"];
+const ENGINE_ORDER: Engine[] = ["postgres", "firestore", "mssql", "azure", "mysql", "sqlite"];
 
 const ENGINE_HEX: Record<Engine, string> = {
   postgres: "#4f8ff7",
@@ -15,6 +15,7 @@ const ENGINE_HEX: Record<Engine, string> = {
   mssql: "#d97a5a",
   azure: "#5bb8e0",
   sqlite: "#a78bfa",
+  firestore: "#f4c542",
 };
 
 const SWATCH_COLORS = ["#4f8ff7", "#f6a44a", "#d97a5a", "#5bb8e0", "#a78bfa", "#4ade80", "#f87171"];
@@ -25,6 +26,7 @@ const DEFAULT_PORT: Record<Engine, number> = {
   mssql: 1433,
   azure: 1433,
   sqlite: 0,
+  firestore: 443,
 };
 
 type Tab = "general" | "ssh" | "ssl" | "options";
@@ -85,7 +87,7 @@ export function ConnectionDialog({
     initial && initial.ssl_mode !== "disable" ? initial.ssl_mode : "prefer",
   );
   const [swatch, setSwatch] = useState<string>(
-    initial?.color ?? ENGINE_HEX.postgres,
+    initial?.color ?? ENGINE_HEX[(initial?.engine as Engine | undefined) ?? "postgres"],
   );
   const [envTag, setEnvTag] = useState<EnvTag>(initial?.env_tag ?? "local");
 
@@ -108,6 +110,13 @@ export function ConnectionDialog({
     if (!userPickedEngine.current) return;
     setPort(DEFAULT_PORT[engine] || 5432);
     setSwatch(ENGINE_HEX[engine]);
+    if (engine === "firestore") {
+      setHost("firestore.googleapis.com");
+      setDatabase("");
+      setUser("(default)");
+      setSsl(true);
+      setSslMode("require");
+    }
   }, [engine]);
 
   const derivedId = useMemo(
@@ -160,6 +169,19 @@ export function ConnectionDialog({
   };
 
   const sqliteOnly = engine === "sqlite";
+  const isFirestore = engine === "firestore";
+  const hostLabel = isFirestore ? "API host" : "Host";
+  const databaseLabel = isFirestore ? "Project ID" : "Database";
+  const userLabel = isFirestore ? "Database ID" : "User";
+  const passwordLabel = isFirestore ? "Credentials" : "Password";
+  const passwordHint = isFirestore
+    ? isEdit
+      ? "Leave blank to keep saved JSON/token"
+      : "Leave blank for emulator; JSON/token is stored in OS keychain"
+    : isEdit
+      ? "Leave blank to keep the saved password"
+      : "Stored in OS keychain";
+  const canSave = Boolean(host && database && (isFirestore || user));
 
   return (
     <Modal onClose={onClose} width={760}>
@@ -178,12 +200,12 @@ export function ConnectionDialog({
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 pt-3 pb-4">
-        <div className="mb-3.5 grid grid-cols-5 gap-1.5">
+        <div className="mb-3.5 grid grid-cols-6 gap-1.5">
           {ENGINE_ORDER.map((e) => {
             const m = ENGINE_META[e];
             const hex = ENGINE_HEX[e];
             const active = engine === e;
-            const disabled = e !== "postgres";
+            const disabled = e !== "postgres" && e !== "firestore";
             return (
               <button
                 key={e}
@@ -266,11 +288,11 @@ export function ConnectionDialog({
                 className={CD_INPUT}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="local-postgres"
+                placeholder={isFirestore ? "prod-firestore" : "local-postgres"}
               />
             </FormRow>
 
-            <FormRow label="Host">
+            <FormRow label={hostLabel}>
               <input
                 className={CD_INPUT + " font-mono"}
                 value={host}
@@ -287,38 +309,42 @@ export function ConnectionDialog({
             </FormRow>
 
             {!sqliteOnly && (
-              <FormRow label="Database">
+              <FormRow label={databaseLabel}>
                 <input
                   className={CD_INPUT + " font-mono"}
                   value={database}
                   onChange={(e) => setDatabase(e.target.value)}
+                  placeholder={isFirestore ? "my-gcp-project" : undefined}
                 />
               </FormRow>
             )}
 
-            <FormRow label="User">
+            <FormRow label={userLabel}>
               <input
                 className={CD_INPUT + " font-mono"}
                 value={user}
                 onChange={(e) => setUser(e.target.value)}
                 autoComplete="off"
+                placeholder={isFirestore ? "(default)" : undefined}
               />
             </FormRow>
 
             <FormRow
-              label="Password"
-              hint={
-                isEdit
-                  ? "Leave blank to keep the saved password"
-                  : "Stored in OS keychain"
-              }
+              label={passwordLabel}
+              hint={passwordHint}
             >
               <input
                 className={CD_INPUT + " font-mono"}
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder={isEdit ? "•••••••• (unchanged)" : ""}
+                placeholder={
+                  isEdit
+                    ? "•••••••• (unchanged)"
+                    : isFirestore
+                      ? "{ service_account_json }"
+                      : ""
+                }
                 style={{ flex: 1 }}
                 autoComplete="new-password"
               />
@@ -431,7 +457,7 @@ export function ConnectionDialog({
           </button>
           <button
             className={ED_RUN_PRIMARY}
-            disabled={saving || !user || !host || !database}
+            disabled={saving || !canSave}
             onClick={() => void onSave()}
             style={{
               borderColor: "color-mix(in oklab, var(--accent) 30%, black)",

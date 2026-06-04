@@ -18,6 +18,7 @@ pub enum Engine {
     Sqlite,
     Mssql,
     Azure,
+    Firestore,
 }
 
 impl Engine {
@@ -28,6 +29,7 @@ impl Engine {
             Self::Sqlite => "sqlite",
             Self::Mssql => "mssql",
             Self::Azure => "azure",
+            Self::Firestore => "firestore",
         }
     }
 }

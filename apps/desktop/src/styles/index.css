@@ -57,6 +57,7 @@
   --color-eng-mssql: var(--eng-mssql);
   --color-eng-azure: var(--eng-azure);
   --color-eng-sqlite: var(--eng-sqlite);
+  --color-eng-firestore: var(--eng-firestore);
 
   /* Syntax (SQL) */
   --color-syn-kw: var(--syn-kw);
