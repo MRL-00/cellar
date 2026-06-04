@@ -27,7 +27,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/ipc
       '@cellar/sql-editor':
-        specifier: workspace:0.1.0-alpha
+        specifier: workspace:*
         version: link:../../packages/sql-editor
       '@tauri-apps/api':
         specifier: ^2.0.0

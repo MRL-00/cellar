@@ -29,10 +29,15 @@ function pickQueryTarget(): { connectionId: string; database: string } | null {
 export function TabBar() {
   const tabs = useTabs((s) => s.tabs);
   const activeId = useTabs((s) => s.activeId);
+  const split = useTabs((s) => s.split);
+  const closedCount = useTabs((s) => s.closedTabs.length);
   const setActive = useTabs((s) => s.setActive);
   const closeTab = useTabs((s) => s.closeTab);
+  const splitActiveTab = useTabs((s) => s.splitActiveTab);
+  const reopenClosedTab = useTabs((s) => s.reopenClosedTab);
   const newQueryTab = useTabs((s) => s.newQueryTab);
   const hasConnections = useConnections((s) => s.connections.length > 0);
+  const canSplit = tabs.length > 1 && activeId != null;
 
   const onNewQuery = () => {
     const target = pickQueryTarget();
@@ -113,13 +118,42 @@ export function TabBar() {
         </button>
       </div>
       <div className="flex items-center gap-px border-l border-border-default px-1.5">
-        <button className="icon-btn" title="Split horizontal">
+        <button
+          className={"icon-btn" + (split?.orientation === "horizontal" ? " active" : "")}
+          onClick={() => splitActiveTab("horizontal")}
+          disabled={!canSplit}
+          aria-pressed={split?.orientation === "horizontal"}
+          title={
+            canSplit
+              ? split?.orientation === "horizontal"
+                ? "Close horizontal split"
+                : "Split active tab horizontally"
+              : "Open another tab to split the workspace"
+          }
+        >
           <Icon.splitH size={12} />
         </button>
-        <button className="icon-btn" title="Split vertical">
+        <button
+          className={"icon-btn" + (split?.orientation === "vertical" ? " active" : "")}
+          onClick={() => splitActiveTab("vertical")}
+          disabled={!canSplit}
+          aria-pressed={split?.orientation === "vertical"}
+          title={
+            canSplit
+              ? split?.orientation === "vertical"
+                ? "Close vertical split"
+                : "Split active tab vertically"
+              : "Open another tab to split the workspace"
+          }
+        >
           <Icon.splitV size={12} />
         </button>
-        <button className="icon-btn" title="Re-open closed">
+        <button
+          className="icon-btn"
+          onClick={reopenClosedTab}
+          disabled={closedCount === 0}
+          title={closedCount > 0 ? "Re-open closed tab" : "No closed tabs"}
+        >
           <Icon.history size={12} />
         </button>
       </div>

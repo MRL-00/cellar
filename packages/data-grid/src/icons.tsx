@@ -40,6 +40,8 @@ const I = ({
 export const GridIcon = {
   plus: (p: IconProps) => <I {...p} d="M12 5v14M5 12h14" />,
   close: (p: IconProps) => <I {...p} d="M6 6l12 12M18 6L6 18" />,
+  chevronLeft: (p: IconProps) => <I {...p} d="M15 18l-6-6 6-6" />,
+  chevronRight: (p: IconProps) => <I {...p} d="M9 18l6-6-6-6" />,
   undo: (p: IconProps) => <I {...p} d="M3 8h10a5 5 0 010 10H8M3 8l4-4M3 8l4 4" />,
   commit: (p: IconProps) => (
     <I {...p}>

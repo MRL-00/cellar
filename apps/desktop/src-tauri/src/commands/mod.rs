@@ -24,6 +24,7 @@ pub fn builder() -> Builder<tauri::Wry> {
         connection::delete_connection,
         connection::test_connection,
         connection::connect,
+        connection::reconnect,
         connection::disconnect,
         schema::introspect,
         query::run_query,

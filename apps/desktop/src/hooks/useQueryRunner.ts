@@ -10,6 +10,7 @@ import {
 } from "../lib/queryMessages";
 import { useNotices } from "../state/notices";
 import { useQueryMessages } from "../state/queryMessages";
+import { noteConnectionIssue } from "../state/connections";
 import { useStatus } from "../state/status";
 import type { QueryTab } from "../state/tabs";
 import { useTabs } from "../state/tabs";
@@ -128,6 +129,7 @@ export function useQueryRunner(tab: QueryTab): QueryRunner {
           useTabs.getState().markQueryRun(tab.id);
         } catch (err) {
           if (!mounted.current || token !== runToken.current) return;
+          noteConnectionIssue(tab.connectionId, err);
           const message = err instanceof Error ? err.message : String(err);
           useTabResults.getState().setError(tab.id, source, message);
           useQueryMessages

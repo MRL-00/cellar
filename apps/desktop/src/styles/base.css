@@ -87,3 +87,11 @@
 }
 .icon-btn:hover { background: var(--bg-3); color: var(--fg-0); }
 .icon-btn.active { background: var(--accent-soft); color: var(--accent); }
+.icon-btn:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+.icon-btn:disabled:hover {
+  background: transparent;
+  color: var(--fg-2);
+}

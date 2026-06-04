@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useEffect,
   useMemo,
   useState,
 } from "react";
@@ -33,13 +34,14 @@ const EMPTY_DATABASES: Database[] = [];
 
 export function SqlEditor({ tab }: { tab: QueryTab }) {
   const setQuerySql = useTabs((s) => s.setQuerySql);
-  const status = useConnections((s) => s.byId[tab.connectionId]?.status);
-  const databases = useConnections(
-    (s) => s.byId[tab.connectionId]?.databases ?? EMPTY_DATABASES,
-  );
+  const connectionState = useConnections((s) => s.byId[tab.connectionId]);
+  const status = connectionState?.status;
+  const databases = connectionState?.databases ?? EMPTY_DATABASES;
+  const loadingSchema = connectionState?.loadingSchema ?? false;
   const engine = useConnections(
     (s) => s.connections.find((c) => c.id === tab.connectionId)?.engine,
   );
+  const refreshSchema = useConnections((s) => s.refreshSchema);
   const setBottomTab = useBottomPanel((s) => s.setActive);
   const requestExplain = useBottomPanel((s) => s.requestExplain);
 
@@ -83,6 +85,17 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
     setQuerySql(tab.id, next);
     if (errorLine != null) clearError();
   }, [clearError, errorLine, setQuerySql, tab.id]);
+
+  useEffect(() => {
+    if (!connected || loadingSchema || databases.length > 0) return;
+    void refreshSchema(tab.connectionId);
+  }, [
+    connected,
+    databases.length,
+    loadingSchema,
+    refreshSchema,
+    tab.connectionId,
+  ]);
 
   const canRunStatement = connected && !running && current != null;
   const canRunAll = connected && !running && statements.length > 0;

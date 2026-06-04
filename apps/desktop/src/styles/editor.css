@@ -237,9 +237,21 @@
   font-family: var(--font-mono);
   font-size: 10.5px;
 }
+.cm-tooltip-autocomplete li[aria-selected] .cm-completionDetail {
+  color: var(--fg-2);
+}
 .cm-tooltip-autocomplete .cm-completionMatchedText {
   color: var(--accent);
+  font-weight: 600;
   text-decoration: none;
+}
+.cm-tooltip-autocomplete .cm-completionIcon {
+  color: var(--fg-3);
+  opacity: 0.8;
+}
+.cm-tooltip-autocomplete li[aria-selected] .cm-completionIcon {
+  color: var(--accent);
+  opacity: 1;
 }
 .cm-tooltip-autocomplete .cm-completionSection {
   background: var(--bg-2);

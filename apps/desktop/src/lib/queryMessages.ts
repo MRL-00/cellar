@@ -44,6 +44,7 @@ export interface TableQueryContext {
   table: string;
   sql?: string;
   maxRows: number;
+  offset?: number;
 }
 
 export function buildTableLoadStartedMessage(
@@ -55,7 +56,7 @@ export function buildTableLoadStartedMessage(
     database: context.database,
     severity: "info",
     source: "client",
-    text: `Loading ${formatQualifiedName(context.schema, context.table)} with row limit ${context.maxRows}.`,
+    text: `Loading ${formatQualifiedName(context.schema, context.table)} ${rowRangeLabel(context.offset ?? 0, context.maxRows)} with row limit ${context.maxRows}.`,
     sql: context.sql,
     statementIndex: 0,
   };
@@ -74,7 +75,7 @@ export function buildQueryResultMessages(
       severity: "success",
       source: "execution",
       text: result.rows_affected == null
-        ? `Loaded ${formatQualifiedName(context.schema, context.table)}: ${formatCount(result.rows.length, "row")} in ${formatDuration(result.duration_ms)}.`
+        ? `Loaded ${formatQualifiedName(context.schema, context.table)} ${rowRangeLabel(context.offset ?? 0, result.rows.length)}: ${formatCount(result.rows.length, "row")} in ${formatDuration(result.duration_ms)}.`
         : `Query OK: ${formatCount(result.rows_affected, "row")} affected in ${formatDuration(result.duration_ms)}.`,
       sql: context.sql,
       statementIndex: 0,
@@ -90,7 +91,7 @@ export function buildQueryResultMessages(
       database: context.database,
       severity: "warning",
       source: "execution",
-      text: `Result hit row limit ${context.maxRows}; showing first ${formatCount(result.rows.length, "row")}.`,
+      text: `Result hit row limit ${context.maxRows}; more rows are available after ${rowRangeLabel(context.offset ?? 0, result.rows.length)}.`,
       sql: context.sql,
       statementIndex: 0,
       durationMs: result.duration_ms,
@@ -221,6 +222,13 @@ export function severityCounts(messages: QueryMessage[]): Record<QueryMessageSev
 
 function formatQualifiedName(schema: string, table: string): string {
   return `${schema}.${table}`;
+}
+
+function rowRangeLabel(offset: number, limit: number): string {
+  if (limit === 0) return `offset ${offset}`;
+  const start = offset + 1;
+  const end = offset + limit;
+  return `rows ${start}-${end}`;
 }
 
 function formatCount(count: number, noun: string): string {

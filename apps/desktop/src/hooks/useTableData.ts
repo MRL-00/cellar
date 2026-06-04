@@ -14,7 +14,7 @@ import {
   isMonoType,
   isNumericType,
 } from "../lib/gridMapping";
-import { useConnections } from "../state/connections";
+import { noteConnectionIssue, useConnections } from "../state/connections";
 import { useNotices } from "../state/notices";
 import { useQueryMessages } from "../state/queryMessages";
 import { useStatus } from "../state/status";
@@ -31,8 +31,13 @@ interface TableData {
   rows: GridRow[];
   truncated: boolean;
   loading: boolean;
+  fetching: boolean;
   error: string | null;
   durationMs: number;
+  offset: number;
+  limit: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
 }
 
 const DEFAULT_LIMIT = 500;
@@ -52,26 +57,42 @@ export function useTableData(
   table: string,
   refreshKey = 0,
   tabId?: string,
+  pageIndex = 0,
+  pageSize = DEFAULT_LIMIT,
 ): TableData {
+  const offset = pageIndex * pageSize;
   const [state, setState] = useState<TableData>({
     columns: [],
     rows: [],
     truncated: false,
     loading: true,
+    fetching: true,
     error: null,
     durationMs: 0,
+    offset,
+    limit: pageSize,
+    hasPreviousPage: false,
+    hasNextPage: false,
   });
 
   useEffect(() => {
     let cancelled = false;
-    setState((s) => ({ ...s, loading: s.rows.length === 0, error: null }));
+    setState((s) => ({
+      ...s,
+      loading: s.rows.length === 0,
+      fetching: true,
+      error: null,
+      offset,
+      limit: pageSize,
+    }));
     const primaryKey = tablePrimaryKey(connectionId, database, schema, table);
     const request: TableBrowseRequest = {
       connection_id: connectionId,
       database,
       schema,
       table,
-      limit: DEFAULT_LIMIT,
+      limit: pageSize,
+      offset,
       sorts: [],
       filters: [],
       primary_key_fallback_ordering: true,
@@ -83,7 +104,8 @@ export function useTableData(
       database,
       schema,
       table,
-      maxRows: DEFAULT_LIMIT,
+      maxRows: pageSize,
+      offset,
     };
     if (tabId) {
       useTabResults.getState().clearTab(tabId);
@@ -93,29 +115,27 @@ export function useTableData(
       .replaceForTab(messageTabId, [buildTableLoadStartedMessage(queryContext)]);
     void (async () => {
       try {
-        const result = await loadTableQuery(
-          connectionId,
-          database,
-          schema,
-          table,
-          refreshKey,
-          tabId,
-          request,
-        );
+        const result = await loadTableQuery(request);
         if (cancelled) return;
         const columns = columnsFor(connectionId, database, schema, table, result);
         const rows = rowsFor(
           columns,
           result,
           primaryKey,
+          offset,
         );
         setState({
           columns,
           rows,
           truncated: result.truncated,
           loading: false,
+          fetching: false,
           error: null,
           durationMs: result.duration_ms,
+          offset,
+          limit: pageSize,
+          hasPreviousPage: offset > 0,
+          hasNextPage: result.truncated,
         });
         useNotices.getState().recordQueryResult(
           { tabId: tableTabId(connectionId, database, schema, table), connectionId, database },
@@ -133,14 +153,20 @@ export function useTableData(
         });
       } catch (err) {
         if (cancelled) return;
+        noteConnectionIssue(connectionId, err);
         const message = err instanceof Error ? err.message : String(err);
         setState({
           columns: [],
           rows: [],
           truncated: false,
           loading: false,
+          fetching: false,
           error: message,
           durationMs: 0,
+          offset,
+          limit: pageSize,
+          hasPreviousPage: offset > 0,
+          hasNextPage: false,
         });
         useQueryMessages
           .getState()
@@ -150,7 +176,7 @@ export function useTableData(
     return () => {
       cancelled = true;
     };
-  }, [connectionId, database, schema, table, refreshKey, tabId]);
+  }, [connectionId, database, schema, table, refreshKey, tabId, offset, pageSize]);
 
   return state;
 }
@@ -165,21 +191,17 @@ function tableTabId(
 }
 
 function loadTableQuery(
-  connectionId: string,
-  database: string,
-  schema: string,
-  table: string,
-  refreshKey: number,
-  tabId: string | undefined,
   request: TableBrowseRequest,
 ): Promise<QueryResult> {
   const key = [
-    connectionId,
-    database,
-    schema,
-    table,
-    refreshKey,
-    tabId ?? "",
+    request.connection_id,
+    request.database ?? "",
+    request.schema,
+    request.table,
+    request.limit ?? "",
+    request.offset ?? "",
+    JSON.stringify(request.sorts),
+    JSON.stringify(request.filters),
   ].join("\u001f");
   const existing = inflightTableLoads.get(key);
   if (existing) return existing;
@@ -261,6 +283,7 @@ function rowsFor(
   columns: GridColumn[],
   result: QueryResult,
   primaryKey: string[],
+  offset: number,
 ): GridRow[] {
   return result.rows.map((cells, i) => {
     const row: GridRow = { id: String(i) };
@@ -268,7 +291,7 @@ function rowsFor(
       const col = columns[ci];
       if (col) row[col.key] = cellValueToGrid(cell);
     });
-    row.id = rowIdFor(row, primaryKey, i);
+    row.id = rowIdFor(row, primaryKey, offset + i);
     return row;
   });
 }
