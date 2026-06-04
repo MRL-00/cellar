@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { Database, Engine } from "@cellar/ipc";
 import {
-  CodeMirrorSqlEditor,
-  type SqlEditorDialect,
-} from "@cellar/sql-editor";
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import type { Database, Engine } from "@cellar/ipc";
+import { SqlCodeEditor } from "@cellar/sql-editor";
 
 import {
   splitStatements,
@@ -27,12 +29,15 @@ const DIALECTS: Record<Engine, string> = {
 
 const PLACEHOLDER =
   "Write SQL here…  ⌘⏎ runs the statement under the cursor, ⌘⇧⏎ runs all.";
+
 const EMPTY_DATABASES: Database[] = [];
 
 export function SqlEditor({ tab }: { tab: QueryTab }) {
   const setQuerySql = useTabs((s) => s.setQuerySql);
   const connectionState = useConnections((s) => s.byId[tab.connectionId]);
   const status = connectionState?.status;
+  const databases = connectionState?.databases ?? EMPTY_DATABASES;
+  const loadingSchema = connectionState?.loadingSchema ?? false;
   const engine = useConnections(
     (s) => s.connections.find((c) => c.id === tab.connectionId)?.engine,
   );
@@ -48,31 +53,24 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
   const sql = tab.sql;
   const connected = status === "connected";
   const isPostgres = engine === "postgres" || engine === undefined;
-  const databases = connectionState?.databases ?? EMPTY_DATABASES;
-  const loadingSchema = connectionState?.loadingSchema ?? false;
-  const completionSchema = useMemo(
-    () => ({ databases, database: tab.database }),
-    [databases, tab.database],
-  );
 
   const statements = useMemo(() => splitStatements(sql), [sql]);
   const current = useMemo(
     () => statementAtOffset(sql, caret),
     [sql, caret],
   );
-  const range = current
-    ? { startLine: current.startLine, endLine: current.endLine }
-    : null;
+  const range = current ? ([current.startLine, current.endLine] as const) : null;
 
-  const runStatement = useCallback(() => {
-    const stmt = statementAtOffset(sql, caret);
+  const runStatementAt = useCallback((offset: number) => {
+    const stmt = statementAtOffset(sql, offset);
     if (!stmt) return;
     setBottomTab("results");
-    run(stmt.text, {
-      label: statementLabel(stmt, statements),
-      errorLine: stmt.startLine,
-    });
-  }, [sql, caret, run, setBottomTab, statements]);
+    run(stmt.text, { label: statementLabel(stmt, statements), errorLine: stmt.startLine });
+  }, [sql, run, setBottomTab, statements]);
+
+  const runStatement = useCallback(() => {
+    runStatementAt(caret);
+  }, [caret, runStatementAt]);
 
   const runAll = useCallback(() => {
     if (statements.length === 0) return;
@@ -83,7 +81,7 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
     });
   }, [sql, statements, run, setBottomTab]);
 
-  const handleChange = useCallback((next: string) => {
+  const handleEditorChange = useCallback((next: string) => {
     setQuerySql(tab.id, next);
     if (errorLine != null) clearError();
   }, [clearError, errorLine, setQuerySql, tab.id]);
@@ -111,7 +109,6 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
   const dialect = engine ? DIALECTS[engine] : "PostgreSQL";
   const dotEngine: Engine = engine ?? "postgres";
   const preview = current ? firstLine(current.text) : "—";
-  const editorDialect: SqlEditorDialect = engine ?? "postgres";
 
   return (
     <div className={"ed-root mono" + (wrap ? " wrap" : "")}>
@@ -131,9 +128,7 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
             className="ed-run subtle"
             onClick={runAll}
             disabled={!canRunAll}
-            title={
-              connected ? "Run the entire editor buffer" : "Connect to run SQL"
-            }
+            title={connected ? "Run the entire editor buffer" : "Connect to run SQL"}
           >
             <Icon.play size={11} />
             <span>Run all</span>
@@ -194,18 +189,18 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
       </div>
 
       <div className="ed-scroll">
-        <CodeMirrorSqlEditor
-          className="ed-cm"
+        <SqlCodeEditor
           value={sql}
-          dialect={editorDialect}
-          completionSchema={completionSchema}
-          wrap={wrap}
+          engine={engine}
+          databases={databases}
+          database={tab.database}
           placeholder={PLACEHOLDER}
-          statementRange={range}
+          wrap={wrap}
+          currentStatementRange={range}
           errorLine={errorLine}
-          onChange={handleChange}
+          onChange={handleEditorChange}
           onCursorChange={setCaret}
-          onRunStatement={runStatement}
+          onRunStatement={runStatementAt}
           onRunAll={runAll}
         />
 

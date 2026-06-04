@@ -1,4 +1,10 @@
-/* SQL editor shell around the shared CodeMirror package wrapper. */
+/* SQL editor — ported from the Cellar design (app/styles-2.css `.ed-*`).
+   The prototype was a static syntax highlighter; here the same line/gutter
+   layout doubles as the highlight layer for a real, editable buffer. A
+   transparent <textarea> is overlaid on top so the browser owns caret,
+   selection, and input while the layer underneath paints the colors,
+   in-statement band, and error squiggle. Both layers share identical font
+   metrics and padding so the caret tracks the rendered tokens exactly. */
 
 .ed-root {
   display: flex;
@@ -118,25 +124,303 @@
 
 .ed-scroll {
   flex: 1;
-  position: relative;
   overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
   min-height: 0;
 }
-.ed-cm {
-  height: 100%;
+
+.cellar-cm {
+  flex: 1;
   min-height: 0;
+}
+.cellar-cm .cm-editor {
+  height: 100%;
+  background: var(--bg-inset);
+  color: var(--fg-0);
+  outline: none;
+}
+.cellar-cm .cm-editor.cm-focused {
+  outline: none;
+}
+.cellar-cm .cm-scroller {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+.cellar-cm .cm-content {
+  min-height: 100%;
+  padding: 6px 0 60px;
+  caret-color: var(--fg-0);
+}
+.cellar-cm .cm-line {
+  padding: 0 16px 0 8px;
+}
+.cellar-cm .cm-gutters {
+  width: 48px;
+  background: var(--bg-inset);
+  border-right: none;
+  color: var(--fg-3);
+  font-size: 10.5px;
+}
+.cellar-cm .cm-lineNumbers .cm-gutterElement {
+  min-width: 48px;
+  padding: 0 8px 0 4px;
+  text-align: right;
+}
+.cellar-cm .cm-foldGutter {
+  display: none;
+}
+.cellar-cm .cm-activeLineGutter {
+  background: transparent;
+  color: var(--accent);
+}
+.cellar-cm .cm-activeLine {
+  background: transparent;
+}
+.cellar-cm .cm-selectionBackground,
+.cellar-cm .cm-focused .cm-selectionBackground,
+.cellar-cm ::selection {
+  background: var(--accent-line) !important;
+}
+.cellar-cm .cm-cursor {
+  border-left-color: var(--fg-0);
+}
+.cellar-cm .cm-placeholder {
+  color: var(--fg-4);
+}
+.cellar-cm .cm-line.cm-cellar-current-statement {
+  background: linear-gradient(
+    90deg,
+    var(--accent-soft),
+    color-mix(in oklab, var(--accent-soft) 50%, transparent)
+  );
+}
+.cellar-cm .cm-line.cm-cellar-error-line {
+  text-decoration-line: underline;
+  text-decoration-style: wavy;
+  text-decoration-color: var(--syn-error);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+}
+.cellar-cm .cm-gutterElement.cm-cellar-current-statement {
+  background: linear-gradient(90deg, transparent, var(--accent-soft) 40%);
+  color: var(--accent);
+}
+.cm-tooltip.cm-tooltip-autocomplete {
+  background: color-mix(in oklab, var(--bg-1) 96%, black);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  box-shadow: var(--shadow-popover, 0 14px 36px rgba(0, 0, 0, 0.35));
+  color: var(--fg-1);
+  font-family: var(--font-sans);
+  overflow: hidden;
+}
+.cm-tooltip.cm-tooltip-autocomplete > ul {
+  max-height: min(340px, 45vh);
+}
+.cm-tooltip.cm-tooltip-autocomplete ul li {
+  min-height: 24px;
+  padding: 2px 8px 2px 6px;
+  font-size: 12px;
+}
+.cm-tooltip.cm-tooltip-autocomplete ul li[aria-selected] {
+  background: var(--accent-soft);
+  color: var(--fg-0);
+}
+.cm-tooltip-autocomplete .cm-completionLabel {
+  font-family: var(--font-mono);
+}
+.cm-tooltip-autocomplete .cm-completionDetail {
+  color: var(--fg-3);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+}
+.cm-tooltip-autocomplete li[aria-selected] .cm-completionDetail {
+  color: var(--fg-2);
+}
+.cm-tooltip-autocomplete .cm-completionMatchedText {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+.cm-tooltip-autocomplete .cm-completionIcon {
+  color: var(--fg-3);
+  opacity: 0.8;
+}
+.cm-tooltip-autocomplete li[aria-selected] .cm-completionIcon {
+  color: var(--accent);
+  opacity: 1;
+}
+.cm-tooltip-autocomplete .cm-completionSection {
+  background: var(--bg-2);
+  color: var(--fg-3);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0;
+  padding: 4px 8px;
+  text-transform: uppercase;
+}
+.cm-cellar-token-keyword {
+  color: var(--syn-kw);
+  font-weight: 600;
+}
+.cm-cellar-token-function {
+  color: var(--syn-fn);
+}
+.cm-cellar-token-string {
+  color: var(--syn-str);
+}
+.cm-cellar-token-number {
+  color: var(--syn-num);
+}
+.cm-cellar-token-comment {
+  color: var(--syn-comment);
+  font-style: italic;
+}
+.cm-cellar-token-operator {
+  color: var(--syn-op);
+}
+.cm-cellar-token-identifier {
+  color: var(--syn-ident);
+}
+
+.ed-doc {
+  position: relative;
+  width: max-content;
+  min-width: 100%;
+  min-height: 100%;
+}
+
+.ed-grid {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 0 60px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.55;
+  pointer-events: none;
+  position: relative;
+  z-index: 1;
+}
+.ed-row {
+  display: flex;
+  align-items: stretch;
+}
+.ed-gutter {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  width: 48px;
+  flex: none;
+  padding: 0 8px 0 4px;
+  color: var(--fg-3);
+  font-size: 10.5px;
+  user-select: none;
+  position: relative;
+}
+.ed-gutter.in-stmt {
+  background: linear-gradient(90deg, transparent, var(--accent-soft) 40%);
+  color: var(--accent);
+}
+.ed-lineno {
+  font-variant-numeric: tabular-nums;
+}
+.ed-bp {
+  width: 8px;
+  height: 8px;
+  background: var(--delete);
+  border-radius: 50%;
+}
+.ed-line {
+  flex: 1 1 auto;
+  min-height: 1.55em;
+  padding-left: 8px;
+  padding-right: 16px;
+  white-space: pre;
+  position: relative;
+  color: var(--fg-0);
+}
+.ed-line.in-stmt {
+  background: linear-gradient(
+    90deg,
+    var(--accent-soft),
+    color-mix(in oklab, var(--accent-soft) 50%, transparent)
+  );
+}
+.ed-line.has-error::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 16px;
+  bottom: 0;
+  height: 3px;
+  background: repeating-linear-gradient(
+    135deg,
+    var(--syn-error) 0 2px,
+    transparent 2px 4px
+  );
+  opacity: 0.7;
+}
+
+/* The transparent input overlay — text is invisible, only the caret shows. */
+.ed-input {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 48px;
+  right: 0;
+  z-index: 2;
+  margin: 0;
+  padding: 6px 16px 60px 8px;
+  border: none;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  caret-color: var(--fg-0);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.55;
+  white-space: pre;
+  overflow: hidden;
+  tab-size: 2;
+}
+.ed-input::selection {
+  background: var(--accent-line);
+}
+.ed-input::placeholder {
+  color: var(--fg-4);
+  -webkit-text-fill-color: var(--fg-4);
+}
+
+/* Wrap-lines toggle — both layers wrap at the same width so they stay aligned. */
+.ed-root.wrap .ed-doc {
+  width: auto;
+}
+.ed-root.wrap .ed-line {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ed-root.wrap .ed-input {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 /* AI inline strip — a non-interactive affordance for the future AI slice. */
 .ed-ai-strip {
-  position: absolute;
-  bottom: 12px;
-  left: 12px;
-  right: 12px;
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
   z-index: 3;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  margin: 12px 12px 0;
   padding: 6px 10px;
   background: color-mix(in oklab, var(--bg-1) 90%, transparent);
   backdrop-filter: blur(8px);
