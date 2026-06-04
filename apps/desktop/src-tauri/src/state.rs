@@ -7,6 +7,7 @@ use cellar_core::error::{CellarError, CellarResult};
 use cellar_core::query::{PlanMode, Query, QueryPlan, QueryResult, TableBrowseRequest};
 use cellar_core::schema::{Database, Table};
 use cellar_diff::{TableChangeRequest, TableCommitResult};
+use cellar_driver_firestore::FirestoreDriver;
 use cellar_driver_postgres::PostgresDriver;
 use tokio::fs;
 use tokio::sync::RwLock;
@@ -238,6 +239,10 @@ impl ConnectionRegistry {
         };
 
         match engine {
+            Engine::Firestore => {
+                cellar_driver_firestore::browse_collection(connection.as_ref(), &request, &table)
+                    .await
+            }
             Engine::Postgres => {
                 match cellar_driver_postgres::browse_table(connection.as_ref(), &request, &table)
                     .await
@@ -413,6 +418,7 @@ fn find_table(dbs: &[Database], database: &str, schema: &str, table: &str) -> Ce
 
 fn driver_for(engine: Engine) -> CellarResult<Box<dyn Driver>> {
     match engine {
+        Engine::Firestore => Ok(Box::new(FirestoreDriver::new())),
         Engine::Postgres => Ok(Box::new(PostgresDriver::new())),
         other => Err(CellarError::invalid_config(format!(
             "engine {} is not supported in this build",

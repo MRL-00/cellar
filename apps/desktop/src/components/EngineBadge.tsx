@@ -1,4 +1,4 @@
-export type Engine = "postgres" | "mysql" | "mssql" | "azure" | "sqlite";
+export type Engine = "postgres" | "mysql" | "mssql" | "azure" | "sqlite" | "firestore";
 
 export const ENGINE_META: Record<
   Engine,
@@ -9,6 +9,7 @@ export const ENGINE_META: Record<
   mssql: { label: "SQL Server", color: "var(--eng-mssql)", letter: "S" },
   azure: { label: "Azure SQL", color: "var(--eng-azure)", letter: "A" },
   sqlite: { label: "SQLite", color: "var(--eng-sqlite)", letter: "L" },
+  firestore: { label: "Firestore", color: "var(--eng-firestore)", letter: "F" },
 };
 
 export function EngineBadge({

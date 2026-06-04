@@ -225,7 +225,7 @@ version: string }
  * User-facing identifier for which driver to load. Lives in connection
  * configs and crosses IPC, so it has to be serializable.
  */
-export type Engine = "postgres" | "mysql" | "sqlite" | "mssql" | "azure"
+export type Engine = "postgres" | "mysql" | "sqlite" | "mssql" | "azure" | "firestore"
 /**
  * Environment tag, per SPEC §6.1. Production-tagged connections get red
  * styling and confirmation guardrails — this PR wires the data, not the UX.
