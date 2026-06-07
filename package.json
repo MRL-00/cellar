@@ -1,6 +1,6 @@
 {
   "name": "cellar",
-  "version": "0.1.0-alpha",
+  "version": "0.1.0",
   "private": true,
   "description": "Cellar — open-source desktop database client",
   "license": "MIT",

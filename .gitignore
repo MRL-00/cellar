@@ -8,6 +8,7 @@ build/
 target/
 .turbo/
 .clawpatch/
+.superset/
 
 # tauri
 apps/desktop/src-tauri/target/
@@ -22,3 +23,4 @@ apps/desktop/src-tauri/gen/
 # env
 .env
 .env.local
+
