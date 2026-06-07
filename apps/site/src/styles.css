@@ -194,6 +194,7 @@ img, svg { display: block; max-width: 100%; }
 }
 .btn-primary:hover { transform: translateY(-1px); filter: brightness(1.04); }
 .btn-primary:active { transform: translateY(0); }
+.btn-primary[aria-expanded="true"] .chevron { transform: rotate(180deg); }
 .btn-ghost {
   background: var(--bg-2);
   color: var(--fg-0);
@@ -201,6 +202,7 @@ img, svg { display: block; max-width: 100%; }
 }
 .btn-ghost:hover { border-color: var(--border-strong); background: var(--bg-3); }
 .btn svg { width: 16px; height: 16px; }
+.btn .chevron { width: 14px; height: 14px; transition: transform 0.16s ease; }
 .nav .btn { padding: 8px 14px; }
 
 /* ───────────── hero ───────────── */
@@ -267,6 +269,48 @@ h1 .accent {
   justify-content: center;
 }
 .btn-lg { padding: 13px 22px; font-size: 15px; border-radius: 11px; }
+
+.download-picker {
+  position: relative;
+  display: inline-flex;
+}
+.download-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 10px);
+  left: 50%;
+  width: min(320px, calc(100vw - 40px));
+  padding: 7px;
+  border: 1px solid var(--border-strong);
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--bg-1) 96%, transparent);
+  box-shadow: var(--shadow-lg);
+  transform: translateX(-50%);
+}
+.download-menu[hidden] { display: none; }
+.download-menu a {
+  display: grid;
+  gap: 2px;
+  padding: 12px 13px;
+  border-radius: 9px;
+  text-align: left;
+  transition: background 0.15s, color 0.15s;
+}
+.download-menu a:hover,
+.download-menu a:focus-visible {
+  background: var(--bg-3);
+  outline: none;
+}
+.download-menu span {
+  color: var(--fg-0);
+  font-size: 14px;
+  font-weight: 600;
+}
+.download-menu b {
+  color: var(--fg-2);
+  font-size: 12px;
+  font-weight: 500;
+}
 
 .dl-meta {
   margin-top: 18px;
@@ -670,6 +714,8 @@ footer {
   .wrap { padding: 0 20px; }
   .foot-grid { grid-template-columns: 1fr; }
   .dl-meta { flex-direction: column; gap: 6px; }
+  .download-picker,
+  .download-picker .btn { width: 100%; justify-content: center; }
   .section { padding: 72px 0; }
   .final { padding: 88px 0; }
 }

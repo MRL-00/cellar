@@ -116,6 +116,61 @@ function renderEngineChips(el: HTMLElement | null) {
 renderEngineChips(document.getElementById("engRow"));
 renderEngineChips(document.getElementById("engRow2"));
 
+/* ───────────── download menu ───────────── */
+
+const downloadPickers = Array.from(document.querySelectorAll<HTMLElement>(".download-picker"));
+
+function setDownloadMenu(picker: HTMLElement, open: boolean) {
+  const trigger = picker.querySelector<HTMLButtonElement>("[data-download-trigger]");
+  const menu = picker.querySelector<HTMLElement>(".download-menu");
+  if (!trigger || !menu) return;
+
+  trigger.setAttribute("aria-expanded", String(open));
+  menu.hidden = !open;
+}
+
+function closeDownloadMenus(except?: HTMLElement) {
+  for (const picker of downloadPickers) {
+    if (picker !== except) setDownloadMenu(picker, false);
+  }
+}
+
+for (const picker of downloadPickers) {
+  const trigger = picker.querySelector<HTMLButtonElement>("[data-download-trigger]");
+  const menu = picker.querySelector<HTMLElement>(".download-menu");
+  if (!trigger || !menu) continue;
+
+  trigger.addEventListener("click", () => {
+    const willOpen = trigger.getAttribute("aria-expanded") !== "true";
+    closeDownloadMenus(picker);
+    setDownloadMenu(picker, willOpen);
+  });
+
+  trigger.addEventListener("keydown", (event) => {
+    if (event.key !== "ArrowDown") return;
+    event.preventDefault();
+    closeDownloadMenus(picker);
+    setDownloadMenu(picker, true);
+    menu.querySelector<HTMLAnchorElement>("a")?.focus();
+  });
+
+  menu.addEventListener("click", (event) => {
+    if (!(event.target instanceof Element)) return;
+    if (event.target.closest("a")) setDownloadMenu(picker, false);
+  });
+}
+
+document.addEventListener("click", (event) => {
+  const target = event.target;
+  if (!(target instanceof Node)) return;
+  if (downloadPickers.some((picker) => picker.contains(target))) return;
+  closeDownloadMenus();
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") closeDownloadMenus();
+});
+
 /* ───────────── release download ───────────── */
 
 const GITHUB_RELEASE_API = "https://api.github.com/repos/MRL-00/cellar/releases/latest";

@@ -73,25 +73,30 @@
       Cellar pairs DataGrip-grade density with first-class, bring-your-own-key AI, so you can query, edit, and understand any database at the speed of thought. Native, keyboard-driven, and yours to inspect.
     </p>
     <div class="cta-row">
-      <a
-        class="btn btn-primary btn-lg"
-        href="https://github.com/MRL-00/cellar/releases/latest/download/Cellar-mac-arm64.dmg"
-        id="dlBtn"
-        data-download="macos-arm64"
-        rel="noopener"
-      >
-        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.36 12.6c-.02-2.2 1.8-3.26 1.88-3.31-1.02-1.5-2.62-1.7-3.18-1.72-1.35-.14-2.64.8-3.32.8-.69 0-1.74-.78-2.86-.76-1.47.02-2.83.86-3.59 2.18-1.53 2.66-.39 6.6 1.1 8.76.73 1.06 1.6 2.25 2.74 2.2 1.1-.04 1.52-.71 2.85-.71 1.32 0 1.7.71 2.86.69 1.18-.02 1.93-1.08 2.65-2.14.84-1.23 1.18-2.42 1.2-2.48-.03-.01-2.3-.88-2.32-3.5zM14.19 5.8c.6-.74 1.01-1.76.9-2.78-.87.04-1.93.58-2.56 1.31-.56.65-1.05 1.69-.92 2.69.97.07 1.97-.49 2.58-1.22z"/></svg>
-        Apple Silicon
-      </a>
-      <a
-        class="btn btn-ghost btn-lg"
-        href="https://github.com/MRL-00/cellar/releases/latest/download/Cellar-mac-x64.dmg"
-        data-download="macos-x64"
-        rel="noopener"
-      >
-        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.36 12.6c-.02-2.2 1.8-3.26 1.88-3.31-1.02-1.5-2.62-1.7-3.18-1.72-1.35-.14-2.64.8-3.32.8-.69 0-1.74-.78-2.86-.76-1.47.02-2.83.86-3.59 2.18-1.53 2.66-.39 6.6 1.1 8.76.73 1.06 1.6 2.25 2.74 2.2 1.1-.04 1.52-.71 2.85-.71 1.32 0 1.7.71 2.86.69 1.18-.02 1.93-1.08 2.65-2.14.84-1.23 1.18-2.42 1.2-2.48-.03-.01-2.3-.88-2.32-3.5zM14.19 5.8c.6-.74 1.01-1.76.9-2.78-.87.04-1.93.58-2.56 1.31-.56.65-1.05 1.69-.92 2.69.97.07 1.97-.49 2.58-1.22z"/></svg>
-        Intel Mac
-      </a>
+      <div class="download-picker">
+        <button
+          class="btn btn-primary btn-lg"
+          id="dlBtn"
+          type="button"
+          aria-haspopup="menu"
+          aria-expanded="false"
+          data-download-trigger
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.36 12.6c-.02-2.2 1.8-3.26 1.88-3.31-1.02-1.5-2.62-1.7-3.18-1.72-1.35-.14-2.64.8-3.32.8-.69 0-1.74-.78-2.86-.76-1.47.02-2.83.86-3.59 2.18-1.53 2.66-.39 6.6 1.1 8.76.73 1.06 1.6 2.25 2.74 2.2 1.1-.04 1.52-.71 2.85-.71 1.32 0 1.7.71 2.86.69 1.18-.02 1.93-1.08 2.65-2.14.84-1.23 1.18-2.42 1.2-2.48-.03-.01-2.3-.88-2.32-3.5zM14.19 5.8c.6-.74 1.01-1.76.9-2.78-.87.04-1.93.58-2.56 1.31-.56.65-1.05 1.69-.92 2.69.97.07 1.97-.49 2.58-1.22z"/></svg>
+          Download for Mac
+          <svg class="chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>
+        </button>
+        <div class="download-menu" role="menu" aria-label="Choose Mac download" hidden>
+          <a href="https://github.com/MRL-00/cellar/releases/latest/download/Cellar-mac-arm64.dmg" data-download="macos-arm64" role="menuitem" rel="noopener">
+            <span>Apple Silicon</span>
+            <b>Mac with M1, M2, M3, or newer</b>
+          </a>
+          <a href="https://github.com/MRL-00/cellar/releases/latest/download/Cellar-mac-x64.dmg" data-download="macos-x64" role="menuitem" rel="noopener">
+            <span>Intel Mac</span>
+            <b>Older Mac with Intel processor</b>
+          </a>
+        </div>
+      </div>
       <a class="btn btn-ghost btn-lg" href="https://github.com/MRL-00/cellar" rel="noopener">
         <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
         View source
@@ -288,24 +293,29 @@
     <h2>Stop fighting your database client.</h2>
     <p class="lede">Free, open source, and ready in a tiny signed download.</p>
     <div class="cta-row">
-      <a
-        class="btn btn-primary btn-lg"
-        href="https://github.com/MRL-00/cellar/releases/latest/download/Cellar-mac-arm64.dmg"
-        data-download="macos-arm64"
-        rel="noopener"
-      >
-        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.36 12.6c-.02-2.2 1.8-3.26 1.88-3.31-1.02-1.5-2.62-1.7-3.18-1.72-1.35-.14-2.64.8-3.32.8-.69 0-1.74-.78-2.86-.76-1.47.02-2.83.86-3.59 2.18-1.53 2.66-.39 6.6 1.1 8.76.73 1.06 1.6 2.25 2.74 2.2 1.1-.04 1.52-.71 2.85-.71 1.32 0 1.7.71 2.86.69 1.18-.02 1.93-1.08 2.65-2.14.84-1.23 1.18-2.42 1.2-2.48-.03-.01-2.3-.88-2.32-3.5zM14.19 5.8c.6-.74 1.01-1.76.9-2.78-.87.04-1.93.58-2.56 1.31-.56.65-1.05 1.69-.92 2.69.97.07 1.97-.49 2.58-1.22z"/></svg>
-        Apple Silicon
-      </a>
-      <a
-        class="btn btn-ghost btn-lg"
-        href="https://github.com/MRL-00/cellar/releases/latest/download/Cellar-mac-x64.dmg"
-        data-download="macos-x64"
-        rel="noopener"
-      >
-        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.36 12.6c-.02-2.2 1.8-3.26 1.88-3.31-1.02-1.5-2.62-1.7-3.18-1.72-1.35-.14-2.64.8-3.32.8-.69 0-1.74-.78-2.86-.76-1.47.02-2.83.86-3.59 2.18-1.53 2.66-.39 6.6 1.1 8.76.73 1.06 1.6 2.25 2.74 2.2 1.1-.04 1.52-.71 2.85-.71 1.32 0 1.7.71 2.86.69 1.18-.02 1.93-1.08 2.65-2.14.84-1.23 1.18-2.42 1.2-2.48-.03-.01-2.3-.88-2.32-3.5zM14.19 5.8c.6-.74 1.01-1.76.9-2.78-.87.04-1.93.58-2.56 1.31-.56.65-1.05 1.69-.92 2.69.97.07 1.97-.49 2.58-1.22z"/></svg>
-        Intel Mac
-      </a>
+      <div class="download-picker">
+        <button
+          class="btn btn-primary btn-lg"
+          type="button"
+          aria-haspopup="menu"
+          aria-expanded="false"
+          data-download-trigger
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.36 12.6c-.02-2.2 1.8-3.26 1.88-3.31-1.02-1.5-2.62-1.7-3.18-1.72-1.35-.14-2.64.8-3.32.8-.69 0-1.74-.78-2.86-.76-1.47.02-2.83.86-3.59 2.18-1.53 2.66-.39 6.6 1.1 8.76.73 1.06 1.6 2.25 2.74 2.2 1.1-.04 1.52-.71 2.85-.71 1.32 0 1.7.71 2.86.69 1.18-.02 1.93-1.08 2.65-2.14.84-1.23 1.18-2.42 1.2-2.48-.03-.01-2.3-.88-2.32-3.5zM14.19 5.8c.6-.74 1.01-1.76.9-2.78-.87.04-1.93.58-2.56 1.31-.56.65-1.05 1.69-.92 2.69.97.07 1.97-.49 2.58-1.22z"/></svg>
+          Download for Mac
+          <svg class="chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>
+        </button>
+        <div class="download-menu" role="menu" aria-label="Choose Mac download" hidden>
+          <a href="https://github.com/MRL-00/cellar/releases/latest/download/Cellar-mac-arm64.dmg" data-download="macos-arm64" role="menuitem" rel="noopener">
+            <span>Apple Silicon</span>
+            <b>Mac with M1, M2, M3, or newer</b>
+          </a>
+          <a href="https://github.com/MRL-00/cellar/releases/latest/download/Cellar-mac-x64.dmg" data-download="macos-x64" role="menuitem" rel="noopener">
+            <span>Intel Mac</span>
+            <b>Older Mac with Intel processor</b>
+          </a>
+        </div>
+      </div>
     </div>
     <div class="dl-meta">
       <span>Apple Silicon or Intel · macOS 13+</span>
