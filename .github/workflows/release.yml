@@ -84,10 +84,59 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Import Developer ID certificate
+        env:
+          DEVELOPER_ID_CERTIFICATE_BASE64: ${{ secrets.DEVELOPER_ID_CERTIFICATE_BASE64 }}
+          DEVELOPER_ID_CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          : "${DEVELOPER_ID_CERTIFICATE_BASE64:?DEVELOPER_ID_CERTIFICATE_BASE64 secret is required}"
+          : "${DEVELOPER_ID_CERTIFICATE_PASSWORD:?DEVELOPER_ID_CERTIFICATE_PASSWORD secret is required}"
+
+          certificate_path="$RUNNER_TEMP/developer-id.p12"
+          keychain_path="$RUNNER_TEMP/cellar-signing.keychain-db"
+          keychain_password="$(openssl rand -hex 24)"
+
+          echo "$DEVELOPER_ID_CERTIFICATE_BASE64" | base64 -D > "$certificate_path"
+          security create-keychain -p "$keychain_password" "$keychain_path"
+          security set-keychain-settings -lut 21600 "$keychain_path"
+          security unlock-keychain -p "$keychain_password" "$keychain_path"
+          security import "$certificate_path" \
+            -P "$DEVELOPER_ID_CERTIFICATE_PASSWORD" \
+            -A \
+            -t cert \
+            -f pkcs12 \
+            -k "$keychain_path"
+          security list-keychains -d user -s "$keychain_path"
+          security default-keychain -s "$keychain_path"
+          security set-key-partition-list \
+            -S apple-tool:,apple: \
+            -s \
+            -k "$keychain_password" \
+            "$keychain_path"
+          security find-identity -v -p codesigning "$keychain_path"
+
+      - name: Write App Store Connect API key
+        env:
+          APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+        run: |
+          set -euo pipefail
+          : "${APP_STORE_CONNECT_API_KEY_BASE64:?APP_STORE_CONNECT_API_KEY_BASE64 secret is required}"
+          : "${APP_STORE_CONNECT_KEY_ID:?APP_STORE_CONNECT_KEY_ID secret is required}"
+
+          api_key_path="$RUNNER_TEMP/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
+          echo "$APP_STORE_CONNECT_API_KEY_BASE64" | base64 -D > "$api_key_path"
+          chmod 600 "$api_key_path"
+
       - name: Build and upload installers
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_API_ISSUER: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APPLE_API_KEY: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APPLE_API_KEY_PATH: ${{ runner.temp }}/AuthKey_${{ secrets.APP_STORE_CONNECT_KEY_ID }}.p8
+          APPLE_SIGNING_IDENTITY: ${{ secrets.DEVELOPER_ID_APPLICATION_IDENTITY }}
         with:
           projectPath: apps/desktop
           tagName: ${{ steps.release.outputs.tag }}

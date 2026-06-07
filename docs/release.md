@@ -34,7 +34,23 @@ Before tagging, make sure the package metadata in `package.json`,
 `apps/desktop/package.json`, `apps/desktop/src-tauri/tauri.conf.json`,
 `Cargo.toml`, and `Cargo.lock` matches the tag.
 
-The `Release` workflow currently builds macOS Apple Silicon and macOS Intel artifacts only. It creates a draft GitHub Release and uploads the Tauri installers. Tags with prerelease suffixes, such as `0.1.0-alpha.1`, are marked as prereleases. Review the draft, edit release notes, then publish it.
+The `Release` workflow currently builds macOS Apple Silicon and macOS Intel
+artifacts only. It signs and notarizes the app with Developer ID, creates a
+draft GitHub Release, and uploads the Tauri installers. Tags with prerelease
+suffixes, such as `0.1.0-alpha.1`, are marked as prereleases. Review the draft,
+edit release notes, then publish it.
+
+Release signing and notarization require these GitHub Actions secrets:
+
+- `DEVELOPER_ID_CERTIFICATE_BASE64` - base64-encoded `.p12` export of the
+  Developer ID Application certificate and private key.
+- `DEVELOPER_ID_CERTIFICATE_PASSWORD` - password for the `.p12` export.
+- `DEVELOPER_ID_APPLICATION_IDENTITY` - codesigning identity, for example
+  `Developer ID Application: MRL TECHNOLOGY LIMITED (U5LM2CZXRN)`.
+- `APP_STORE_CONNECT_API_KEY_BASE64` - base64-encoded App Store Connect API
+  key `.p8` file.
+- `APP_STORE_CONNECT_KEY_ID` - App Store Connect API key ID.
+- `APP_STORE_CONNECT_ISSUER_ID` - App Store Connect issuer ID.
 
 ## Website links
 
@@ -58,7 +74,7 @@ https://github.com/MRL-00/cellar/releases/latest/download/Cellar-mac-arm64.dmg
 
 ## Before public distribution
 
-Unsigned builds are useful for early testers, but public downloads need platform signing. Only macOS builds are published today; Windows and Linux should be added after they are tested:
+Only macOS builds are published today; Windows and Linux should be added after they are tested:
 
 - macOS: Apple Developer ID signing and notarization.
 - Windows: code-signing certificate.
