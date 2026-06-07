@@ -1,5 +1,19 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { CellEditor, CellValue } from "./Cell";
+import {
+  emptyColumnLayout,
+  layoutForColumns,
+  MIN_COLUMN_WIDTH,
+  pruneColumnLayout,
+  sameColumnLayout,
+} from "./columnLayout";
 import { FilterBar } from "./FilterBar";
 import { filterRows } from "./filters";
 import { GridIcon } from "./icons";
@@ -11,6 +25,7 @@ import type {
   CellChange,
   ColumnFilters,
   GridColumn,
+  GridColumnLayout,
   GridPagination,
   GridRow,
   PendingChange,
@@ -19,6 +34,15 @@ import type {
 } from "./types";
 
 const ROWNO_WIDTH = 36;
+const COLUMN_AUTOFIT_PADDING = 32;
+const HEADER_AUTOFIT_PADDING = 58;
+
+type ColumnResizeState = {
+  columnKey: string;
+  startX: number;
+  startWidth: number;
+  nextWidth: number;
+};
 
 export type DataGridProps = {
   columns: readonly GridColumn[];
@@ -39,6 +63,9 @@ export type DataGridProps = {
 
   sort?: SortState;
   onSortChange?: (next: SortState) => void;
+
+  columnLayout?: GridColumnLayout;
+  onColumnLayoutChange?: (next: GridColumnLayout) => void;
 
   /**
    * Number of leftmost columns to freeze. The frozen columns stick to the left
@@ -77,6 +104,8 @@ export function DataGrid({
   onFiltersChange,
   sort,
   onSortChange,
+  columnLayout,
+  onColumnLayoutChange,
   frozenCount = 2,
   totalRows,
   pagination,
@@ -85,23 +114,101 @@ export function DataGrid({
   readOnly = false,
 }: DataGridProps) {
   const [internalSort, setInternalSort] = useState<SortState>(null);
+  const [internalColumnLayout, setInternalColumnLayout] =
+    useState<GridColumnLayout>(() => emptyColumnLayout());
+  const [resizing, setResizing] = useState<ColumnResizeState | null>(null);
+  const [draggedColumnKey, setDraggedColumnKey] = useState<string | null>(null);
+  const [columnDropTargetKey, setColumnDropTargetKey] = useState<string | null>(null);
   const activeSort = sort ?? internalSort;
+  const activeColumnLayout = columnLayout ?? internalColumnLayout;
+  const isResizing = resizing !== null;
+  const resizingRef = useRef<ColumnResizeState | null>(null);
+  const suppressNextSortRef = useRef(false);
+  const measureCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  const renderedColumns = useMemo(
+    () => layoutForColumns(columns, activeColumnLayout),
+    [activeColumnLayout, columns],
+  );
 
   // Local search across visible page. Server-side filtering happens upstream
   // for large tables; the chips drive both.
   const filteredRows = useMemo(() => {
-    return filterRows(rows, columns, filters, changes);
-  }, [rows, columns, filters, changes]);
+    return filterRows(rows, renderedColumns, filters, changes);
+  }, [rows, renderedColumns, filters, changes]);
 
   const visibleRows = useMemo(
-    () => sortGridRows(filteredRows, columns, activeSort, changes),
-    [filteredRows, columns, activeSort, changes],
+    () => sortGridRows(filteredRows, renderedColumns, activeSort, changes),
+    [filteredRows, renderedColumns, activeSort, changes],
   );
 
   const minTableWidth = useMemo(
-    () => columns.reduce((acc, c) => acc + c.width, ROWNO_WIDTH + 8),
-    [columns],
+    () => renderedColumns.reduce((acc, c) => acc + c.width, ROWNO_WIDTH + 8),
+    [renderedColumns],
   );
+
+  const updateColumnLayout = useCallback(
+    (next: GridColumnLayout) => {
+      const pruned = pruneColumnLayout(columns, next);
+      if (columnLayout === undefined) setInternalColumnLayout(pruned);
+      onColumnLayoutChange?.(pruned);
+    },
+    [columnLayout, columns, onColumnLayoutChange],
+  );
+
+  useEffect(() => {
+    const pruned = pruneColumnLayout(columns, activeColumnLayout);
+    if (sameColumnLayout(pruned, activeColumnLayout)) return;
+    updateColumnLayout(pruned);
+  }, [activeColumnLayout, columns, updateColumnLayout]);
+
+  useEffect(() => {
+    resizingRef.current = resizing;
+  }, [resizing]);
+
+  useEffect(() => {
+    if (!isResizing) return;
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    const onPointerMove = (event: PointerEvent) => {
+      const active = resizingRef.current;
+      if (!active) return;
+
+      const nextWidth = Math.max(
+        MIN_COLUMN_WIDTH,
+        Math.round(active.startWidth + event.clientX - active.startX),
+      );
+      const nextState = { ...active, nextWidth };
+      resizingRef.current = nextState;
+      setResizing(nextState);
+      updateColumnLayout({
+        ...activeColumnLayout,
+        widths: {
+          ...activeColumnLayout.widths,
+          [active.columnKey]: nextWidth,
+        },
+      });
+    };
+
+    const onPointerUp = () => {
+      resizingRef.current = null;
+      setResizing(null);
+    };
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp, { once: true });
+    window.addEventListener("pointercancel", onPointerUp, { once: true });
+    return () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerUp);
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+    };
+  }, [activeColumnLayout, isResizing, updateColumnLayout]);
 
   const applySort = useCallback(
     (next: SortState) => {
@@ -155,10 +262,91 @@ export function DataGrid({
 
   const handleSort = useCallback(
     (columnKey: string) => {
+      if (suppressNextSortRef.current) {
+        suppressNextSortRef.current = false;
+        return;
+      }
       const next = cycleSortState(activeSort, columnKey);
       applySort(next);
     },
     [activeSort, applySort],
+  );
+
+  const beginColumnResize = useCallback(
+    (event: ReactPointerEvent<HTMLSpanElement>, column: GridColumn) => {
+      event.preventDefault();
+      event.stopPropagation();
+      suppressNextSortRef.current = true;
+      const next: ColumnResizeState = {
+        columnKey: column.key,
+        startX: event.clientX,
+        startWidth: column.width,
+        nextWidth: column.width,
+      };
+      resizingRef.current = next;
+      setResizing(next);
+    },
+    [],
+  );
+
+  const measureGridText = useCallback((text: string): number => {
+    if (typeof document === "undefined") return text.length * 8;
+    const canvas =
+      measureCanvasRef.current ??
+      (measureCanvasRef.current = document.createElement("canvas"));
+    const context = canvas.getContext("2d");
+    if (!context) return text.length * 8;
+    const rootStyle = getComputedStyle(document.documentElement);
+    const monoFont = rootStyle.getPropertyValue("--font-mono").trim() || "monospace";
+    context.font = `11px ${monoFont}`;
+    return context.measureText(text).width;
+  }, []);
+
+  const autofitColumn = useCallback(
+    (column: GridColumn) => {
+      const headerWidth =
+        measureGridText(column.name) +
+        measureGridText(column.type) +
+        HEADER_AUTOFIT_PADDING;
+      const valueWidth = visibleRows.reduce((maxWidth, row) => {
+        const change = changes[row.id]?.edits?.[column.key];
+        const value = change ? change.to : row[column.key];
+        const text = value === null || value === undefined ? "NULL" : String(value);
+        const adornmentWidth = column.fk ? 24 : column.enum ? 18 : 0;
+        return Math.max(
+          maxWidth,
+          measureGridText(text) + COLUMN_AUTOFIT_PADDING + adornmentWidth,
+        );
+      }, 0);
+      const nextWidth = Math.max(
+        MIN_COLUMN_WIDTH,
+        Math.ceil(Math.max(headerWidth, valueWidth)),
+      );
+      updateColumnLayout({
+        ...activeColumnLayout,
+        widths: {
+          ...activeColumnLayout.widths,
+          [column.key]: nextWidth,
+        },
+      });
+    },
+    [activeColumnLayout, changes, measureGridText, updateColumnLayout, visibleRows],
+  );
+
+  const reorderColumn = useCallback(
+    (sourceKey: string, targetKey: string) => {
+      if (sourceKey === targetKey) return;
+      const order = renderedColumns.map((column) => column.key);
+      const sourceIndex = order.indexOf(sourceKey);
+      const targetIndex = order.indexOf(targetKey);
+      if (sourceIndex === -1 || targetIndex === -1) return;
+      const nextOrder = [...order];
+      const [moved] = nextOrder.splice(sourceIndex, 1);
+      if (!moved) return;
+      nextOrder.splice(targetIndex, 0, moved);
+      updateColumnLayout({ ...activeColumnLayout, order: nextOrder });
+    },
+    [activeColumnLayout, renderedColumns, updateColumnLayout],
   );
 
   const handleCellEdit = useCallback(
@@ -191,7 +379,7 @@ export function DataGrid({
   return (
     <div className="grid-root mono">
       <FilterBar
-        columns={columns}
+        columns={renderedColumns}
         filters={filters}
         setFilters={onFiltersChange}
         totalRows={rows.length}
@@ -205,7 +393,7 @@ export function DataGrid({
             <div className="grid-cell grid-cell-rowno">
               <GridIcon.hash size={9} stroke="var(--fg-3)" />
             </div>
-            {columns.map((c, ci) => {
+            {renderedColumns.map((c, ci) => {
               const sorted = activeSort?.columnKey === c.key ? activeSort : null;
               const ariaSort =
                 sorted?.direction === "asc"
@@ -229,7 +417,9 @@ export function DataGrid({
                   className={
                     "grid-cell grid-header-cell" +
                     (ci < frozenCount ? " frozen" : "") +
-                    (sorted ? " is-sorted" : "")
+                    (sorted ? " is-sorted" : "") +
+                    (draggedColumnKey === c.key ? " is-dragging" : "") +
+                    (columnDropTargetKey === c.key ? " is-drop-target" : "")
                   }
                   role="columnheader"
                   aria-sort={ariaSort}
@@ -237,6 +427,37 @@ export function DataGrid({
                   tabIndex={0}
                   style={{ width: c.width, flexBasis: c.width }}
                   title={nextSortLabel}
+                  draggable={!isResizing}
+                  onDragStart={(event) => {
+                    event.dataTransfer.effectAllowed = "move";
+                    event.dataTransfer.setData("text/plain", c.key);
+                    setDraggedColumnKey(c.key);
+                    suppressNextSortRef.current = true;
+                  }}
+                  onDragOver={(event) => {
+                    if (!draggedColumnKey || draggedColumnKey === c.key) return;
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = "move";
+                    setColumnDropTargetKey(c.key);
+                  }}
+                  onDragLeave={() => {
+                    setColumnDropTargetKey((current) =>
+                      current === c.key ? null : current,
+                    );
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    const sourceKey =
+                      event.dataTransfer.getData("text/plain") || draggedColumnKey;
+                    if (sourceKey) reorderColumn(sourceKey, c.key);
+                    setDraggedColumnKey(null);
+                    setColumnDropTargetKey(null);
+                    suppressNextSortRef.current = true;
+                  }}
+                  onDragEnd={() => {
+                    setDraggedColumnKey(null);
+                    setColumnDropTargetKey(null);
+                  }}
                   onClick={() => handleSort(c.key)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
@@ -253,7 +474,30 @@ export function DataGrid({
                   <span className="grid-header-sort" aria-hidden="true">
                     <SortIcon size={10} />
                   </span>
-                  <span className="grid-col-resize" />
+                  <span
+                    className={
+                      "grid-col-resize" +
+                      (resizing?.columnKey === c.key ? " is-resizing" : "")
+                    }
+                    role="separator"
+                    aria-orientation="vertical"
+                    aria-label={`Resize ${c.name} column`}
+                    aria-valuemin={MIN_COLUMN_WIDTH}
+                    aria-valuenow={
+                      resizing?.columnKey === c.key ? resizing.nextWidth : c.width
+                    }
+                    tabIndex={-1}
+                    onPointerDown={(event) => beginColumnResize(event, c)}
+                    onDoubleClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      suppressNextSortRef.current = true;
+                      resizingRef.current = null;
+                      setResizing(null);
+                      autofitColumn(c);
+                    }}
+                    onClick={(event) => event.stopPropagation()}
+                  />
                 </div>
               );
             })}
@@ -298,7 +542,7 @@ export function DataGrid({
                     />
                   )}
                 </div>
-                {columns.map((c, ci) => {
+                {renderedColumns.map((c, ci) => {
                   const isSel =
                     selection?.row === ri && selection?.col === ci;
                   const isEdit =

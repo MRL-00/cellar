@@ -317,6 +317,12 @@
 .grid-header-cell.is-sorted.frozen {
   background: color-mix(in oklab, var(--accent-soft) 42%, var(--bg-1));
 }
+.grid-header-cell.is-dragging {
+  opacity: 0.58;
+}
+.grid-header-cell.is-drop-target {
+  box-shadow: inset 2px 0 0 var(--accent-line);
+}
 .grid-header-icon { color: var(--fg-3); display: inline-flex; }
 .grid-header-name {
   overflow: hidden;
@@ -349,13 +355,16 @@
 }
 .grid-col-resize {
   position: absolute;
-  right: 0;
+  right: -2px;
   top: 0;
   bottom: 0;
-  width: 4px;
+  width: 6px;
   cursor: col-resize;
+  z-index: 5;
+  touch-action: none;
 }
-.grid-col-resize:hover { background: var(--accent-line); }
+.grid-col-resize:hover,
+.grid-col-resize.is-resizing { background: var(--accent-line); }
 
 /* ── selection + cell edit states ─────────────────────────── */
 .grid-cell.is-selected {

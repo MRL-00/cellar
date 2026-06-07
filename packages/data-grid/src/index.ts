@@ -8,6 +8,7 @@ export type {
   FilterLogic,
   FilterOperator,
   GridColumn,
+  GridColumnLayout,
   GridRow,
   GridValue,
   GridPagination,

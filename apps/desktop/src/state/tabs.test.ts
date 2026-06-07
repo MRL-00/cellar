@@ -25,8 +25,10 @@ describe("tab workspace state", () => {
       closedTabs: [],
       split: null,
       tableChanges: {},
+      tableLayouts: {},
       refreshKeys: {},
     });
+    if (typeof localStorage !== "undefined") localStorage.clear();
     useTabResults.setState({ byTabId: {} });
   });
 
@@ -125,5 +127,41 @@ describe("tab workspace state", () => {
     ]);
     expect(useTabs.getState().activeId).toBe("conn-1::app.public.orders");
     expect(useTabs.getState().closedTabs).toHaveLength(2);
+  });
+
+  it("reorders tabs by id", () => {
+    const store = useTabs.getState();
+    store.openTable("conn-1", "app", "public", "orders");
+    store.openTable("conn-1", "app", "public", "customers");
+    store.openTable("conn-1", "app", "events", "devices");
+
+    useTabs
+      .getState()
+      .reorderTab("conn-1::app.events.devices", "conn-1::app.public.customers");
+
+    expect(useTabs.getState().tabs.map((t) => t.id)).toEqual([
+      "conn-1::app.public.orders",
+      "conn-1::app.events.devices",
+      "conn-1::app.public.customers",
+    ]);
+  });
+
+  it("keeps table layouts after a table tab is closed", () => {
+    const store = useTabs.getState();
+    store.openTable("conn-1", "app", "public", "orders");
+
+    useTabs.getState().setTableLayout("conn-1::app.public.orders", {
+      order: ["status", "id"],
+      widths: { status: 140 },
+    });
+    useTabs.getState().closeTab("conn-1::app.public.orders");
+
+    expect(useTabs.getState().tableLayouts["conn-1::app.public.orders"]).toEqual({
+      order: ["status", "id"],
+      widths: { status: 140 },
+    });
+    if (typeof localStorage !== "undefined") {
+      expect(localStorage.getItem("cellar.tableLayouts.v1")).toContain("status");
+    }
   });
 });
