@@ -87,8 +87,8 @@
   --font-mono: "JetBrains Mono", "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --fs-xs: 10.5px;
   --fs-sm: 11.5px;
-  --fs-md: 12.5px;
-  --fs-lg: 13.5px;
+  --fs-md: 13.5px;
+  --fs-lg: 14.5px;
   --fs-xl: 15px;
 }
 
@@ -132,7 +132,7 @@
   --row-h: 22px;
   --tab-h: 30px;
   --fs-sm: 11.5px;
-  --fs-md: 12.5px;
+  --fs-md: 13.5px;
 }
 [data-density="comfortable"] {
   --row-h: 28px;
