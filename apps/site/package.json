@@ -1,0 +1,20 @@
+{
+  "name": "@cellar/site",
+  "version": "0.1.0-alpha",
+  "private": true,
+  "type": "module",
+  "description": "Cellar marketing and download site",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.0"
+  }
+}

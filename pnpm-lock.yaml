@@ -70,6 +70,18 @@ importers:
         specifier: ^5.4.0
         version: 5.4.21(@types/node@20.19.41)(lightningcss@1.32.0)
 
+  apps/site:
+    devDependencies:
+      '@types/node':
+        specifier: ^20.14.10
+        version: 20.19.41
+      typescript:
+        specifier: ^5.5.4
+        version: 5.9.3
+      vite:
+        specifier: ^5.4.0
+        version: 5.4.21(@types/node@20.19.41)(lightningcss@1.32.0)
+
   packages/ai: {}
 
   packages/data-grid:
