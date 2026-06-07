@@ -1,0 +1,21 @@
+[package]
+name = "cellar-driver-sqlserver"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Cellar - SQL Server and Azure SQL driver built on tiberius"
+publish = false
+
+[dependencies]
+cellar-core = { path = "../../cellar-core" }
+async-trait = "0.1"
+futures-util = "0.3"
+tokio = { workspace = true }
+tokio-util = { version = "0.7", features = ["compat"] }
+thiserror = { workspace = true }
+tiberius = { version = "0.12", default-features = false, features = [
+    "tokio",
+    "rustls",
+    "tds73",
+    "chrono",
+] }

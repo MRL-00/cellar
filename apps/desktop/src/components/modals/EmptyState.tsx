@@ -1,7 +1,7 @@
 import { Icon } from "../icons";
 import { ENGINE_META, type Engine } from "../EngineBadge";
 
-const ENGINE_ORDER: Engine[] = ["postgres", "firestore", "mssql", "azure", "mysql", "sqlite"];
+const ENGINE_ORDER: Engine[] = ["postgres", "firestore", "mssql", "mysql", "sqlite"];
 
 const ENGINE_HEX: Record<Engine, string> = {
   postgres: "#4f8ff7",
@@ -94,11 +94,11 @@ export function EmptyState({ onNew }: { onNew: () => void }) {
         <div className="mb-2 text-[10px] uppercase tracking-[0.06em] text-fg-3">
           or pick an engine to start
         </div>
-        <div className="mb-[22px] grid grid-cols-6 gap-1.5">
+        <div className="mb-[22px] grid grid-cols-5 gap-1.5">
           {ENGINE_ORDER.map((e) => {
             const m = ENGINE_META[e];
             const hex = ENGINE_HEX[e];
-            const available = e === "postgres";
+            const available = e === "postgres" || e === "mssql";
             return (
               <button
                 key={e}

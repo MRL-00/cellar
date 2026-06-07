@@ -1,68 +1,32 @@
 import { useEffect, useMemo, useState } from "react";
-import type { ConnectionConfig, Schema, Table } from "@cellar/ipc";
+import type { ConnectionConfig, Schema } from "@cellar/ipc";
 
 import { Icon } from "./icons";
-import { EngineBadge, type Engine } from "./EngineBadge";
 import {
   ContextMenu,
   type ContextMenuState,
   type MenuItem,
 } from "./ContextMenu";
-import { useConnections, type ConnStatus } from "../state/connections";
+import {
+  ConnectionRow,
+  loadSchemaVisibility,
+  saveSchemaVisibility,
+  schemaHasObjects,
+  schemaVisibilityKey,
+  visibilityPrefs,
+  type NodeMenuHandler,
+  type SchemaVisibilityState,
+  type SidebarNode,
+} from "./SidebarTree";
+import { useConnections } from "../state/connections";
 import { useTabs } from "../state/tabs";
 import { qualifiedName, selectAllStatement } from "../lib/sqlIdent";
 
-/** A right-clickable node in the schema tree. */
-type SidebarNode =
-  | { kind: "database"; connectionId: string; database: string }
-  | { kind: "schema"; connectionId: string; database: string; schema: string }
-  | {
-      kind: "relation";
-      connectionId: string;
-      database: string;
-      schema: string;
-      name: string;
-      isView: boolean;
-    };
-
-type NodeMenuHandler = (e: React.MouseEvent, node: SidebarNode) => void;
-
-function StatusDot({ status }: { status: ConnStatus }) {
-  const color =
-    status === "connected"
-      ? "var(--accent)"
-      : status === "connecting"
-        ? "var(--warn)"
-        : status === "error"
-          ? "var(--warn)"
-          : "var(--fg-4)";
-  return (
-    <span
-      className={
-        "ml-1 h-1.5 w-1.5 shrink-0 rounded-full" +
-        (status === "connecting" ? " animate-sb-pulse" : "")
-      }
-      style={{ background: color }}
-      title={status}
-    />
-  );
-}
-
-const ROW_BASE =
-  "group relative flex h-[22px] select-none items-center gap-1 pr-1.5 text-fg-1 cursor-default hover:bg-bg-2";
-
-const ROW_ACTIVE = "bg-accent-soft text-accent [&_.sb-icon-slot]:!text-accent";
-
-const ICON_SLOT =
-  "sb-icon-slot inline-flex h-[14px] w-[14px] shrink-0 items-center justify-center";
-
-const TWISTY =
-  "inline-flex h-[14px] w-[14px] shrink-0 items-center justify-center text-fg-3 hover:text-fg-1";
-
-const META = "ml-auto pr-1 whitespace-nowrap text-[10px] text-fg-3 shrink-0";
-
-const PILL =
-  "ml-1 rounded-[3px] bg-bg-2 px-1 py-px font-mono text-[9px] text-fg-3";
+type SchemaManagerState = {
+  connectionId: string;
+  database: string;
+  schemas: Schema[];
+};
 
 export interface SidebarProps {
   onNewConnection?: () => void;
@@ -77,6 +41,10 @@ export function Sidebar({
 }: SidebarProps = {}) {
   const [filter, setFilter] = useState("");
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
+  const [schemaManager, setSchemaManager] =
+    useState<SchemaManagerState | null>(null);
+  const [schemaVisibility, setSchemaVisibility] =
+    useState<SchemaVisibilityState>(() => loadSchemaVisibility());
   const connections = useConnections((s) => s.connections);
   const byId = useConnections((s) => s.byId);
   const loaded = useConnections((s) => s.loaded);
@@ -97,6 +65,10 @@ export function Sidebar({
       void load();
     }
   }, [loaded, load]);
+
+  useEffect(() => {
+    saveSchemaVisibility(schemaVisibility);
+  }, [schemaVisibility]);
 
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase();
@@ -128,6 +100,32 @@ export function Sidebar({
             onClick: () => void refreshSchema(node.connectionId),
           },
           {
+            label: "Choose visible schemas…",
+            icon: <Icon.eye size={12} />,
+            onClick: () =>
+              setSchemaManager({
+                connectionId: node.connectionId,
+                database: node.database,
+                schemas: node.schemas,
+              }),
+          },
+          {
+            label: node.showHiddenSchemas
+              ? "Hide empty schemas"
+              : "Show empty schemas",
+            icon: node.showHiddenSchemas ? (
+              <Icon.eyeOff size={12} />
+            ) : (
+              <Icon.eye size={12} />
+            ),
+            onClick: () =>
+              setDatabaseShowHidden(
+                node.connectionId,
+                node.database,
+                !node.showHiddenSchemas,
+              ),
+          },
+          {
             label: "Copy name",
             icon: <Icon.copy size={12} />,
             onClick: () => copyText(node.database),
@@ -139,6 +137,18 @@ export function Sidebar({
             label: "New SQL query",
             icon: <Icon.terminal size={12} />,
             onClick: () => queryFor(node.connectionId, node.database),
+          },
+          {
+            label: node.hidden ? "Show in sidebar" : "Hide from sidebar",
+            icon: node.hidden ? (
+              <Icon.eye size={12} />
+            ) : (
+              <Icon.eyeOff size={12} />
+            ),
+            onClick: () =>
+              node.hidden
+                ? showSchema(node.connectionId, node.database, node.schema)
+                : hideSchema(node.connectionId, node.database, node.schema),
           },
           {
             label: "Copy qualified name",
@@ -196,6 +206,91 @@ export function Sidebar({
     e.preventDefault();
     e.stopPropagation();
     setMenu({ x: e.clientX, y: e.clientY, items: nodeMenuItems(node) });
+  };
+
+  const setDatabaseShowHidden = (
+    connectionId: string,
+    database: string,
+    showHidden: boolean,
+  ) => {
+    const key = schemaVisibilityKey(connectionId, database);
+    setSchemaVisibility((state) => ({
+      ...state,
+      [key]: {
+        ...visibilityPrefs(state, key),
+        showHidden,
+      },
+    }));
+  };
+
+  const hideSchema = (
+    connectionId: string,
+    database: string,
+    schema: string,
+  ) => {
+    const key = schemaVisibilityKey(connectionId, database);
+    setSchemaVisibility((state) => {
+      const prefs = visibilityPrefs(state, key);
+      const hidden = new Set(prefs.hidden);
+      hidden.add(schema);
+      return {
+        ...state,
+        [key]: {
+          ...prefs,
+          hidden: [...hidden].sort(),
+          showHidden: false,
+        },
+      };
+    });
+  };
+
+  const showSchema = (
+    connectionId: string,
+    database: string,
+    schema: string,
+  ) => {
+    const key = schemaVisibilityKey(connectionId, database);
+    setSchemaVisibility((state) => {
+      const prefs = visibilityPrefs(state, key);
+      return {
+        ...state,
+        [key]: {
+          ...prefs,
+          hidden: prefs.hidden.filter((name) => name !== schema),
+        },
+      };
+    });
+  };
+
+  const setVisibleSchemas = (
+    connectionId: string,
+    database: string,
+    schemas: Schema[],
+    visible: Set<string>,
+  ) => {
+    const key = schemaVisibilityKey(connectionId, database);
+    setSchemaVisibility((state) => {
+      const prefs = visibilityPrefs(state, key);
+      return {
+        ...state,
+        [key]: {
+          ...prefs,
+          hidden: schemas
+            .map((schema) => schema.name)
+            .filter((name) => !visible.has(name))
+            .sort(),
+          showHidden: true,
+        },
+      };
+    });
+  };
+
+  const openSchemaManager = (
+    connectionId: string,
+    database: string,
+    schemas: Schema[],
+  ) => {
+    setSchemaManager({ connectionId, database, schemas });
   };
 
   const openConnectionMenu = (e: React.MouseEvent, config: ConnectionConfig) => {
@@ -374,6 +469,8 @@ export function Sidebar({
                 openTable(c.id, database, schema, table)
               }
               activeTabId={activeTabId}
+              schemaVisibility={schemaVisibility}
+              onManageSchemas={openSchemaManager}
             />
           );
         })}
@@ -381,422 +478,188 @@ export function Sidebar({
       </div>
 
       <ContextMenu state={menu} onClose={() => setMenu(null)} />
+      {schemaManager && (
+        <SchemaVisibilityManager
+          state={schemaManager}
+          prefs={visibilityPrefs(
+            schemaVisibility,
+            schemaVisibilityKey(
+              schemaManager.connectionId,
+              schemaManager.database,
+            ),
+          )}
+          onClose={() => setSchemaManager(null)}
+          onChangeVisible={setVisibleSchemas}
+        />
+      )}
     </div>
   );
 }
 
-interface ConnectionRowProps {
-  config: ConnectionConfig;
-  status: ConnStatus;
-  expanded: boolean;
-  loadingSchema: boolean;
-  databases: { name: string; is_default: boolean; schemas: Schema[] }[];
-  error: string | null;
-  onToggle: () => void;
-  onReconnect: () => void;
-  onDisconnect: () => void;
-  onContextMenu: (e: React.MouseEvent) => void;
-  onNodeContextMenu: NodeMenuHandler;
-  onOpenTable: (database: string, schema: string, table: string) => void;
-  activeTabId: string | null;
-}
-
-function ConnectionRow({
-  config,
-  status,
-  expanded,
-  loadingSchema,
-  databases,
-  error,
-  onToggle,
-  onReconnect,
-  onDisconnect,
-  onContextMenu,
-  onNodeContextMenu,
-  onOpenTable,
-  activeTabId,
-}: ConnectionRowProps) {
-  const accent = config.color ?? engineDefaultColor(config.engine as Engine);
-  return (
-    <div>
-      <div
-        className={
-          ROW_BASE +
-          " h-[26px] border-l-2 pl-1 font-medium text-fg-0 cursor-pointer"
+function SchemaVisibilityManager({
+  state,
+  prefs,
+  onClose,
+  onChangeVisible,
+}: {
+  state: SchemaManagerState;
+  prefs: { hidden: string[]; showHidden: boolean };
+  onClose: () => void;
+  onChangeVisible: (
+    connectionId: string,
+    database: string,
+    schemas: Schema[],
+    visible: Set<string>,
+  ) => void;
+}) {
+  const [filter, setFilter] = useState("");
+  const hidden = new Set(prefs.hidden);
+  const hasNonEmpty = state.schemas.some(schemaHasObjects);
+  const visible = new Set(
+    state.schemas
+      .filter((schema) => {
+        if (hidden.has(schema.name)) return false;
+        if (hasNonEmpty && !prefs.showHidden && !schemaHasObjects(schema)) {
+          return false;
         }
-        style={{
-          borderLeftColor:
-            expanded && status === "connected" ? accent : "transparent",
-        }}
-        onClick={onToggle}
-        onContextMenu={onContextMenu}
-      >
-        <button
-          type="button"
-          className={TWISTY}
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggle();
-          }}
-        >
-          {expanded ? (
-            <Icon.chevronDown size={10} />
-          ) : (
-            <Icon.chevronRight size={10} />
-          )}
-        </button>
-        <EngineBadge engine={config.engine as Engine} size={12} />
-        <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[12px] font-medium">
-          {config.name}
-        </span>
-        {config.env_tag === "prod" && (
-          <span
-            className="rounded-[3px] px-1 py-px font-mono text-[8.5px] uppercase"
-            style={{ color: "var(--warn)", background: "color-mix(in oklab, var(--warn) 16%, transparent)" }}
-            title="production"
-          >
-            prod
-          </span>
-        )}
-        <StatusDot status={status} />
-        <button
-          type="button"
-          className="icon-btn ml-1 opacity-0 transition-opacity duration-100 group-hover:opacity-100"
-          title="Actions"
-          onClick={(e) => {
-            e.stopPropagation();
-            onContextMenu(e);
-          }}
-        >
-          <Icon.more size={11} />
-        </button>
-        {status === "connected" && (
-          <button
-            type="button"
-            className="icon-btn opacity-0 transition-opacity duration-100 group-hover:opacity-100"
-            title="Disconnect"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDisconnect();
-            }}
-          >
-            <Icon.power size={11} />
-          </button>
-        )}
-      </div>
+        return true;
+      })
+      .map((schema) => schema.name),
+  );
+  const filtered = state.schemas.filter((schema) =>
+    schema.name.toLowerCase().includes(filter.trim().toLowerCase()),
+  );
 
-      {expanded && error && (
-        <div
-          className="flex items-start gap-2 px-3 py-1 text-[10.5px] text-warn"
-          style={{ paddingLeft: 32 }}
-        >
-          <span className="min-w-0 flex-1">{error}</span>
-          <button
-            className="inline-flex h-[20px] shrink-0 items-center gap-1 rounded-[4px] border border-warn/40 px-1.5 text-[10px] text-warn hover:bg-bg-2"
-            title="Reconnect"
-            onClick={(e) => {
-              e.stopPropagation();
-              onReconnect();
-            }}
-          >
-            <Icon.history size={10} />
-            Retry
+  const update = (next: Set<string>) => {
+    onChangeVisible(state.connectionId, state.database, state.schemas, next);
+  };
+
+  const setOne = (schema: string, checked: boolean) => {
+    const next = new Set(visible);
+    if (checked) next.add(schema);
+    else next.delete(schema);
+    update(next);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35">
+      <div className="flex max-h-[70vh] w-[420px] flex-col overflow-hidden rounded-[8px] border border-border-default bg-bg-1 shadow-xl">
+        <div className="flex h-10 shrink-0 items-center justify-between border-b border-border-default px-3">
+          <div className="min-w-0">
+            <div className="text-[12.5px] font-semibold text-fg-0">
+              Visible schemas
+            </div>
+            <div className="truncate font-mono text-[10.5px] text-fg-3">
+              {state.database}
+            </div>
+          </div>
+          <button className="icon-btn" title="Close" onClick={onClose}>
+            <Icon.close size={12} />
           </button>
         </div>
-      )}
 
-      {expanded && loadingSchema && (
-        <div
-          className="px-3 py-1 text-[10.5px] text-fg-3 animate-sb-pulse"
-          style={{ paddingLeft: 32 }}
-        >
-          loading schemas…
-        </div>
-      )}
-
-      {expanded &&
-        !loadingSchema &&
-        databases.map((db) => (
-          <DatabaseRow
-            key={db.name}
-            connectionId={config.id}
-            dbName={db.name}
-            isDefault={db.is_default}
-            schemas={db.schemas}
-            onNodeContextMenu={onNodeContextMenu}
-            onOpenTable={onOpenTable}
-            activeTabId={activeTabId}
-          />
-        ))}
-    </div>
-  );
-}
-
-function DatabaseRow({
-  connectionId,
-  dbName,
-  isDefault,
-  schemas,
-  onNodeContextMenu,
-  onOpenTable,
-  activeTabId,
-}: {
-  connectionId: string;
-  dbName: string;
-  isDefault: boolean;
-  schemas: Schema[];
-  onNodeContextMenu: NodeMenuHandler;
-  onOpenTable: (database: string, schema: string, table: string) => void;
-  activeTabId: string | null;
-}) {
-  // Default database opens expanded; others stay collapsed to keep the tree tidy.
-  const [open, setOpen] = useState(isDefault);
-  const empty = schemas.length === 0;
-  return (
-    <div>
-      <div
-        className={ROW_BASE + " cursor-pointer"}
-        style={{ paddingLeft: 18 }}
-        onClick={() => !empty && setOpen((v) => !v)}
-        onContextMenu={(e) =>
-          onNodeContextMenu(e, { kind: "database", connectionId, database: dbName })
-        }
-        title={empty ? "no accessible schemas" : undefined}
-      >
-        <button type="button" className={TWISTY} aria-label={open ? "Collapse database" : "Expand database"}>
-          {empty ? (
-            <span className={TWISTY + " invisible"} />
-          ) : open ? (
-            <Icon.chevronDown size={10} />
-          ) : (
-            <Icon.chevronRight size={10} />
-          )}
-        </button>
-        <span className={ICON_SLOT}>
-          <Icon.database size={12} />
-        </span>
-        <span
-          className={
-            "flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[11.5px] " +
-            (empty ? "text-fg-3" : "")
-          }
-        >
-          {dbName}
-        </span>
-        <span className={META + " font-mono"}>
-          {empty ? "—" : `${schemas.length} schemas`}
-        </span>
-      </div>
-      {open &&
-        schemas.map((sch) => (
-          <SchemaRow
-            key={sch.name}
-            connectionId={connectionId}
-            database={dbName}
-            schema={sch}
-            onNodeContextMenu={onNodeContextMenu}
-            onOpenTable={onOpenTable}
-            activeTabId={activeTabId}
-          />
-        ))}
-    </div>
-  );
-}
-
-function SchemaRow({
-  connectionId,
-  database,
-  schema,
-  onNodeContextMenu,
-  onOpenTable,
-  activeTabId,
-}: {
-  connectionId: string;
-  database: string;
-  schema: Schema;
-  onNodeContextMenu: NodeMenuHandler;
-  onOpenTable: (database: string, schema: string, table: string) => void;
-  activeTabId: string | null;
-}) {
-  const [open, setOpen] = useState(true);
-  return (
-    <div>
-      <div
-        className={ROW_BASE + " cursor-pointer"}
-        style={{ paddingLeft: 30 }}
-        onClick={() => setOpen((v) => !v)}
-        onContextMenu={(e) =>
-          onNodeContextMenu(e, {
-            kind: "schema",
-            connectionId,
-            database,
-            schema: schema.name,
-          })
-        }
-      >
-        <button type="button" className={TWISTY} aria-label={open ? "Collapse schema" : "Expand schema"}>
-          {open ? (
-            <Icon.chevronDown size={10} />
-          ) : (
-            <Icon.chevronRight size={10} />
-          )}
-        </button>
-        <span className={ICON_SLOT}>
-          <Icon.schema size={12} />
-        </span>
-        <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[11.5px]">
-          {schema.name}
-        </span>
-        <span className={META + " font-mono"}>{schema.tables.length}</span>
-      </div>
-      {open && (
-        <>
-          {schema.tables.length > 0 && (
-            <GroupHeader label="tables" count={schema.tables.length} />
-          )}
-          {schema.tables.map((t) => (
-            <TableRow
-              key={t.name}
-              connectionId={connectionId}
-              database={database}
-              schema={schema.name}
-              table={t}
-              onOpen={() => onOpenTable(database, schema.name, t.name)}
-              onNodeContextMenu={onNodeContextMenu}
-              activeTabId={activeTabId}
+        <div className="border-b border-border-default px-3 py-2">
+          <div className="mb-2 flex min-h-7 items-center gap-1.5 rounded-[4px] border border-border-default bg-bg-inset px-2 focus-within:border-accent-line">
+            <Icon.search size={11} style={{ color: "var(--fg-3)" }} />
+            <input
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              placeholder="Filter schemas..."
+              className="min-w-0 flex-1 border-none bg-transparent py-1 text-[11.5px] text-fg-0 outline-none placeholder:text-fg-3"
             />
-          ))}
-          {schema.views.length > 0 && (
-            <>
-              <GroupHeader label="views" count={schema.views.length} />
-              {schema.views.map((v) => (
-                <div
-                  key={v.name}
-                  className={ROW_BASE + " cursor-pointer"}
-                  style={{ paddingLeft: 54 }}
-                  onClick={() => onOpenTable(database, schema.name, v.name)}
-                  onContextMenu={(e) =>
-                    onNodeContextMenu(e, {
-                      kind: "relation",
-                      connectionId,
-                      database,
-                      schema: schema.name,
-                      name: v.name,
-                      isView: true,
-                    })
-                  }
-                  title="click to open"
-                >
-                  <span className={TWISTY + " invisible"} />
-                  <span className={ICON_SLOT}>
-                    <Icon.tree size={11} />
-                  </span>
-                  <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[11.5px]">
-                    {v.name}
-                  </span>
-                </div>
-              ))}
-            </>
-          )}
-        </>
-      )}
+          </div>
+          <div className="flex flex-wrap gap-1">
+            <SchemaAction
+              label="All"
+              onClick={() =>
+                update(new Set(state.schemas.map((schema) => schema.name)))
+              }
+            />
+            <SchemaAction label="None" onClick={() => update(new Set())} />
+            <SchemaAction
+              label="Non-empty"
+              onClick={() =>
+                update(
+                  new Set(
+                    state.schemas
+                      .filter(schemaHasObjects)
+                      .map((schema) => schema.name),
+                  ),
+                )
+              }
+            />
+            <SchemaAction
+              label="Empty"
+              onClick={() =>
+                update(
+                  new Set(
+                    state.schemas
+                      .filter((schema) => !schemaHasObjects(schema))
+                      .map((schema) => schema.name),
+                  ),
+                )
+              }
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto py-1">
+          {filtered.map((schema) => {
+            const checked = visible.has(schema.name);
+            const count = schema.tables.length + schema.views.length;
+            return (
+              <label
+                key={schema.name}
+                className="flex h-7 cursor-pointer items-center gap-2 px-3 text-[11.5px] text-fg-1 hover:bg-bg-2"
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={(e) => setOne(schema.name, e.target.checked)}
+                  className="h-3.5 w-3.5 accent-[var(--accent)]"
+                />
+                <Icon.schema size={12} />
+                <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-mono">
+                  {schema.name}
+                </span>
+                <span className="font-mono text-[10px] text-fg-3">
+                  {count}
+                </span>
+              </label>
+            );
+          })}
+        </div>
+
+        <div className="flex h-9 shrink-0 items-center justify-between border-t border-border-default px-3">
+          <span className="font-mono text-[10.5px] text-fg-3">
+            {visible.size}/{state.schemas.length} visible
+          </span>
+          <button
+            className="h-[24px] rounded-[4px] bg-accent px-2.5 text-[11px] font-medium text-accent-fg"
+            onClick={onClose}
+          >
+            Done
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
 
-function GroupHeader({ label, count }: { label: string; count: number }) {
-  return (
-    <div
-      className={
-        ROW_BASE +
-        " mt-0.5 h-5 text-[10px] uppercase tracking-[0.05em] text-fg-3 hover:bg-transparent hover:text-fg-2"
-      }
-      style={{ paddingLeft: 42 }}
-    >
-      <span className={TWISTY + " invisible"} />
-      <span className="flex-1 font-semibold">{label}</span>
-      <span className="font-mono text-[10px] text-fg-3">{count}</span>
-    </div>
-  );
-}
-
-function TableRow({
-  connectionId,
-  database,
-  schema,
-  table,
-  onOpen,
-  onNodeContextMenu,
-  activeTabId,
+function SchemaAction({
+  label,
+  onClick,
 }: {
-  connectionId: string;
-  database: string;
-  schema: string;
-  table: Table;
-  onOpen: () => void;
-  onNodeContextMenu: NodeMenuHandler;
-  activeTabId: string | null;
+  label: string;
+  onClick: () => void;
 }) {
-  const tabId = `${database}.${schema}.${table.name}`;
-  const active = activeTabId?.endsWith(tabId) ?? false;
-  const fkCount = table.foreign_keys.length;
   return (
-    <div
-      className={ROW_BASE + " cursor-pointer" + (active ? " " + ROW_ACTIVE : "")}
-      style={{ paddingLeft: 54 }}
-      onClick={onOpen}
-      onContextMenu={(e) =>
-        onNodeContextMenu(e, {
-          kind: "relation",
-          connectionId,
-          database,
-          schema,
-          name: table.name,
-          isView: false,
-        })
-      }
-      title="click to open"
+    <button
+      type="button"
+      className="h-5 rounded-[3px] border border-border-default bg-bg-2 px-2 text-[10.5px] text-fg-1 hover:border-border-strong hover:text-fg-0"
+      onClick={onClick}
     >
-      <span className={TWISTY + " invisible"} />
-      <span className={ICON_SLOT} style={{ color: "var(--fg-1)" }}>
-        <Icon.table size={11} />
-      </span>
-      <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[11.5px]">
-        {table.name}
-      </span>
-      {table.row_count != null && (
-        <span className={META + " font-mono"}>
-          {formatRowCount(table.row_count)}
-        </span>
-      )}
-      {fkCount > 0 && (
-        <span className={PILL} title={`${fkCount} foreign keys`}>
-          fk·{fkCount}
-        </span>
-      )}
-    </div>
+      {label}
+    </button>
   );
-}
-
-function formatRowCount(n: number): string {
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
-  if (n >= 1_000) return (n / 1_000).toFixed(1) + "k";
-  return String(n);
-}
-
-function engineDefaultColor(engine: Engine): string {
-  switch (engine) {
-    case "postgres":
-      return "var(--eng-postgres)";
-    case "mysql":
-      return "var(--eng-mysql)";
-    case "mssql":
-      return "var(--eng-mssql)";
-    case "azure":
-      return "var(--eng-azure)";
-    case "sqlite":
-      return "var(--eng-sqlite)";
-    case "firestore":
-      return "var(--eng-firestore)";
-  }
 }
