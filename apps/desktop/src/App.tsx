@@ -15,8 +15,8 @@ import {
   SettingsModal,
   type SettingsCatId,
 } from "./components/modals/Settings";
+import { useLayout } from "./state/layout";
 
-type Panels = { left: boolean; right: boolean; bottom: boolean };
 type ModalId = "commit" | "palette" | "settings" | null;
 type ConnDialog = { mode: "new" | "edit"; initial?: ConnectionConfig } | null;
 
@@ -88,24 +88,19 @@ function ResizeHandle({
 }
 
 export function App() {
-  const [panels, setPanels] = useState<Panels>({
-    left: true,
-    right: true,
-    bottom: true,
-  });
-  const [leftWidth, setLeftWidth] = useState(256);
-  const [rightWidth, setRightWidth] = useState(380);
-  const [bottomHeight, setBottomHeight] = useState(280);
+  const panels = useLayout((s) => s.panels);
+  const togglePanel = useLayout((s) => s.togglePanel);
+  const leftWidth = useLayout((s) => s.leftWidth);
+  const setLeftWidth = useLayout((s) => s.setLeftWidth);
+  const rightWidth = useLayout((s) => s.rightWidth);
+  const setRightWidth = useLayout((s) => s.setRightWidth);
+  const bottomHeight = useLayout((s) => s.bottomHeight);
+  const setBottomHeight = useLayout((s) => s.setBottomHeight);
   const [modal, setModal] = useState<ModalId>(null);
   const [connDialog, setConnDialog] = useState<ConnDialog>(null);
   const [empty, setEmpty] = useState(false);
   const [settingsInitialCat, setSettingsInitialCat] =
     useState<SettingsCatId>("appearance");
-
-  const togglePanel = useCallback(
-    (k: keyof Panels) => setPanels((p) => ({ ...p, [k]: !p[k] })),
-    [],
-  );
 
   const openModal = useCallback((m: ModalId) => setModal(m), []);
   const closeModal = useCallback(() => setModal(null), []);

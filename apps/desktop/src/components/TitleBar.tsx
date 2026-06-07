@@ -3,8 +3,7 @@ import { Icon } from "./icons";
 import { useTabs } from "../state/tabs";
 import { useConnections } from "../state/connections";
 import { ENGINE_META } from "./EngineBadge";
-
-type Panels = { left: boolean; right: boolean; bottom: boolean };
+import type { PanelId, Panels } from "../state/layout";
 
 // WKWebView ignores Electron's `-webkit-app-region`, so window dragging and
 // double-click-to-maximize are driven manually. The catch: calling
@@ -36,7 +35,7 @@ export function TitleBar({
   onOpenSettings,
 }: {
   panels: Panels;
-  onTogglePanel: (k: keyof Panels) => void;
+  onTogglePanel: (k: PanelId) => void;
   empty?: boolean;
   onToggleEmpty?: () => void;
   onOpenPalette?: () => void;
