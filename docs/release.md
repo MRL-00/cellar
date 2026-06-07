@@ -28,9 +28,8 @@ git tag 0.1.0
 git push origin 0.1.0
 ```
 
-Tags must be semver-style versions such as `0.1.0` or `0.1.0-alpha.1`.
-The release workflow also accepts a leading `v`, such as `v0.1.0`, but plain
-semver tags are preferred.
+Tags must be plain semver-style versions such as `0.1.0` or
+`0.1.0-alpha.1`. Do not prefix release tags with `v`.
 Before tagging, make sure the package metadata in `package.json`,
 `apps/desktop/package.json`, `apps/desktop/src-tauri/tauri.conf.json`,
 `Cargo.toml`, and `Cargo.lock` matches the tag.
