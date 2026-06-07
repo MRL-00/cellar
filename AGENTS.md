@@ -20,7 +20,7 @@ Read `SPEC.md` before making product or architectural changes. It is the canonic
 
 ## Current Status
 
-This repo is pre-alpha, but it is no longer just a static shell. Treat it as a working vertical slice with Postgres-only database connectivity, typed IPC, live schema browsing, and a read-only table-data path.
+This repo is early access, but it is no longer just a static shell. Treat it as a working vertical slice with Postgres-only database connectivity, typed IPC, live schema browsing, and a read-only table-data path.
 
 Implemented today:
 

@@ -529,7 +529,7 @@ h2 {
 .priv-list .ic svg { width: 18px; height: 18px; }
 .priv-list b { color: var(--fg-0); font-weight: 600; }
 
-/* oss band — honest about pre-alpha. No fake star counts. */
+/* oss band — honest about early access. No fake star counts. */
 .oss {
   display: flex;
   align-items: center;

@@ -6,7 +6,7 @@ An open-source, cross-platform desktop database client with AI in the workflow, 
 
 Cellar is for developers, DBAs, and analysts who want a fast, dense, keyboard-first SQL workspace: browse schemas, run queries, inspect execution plans, edit result sets, and review database changes before they are committed. It is desktop-first, MIT licensed, and private by default.
 
-> **Status:** pre-alpha. The app is a working vertical slice, not a production database client yet. Today it is strongest around PostgreSQL connection management, schema browsing, SQL execution, query history, execution plans, and the early editable-grid path.
+> **Status:** early access. The app is a working vertical slice, not a production database client yet. Today it is strongest around PostgreSQL connection management, schema browsing, SQL execution, query history, execution plans, and the early editable-grid path.
 
 ## Principles
 
@@ -133,7 +133,7 @@ Credential handling belongs in `cellar-secrets`. Connection configs must not con
 
 ## Roadmap
 
-The roadmap is organized by product spine rather than version labels while the repo is pre-alpha.
+The roadmap is organized by product spine rather than version labels while the repo is early access.
 
 1. **Stabilize the PostgreSQL vertical slice**
    - clearer connection and reconnect behavior
