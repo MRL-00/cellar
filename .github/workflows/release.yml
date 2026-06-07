@@ -2,9 +2,14 @@ name: Release
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Semver version to release, for example 0.1.0"
+        required: true
   push:
     tags:
-      - "v*"
+      - "[0-9]*.[0-9]*.[0-9]*"
+      - "v[0-9]*.[0-9]*.[0-9]*"
 
 permissions:
   contents: write
@@ -38,6 +43,32 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Resolve release version
+        id: release
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            version="${{ inputs.version }}"
+            release_tag="$version"
+          else
+            version="${GITHUB_REF_NAME}"
+            release_tag="$GITHUB_REF_NAME"
+          fi
+          version="${version#v}"
+
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Version must be a semver tag like 0.1.0 or 0.1.0-alpha.1" >&2
+            exit 1
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$release_tag" >> "$GITHUB_OUTPUT"
+          if [[ "$version" == *-* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
         run: |
@@ -46,8 +77,6 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -77,9 +106,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: apps/desktop
-          tagName: cellar-v__VERSION__
-          releaseName: Cellar v__VERSION__
+          tagName: ${{ steps.release.outputs.tag }}
+          releaseName: Cellar ${{ steps.release.outputs.version }}
           releaseBody: See the assets below to download Cellar for your platform.
           releaseDraft: true
-          prerelease: true
+          prerelease: ${{ steps.release.outputs.prerelease }}
           args: ${{ matrix.args }}
