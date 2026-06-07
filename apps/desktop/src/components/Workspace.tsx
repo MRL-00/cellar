@@ -3,7 +3,7 @@ import {
   useGridState,
   type PendingChanges,
 } from "@cellar/data-grid";
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { SqlEditor } from "./SqlEditor";
 import { Icon } from "./icons";
@@ -161,6 +161,37 @@ function TableTabPane({
     pageSize,
   );
   const grid = useGridState();
+  const handleGridChange = useCallback(
+    (next: PendingChanges) => setTableChanges(tab.id, next),
+    [setTableChanges, tab.id],
+  );
+  const handleRevert = useCallback(
+    () => clearTableChanges(tab.id),
+    [clearTableChanges, tab.id],
+  );
+  const pagination = useMemo(
+    () => ({
+      offset: data.offset,
+      limit: data.limit,
+      pageSizeOptions: TABLE_PAGE_SIZE_OPTIONS,
+      hasPrevious: data.hasPreviousPage,
+      hasNext: data.hasNextPage,
+      loading: data.fetching,
+      onPrevious: () => setPageIndex((page) => Math.max(0, page - 1)),
+      onNext: () => setPageIndex((page) => page + 1),
+      onPageSizeChange: (next: number) => {
+        setPageSize(next);
+        setPageIndex(0);
+      },
+    }),
+    [
+      data.fetching,
+      data.hasNextPage,
+      data.hasPreviousPage,
+      data.limit,
+      data.offset,
+    ],
+  );
 
   if (data.loading) {
     return (
@@ -183,22 +214,9 @@ function TableTabPane({
         columns={data.columns}
         rows={data.rows}
         totalRows={data.truncated ? undefined : data.rows.length}
-        pagination={{
-          offset: data.offset,
-          limit: data.limit,
-          pageSizeOptions: TABLE_PAGE_SIZE_OPTIONS,
-          hasPrevious: data.hasPreviousPage,
-          hasNext: data.hasNextPage,
-          loading: data.fetching,
-          onPrevious: () => setPageIndex((page) => Math.max(0, page - 1)),
-          onNext: () => setPageIndex((page) => page + 1),
-          onPageSizeChange: (next) => {
-            setPageSize(next);
-            setPageIndex(0);
-          },
-        }}
+        pagination={pagination}
         changes={changes}
-        onChange={(next) => setTableChanges(tab.id, next)}
+        onChange={handleGridChange}
         selection={grid.selection}
         onSelect={grid.setSelection}
         editing={grid.editing}
@@ -210,7 +228,7 @@ function TableTabPane({
         columnLayout={columnLayout}
         onColumnLayoutChange={(next) => setTableLayout(tab.id, next)}
         onCommit={onCommit}
-        onRevert={() => clearTableChanges(tab.id)}
+        onRevert={handleRevert}
       />
     </div>
   );

@@ -1,10 +1,13 @@
 import {
+  memo,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
+  type UIEvent,
 } from "react";
 import { CellEditor, CellValue } from "./Cell";
 import {
@@ -36,6 +39,49 @@ import type {
 const ROWNO_WIDTH = 36;
 const COLUMN_AUTOFIT_PADDING = 32;
 const HEADER_AUTOFIT_PADDING = 58;
+const HEADER_HEIGHT = 26;
+const DEFAULT_ROW_HEIGHT = 22;
+const MIN_ROW_OVERSCAN = 24;
+const OVERSCAN_VIEWPORTS = 3;
+const VIRTUAL_ROW_THRESHOLD = 1_000;
+
+export function calculateVirtualRows({
+  rowCount,
+  viewportHeight,
+  scrollTop,
+  rowHeight,
+}: {
+  rowCount: number;
+  viewportHeight: number;
+  scrollTop: number;
+  rowHeight: number;
+}) {
+  const measuredRowHeight = rowHeight || DEFAULT_ROW_HEIGHT;
+  const bodyScrollTop = Math.max(0, scrollTop - HEADER_HEIGHT);
+  const measuredViewportHeight = viewportHeight || measuredRowHeight * 30;
+  const visibleCount = Math.ceil(
+    (measuredViewportHeight + HEADER_HEIGHT) / measuredRowHeight,
+  );
+  const overscan = Math.max(
+    MIN_ROW_OVERSCAN,
+    visibleCount * OVERSCAN_VIEWPORTS,
+  );
+  const first = Math.max(
+    0,
+    Math.floor(bodyScrollTop / measuredRowHeight) - overscan,
+  );
+  const last = Math.min(rowCount, first + visibleCount + overscan * 2);
+
+  return {
+    first,
+    last,
+    totalHeight: rowCount * measuredRowHeight,
+  };
+}
+
+export function shouldVirtualizeRows(rowCount: number): boolean {
+  return rowCount > VIRTUAL_ROW_THRESHOLD;
+}
 
 type ColumnResizeState = {
   columnKey: string;
@@ -146,6 +192,94 @@ export function DataGrid({
     () => renderedColumns.reduce((acc, c) => acc + c.width, ROWNO_WIDTH + 8),
     [renderedColumns],
   );
+  const virtualized = shouldVirtualizeRows(visibleRows.length);
+
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [viewport, setViewport] = useState({
+    height: 0,
+    scrollTop: 0,
+    rowHeight: DEFAULT_ROW_HEIGHT,
+  });
+
+  const measureViewport = useCallback((scroller: HTMLDivElement) => {
+    const raw = getComputedStyle(scroller).getPropertyValue("--row-h").trim();
+    const parsed = Number.parseFloat(raw);
+    const rowHeight =
+      Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_ROW_HEIGHT;
+
+    setViewport((current) => {
+      const next = {
+        height: scroller.clientHeight,
+        scrollTop: scroller.scrollTop,
+        rowHeight,
+      };
+      if (
+        current.height === next.height &&
+        current.scrollTop === next.scrollTop &&
+        current.rowHeight === next.rowHeight
+      ) {
+        return current;
+      }
+      return next;
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    const scroller = scrollRef.current;
+    if (!scroller) return;
+
+    measureViewport(scroller);
+
+    let frame = 0;
+    const scheduleSync = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        measureViewport(scroller);
+      });
+    };
+
+    const resizeObserver = new ResizeObserver(scheduleSync);
+    resizeObserver.observe(scroller);
+
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      resizeObserver.disconnect();
+    };
+  }, [measureViewport]);
+
+  const handleScroll = useCallback((event: UIEvent<HTMLDivElement>) => {
+    const scrollTop = event.currentTarget.scrollTop;
+    setViewport((current) =>
+      current.scrollTop === scrollTop ? current : { ...current, scrollTop },
+    );
+  }, []);
+
+  const virtualRows = useMemo(() => {
+    const rowHeight = viewport.rowHeight || DEFAULT_ROW_HEIGHT;
+    if (!virtualized) {
+      return {
+        first: 0,
+        rows: visibleRows,
+        rowHeight,
+        totalHeight: undefined,
+      };
+    }
+
+    const range = calculateVirtualRows({
+      rowCount: visibleRows.length,
+      viewportHeight: viewport.height,
+      scrollTop: viewport.scrollTop,
+      rowHeight,
+    });
+
+    return {
+      first: range.first,
+      rows: visibleRows.slice(range.first, range.last),
+      rowHeight,
+      totalHeight: range.totalHeight,
+    };
+  }, [viewport, visibleRows, virtualized]);
 
   const updateColumnLayout = useCallback(
     (next: GridColumnLayout) => {
@@ -377,7 +511,11 @@ export function DataGrid({
   );
 
   return (
-    <div className="grid-root mono">
+    <div
+      className={
+        "grid-root mono" + (virtualized ? "" : " grid-stable-scroll")
+      }
+    >
       <FilterBar
         columns={renderedColumns}
         filters={filters}
@@ -387,7 +525,11 @@ export function DataGrid({
         serverRows={totalRows}
       />
 
-      <div className="grid-scroll">
+      <div
+        className="grid-scroll"
+        ref={scrollRef}
+        onScroll={virtualized ? handleScroll : undefined}
+      >
         <div className="grid-table" style={{ minWidth: minTableWidth }}>
           <div className="grid-row grid-header-row">
             <div className="grid-cell grid-cell-rowno">
@@ -503,106 +645,39 @@ export function DataGrid({
             })}
           </div>
 
-          {visibleRows.map((row, ri) => {
-            const change = changes[row.id];
-            const kind = change?.kind;
-            const rowSelected = selection?.row === ri;
-            return (
-              <div
-                key={row.id}
-                className={
-                  "grid-row" +
-                  (kind ? " is-" + kind : "") +
-                  (rowSelected ? " is-selected-row" : "")
-                }
-              >
-                <div className="grid-cell grid-cell-rowno">
-                  <span className="grid-rowno-num tnum">
-                    {(pagination?.offset ?? 0) + ri + 1}
-                  </span>
-                  {kind === "update" && (
-                    <span
-                      className="grid-gutter-mark"
-                      style={{ background: "var(--update)" }}
-                      title="Updated"
-                    />
-                  )}
-                  {kind === "insert" && (
-                    <span
-                      className="grid-gutter-mark"
-                      style={{ background: "var(--insert)" }}
-                      title="Inserted"
-                    />
-                  )}
-                  {kind === "delete" && (
-                    <span
-                      className="grid-gutter-mark"
-                      style={{ background: "var(--delete)" }}
-                      title="Marked for delete"
-                    />
-                  )}
-                </div>
-                {renderedColumns.map((c, ci) => {
-                  const isSel =
-                    selection?.row === ri && selection?.col === ci;
-                  const isEdit =
-                    !readOnly && editing?.row === ri && editing?.col === ci;
-                  const cellChange = change?.edits?.[c.key];
-                  const displayed = cellChange ? cellChange.to : row[c.key];
-                  const original = row[c.key] ?? null;
-
-                  return (
-                    <div
-                      key={c.key}
-                      className={
-                        "grid-cell" +
-                        (ci < frozenCount ? " frozen" : "") +
-                        (cellChange ? " is-edited" : "") +
-                        (isSel ? " is-selected" : "") +
-                        (isEdit ? " is-editing" : "")
-                      }
-                      style={{ width: c.width, flexBasis: c.width }}
-                      onClick={() => onSelect({ row: ri, col: ci })}
-                      onDoubleClick={() => {
-                        if (!readOnly) onEdit({ row: ri, col: ci });
-                      }}
-                    >
-                      {isEdit ? (
-                        <CellEditor
-                          col={c}
-                          value={displayed}
-                          onCommit={(v) => {
-                            handleCellEdit(
-                              row.id,
-                              c.key,
-                              (original ?? null) as CellChange["from"],
-                              (v ?? null) as CellChange["to"],
-                            );
-                            onEdit(null);
-                          }}
-                          onCancel={() => onEdit(null)}
-                        />
-                      ) : (
-                        <CellValue col={c} value={displayed} />
-                      )}
-                      {cellChange && !isEdit && (
-                        <span
-                          className="grid-cell-prev"
-                          title={`Was: ${cellChange.from ?? "NULL"}`}
-                        >
-                          <span className="grid-cell-prev-strike">
-                            {cellChange.from === null
-                              ? "NULL"
-                              : String(cellChange.from)}
-                          </span>
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })}
+          <div
+            className={
+              virtualRows.totalHeight === undefined ? "" : "grid-virtual-body"
+            }
+            style={{ height: virtualRows.totalHeight }}
+          >
+            {virtualRows.rows.map((row, virtualIndex) => {
+              const ri = virtualRows.first + virtualIndex;
+              const change = changes[row.id];
+              return (
+                <GridRowView
+                  key={row.id}
+                  row={row}
+                  rowIndex={ri}
+                  rowNumber={(pagination?.offset ?? 0) + ri + 1}
+                  columns={renderedColumns}
+                  change={change}
+                  selected={selection?.row === ri ? selection : null}
+                  editing={editing?.row === ri ? editing : null}
+                  frozenCount={frozenCount}
+                  readOnly={readOnly}
+                  top={
+                    virtualRows.totalHeight === undefined
+                      ? undefined
+                      : ri * virtualRows.rowHeight
+                  }
+                  onSelect={onSelect}
+                  onEdit={onEdit}
+                  onCellEdit={handleCellEdit}
+                />
+              );
+            })}
+          </div>
           {!readOnly && (
             <div className="grid-row grid-row-add">
               <div className="grid-cell grid-cell-rowno">
@@ -626,6 +701,136 @@ export function DataGrid({
     </div>
   );
 }
+
+type GridRowViewProps = {
+  row: GridRow;
+  rowIndex: number;
+  rowNumber: number;
+  columns: readonly GridColumn[];
+  change: PendingChange | undefined;
+  selected: CellAddress | null;
+  editing: CellAddress | null;
+  frozenCount: number;
+  readOnly: boolean;
+  top: number | undefined;
+  onSelect: (next: CellAddress | null) => void;
+  onEdit: (next: CellAddress | null) => void;
+  onCellEdit: (
+    rowId: string,
+    colKey: string,
+    prev: CellChange["from"],
+    next: CellChange["to"],
+  ) => void;
+};
+
+const GridRowView = memo(function GridRowView({
+  row,
+  rowIndex,
+  rowNumber,
+  columns,
+  change,
+  selected,
+  editing,
+  frozenCount,
+  readOnly,
+  top,
+  onSelect,
+  onEdit,
+  onCellEdit,
+}: GridRowViewProps) {
+  const kind = change?.kind;
+  const rowSelected = selected !== null;
+
+  return (
+    <div
+      className={
+        "grid-row" +
+        (kind ? " is-" + kind : "") +
+        (rowSelected ? " is-selected-row" : "")
+      }
+      style={top === undefined ? undefined : { top }}
+    >
+      <div className="grid-cell grid-cell-rowno">
+        <span className="grid-rowno-num tnum">{rowNumber}</span>
+        {kind === "update" && (
+          <span
+            className="grid-gutter-mark"
+            style={{ background: "var(--update)" }}
+            title="Updated"
+          />
+        )}
+        {kind === "insert" && (
+          <span
+            className="grid-gutter-mark"
+            style={{ background: "var(--insert)" }}
+            title="Inserted"
+          />
+        )}
+        {kind === "delete" && (
+          <span
+            className="grid-gutter-mark"
+            style={{ background: "var(--delete)" }}
+            title="Marked for delete"
+          />
+        )}
+      </div>
+      {columns.map((c, ci) => {
+        const isSel = selected?.col === ci;
+        const isEdit = !readOnly && editing?.col === ci;
+        const cellChange = change?.edits?.[c.key];
+        const displayed = cellChange ? cellChange.to : row[c.key];
+        const original = row[c.key] ?? null;
+
+        return (
+          <div
+            key={c.key}
+            className={
+              "grid-cell" +
+              (ci < frozenCount ? " frozen" : "") +
+              (cellChange ? " is-edited" : "") +
+              (isSel ? " is-selected" : "") +
+              (isEdit ? " is-editing" : "")
+            }
+            style={{ width: c.width, flexBasis: c.width }}
+            onClick={() => onSelect({ row: rowIndex, col: ci })}
+            onDoubleClick={() => {
+              if (!readOnly) onEdit({ row: rowIndex, col: ci });
+            }}
+          >
+            {isEdit ? (
+              <CellEditor
+                col={c}
+                value={displayed}
+                onCommit={(v) => {
+                  onCellEdit(
+                    row.id,
+                    c.key,
+                    (original ?? null) as CellChange["from"],
+                    (v ?? null) as CellChange["to"],
+                  );
+                  onEdit(null);
+                }}
+                onCancel={() => onEdit(null)}
+              />
+            ) : (
+              <CellValue col={c} value={displayed} />
+            )}
+            {cellChange && !isEdit && (
+              <span
+                className="grid-cell-prev"
+                title={`Was: ${cellChange.from ?? "NULL"}`}
+              >
+                <span className="grid-cell-prev-strike">
+                  {cellChange.from === null ? "NULL" : String(cellChange.from)}
+                </span>
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+});
 
 function PaginationBar({
   pagination,
