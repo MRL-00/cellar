@@ -3,10 +3,10 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { useBottomPanel, type BottomTabId } from "../../state/bottomPanel";
 import { useConnections } from "../../state/connections";
+import type { PanelId, Panels } from "../../state/layout";
 import { useTabs, type WorkspaceTab } from "../../state/tabs";
 import { Icon } from "../icons";
 
-type Panels = { left: boolean; right: boolean; bottom: boolean };
 type Group = "Actions" | "Tabs" | "Connections" | "Catalog" | "Columns" | "View";
 
 type Entry = {
@@ -25,7 +25,7 @@ type CommandPaletteProps = {
   onNewConnection: () => void;
   onOpenCommit: () => void;
   onOpenSettings: () => void;
-  onTogglePanel: (k: keyof Panels) => void;
+  onTogglePanel: (k: PanelId) => void;
 };
 
 const GROUP_ORDER: Group[] = [
@@ -215,7 +215,10 @@ export function CommandPalette({
         grp: "View",
         label: `Show ${titleCase(id)}`,
         hint: bottomTab === id ? "active" : "output panel",
-        action: () => setBottomTab(id),
+        action: () => {
+          setBottomTab(id);
+          if (!panels.bottom) onTogglePanel("bottom");
+        },
       });
     }
 
