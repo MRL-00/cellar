@@ -21,6 +21,11 @@ export type GridColumn = {
   enum?: readonly string[];
 };
 
+export type GridColumnLayout = {
+  order: string[];
+  widths: Record<string, number>;
+};
+
 /** Row values are keyed by column key. Use `null` for SQL NULL. */
 export type GridRow = {
   id: string;

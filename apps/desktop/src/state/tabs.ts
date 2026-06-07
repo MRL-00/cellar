@@ -1,6 +1,8 @@
 import { create } from "zustand";
-import type { PendingChanges } from "@cellar/data-grid";
+import type { GridColumnLayout, PendingChanges } from "@cellar/data-grid";
 import { useTabResults } from "./tabResults";
+
+const TABLE_LAYOUTS_STORAGE_KEY = "cellar.tableLayouts.v1";
 
 export interface TableTab {
   id: string;
@@ -31,6 +33,8 @@ export interface WorkspaceSplit {
   secondaryId: string;
 }
 
+export type TableLayouts = Record<string, GridColumnLayout>;
+
 let queryTabSeq = 0;
 
 interface TabsStore {
@@ -39,6 +43,7 @@ interface TabsStore {
   closedTabs: WorkspaceTab[];
   split: WorkspaceSplit | null;
   tableChanges: Record<string, PendingChanges>;
+  tableLayouts: TableLayouts;
   refreshKeys: Record<string, number>;
   openTable: (
     connectionId: string,
@@ -55,7 +60,9 @@ interface TabsStore {
   clearSplit: () => void;
   closeOtherTabs: (id: string) => void;
   closeTabsToRight: (id: string) => void;
+  reorderTab: (sourceId: string, targetId: string) => void;
   setActive: (id: string) => void;
+  setTableLayout: (id: string, layout: GridColumnLayout) => void;
   setTableChanges: (id: string, changes: PendingChanges) => void;
   clearTableChanges: (id: string) => void;
   refreshTable: (id: string) => void;
@@ -68,6 +75,46 @@ function tableKey(
   table: string,
 ): string {
   return `${connectionId}::${database}.${schema}.${table}`;
+}
+
+function loadTableLayouts(): TableLayouts {
+  if (typeof localStorage === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(TABLE_LAYOUTS_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return {};
+    const layouts: TableLayouts = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      if (!value || typeof value !== "object") continue;
+      const item = value as Partial<GridColumnLayout>;
+      layouts[key] = {
+        order: Array.isArray(item.order)
+          ? item.order.filter(
+              (columnKey): columnKey is string =>
+                typeof columnKey === "string",
+            )
+          : [],
+        widths:
+          item.widths && typeof item.widths === "object"
+            ? Object.fromEntries(
+                Object.entries(item.widths).filter(
+                  ([columnKey, width]) =>
+                    typeof columnKey === "string" && typeof width === "number",
+                ),
+              )
+            : {},
+      };
+    }
+    return layouts;
+  } catch {
+    return {};
+  }
+}
+
+function saveTableLayouts(layouts: TableLayouts) {
+  if (typeof localStorage === "undefined") return;
+  localStorage.setItem(TABLE_LAYOUTS_STORAGE_KEY, JSON.stringify(layouts));
 }
 
 function dropTabScopedState(
@@ -118,6 +165,7 @@ export const useTabs = create<TabsStore>((set, get) => ({
   closedTabs: [],
   split: null,
   tableChanges: {},
+  tableLayouts: loadTableLayouts(),
   refreshKeys: {},
 
   openTable(connectionId, database, schema, table) {
@@ -250,6 +298,20 @@ export const useTabs = create<TabsStore>((set, get) => ({
     clearTabResults(closedIds);
   },
 
+  reorderTab(sourceId, targetId) {
+    if (sourceId === targetId) return;
+    set((s) => {
+      const sourceIndex = s.tabs.findIndex((t) => t.id === sourceId);
+      const targetIndex = s.tabs.findIndex((t) => t.id === targetId);
+      if (sourceIndex === -1 || targetIndex === -1) return {};
+      const tabs = [...s.tabs];
+      const [moved] = tabs.splice(sourceIndex, 1);
+      if (!moved) return {};
+      tabs.splice(targetIndex, 0, moved);
+      return { tabs, split: splitForTabs(tabs, s.split) };
+    });
+  },
+
   reopenClosedTab() {
     set((s) => {
       const [closed, ...closedTabs] = s.closedTabs;
@@ -305,6 +367,14 @@ export const useTabs = create<TabsStore>((set, get) => ({
           ? { ...s.split, primaryId: id }
           : s.split,
     }));
+  },
+
+  setTableLayout(id, layout) {
+    set((s) => {
+      const tableLayouts = { ...s.tableLayouts, [id]: layout };
+      saveTableLayouts(tableLayouts);
+      return { tableLayouts };
+    });
   },
 
   setTableChanges(id, changes) {

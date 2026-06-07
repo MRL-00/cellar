@@ -36,6 +36,8 @@ function pickQueryTarget(): { connectionId: string; database: string } | null {
 
 export function TabBar() {
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
+  const [draggedTabId, setDraggedTabId] = useState<string | null>(null);
+  const [tabDropTargetId, setTabDropTargetId] = useState<string | null>(null);
   const tabs = useTabs((s) => s.tabs);
   const activeId = useTabs((s) => s.activeId);
   const split = useTabs((s) => s.split);
@@ -46,6 +48,7 @@ export function TabBar() {
   const reopenClosedTab = useTabs((s) => s.reopenClosedTab);
   const closeOtherTabs = useTabs((s) => s.closeOtherTabs);
   const closeTabsToRight = useTabs((s) => s.closeTabsToRight);
+  const reorderTab = useTabs((s) => s.reorderTab);
   const newQueryTab = useTabs((s) => s.newQueryTab);
   const setQuerySql = useTabs((s) => s.setQuerySql);
   const refreshTable = useTabs((s) => s.refreshTable);
@@ -140,13 +143,43 @@ export function TabBar() {
           return (
             <div
               key={t.id}
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.effectAllowed = "move";
+                e.dataTransfer.setData("text/plain", t.id);
+                setDraggedTabId(t.id);
+              }}
+              onDragOver={(e) => {
+                if (!draggedTabId || draggedTabId === t.id) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "move";
+                setTabDropTargetId(t.id);
+              }}
+              onDragLeave={() => {
+                setTabDropTargetId((current) => (current === t.id ? null : current));
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                const sourceId =
+                  e.dataTransfer.getData("text/plain") || draggedTabId;
+                if (sourceId) reorderTab(sourceId, t.id);
+                if (sourceId) setActive(sourceId);
+                setDraggedTabId(null);
+                setTabDropTargetId(null);
+              }}
+              onDragEnd={() => {
+                setDraggedTabId(null);
+                setTabDropTargetId(null);
+              }}
               onClick={() => setActive(t.id)}
               onContextMenu={(e) => openTabMenu(e, t)}
               className={
                 "group relative inline-flex items-center gap-1.5 h-full pl-2.5 pr-2 max-w-[260px] shrink-0 border-r border-border-default text-[11.5px] cursor-pointer transition-[background,color] duration-100 " +
                 (isActive
                   ? "bg-bg-0 text-fg-0 border-b border-bg-0 -mb-px"
-                  : "bg-bg-1 text-fg-2 hover:bg-bg-2 hover:text-fg-1")
+                  : "bg-bg-1 text-fg-2 hover:bg-bg-2 hover:text-fg-1") +
+                (draggedTabId === t.id ? " opacity-60" : "") +
+                (tabDropTargetId === t.id ? " shadow-[inset_2px_0_0_var(--accent-line)]" : "")
               }
             >
               <span
@@ -174,6 +207,7 @@ export function TabBar() {
               )}
               <button
                 type="button"
+                draggable={false}
                 onClick={(e) => {
                   e.stopPropagation();
                   closeTab(t.id);

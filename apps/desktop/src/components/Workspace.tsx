@@ -144,7 +144,9 @@ function TableTabPane({
 }) {
   const refreshKey = useTabs((s) => s.refreshKeys[tab.id] ?? 0);
   const changes = useTabs((s) => s.tableChanges[tab.id] ?? EMPTY_CHANGES);
+  const columnLayout = useTabs((s) => s.tableLayouts[tab.id]);
   const setTableChanges = useTabs((s) => s.setTableChanges);
+  const setTableLayout = useTabs((s) => s.setTableLayout);
   const clearTableChanges = useTabs((s) => s.clearTableChanges);
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(500);
@@ -205,6 +207,8 @@ function TableTabPane({
         onFiltersChange={grid.setFilters}
         sort={grid.sort}
         onSortChange={grid.setSort}
+        columnLayout={columnLayout}
+        onColumnLayoutChange={(next) => setTableLayout(tab.id, next)}
         onCommit={onCommit}
         onRevert={() => clearTableChanges(tab.id)}
       />
