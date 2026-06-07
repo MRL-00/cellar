@@ -1,155 +1,194 @@
 # Cellar
 
-A fast, modern, open-source desktop database client — with AI in the workflow, not stapled to the side.
+An open-source, cross-platform desktop database client with AI in the workflow, not stapled to the side.
 
-![Cellar — main view](docs/assets/cellar-main.png)
+![Cellar main window](apps/site/public/assets/cellar-main.png)
 
-> **Status:** pre-alpha. The repo is a scaffold; only the v0.1.0 frontend layout is in place. Drivers, the data grid, the SQL editor, and the AI pipeline are stubbed. See [SPEC.md](./SPEC.md) §12 for the roadmap and [`docs/architecture/overview.md`](./docs/architecture/overview.md) for the architecture.
+Cellar is for developers, DBAs, and analysts who want a fast, dense, keyboard-first SQL workspace: browse schemas, run queries, inspect execution plans, edit result sets, and review database changes before they are committed. It is desktop-first, MIT licensed, and private by default.
 
----
+> **Status:** pre-alpha. The app is a working vertical slice, not a production database client yet. Today it is strongest around PostgreSQL connection management, schema browsing, SQL execution, query history, execution plans, and the early editable-grid path.
 
-## What it is
+## Principles
 
-Cellar targets the same audience as DataGrip, TablePlus, and DBeaver: developers, DBAs, and analysts who work with multiple databases daily and need a fast, ergonomic environment for browsing, querying, editing, and shipping schema and data changes.
+- **Desktop-first:** there is no web-hosted v1 target.
+- **Private by default:** no telemetry, cloud sync, accounts, or crash upload without explicit opt-in.
+- **Bring your own AI provider:** Cellar must not proxy AI requests through a hosted Cellar service.
+- **SQL-native AI:** generated SQL should be inspectable, contextual, and gated before execution.
+- **The grid matters:** result grids must be virtualized, editable, honest about pending changes, and safe around transactions.
+- **Extensible by design:** drivers, AI providers, exporters, and renderers should be pluggable instead of hardcoded into app-only paths.
 
-Three convictions shape it:
+## What Works Today
 
-1. **The existing tools are either heavy, closed-source, or thin.** There is room for a fast, modern, open-source client that takes the DataGrip feature set seriously.
-2. **AI belongs in the workflow.** Schema-aware completion in the editor, context-aware chat, and explainable SQL generation should be first-class.
-3. **Extensibility is a feature.** Drivers, AI providers, exporters, and renderers should all be pluggable.
+- Tauri 2 desktop shell with React 18, TypeScript, Vite, Tailwind v4, and Zustand.
+- Marketing/download site in `apps/site`.
+- Typed Tauri IPC generated with `tauri-specta` into `packages/ipc`.
+- Connection CRUD, test, connect, reconnect, and disconnect commands.
+- OS-keychain credential storage via `cellar-secrets`.
+- PostgreSQL driver with live connection pooling, schema introspection, query execution, table browsing, table-change commits, and `EXPLAIN` support.
+- SQL Server/Azure SQL driver scaffolding with connection/query/introspection paths in progress.
+- Query history storage and filtering.
+- CodeMirror-based SQL editor package.
+- Data grid package with editable cells, pending-change state, filters, frozen-column styling, and commit/revert hooks.
+- Desktop UI for the sidebar tree, tabbed workspace, SQL editor, result grid, bottom messages/plan panels, connection dialog, command palette, settings, and commit preview.
+- Rust and TypeScript test scaffolding around core contracts, IPC, grid behavior, state stores, SQL helpers, notices, and query messages.
 
-MIT licensed. No paid tier. No telemetry without opt-in.
+## Not Done Yet
 
-![Cellar — welcome / first launch](docs/assets/cellar-welcome.png)
+- Production-safe streaming or paged query results. Current execution still materializes rows and applies host-side caps.
+- Query cancellation.
+- Server-side grid pagination, sorting, filtering, and large-result virtualization.
+- Broad database support. PostgreSQL is the real vertical slice; other engines are not ready for day-to-day use.
+- Fully integrated `cellar-diff` review-and-commit flow for every editable-grid path.
+- AI provider configuration, context chips, inline completion, and SQL generation.
+- Plugin runtime and plugin SDK hardening.
+- Signed installers, auto-update, CI, release packaging, and security-ready CSP.
 
----
+Read [SPEC.md](SPEC.md) before making product or architectural changes. It is the canonical product spec.
 
-## Stack
+## Quick Start
 
-| Layer | Choice |
-|---|---|
-| Desktop shell | Tauri 2 |
-| Frontend | React 18 + TypeScript + Vite |
-| State | Zustand |
-| Styling | CSS variables (design tokens) |
-| Data grid | Custom, on TanStack Table v8 |
-| SQL editor | CodeMirror 6 |
-| Backend | Rust (stable) |
-| DB drivers | `sqlx` (Postgres / MySQL / SQLite), `tiberius` (SQL Server) |
-| Package mgmt | pnpm workspaces + Cargo workspaces |
-| Monorepo | Turborepo |
+Prerequisites:
 
-Full rationale: [SPEC.md §4](./SPEC.md#4-stack).
-
----
-
-## Quick start
-
-Prerequisites: **Node ≥ 20**, **pnpm ≥ 9**, **Rust (stable)** with the standard `cargo` toolchain. On macOS you'll also need Xcode command-line tools.
+- Node.js 20 or newer
+- pnpm 9 or newer
+- Rust stable
+- macOS users: Xcode command-line tools
 
 ```bash
-# Clone and install everything (TS + Rust deps resolve on first run)
 git clone https://github.com/MRL-00/cellar.git
 cd cellar
 pnpm install
-
-# Run the desktop app (Tauri dev — opens a native window with HMR)
 pnpm dev
 ```
 
-That's it. `pnpm dev` runs `tauri dev` inside `apps/desktop`, which spawns the Vite dev server starting at `localhost:1430` and falls forward to the next free port if needed, then opens the app window.
+`pnpm dev` runs the Tauri desktop app from `apps/desktop`. The helper starts Vite on port `1430` or the next available port, then opens the native app window.
 
-Other useful scripts (all from the repo root):
+Useful commands from the repo root:
 
 ```bash
-pnpm build                         # turbo: build every workspace package
-pnpm typecheck                     # tsc --noEmit across TS packages
-pnpm --filter @cellar/desktop build:tauri   # produce a signed-ish bundle
-cargo check --workspace            # check every Rust crate
-cargo test  --workspace            # run Rust tests
+pnpm typecheck
+pnpm build
+pnpm lint
+pnpm test
+cargo check --workspace
+cargo test --workspace
 ```
 
----
+Run the website locally:
 
-## Repository layout
-
-Per [SPEC.md §5.2](./SPEC.md#52-repository-layout):
-
+```bash
+pnpm --filter @cellar/site dev
 ```
+
+Build a desktop bundle:
+
+```bash
+pnpm --filter @cellar/desktop build:tauri
+```
+
+## Repository Layout
+
+```text
 cellar/
-├── apps/desktop/        # Tauri app shell (frontend + Rust commands)
-├── crates/              # Rust workspace
-│   ├── cellar-core/         # Traits, errors, shared types
-│   ├── cellar-drivers/      # Per-engine drivers
-│   ├── cellar-sql/          # SQL parsing, dialect handling
-│   ├── cellar-diff/         # Pending changes → SQL
-│   ├── cellar-secrets/      # Credential storage
-│   └── cellar-plugin-host/  # External plugin loading
-├── packages/            # pnpm workspace
-│   ├── ui/                  # Shared component library
-│   ├── data-grid/           # The grid (its own package)
-│   ├── sql-editor/          # CodeMirror wrapper
-│   ├── ipc/                 # Generated TS bindings from Rust commands
-│   ├── ai/                  # AI providers, prompts, context building
-│   └── plugin-sdk/          # SDK for community plugin authors
-├── plugins/             # First-party plugins
-├── docs/                # Architecture, ADRs, contributor guides
-├── examples/            # Docker compose for local DBs, sample data
-└── scripts/             # Build, codegen, release helpers
+├── apps/
+│   ├── desktop/        # Tauri app shell, React frontend, Rust commands
+│   └── site/           # Marketing/download site
+├── crates/
+│   ├── cellar-core/    # Shared Rust traits, errors, schema/query types
+│   ├── cellar-drivers/ # First-party engine drivers
+│   ├── cellar-sql/     # SQL parsing, formatting, dialect support
+│   ├── cellar-diff/    # Pending grid edits to transactional SQL
+│   ├── cellar-secrets/ # OS keychain and credential storage
+│   └── cellar-plugin-host/
+├── packages/
+│   ├── ai/             # AI provider adapters and context pipeline
+│   ├── data-grid/      # Custom grid package
+│   ├── ipc/            # Generated TypeScript IPC bindings
+│   ├── plugin-sdk/     # Plugin authoring interfaces
+│   ├── sql-editor/     # CodeMirror SQL editor wrapper
+│   └── ui/             # Shared UI primitives and tokens
+├── docs/               # Architecture notes, ADRs, release notes
+└── SPEC.md             # Canonical product and architecture spec
 ```
 
----
+## Architecture
+
+The intended runtime shape is:
+
+```text
+React frontend
+  -> typed Tauri IPC
+  -> Rust command/state layer
+  -> cellar-core driver traits
+  -> concrete database drivers
+```
+
+The frontend imports command wrappers from `@cellar/ipc`; it should not hand-maintain Rust-facing types. After changing Tauri commands or Rust IPC-facing types, regenerate the generated TypeScript bindings:
+
+```bash
+pnpm --filter @cellar/ipc codegen
+```
+
+Credential handling belongs in `cellar-secrets`. Connection configs must not contain passwords or provider keys.
 
 ## Roadmap
 
-The plan is documented in [SPEC.md §12](./SPEC.md#12-roadmap). Short version:
+The roadmap is organized by product spine rather than version labels while the repo is pre-alpha.
 
-- **v0.1.0** — Postgres driver, connection management, schema tree, SQL editor, read-only grid
-- **v0.2.0** — Cell/row/column editing, Review & Commit, FK navigation, history, settings
-- **v0.3.0** — MySQL, SQLite, SQL Server, Azure SQL; execution plans; dialect handling
-- **v0.4.0** — AI panel (chat, context chips, generated SQL) + inline editor completion
-- **v0.5.0** — Plugin SDK + runtime, exporters, auto-updater
-- **v1.0.0** — Signed, notarized binaries for macOS, Windows, Linux
+1. **Stabilize the PostgreSQL vertical slice**
+   - clearer connection and reconnect behavior
+   - better typed errors and notices
+   - safer row-limit handling
+   - stronger Rust and frontend tests
 
----
+2. **Make query execution production-shaped**
+   - query IDs and cancellation
+   - streamed or page-style result events
+   - result memory caps
+   - richer messages and execution-plan views
+
+3. **Finish the grid edit and commit path**
+   - complete `cellar-diff` integration
+   - reviewable transactional SQL
+   - optimistic concurrency checks
+   - server-side sorting, filtering, pagination, and virtualization
+
+4. **Broaden engine support**
+   - harden SQL Server and Azure SQL
+   - add MySQL and SQLite
+   - keep dialect behavior in drivers and shared SQL/diff builders, not React components
+
+5. **Add workflow-native AI**
+   - BYO provider settings
+   - inspectable schema/query context
+   - generated SQL review gates
+   - inline editor assistance
+
+6. **Prepare for contributors and releases**
+   - plugin runtime and SDK
+   - contributor docs
+   - CI, signing, updater, release packaging
+   - security-ready Tauri CSP
+
+## Website
+
+The marketing site lives in `apps/site` and shares the product’s visual language and screenshots. Some website copy is intentionally aspirational; when code and copy disagree, treat `SPEC.md`, `AGENTS.md`, and the implemented command/driver surface as the source of truth.
 
 ## Contributing
 
-Issues and discussion happen on GitHub. Architectural changes should land as an ADR in `docs/architecture/adr/` before code.
+Cellar is early, so small vertical slices are better than broad rewrites. Prefer existing patterns, keep IPC types generated, and keep source files under the 800-line project limit.
 
-When `CONTRIBUTING.md` lands it'll cover setup, code style, and PR guidelines. In the meantime: open an issue, fork, branch, PR.
+Before opening a pull request:
 
----
+```bash
+pnpm typecheck
+pnpm test
+cargo check --workspace
+cargo test --workspace
+```
+
+Use Conventional Commit-style PR titles such as `feat: add scenario templates` or `fix: handle titlebar double-click`. Do not use `[codex]` or `codex:` prefixes.
 
 ## License
 
-[MIT](./LICENSE) — to be added in the first tagged release.
-
----
-
-## How this was built
-
-Cellar's design was prototyped in [Claude Design](https://claude.ai/design), exported as a handoff bundle, and implemented by Claude Code against [SPEC.md](./SPEC.md).
-
-<table>
-<tr>
-<td width="50%">
-
-**1. Design handoff**
-
-The design tool exports a tarball with the prototype HTML, components, design tokens, and chat transcripts.
-
-</td>
-<td width="50%">
-
-**2. The implementation prompt**
-
-The whole scaffold landed from a single prompt pointing Claude Code at the design bundle and the spec.
-
-</td>
-</tr>
-<tr>
-<td><img src="docs/assets/built-with-claude-handoff.png" alt="Handoff to Claude Code menu" /></td>
-<td><img src="docs/assets/built-with-claude-prompt.png" alt="Implementation prompt to Claude Code" /></td>
-</tr>
-</table>
+[MIT](LICENSE)
