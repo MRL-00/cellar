@@ -1,0 +1,8 @@
+<svg width="240" height="240" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" aria-label="Cellar">
+  <defs>
+    <clipPath id="r"><rect width="240" height="240" rx="48"></rect></clipPath>
+  </defs>
+  <g clip-path="url(#r)">
+    <path d="M 0 0 H 240 V 240 H 0 Z M 40 40 H 200 V 96 H 96 V 144 H 200 V 200 H 40 Z" fill-rule="evenodd" fill="#ffffff"></path>
+  </g>
+</svg>
