@@ -116,6 +116,65 @@ function renderEngineChips(el: HTMLElement | null) {
 renderEngineChips(document.getElementById("engRow"));
 renderEngineChips(document.getElementById("engRow2"));
 
+/* ───────────── release download ───────────── */
+
+const GITHUB_RELEASE_API = "https://api.github.com/repos/MRL-00/cellar/releases/latest";
+const GITHUB_LATEST_RELEASE = "https://github.com/MRL-00/cellar/releases/latest";
+
+type ReleaseAsset = {
+  name: string;
+  size: number;
+  browser_download_url: string;
+};
+
+type GitHubRelease = {
+  tag_name: string;
+  assets: ReleaseAsset[];
+};
+
+function formatBytes(bytes: number): string {
+  const mb = bytes / 1024 / 1024;
+  return `${mb.toFixed(mb >= 10 ? 0 : 1)} MB`;
+}
+
+function setMacDownload(url: string, label?: string) {
+  const links = document.querySelectorAll<HTMLAnchorElement>('[data-download="macos-aarch64"]');
+  for (const link of links) {
+    link.href = url;
+    link.rel = "noopener";
+    if (label) link.title = label;
+  }
+}
+
+async function initDownloadLink() {
+  setMacDownload(GITHUB_LATEST_RELEASE, "Open the latest Cellar release");
+
+  try {
+    const res = await fetch(GITHUB_RELEASE_API, {
+      headers: { Accept: "application/vnd.github+json" },
+    });
+    if (!res.ok) return;
+
+    const release = (await res.json()) as GitHubRelease;
+    const appleSiliconDmg = release.assets.find((asset) =>
+      /^Cellar_[^/]+_aarch64\.dmg$/i.test(asset.name),
+    );
+    if (!appleSiliconDmg) return;
+
+    setMacDownload(
+      appleSiliconDmg.browser_download_url,
+      `Download Cellar ${release.tag_name} for Apple Silicon Macs`,
+    );
+
+    const sizeEls = document.querySelectorAll<HTMLElement>("[data-release-size]");
+    for (const el of sizeEls) el.textContent = formatBytes(appleSiliconDmg.size);
+  } catch {
+    /* Keep the release-page fallback. */
+  }
+}
+
+initDownloadLink();
+
 /* ───────────── faq ───────────── */
 
 type Qa = readonly [question: string, answer: string];
