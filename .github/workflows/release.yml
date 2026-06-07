@@ -25,10 +25,12 @@ jobs:
             platform: macos-latest
             args: --target aarch64-apple-darwin
             rust-targets: aarch64-apple-darwin
+            stable-asset-name: Cellar-mac-arm64.dmg
           - label: macOS Intel
             platform: macos-latest
             args: --target x86_64-apple-darwin
             rust-targets: x86_64-apple-darwin
+            stable-asset-name: Cellar-mac-x64.dmg
 
     steps:
       - name: Checkout
@@ -145,3 +147,27 @@ jobs:
           releaseDraft: true
           prerelease: ${{ steps.release.outputs.prerelease }}
           args: ${{ matrix.args }}
+
+      - name: Upload stable direct-download asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          STABLE_ASSET_NAME: ${{ matrix.stable-asset-name }}
+          TARGET_TRIPLE: ${{ matrix.rust-targets }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          target_dir="apps/desktop/src-tauri/target/$TARGET_TRIPLE"
+          if [[ ! -d "$target_dir" ]]; then
+            echo "Expected build target directory does not exist: $target_dir" >&2
+            exit 1
+          fi
+
+          dmg_path="$(find "$target_dir" -path '*/release/bundle/dmg/*.dmg' -type f -print -quit)"
+          if [[ -z "$dmg_path" ]]; then
+            echo "No DMG artifact found under $target_dir" >&2
+            exit 1
+          fi
+
+          gh release upload "$RELEASE_TAG" "$dmg_path#$STABLE_ASSET_NAME" --clobber

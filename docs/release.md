@@ -54,23 +54,21 @@ Release signing and notarization require these GitHub Actions secrets:
 
 ## Website links
 
-The simplest website download button should link to:
-
-```text
-https://github.com/MRL-00/cellar/releases/latest
-```
-
-GitHub redirects that URL to the latest published release. This is the most
-robust link while installer filenames include the version number.
-
-For a direct macOS download button, either use a small platform-detection page
-that reads the latest GitHub Release assets, or upload a stable asset name such
-as `Cellar-mac-arm64.dmg` in addition to Tauri's versioned artifacts. A stable
-asset name can then be linked with:
+The website download buttons link directly to stable macOS release assets:
 
 ```text
 https://github.com/MRL-00/cellar/releases/latest/download/Cellar-mac-arm64.dmg
+https://github.com/MRL-00/cellar/releases/latest/download/Cellar-mac-x64.dmg
 ```
+
+GitHub redirects those URLs to the matching assets on the latest published
+release. The site presents separate Apple Silicon and Intel Mac buttons instead
+of assuming the visitor's CPU architecture. The release workflow uploads stable
+aliases for the Tauri-generated DMGs so the website does not need to know the
+versioned installer filenames:
+
+- `Cellar-mac-arm64.dmg` for Apple Silicon.
+- `Cellar-mac-x64.dmg` for Intel.
 
 ## Before public distribution
 

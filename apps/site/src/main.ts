@@ -119,7 +119,21 @@ renderEngineChips(document.getElementById("engRow2"));
 /* ───────────── release download ───────────── */
 
 const GITHUB_RELEASE_API = "https://api.github.com/repos/MRL-00/cellar/releases/latest";
-const GITHUB_LATEST_RELEASE = "https://github.com/MRL-00/cellar/releases/latest";
+
+const downloads = {
+  "macos-arm64": {
+    assetName: "Cellar-mac-arm64.dmg",
+    fallbackUrl: "https://github.com/MRL-00/cellar/releases/latest/download/Cellar-mac-arm64.dmg",
+    label: "Apple Silicon Macs",
+  },
+  "macos-x64": {
+    assetName: "Cellar-mac-x64.dmg",
+    fallbackUrl: "https://github.com/MRL-00/cellar/releases/latest/download/Cellar-mac-x64.dmg",
+    label: "Intel Macs",
+  },
+} as const;
+
+type DownloadKey = keyof typeof downloads;
 
 type ReleaseAsset = {
   name: string;
@@ -137,8 +151,8 @@ function formatBytes(bytes: number): string {
   return `${mb.toFixed(mb >= 10 ? 0 : 1)} MB`;
 }
 
-function setMacDownload(url: string, label?: string) {
-  const links = document.querySelectorAll<HTMLAnchorElement>('[data-download="macos-aarch64"]');
+function setDownloadLink(key: DownloadKey, url: string, label?: string) {
+  const links = document.querySelectorAll<HTMLAnchorElement>(`[data-download="${key}"]`);
   for (const link of links) {
     link.href = url;
     link.rel = "noopener";
@@ -147,7 +161,9 @@ function setMacDownload(url: string, label?: string) {
 }
 
 async function initDownloadLink() {
-  setMacDownload(GITHUB_LATEST_RELEASE, "Open the latest Cellar release");
+  for (const [key, download] of Object.entries(downloads) as [DownloadKey, (typeof downloads)[DownloadKey]][]) {
+    setDownloadLink(key, download.fallbackUrl, `Download the latest Cellar release for ${download.label}`);
+  }
 
   try {
     const res = await fetch(GITHUB_RELEASE_API, {
@@ -156,20 +172,27 @@ async function initDownloadLink() {
     if (!res.ok) return;
 
     const release = (await res.json()) as GitHubRelease;
-    const appleSiliconDmg = release.assets.find((asset) =>
-      /^Cellar_[^/]+_aarch64\.dmg$/i.test(asset.name),
-    );
-    if (!appleSiliconDmg) return;
+    for (const [key, download] of Object.entries(downloads) as [DownloadKey, (typeof downloads)[DownloadKey]][]) {
+      const asset = release.assets.find((candidate) => candidate.name === download.assetName);
+      if (!asset) continue;
 
-    setMacDownload(
-      appleSiliconDmg.browser_download_url,
-      `Download Cellar ${release.tag_name} for Apple Silicon Macs`,
-    );
+      setDownloadLink(
+        key,
+        asset.browser_download_url,
+        `Download Cellar ${release.tag_name} for ${download.label}`,
+      );
+    }
 
     const sizeEls = document.querySelectorAll<HTMLElement>("[data-release-size]");
-    for (const el of sizeEls) el.textContent = formatBytes(appleSiliconDmg.size);
+    const sizes = release.assets
+      .filter((asset) => Object.values(downloads).some((download) => download.assetName === asset.name))
+      .map((asset) => asset.size);
+    if (sizes.length === 0) return;
+
+    const largestSize = Math.max(...sizes);
+    for (const el of sizeEls) el.textContent = formatBytes(largestSize);
   } catch {
-    /* Keep the release-page fallback. */
+    /* Keep the direct latest/download fallback links. */
   }
 }
 
