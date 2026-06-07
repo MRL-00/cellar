@@ -39,6 +39,7 @@ tauri-specta = { version = "=2.0.0-rc.21", features = ["derive", "typescript"] }
 cellar-core = { path = "../../../crates/cellar-core" }
 cellar-driver-firestore = { path = "../../../crates/cellar-drivers/firestore" }
 cellar-driver-postgres = { path = "../../../crates/cellar-drivers/postgres" }
+cellar-driver-sqlserver = { path = "../../../crates/cellar-drivers/sqlserver" }
 cellar-diff = { path = "../../../crates/cellar-diff" }
 cellar-secrets = { path = "../../../crates/cellar-secrets" }
 

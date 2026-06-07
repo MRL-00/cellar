@@ -9,6 +9,7 @@ use cellar_core::schema::{Database, Table};
 use cellar_diff::{TableChangeRequest, TableCommitResult};
 use cellar_driver_firestore::FirestoreDriver;
 use cellar_driver_postgres::PostgresDriver;
+use cellar_driver_sqlserver::SqlServerDriver;
 use tokio::fs;
 use tokio::sync::RwLock;
 
@@ -253,6 +254,16 @@ impl ConnectionRegistry {
                         .await),
                 }
             }
+            Engine::Mssql | Engine::Azure => {
+                match cellar_driver_sqlserver::browse_table(connection.as_ref(), &request, &table)
+                    .await
+                {
+                    Ok(result) => Ok(result),
+                    Err(err) => Err(self
+                        .handle_operation_error(&request.connection_id, err)
+                        .await),
+                }
+            }
             other => Err(CellarError::invalid_config(format!(
                 "engine {} does not support table browsing yet",
                 other.as_str()
@@ -420,6 +431,8 @@ fn driver_for(engine: Engine) -> CellarResult<Box<dyn Driver>> {
     match engine {
         Engine::Firestore => Ok(Box::new(FirestoreDriver::new())),
         Engine::Postgres => Ok(Box::new(PostgresDriver::new())),
+        Engine::Mssql => Ok(Box::new(SqlServerDriver::new())),
+        Engine::Azure => Ok(Box::new(SqlServerDriver::azure())),
         other => Err(CellarError::invalid_config(format!(
             "engine {} is not supported in this build",
             other.as_str()

@@ -7,7 +7,7 @@ import { ENGINE_META, type Engine } from "../EngineBadge";
 import { Modal } from "./Modal";
 import { useConnections } from "../../state/connections";
 
-const ENGINE_ORDER: Engine[] = ["postgres", "firestore", "mssql", "azure", "mysql", "sqlite"];
+const ENGINE_ORDER: Engine[] = ["postgres", "firestore", "mssql", "mysql", "sqlite"];
 
 const ENGINE_HEX: Record<Engine, string> = {
   postgres: "#4f8ff7",
@@ -74,9 +74,10 @@ export function ConnectionDialog({
 }: ConnectionDialogProps) {
   const saveConnection = useConnections((s) => s.saveConnection);
   const isEdit = mode === "edit" && !!initial;
+  const initialEngine = initial?.engine === "azure" ? "mssql" : initial?.engine;
 
   const [engine, setEngine] = useState<Engine>(
-    (initial?.engine as Engine) ?? "postgres",
+    (initialEngine as Engine | undefined) ?? "postgres",
   );
   const [tab, setTab] = useState<Tab>("general");
   const [ssh, setSsh] = useState(false);
@@ -87,7 +88,7 @@ export function ConnectionDialog({
     initial && initial.ssl_mode !== "disable" ? initial.ssl_mode : "prefer",
   );
   const [swatch, setSwatch] = useState<string>(
-    initial?.color ?? ENGINE_HEX[(initial?.engine as Engine | undefined) ?? "postgres"],
+    initial?.color ?? ENGINE_HEX[(initialEngine as Engine | undefined) ?? "postgres"],
   );
   const [envTag, setEnvTag] = useState<EnvTag>(initial?.env_tag ?? "local");
 
@@ -116,6 +117,11 @@ export function ConnectionDialog({
       setUser("(default)");
       setSsl(true);
       setSslMode("require");
+    } else if (engine === "mssql") {
+      setHost("localhost");
+      setDatabase("master");
+      setSsl(true);
+      setSslMode("prefer");
     }
   }, [engine]);
 
@@ -200,12 +206,12 @@ export function ConnectionDialog({
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 pt-3 pb-4">
-        <div className="mb-3.5 grid grid-cols-6 gap-1.5">
+        <div className="mb-3.5 grid grid-cols-5 gap-1.5">
           {ENGINE_ORDER.map((e) => {
             const m = ENGINE_META[e];
             const hex = ENGINE_HEX[e];
             const active = engine === e;
-            const disabled = e !== "postgres" && e !== "firestore";
+            const disabled = e !== "postgres" && e !== "firestore" && e !== "mssql";
             return (
               <button
                 key={e}
@@ -314,7 +320,9 @@ export function ConnectionDialog({
                   className={CD_INPUT + " font-mono"}
                   value={database}
                   onChange={(e) => setDatabase(e.target.value)}
-                  placeholder={isFirestore ? "my-gcp-project" : undefined}
+                  placeholder={
+                    isFirestore ? "my-gcp-project" : undefined
+                  }
                 />
               </FormRow>
             )}
