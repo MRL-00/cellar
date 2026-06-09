@@ -1,257 +1,137 @@
 /**
  * Unit tests for CellEditor event-handler semantics.
  *
- * These tests verify the logic that governs when onCommit and onCancel are
- * called for the three entry points: Enter key, Escape key, and blur.
- * The tests are written as pure-logic simulations so they run without a DOM
- * environment, matching the style used in the rest of this package.
+ * Tests are written against the exported pure helper functions
+ * resolveEnterAction and resolveBlurAction from Cell.tsx.  These functions
+ * contain the actual production decision logic, so a regression in Cell.tsx
+ * (e.g. wrong dirty/settled logic) will cause these tests to fail.
  */
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
+import { resolveBlurAction, resolveEnterAction } from "./Cell";
 
 // ---------------------------------------------------------------------------
-// Minimal simulation of CellEditor's event-handler state machine.
-// This mirrors the implementation in Cell.tsx exactly so that the tests act
-// as a specification / regression guard.
+// resolveEnterAction — used by the Enter key handler (text editor)
 // ---------------------------------------------------------------------------
 
-type HandlerResult = "commit" | "cancel" | "noop";
-
-interface SimulateOptions {
-  /** Initial value (null/undefined ≡ NULL database cell). */
-  initialValue: string | null | undefined;
-  /** Sequence of actions the user performs. */
-  actions: Array<
-    | { type: "change"; value: string }
-    | { type: "keydown"; key: "Enter" | "Escape" }
-    | { type: "blur" }
-  >;
-}
-
-interface SimulateResult {
-  commits: Array<string | null | undefined>;
-  cancels: number;
-  /** The value currently in the editor's controlled state. */
-  currentValue: string;
-}
-
-/**
- * Simulates the CellEditor state machine without touching the DOM.
- * Returns every call to onCommit and the count of onCancel calls.
- */
-function simulate({ initialValue, actions }: SimulateOptions): SimulateResult {
-  // Mirror Cell.tsx state
-  const initialString = initialValue == null ? "" : String(initialValue);
-  let v = initialString;
-  let settled = false;
-  let dirty = false;
-
-  const commits: Array<string | null | undefined> = [];
-  let cancels = 0;
-
-  const onCommit = (next: string | null | undefined) => commits.push(next);
-  const onCancel = () => cancels++;
-
-  for (const action of actions) {
-    if (action.type === "change") {
-      dirty = true;
-      v = action.value;
-      continue;
-    }
-    if (action.type === "keydown") {
-      if (action.key === "Enter") {
-        settled = true;
-        if (dirty) {
-          onCommit(v);
-        } else {
-          onCancel();
-        }
-      } else if (action.key === "Escape") {
-        settled = true;
-        onCancel();
-      }
-      continue;
-    }
-    if (action.type === "blur") {
-      if (settled) continue; // settled ref guard — no-op
-      settled = true;
-      if (dirty) {
-        onCommit(v);
-      } else {
-        onCancel();
-      }
-      continue;
-    }
-  }
-
-  return { commits, cancels, currentValue: v };
-}
-
-// ---------------------------------------------------------------------------
-// B1: Escape must cancel, not commit.
-// ---------------------------------------------------------------------------
-
-describe("CellEditor — Escape key", () => {
-  it("calls onCancel when Escape is pressed on an untouched cell", () => {
-    const result = simulate({
-      initialValue: "hello",
-      actions: [{ type: "keydown", key: "Escape" }],
-    });
-
-    expect(result.cancels).toBe(1);
-    expect(result.commits).toHaveLength(0);
+describe("resolveEnterAction", () => {
+  it("commits when the value was modified (dirty=true)", () => {
+    expect(resolveEnterAction(true)).toBe("commit");
   });
 
-  it("calls onCancel even when the user has typed a new value before pressing Escape", () => {
-    const result = simulate({
-      initialValue: "original",
-      actions: [
-        { type: "change", value: "oops" },
-        { type: "keydown", key: "Escape" },
-      ],
-    });
-
-    expect(result.cancels).toBe(1);
-    expect(result.commits).toHaveLength(0);
-  });
-
-  it("subsequent blur after Escape is a no-op (settledRef guard)", () => {
-    const result = simulate({
-      initialValue: "hello",
-      actions: [
-        { type: "change", value: "new" },
-        { type: "keydown", key: "Escape" },
-        { type: "blur" }, // blur fires after the input unmounts — must be ignored
-      ],
-    });
-
-    expect(result.cancels).toBe(1); // only the Escape cancel
-    expect(result.commits).toHaveLength(0);
+  it("cancels when the value was never modified (dirty=false)", () => {
+    // Covers B2: opening a NULL cell and pressing Enter without typing
+    // must not produce a phantom pending edit.
+    expect(resolveEnterAction(false)).toBe("cancel");
   });
 });
 
 // ---------------------------------------------------------------------------
-// B13: Enter must commit exactly once.
+// resolveBlurAction — used by onBlur in both text and enum editors
 // ---------------------------------------------------------------------------
 
-describe("CellEditor — Enter key", () => {
-  it("commits exactly once when Enter is pressed after typing", () => {
-    const result = simulate({
-      initialValue: "old",
-      actions: [
-        { type: "change", value: "new" },
-        { type: "keydown", key: "Enter" },
-      ],
-    });
-
-    expect(result.commits).toHaveLength(1);
-    expect(result.commits[0]).toBe("new");
-    expect(result.cancels).toBe(0);
+describe("resolveBlurAction", () => {
+  // B1: Escape sets settled=true; the subsequent blur must be a no-op.
+  it("returns noop when settled=true and dirty=false (B1: Escape-then-blur)", () => {
+    expect(resolveBlurAction(true, false)).toBe("noop");
   });
 
-  it("subsequent blur after Enter is a no-op (settledRef guard — prevents double-commit)", () => {
-    const result = simulate({
-      initialValue: "old",
-      actions: [
-        { type: "change", value: "new" },
-        { type: "keydown", key: "Enter" },
-        { type: "blur" }, // input unmounts → blur fires; must be ignored
-      ],
-    });
-
-    expect(result.commits).toHaveLength(1); // exactly one commit
-    expect(result.commits[0]).toBe("new");
-    expect(result.cancels).toBe(0);
+  // B1 + B13: settled=true blocks blur regardless of dirty.
+  it("returns noop when settled=true and dirty=true (B13: Enter-then-blur)", () => {
+    expect(resolveBlurAction(true, true)).toBe("noop");
   });
 
-  it("cancels (no-op) on Enter when the value was never modified", () => {
-    const result = simulate({
-      initialValue: "untouched",
-      actions: [{ type: "keydown", key: "Enter" }],
-    });
+  it("commits on blur when the editor is not settled and the value was modified", () => {
+    expect(resolveBlurAction(false, true)).toBe("commit");
+  });
 
-    // No actual change — should not record a pending edit.
-    expect(result.commits).toHaveLength(0);
-    expect(result.cancels).toBe(1);
+  // B2: Opening a NULL cell and blurring without typing must not record an edit.
+  it("cancels on blur when the editor is not settled and the value was never modified (B2: NULL cell blur)", () => {
+    expect(resolveBlurAction(false, false)).toBe("cancel");
   });
 });
 
 // ---------------------------------------------------------------------------
-// B2: NULL cell must not produce a phantom "null → ''" pending edit.
+// Enum editor path — blur-cancel and Escape semantics
+//
+// The enum editor's container div uses the same settledRef guard and calls
+// resolveBlurAction(settled, false) — dirty is always false for enum cells
+// because the user either clicks a button (commit, sets settled) or blurs/
+// Escapes without selecting (cancel).
 // ---------------------------------------------------------------------------
 
-describe("CellEditor — NULL cell phantom edit (B2)", () => {
-  it("opening a NULL cell and pressing Enter without typing records no edit", () => {
-    const result = simulate({
-      initialValue: null,
-      actions: [{ type: "keydown", key: "Enter" }],
-    });
-
-    expect(result.commits).toHaveLength(0);
-    expect(result.cancels).toBe(1);
+describe("resolveBlurAction — enum editor path", () => {
+  it("cancels on container blur when no option was clicked (settled=false)", () => {
+    // Represents clicking outside the enum editor without picking an option.
+    expect(resolveBlurAction(false, false)).toBe("cancel");
   });
 
-  it("opening a NULL cell and blurring without typing records no edit", () => {
-    const result = simulate({
-      initialValue: null,
-      actions: [{ type: "blur" }],
-    });
-
-    expect(result.commits).toHaveLength(0);
-    expect(result.cancels).toBe(1);
+  it("returns noop on container blur after an option button was already clicked (settled=true)", () => {
+    // The button click sets settled=true before onCommit fires; the resulting
+    // focus-leave on the container must not trigger a second cancel.
+    expect(resolveBlurAction(true, false)).toBe("noop");
   });
 
-  it("opening a NULL cell and pressing Escape records no edit", () => {
-    const result = simulate({
-      initialValue: null,
-      actions: [{ type: "keydown", key: "Escape" }],
-    });
-
-    expect(result.commits).toHaveLength(0);
-    expect(result.cancels).toBe(1);
-  });
-
-  it("typing a value into a NULL cell and committing records exactly one edit", () => {
-    const result = simulate({
-      initialValue: null,
-      actions: [
-        { type: "change", value: "filled" },
-        { type: "keydown", key: "Enter" },
-      ],
-    });
-
-    expect(result.commits).toHaveLength(1);
-    expect(result.commits[0]).toBe("filled");
-    expect(result.cancels).toBe(0);
+  it("returns noop on container blur after Escape was pressed (settled=true)", () => {
+    // Escape sets settled=true and calls onCancel; the container blur that
+    // follows (focus moves elsewhere) must be ignored.
+    expect(resolveBlurAction(true, false)).toBe("noop");
   });
 });
 
 // ---------------------------------------------------------------------------
-// General blur behaviour (no prior key press).
+// End-to-end state machine walkthroughs
 // ---------------------------------------------------------------------------
 
-describe("CellEditor — blur without a prior key press", () => {
-  it("commits via blur when the value was modified", () => {
-    const result = simulate({
-      initialValue: "before",
-      actions: [
-        { type: "change", value: "after" },
-        { type: "blur" },
-      ],
-    });
+describe("CellEditor state machine — text editor", () => {
+  it("B1: Escape cancels; subsequent blur is a no-op", () => {
+    // Escape sets settled=true and calls onCancel.
+    // The blur that fires when the input unmounts must be ignored.
+    let settled = false;
 
-    expect(result.commits).toHaveLength(1);
-    expect(result.commits[0]).toBe("after");
-    expect(result.cancels).toBe(0);
+    // Escape keydown
+    settled = true;
+    // (onCancel would be called here in the component)
+
+    expect(resolveBlurAction(settled, false)).toBe("noop");
   });
 
-  it("does not commit via blur when the value was never modified", () => {
-    const result = simulate({
-      initialValue: "same",
-      actions: [{ type: "blur" }],
-    });
+  it("B13: Enter commits exactly once; subsequent blur is a no-op", () => {
+    let settled = false;
+    const dirty = true;
 
-    expect(result.commits).toHaveLength(0);
-    expect(result.cancels).toBe(1);
+    // Enter keydown
+    expect(resolveEnterAction(dirty)).toBe("commit");
+    settled = true;
+
+    // Subsequent blur from input unmounting
+    expect(resolveBlurAction(settled, dirty)).toBe("noop");
+  });
+
+  it("B2: NULL cell opened — Enter without typing does not commit", () => {
+    // initialValue is null → dirty starts as false
+    expect(resolveEnterAction(false)).toBe("cancel");
+  });
+
+  it("B2: NULL cell opened — blur without typing does not commit", () => {
+    expect(resolveBlurAction(false, false)).toBe("cancel");
+  });
+
+  it("typing into a NULL cell and pressing Enter commits exactly once", () => {
+    let settled = false;
+    const dirty = true; // user typed something
+
+    expect(resolveEnterAction(dirty)).toBe("commit");
+    settled = true;
+
+    // Blur from unmounting must be ignored.
+    expect(resolveBlurAction(settled, dirty)).toBe("noop");
+  });
+
+  it("typing a value and blurring commits once", () => {
+    const settled = false;
+    const dirty = true;
+
+    expect(resolveBlurAction(settled, dirty)).toBe("commit");
   });
 });

@@ -5,6 +5,33 @@ import type { GridColumn, GridValue } from "./types";
 
 type Value = GridValue | undefined;
 
+// ---------------------------------------------------------------------------
+// Pure decision helpers — exported so that Cell.test.ts can test them
+// directly without a DOM environment.
+// ---------------------------------------------------------------------------
+
+/**
+ * Decides what to do when the Enter key is pressed.
+ * - If the value was modified (dirty) → commit the new value.
+ * - Otherwise → cancel (no-op; avoids phantom pending edits on NULL cells).
+ */
+export function resolveEnterAction(dirty: boolean): "commit" | "cancel" {
+  return dirty ? "commit" : "cancel";
+}
+
+/**
+ * Decides what to do on blur.
+ * - If the editor is already settled (Enter/Escape was handled) → noop.
+ * - Otherwise follows the same dirty logic as Enter.
+ */
+export function resolveBlurAction(
+  settled: boolean,
+  dirty: boolean,
+): "commit" | "cancel" | "noop" {
+  if (settled) return "noop";
+  return dirty ? "commit" : "cancel";
+}
+
 export function CellValue({ col, value }: { col: GridColumn; value: Value }) {
   if (value === null || value === undefined) {
     return <span className="cell-null mono">NULL</span>;
@@ -65,7 +92,28 @@ export function CellEditor({ col, value, onCommit, onCancel }: CellEditorProps) 
 
   if (col.enum) {
     return (
-      <div className="cell-edit-enum">
+      <div
+        className="cell-edit-enum"
+        // Clicking outside the enum editor (blur on the container) cancels the
+        // edit unless a button click has already settled the interaction.
+        onBlur={(e) => {
+          // Only fire when focus leaves the entire container (not when moving
+          // between buttons within it).
+          if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+          if (settledRef.current) return;
+          settledRef.current = true;
+          onCancel();
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            settledRef.current = true;
+            onCancel();
+          }
+        }}
+        // tabIndex is required so the div can receive focus and fire blur
+        // events, which lets the onBlur handler detect clicks outside.
+        tabIndex={-1}
+      >
         {col.enum.map((opt) => (
           <button
             key={opt}
@@ -100,7 +148,8 @@ export function CellEditor({ col, value, onCommit, onCancel }: CellEditorProps) 
       onKeyDown={(e) => {
         if (e.key === "Enter") {
           settledRef.current = true;
-          if (dirtyRef.current) {
+          const decision = resolveEnterAction(dirtyRef.current);
+          if (decision === "commit") {
             onCommit(v);
           } else {
             onCancel();
@@ -112,9 +161,10 @@ export function CellEditor({ col, value, onCommit, onCancel }: CellEditorProps) 
         }
       }}
       onBlur={() => {
-        if (settledRef.current) return;
+        const decision = resolveBlurAction(settledRef.current, dirtyRef.current);
+        if (decision === "noop") return;
         settledRef.current = true;
-        if (dirtyRef.current) {
+        if (decision === "commit") {
           onCommit(v);
         } else {
           onCancel();
