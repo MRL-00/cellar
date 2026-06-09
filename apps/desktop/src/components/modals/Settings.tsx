@@ -83,9 +83,13 @@ const SETTINGS_CATS: CatGroup[] = [
 export function SettingsModal({
   onClose,
   initialCat = "appearance",
+  onExportSetup,
+  onImportSetup,
 }: {
   onClose: () => void;
   initialCat?: SettingsCatId;
+  onExportSetup?: () => void;
+  onImportSetup?: () => void;
 }) {
   const [cat, setCat] = useState<SettingsCatId>(initialCat);
   const [q, setQ] = useState("");
@@ -164,7 +168,12 @@ export function SettingsModal({
               {cat === "keymap" && <SettingsKeymap />}
               {cat === "connections" && <SettingsConnections />}
               {cat === "history" && <SettingsHistory />}
-              {cat === "backups" && <SettingsBackups />}
+              {cat === "backups" && (
+                <SettingsBackups
+                  onExportSetup={onExportSetup}
+                  onImportSetup={onImportSetup}
+                />
+              )}
               {cat === "ai" && <SettingsAI />}
               {cat === "privacy" && <SettingsPrivacy />}
               {cat === "updates" && <SettingsUpdates />}

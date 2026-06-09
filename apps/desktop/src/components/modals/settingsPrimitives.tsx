@@ -2,10 +2,10 @@ import type { ReactNode } from "react";
 import { Icon } from "../icons";
 
 export const ED_RUN_BASE =
-  "inline-flex h-[26px] items-center gap-[5px] whitespace-nowrap rounded-[4px] border border-transparent px-2.5 text-[11.5px] font-medium text-fg-1 transition-[background,color,border-color,filter] duration-[120ms]";
+  "inline-flex h-[26px] items-center gap-[5px] whitespace-nowrap rounded-[4px] border border-transparent px-2.5 text-[11.5px] font-medium transition-[background,color,border-color,filter] duration-[120ms]";
 export const ED_RUN_SUBTLE =
   ED_RUN_BASE +
-  " bg-transparent border-border-default hover:bg-bg-3 hover:border-border-strong hover:text-fg-0";
+  " text-fg-1 bg-transparent border-border-default hover:bg-bg-3 hover:border-border-strong hover:text-fg-0";
 export const ED_RUN_PRIMARY =
   ED_RUN_BASE + " bg-accent text-accent-fg hover:brightness-[1.07]";
 export const ED_RUN_DANGER =

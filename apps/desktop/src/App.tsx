@@ -15,9 +15,17 @@ import {
   SettingsModal,
   type SettingsCatId,
 } from "./components/modals/Settings";
+import { ExportSetupModal } from "./components/modals/ExportSetupModal";
+import { ImportSetupModal } from "./components/modals/ImportSetupModal";
 import { useLayout } from "./state/layout";
 
-type ModalId = "commit" | "palette" | "settings" | null;
+type ModalId =
+  | "commit"
+  | "palette"
+  | "settings"
+  | "exportSetup"
+  | "importSetup"
+  | null;
 type ConnDialog = { mode: "new" | "edit"; initial?: ConnectionConfig } | null;
 
 const LEFT_MIN = 200;
@@ -263,14 +271,20 @@ export function App() {
           onOpenCommit={() => openModal("commit")}
           onOpenSettings={() => openSettings()}
           onTogglePanel={togglePanel}
+          onExportSetup={() => openModal("exportSetup")}
+          onImportSetup={() => openModal("importSetup")}
         />
       )}
       {modal === "settings" && (
         <SettingsModal
           onClose={closeModal}
           initialCat={settingsInitialCat}
+          onExportSetup={() => openModal("exportSetup")}
+          onImportSetup={() => openModal("importSetup")}
         />
       )}
+      {modal === "exportSetup" && <ExportSetupModal onClose={closeModal} />}
+      {modal === "importSetup" && <ImportSetupModal onClose={closeModal} />}
     </div>
   );
 }

@@ -26,6 +26,8 @@ type CommandPaletteProps = {
   onOpenCommit: () => void;
   onOpenSettings: () => void;
   onTogglePanel: (k: PanelId) => void;
+  onExportSetup: () => void;
+  onImportSetup: () => void;
 };
 
 const GROUP_ORDER: Group[] = [
@@ -44,6 +46,8 @@ export function CommandPalette({
   onOpenCommit,
   onOpenSettings,
   onTogglePanel,
+  onExportSetup,
+  onImportSetup,
 }: CommandPaletteProps) {
   const [q, setQ] = useState("");
   const [active, setActive] = useState(0);
@@ -113,6 +117,24 @@ export function CommandPalette({
       hint: pending > 0 ? `${pending} pending` : "no pending changes",
       kbd: ["⌘", "S"],
       action: onOpenCommit,
+    });
+
+    add({
+      id: "export-setup",
+      grp: "Actions",
+      label: "Export setup…",
+      hint: "share connections, settings, layouts",
+      search: "backup transfer share download",
+      action: onExportSetup,
+    });
+
+    add({
+      id: "import-setup",
+      grp: "Actions",
+      label: "Import setup…",
+      hint: "load a shared setup file",
+      search: "restore transfer upload merge",
+      action: onImportSetup,
     });
 
     if (pending > 0) {
@@ -240,6 +262,8 @@ export function CommandPalette({
     connections,
     disconnect,
     newQueryTab,
+    onExportSetup,
+    onImportSetup,
     onNewConnection,
     onOpenCommit,
     onOpenSettings,

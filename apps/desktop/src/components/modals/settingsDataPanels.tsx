@@ -1,6 +1,7 @@
 import { Icon } from "../icons";
 import {
   CD_INPUT,
+  ED_RUN_SUBTLE,
   Row,
   Section,
   StaticSegment,
@@ -94,9 +95,43 @@ export function SettingsHistory() {
   );
 }
 
-export function SettingsBackups() {
+export function SettingsBackups({
+  onExportSetup,
+  onImportSetup,
+}: {
+  onExportSetup?: () => void;
+  onImportSetup?: () => void;
+}) {
   return (
     <div className="flex-1 overflow-y-auto pb-6 pt-1">
+      <Section
+        title="Transfer setup"
+        sub="Export your connections, appearance, and grid layouts to a file you can share or restore on another machine. Passwords are never included."
+      >
+        <Row
+          label="Share or move your setup"
+          hint="Import lets you review each item and skip duplicates before applying."
+        >
+          <button
+            type="button"
+            className={ED_RUN_SUBTLE}
+            onClick={onExportSetup}
+            disabled={!onExportSetup}
+          >
+            <Icon.download size={11} />
+            <span>Export setup…</span>
+          </button>
+          <button
+            type="button"
+            className={ED_RUN_SUBTLE}
+            onClick={onImportSetup}
+            disabled={!onImportSetup}
+          >
+            <Icon.upload size={11} />
+            <span>Import setup…</span>
+          </button>
+        </Row>
+      </Section>
       <Section title="Backups">
         <Row
           label="Auto-snapshot before commits"
