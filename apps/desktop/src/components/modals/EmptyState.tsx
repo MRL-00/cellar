@@ -57,7 +57,7 @@ export function EmptyState({ onNew }: { onNew: () => void }) {
           className="m-0 mb-[22px] text-[12.5px] text-fg-2"
           style={{ textWrap: "pretty" }}
         >
-          A fast, native database client with AI built in. Open-source, BYO key.
+          Connect to Postgres, inspect schemas, run SQL, and browse table data.
         </p>
 
         <div className="mb-[22px] flex flex-col gap-1.5">
