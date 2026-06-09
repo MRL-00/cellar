@@ -58,6 +58,7 @@ export const mockCommands = {
     _connectionId: string,
     _sql: string,
     _maxRows: number | null,
+    _offset: number | null,
     _database: string | null,
     _tabId: string | null,
   ): Promise<Result<QueryResult, CellarError>> =>
@@ -72,6 +73,7 @@ export const mockCommands = {
       rows_affected: null,
       duration_ms: 0,
       truncated: false,
+      total_rows: null,
     }),
 
   explainQuery: async (
@@ -123,6 +125,7 @@ export const mockCommands = {
       rows_affected: null,
       duration_ms: 0,
       truncated: false,
+      total_rows: null,
     }),
 
   previewTableChanges: async (

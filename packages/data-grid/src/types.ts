@@ -105,6 +105,8 @@ export type GridPagination = {
   hasPrevious: boolean;
   hasNext: boolean;
   loading?: boolean;
+  /** Total row count on the server, when the driver was able to provide it. */
+  totalRows?: number | null;
   onPrevious: () => void;
   onNext: () => void;
   onPageSizeChange?: (next: number) => void;

@@ -205,6 +205,7 @@ impl FirestoreConnection {
             rows_affected: None,
             duration_ms: started.elapsed().as_millis() as u64,
             truncated: documents.len() as u32 >= limit,
+            total_rows: None,
         })
     }
 

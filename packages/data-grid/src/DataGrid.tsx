@@ -842,10 +842,14 @@ function PaginationBar({
   const options = pagination.pageSizeOptions ?? [100, 250, 500];
   const firstRow = rowCount === 0 ? pagination.offset : pagination.offset + 1;
   const lastRow = pagination.offset + rowCount;
+  const totalRows = pagination.totalRows ?? null;
+
   const range =
     rowCount === 0
       ? `No rows at offset ${pagination.offset}`
-      : `Rows ${formatNumber(firstRow)}-${formatNumber(lastRow)}`;
+      : `Rows ${formatNumber(firstRow)}–${formatNumber(lastRow)}${
+          totalRows !== null ? ` of ${formatNumber(totalRows)}` : ""
+        }`;
   const nextRangeStart = pagination.offset + pagination.limit + 1;
   const nextRangeEnd = pagination.offset + pagination.limit * 2;
 
@@ -853,7 +857,7 @@ function PaginationBar({
     <div className="grid-pagination">
       <div className="grid-pagination-range">
         <span className="tnum">{range}</span>
-        {pagination.hasNext && (
+        {pagination.hasNext && totalRows === null && (
           <span className="grid-pagination-more">more available</span>
         )}
       </div>
@@ -892,7 +896,7 @@ function PaginationBar({
           disabled={!pagination.hasNext || pagination.loading}
           title={
             pagination.hasNext
-              ? `Next page: rows ${formatNumber(nextRangeStart)}-${formatNumber(nextRangeEnd)}`
+              ? `Next page: rows ${formatNumber(nextRangeStart)}–${formatNumber(nextRangeEnd)}`
               : "Next page"
           }
           aria-label="Next page"

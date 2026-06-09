@@ -11,7 +11,7 @@ import { useTabs, type TableTab, type WorkspaceTab } from "../state/tabs";
 import { useTableData } from "../hooks/useTableData";
 
 const EMPTY_CHANGES: PendingChanges = {};
-const TABLE_PAGE_SIZE_OPTIONS = [100, 250, 500] as const;
+const TABLE_PAGE_SIZE_OPTIONS = [100, 250, 500, 1000, 2000] as const;
 
 export function Workspace({ onCommit }: { onCommit?: () => void } = {}) {
   const tabs = useTabs((s) => s.tabs);
@@ -177,6 +177,7 @@ function TableTabPane({
       hasPrevious: data.hasPreviousPage,
       hasNext: data.hasNextPage,
       loading: data.fetching,
+      totalRows: data.totalRows,
       onPrevious: () => setPageIndex((page) => Math.max(0, page - 1)),
       onNext: () => setPageIndex((page) => page + 1),
       onPageSizeChange: (next: number) => {
@@ -190,6 +191,7 @@ function TableTabPane({
       data.hasPreviousPage,
       data.limit,
       data.offset,
+      data.totalRows,
     ],
   );
 
@@ -213,7 +215,7 @@ function TableTabPane({
       <DataGrid
         columns={data.columns}
         rows={data.rows}
-        totalRows={data.truncated ? undefined : data.rows.length}
+        totalRows={data.totalRows ?? (data.truncated ? undefined : data.rows.length)}
         pagination={pagination}
         changes={changes}
         onChange={handleGridChange}

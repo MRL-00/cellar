@@ -1,4 +1,5 @@
 import { commands, unwrap } from "@cellar/ipc";
+import type { QueryResult } from "@cellar/ipc";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { queryResultToGrid } from "../lib/gridMapping";
@@ -30,7 +31,11 @@ export interface QueryRunner {
   running: boolean;
   /** 1-based editor line to squiggle, or null when the last run was clean. */
   errorLine: number | null;
+  /** Whether more rows can be fetched (driver truncated the last result). */
+  canLoadMore: boolean;
   run: (sql: string, opts: RunOptions) => void;
+  /** Fetch the next page and append it to the current result grid. */
+  loadMore: () => void;
   clearError: () => void;
 }
 
@@ -43,8 +48,11 @@ export interface QueryRunner {
 export function useQueryRunner(tab: QueryTab): QueryRunner {
   const [running, setRunning] = useState(false);
   const [errorLine, setErrorLine] = useState<number | null>(null);
+  const [canLoadMore, setCanLoadMore] = useState(false);
   const runToken = useRef(0);
   const mounted = useRef(true);
+  // Track the current SQL and next offset for "Load more" appends.
+  const loadMoreRef = useRef<{ sql: string; offset: number } | null>(null);
 
   useEffect(() => {
     mounted.current = true;
@@ -55,10 +63,15 @@ export function useQueryRunner(tab: QueryTab): QueryRunner {
 
   const clearError = useCallback(() => setErrorLine(null), []);
 
-  const run = useCallback(
-    (sql: string, opts: RunOptions) => {
+  const executeQuery = useCallback(
+    async (
+      sql: string,
+      opts: RunOptions,
+      offset: number,
+      append: boolean,
+    ) => {
       const trimmed = sql.trim();
-      if (!trimmed || running) return;
+      if (!trimmed) return;
 
       const token = ++runToken.current;
       const database = tab.database || null;
@@ -81,10 +94,12 @@ export function useQueryRunner(tab: QueryTab): QueryRunner {
 
       setRunning(true);
       setErrorLine(null);
-      useTabResults.getState().setLoading(tab.id, source);
-      useQueryMessages
-        .getState()
-        .replaceForTab(tab.id, [buildRunStartedMessage(context)]);
+      if (!append) {
+        useTabResults.getState().setLoading(tab.id, source);
+        useQueryMessages
+          .getState()
+          .replaceForTab(tab.id, [buildRunStartedMessage(context)]);
+      }
 
       void (async () => {
         try {
@@ -93,6 +108,7 @@ export function useQueryRunner(tab: QueryTab): QueryRunner {
               tab.connectionId,
               trimmed,
               QUERY_ROW_LIMIT,
+              offset,
               database,
               tab.id,
             ),
@@ -100,17 +116,49 @@ export function useQueryRunner(tab: QueryTab): QueryRunner {
           if (!mounted.current || token !== runToken.current) return;
 
           const { columns, rows } = queryResultToGrid(result);
-          useTabResults.getState().setReady(tab.id, {
-            source,
-            columns,
-            rows,
-            rowCount: rows.length,
-            truncated: result.truncated,
-            durationMs: result.duration_ms,
-          });
-          useQueryMessages
-            .getState()
-            .addMessages(buildRunResultMessages(context, result));
+
+          if (append) {
+            // Append new rows to the existing result set.
+            const existing = useTabResults.getState().byTabId[tab.id];
+            if (existing?.status === "ready") {
+              const combined = [...existing.rows, ...rows];
+              useTabResults.getState().setReady(tab.id, {
+                source: existing.source,
+                columns: existing.columns,
+                rows: combined,
+                rowCount: combined.length,
+                truncated: result.truncated,
+                durationMs: result.duration_ms,
+              });
+            }
+          } else {
+            useTabResults.getState().setReady(tab.id, {
+              source,
+              columns,
+              rows,
+              rowCount: rows.length,
+              truncated: result.truncated,
+              durationMs: result.duration_ms,
+            });
+          }
+
+          // Update the load-more ref for subsequent "Load more" calls.
+          if (result.truncated) {
+            loadMoreRef.current = {
+              sql: trimmed,
+              offset: offset + rows.length,
+            };
+            setCanLoadMore(true);
+          } else {
+            loadMoreRef.current = null;
+            setCanLoadMore(false);
+          }
+
+          if (!append) {
+            useQueryMessages
+              .getState()
+              .addMessages(buildRunResultMessages(context, result));
+          }
           useNotices.getState().recordQueryResult(
             {
               tabId: tab.id,
@@ -119,19 +167,27 @@ export function useQueryRunner(tab: QueryTab): QueryRunner {
             },
             result,
           );
+          const latestResult = useTabResults.getState().byTabId[tab.id];
+          const totalRowCount = latestResult?.status === "ready"
+            ? latestResult.rowCount
+            : rows.length;
           useStatus.getState().setLastQuery({
             connectionId: tab.connectionId,
             tabId: tab.id,
-            rowCount: rows.length,
+            rowCount: totalRowCount,
             truncated: result.truncated,
             durationMs: result.duration_ms,
           });
-          useTabs.getState().markQueryRun(tab.id);
+          if (!append) {
+            useTabs.getState().markQueryRun(tab.id);
+          }
         } catch (err) {
           if (!mounted.current || token !== runToken.current) return;
           noteConnectionIssue(tab.connectionId, err);
           const message = err instanceof Error ? err.message : String(err);
-          useTabResults.getState().setError(tab.id, source, message);
+          if (!append) {
+            useTabResults.getState().setError(tab.id, source, message);
+          }
           useQueryMessages
             .getState()
             .addMessage(buildRunErrorMessage(context, err));
@@ -143,8 +199,37 @@ export function useQueryRunner(tab: QueryTab): QueryRunner {
         }
       })();
     },
-    [running, tab.connectionId, tab.database, tab.id, tab.title],
+    [tab.connectionId, tab.database, tab.id, tab.title],
   );
 
-  return { running, errorLine, run, clearError };
+  const run = useCallback(
+    (sql: string, opts: RunOptions) => {
+      if (running) return;
+      loadMoreRef.current = null;
+      setCanLoadMore(false);
+      void executeQuery(sql, opts, 0, false);
+    },
+    [running, executeQuery],
+  );
+
+  const loadMore = useCallback(() => {
+    if (running || !loadMoreRef.current) return;
+    const { sql, offset } = loadMoreRef.current;
+    void executeQuery(sql, { label: "Load more" }, offset, true);
+  }, [running, executeQuery]);
+
+  // Keep the tabResults store in sync with the load-more callback so the
+  // bottom panel's result grid can surface the "Load more" button without
+  // needing a direct reference to the hook.
+  useEffect(() => {
+    useTabResults.getState().setLoadMoreCallback(
+      tab.id,
+      canLoadMore ? loadMore : null,
+    );
+  }, [tab.id, canLoadMore, loadMore]);
+
+  return { running, errorLine, canLoadMore, run, loadMore, clearError };
 }
+
+// Re-export for callers that only need the type.
+export type { QueryResult };

@@ -120,6 +120,7 @@ mod tests {
             rows_affected: None,
             duration_ms: 12,
             truncated: false,
+            total_rows: None,
         };
         let s = serde_json::to_string(&result).expect("serialize");
         let back: QueryResult = serde_json::from_str(&s).expect("deserialize");

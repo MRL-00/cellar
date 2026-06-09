@@ -37,6 +37,7 @@ function result(notices: DatabaseNotice[]): QueryResult {
     rows_affected: null,
     duration_ms: 1,
     truncated: false,
+    total_rows: null,
   };
 }
 

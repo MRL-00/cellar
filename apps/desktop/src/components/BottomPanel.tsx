@@ -321,23 +321,43 @@ function ReadOnlyResultGrid({
   result: Extract<TabResult, { status: "ready" }>;
 }) {
   const grid = useGridState();
+  const onLoadMore = result.onLoadMore ?? null;
 
   return (
-    <div className="flex h-full min-h-0 overflow-hidden">
-      <DataGrid
-        columns={result.columns}
-        rows={result.rows}
-        totalRows={result.truncated ? undefined : result.rows.length}
-        changes={grid.changes}
-        onChange={grid.setChanges}
-        selection={grid.selection}
-        onSelect={grid.setSelection}
-        editing={grid.editing}
-        onEdit={grid.setEditing}
-        filters={grid.filters}
-        onFiltersChange={grid.setFilters}
-        readOnly
-      />
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <DataGrid
+          columns={result.columns}
+          rows={result.rows}
+          totalRows={result.truncated ? undefined : result.rows.length}
+          changes={grid.changes}
+          onChange={grid.setChanges}
+          selection={grid.selection}
+          onSelect={grid.setSelection}
+          editing={grid.editing}
+          onEdit={grid.setEditing}
+          filters={grid.filters}
+          onFiltersChange={grid.setFilters}
+          readOnly
+        />
+      </div>
+      {result.truncated && (
+        <div className="flex shrink-0 items-center justify-between border-t border-border-default bg-bg-1 px-3 py-1.5 text-[11px] text-fg-3">
+          <span>
+            First {result.rowCount.toLocaleString("en-US")} rows shown
+            {" — "}query result was truncated at the row cap.
+          </span>
+          {onLoadMore && (
+            <button
+              type="button"
+              className="rounded px-2 py-0.5 text-[11px] text-accent hover:bg-accent-soft"
+              onClick={onLoadMore}
+            >
+              Load more
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

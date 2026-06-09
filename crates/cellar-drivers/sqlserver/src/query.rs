@@ -62,7 +62,14 @@ async fn execute_sql(
             QueryItem::Row(row) => {
                 if rows.len() >= max_rows {
                     truncated = true;
-                    continue;
+                    // B9 fix: break instead of continue. The previous `continue`
+                    // iterated the stream to completion, transferring every
+                    // remaining row over the network while decoding was skipped.
+                    // Tiberius holds the TDS client in a Mutex-guarded connection;
+                    // the stream borrows it mutably and is dropped here, which
+                    // causes tiberius to cancel the query on the server side via
+                    // the attention packet. No manual drain is necessary.
+                    break;
                 }
                 rows.push(row.into_iter().map(decode_cell).collect());
             }
@@ -80,6 +87,7 @@ async fn execute_sql(
         rows_affected: None,
         duration_ms: started.elapsed().as_millis() as u64,
         truncated,
+        total_rows: None,
     })
 }
 
