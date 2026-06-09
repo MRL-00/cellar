@@ -46,8 +46,17 @@ export type CellEditorProps = {
 };
 
 export function CellEditor({ col, value, onCommit, onCancel }: CellEditorProps) {
-  const [v, setV] = useState<string>(value == null ? "" : String(value));
+  const initialValue = value == null ? "" : String(value);
+  const [v, setV] = useState<string>(initialValue);
   const ref = useRef<HTMLInputElement | null>(null);
+  // Tracks whether Enter or Escape has already been handled so that the
+  // subsequent blur event does not fire a second commit or override a cancel.
+  const settledRef = useRef(false);
+  // Tracks whether the user has actually changed the value from the initial
+  // state.  An untouched editor that closes (via Enter, Escape, or blur) must
+  // be a no-op — most importantly, opening a NULL cell and pressing Enter
+  // without typing must NOT record a phantom pending edit of null→"".
+  const dirtyRef = useRef(false);
 
   useEffect(() => {
     ref.current?.focus();
@@ -61,7 +70,10 @@ export function CellEditor({ col, value, onCommit, onCancel }: CellEditorProps) 
           <button
             key={opt}
             className={"cell-edit-opt" + (opt === v ? " active" : "")}
-            onClick={() => onCommit(opt)}
+            onClick={() => {
+              settledRef.current = true;
+              onCommit(opt);
+            }}
           >
             {col.key === "status" && (
               <span
@@ -81,12 +93,33 @@ export function CellEditor({ col, value, onCommit, onCancel }: CellEditorProps) 
       ref={ref}
       className={"cell-edit-input" + (col.mono ? " mono" : "")}
       value={v}
-      onChange={(e) => setV(e.target.value)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") onCommit(v);
-        if (e.key === "Escape") onCancel();
+      onChange={(e) => {
+        dirtyRef.current = true;
+        setV(e.target.value);
       }}
-      onBlur={() => onCommit(v)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          settledRef.current = true;
+          if (dirtyRef.current) {
+            onCommit(v);
+          } else {
+            onCancel();
+          }
+        }
+        if (e.key === "Escape") {
+          settledRef.current = true;
+          onCancel();
+        }
+      }}
+      onBlur={() => {
+        if (settledRef.current) return;
+        settledRef.current = true;
+        if (dirtyRef.current) {
+          onCommit(v);
+        } else {
+          onCancel();
+        }
+      }}
     />
   );
 }
