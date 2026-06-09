@@ -677,6 +677,7 @@ export function DataGrid({
                   frozenCount={frozenCount}
                   readOnly={readOnly}
                   nullDisplay={nullDisplay}
+                  stripeRows={stripeRows}
                   top={
                     virtualRows.totalHeight === undefined
                       ? undefined
@@ -724,6 +725,7 @@ type GridRowViewProps = {
   frozenCount: number;
   readOnly: boolean;
   nullDisplay: string;
+  stripeRows: boolean;
   top: number | undefined;
   onSelect: (next: CellAddress | null) => void;
   onEdit: (next: CellAddress | null) => void;
@@ -746,6 +748,7 @@ const GridRowView = memo(function GridRowView({
   frozenCount,
   readOnly,
   nullDisplay,
+  stripeRows,
   top,
   onSelect,
   onEdit,
@@ -753,12 +756,18 @@ const GridRowView = memo(function GridRowView({
 }: GridRowViewProps) {
   const kind = change?.kind;
   const rowSelected = selected !== null;
+  // Compute stripe class from absolute rowIndex so it stays correct in virtual
+  // scroll mode (where nth-child reflects only the current render window).
+  // Only apply the stripe when there is no pending-change tint (is-update,
+  // is-insert, is-delete), so the change indicators are never hidden.
+  const isStripe = stripeRows && !kind && rowIndex % 2 === 1;
 
   return (
     <div
       className={
         "grid-row" +
         (kind ? " is-" + kind : "") +
+        (isStripe ? " is-stripe" : "") +
         (rowSelected ? " is-selected-row" : "")
       }
       style={top === undefined ? undefined : { top }}

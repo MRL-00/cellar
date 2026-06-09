@@ -144,12 +144,9 @@ export function SettingsAppearance() {
 export function SettingsGeneral() {
   return (
     <div className="flex-1 overflow-y-auto pb-6 pt-1">
-      <Section
-        title="General"
-        sub="Additional general settings will be wired as features are built."
-      >
-        {null}
-      </Section>
+      <p className="px-5 pt-4 text-[11.5px] text-fg-3">
+        General settings will appear here as features are built.
+      </p>
     </div>
   );
 }

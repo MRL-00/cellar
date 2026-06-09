@@ -160,8 +160,11 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
           <button
             className={"icon-btn" + (wrap ? " active" : "")}
             onClick={() => setWrapOverride((prev) => {
-              const current = prev !== null ? prev : settings.editor.softWrap;
-              return !current;
+              const globalDefault = settings.editor.softWrap;
+              const desired = !(prev !== null ? prev : globalDefault);
+              // If the desired value equals the global default, clear the override
+              // so future global-setting changes are not silently ignored.
+              return desired === globalDefault ? null : desired;
             })}
             title={wrap ? "Disable line wrapping" : "Wrap long lines"}
           >

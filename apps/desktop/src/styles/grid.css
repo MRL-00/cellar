@@ -254,10 +254,16 @@
   border-right: 1px solid var(--border-divider);
 }
 .grid-row:hover { background: var(--bg-2); }
-.grid-stripe-rows .grid-table .grid-row:not(.grid-header-row):not(.grid-row-add):nth-child(even) {
+/* Stripe rows: the .is-stripe class is applied in JS (GridRowView) using the
+   absolute rowIndex so it is correct in virtual-scroll mode where nth-child
+   only reflects the current render window.  The rule intentionally does NOT
+   apply to rows that already carry a pending-change tint (is-update / is-insert
+   / is-delete) — those classes are guarded in the JS so this selector is just a
+   safety net for specificity parity. */
+.grid-row.is-stripe {
   background: var(--bg-2);
 }
-.grid-stripe-rows .grid-table .grid-row:not(.grid-header-row):not(.grid-row-add):nth-child(even):hover {
+.grid-row.is-stripe:hover {
   background: var(--bg-3);
 }
 
