@@ -5,6 +5,7 @@
 //! 2. Add it to [`collect`] below so `tauri-specta` generates a typed wrapper
 //!    and the invoke handler picks it up.
 
+pub mod ai;
 pub mod connection;
 pub mod history;
 pub mod query;
@@ -33,6 +34,10 @@ pub fn builder() -> Builder<tauri::Wry> {
         transaction::preview_table_changes,
         transaction::commit_table_changes,
         history::list_query_history,
+        ai::ai_store_key,
+        ai::ai_load_key,
+        ai::ai_delete_key,
+        ai::ai_has_key,
     ])
 }
 

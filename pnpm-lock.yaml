@@ -20,6 +20,9 @@ importers:
 
   apps/desktop:
     dependencies:
+      '@cellar/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
       '@cellar/data-grid':
         specifier: workspace:*
         version: link:../../packages/data-grid

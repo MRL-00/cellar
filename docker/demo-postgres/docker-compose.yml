@@ -1,0 +1,35 @@
+# Local demo Postgres for Cellar screenshots.
+#
+#   cd docker/demo-postgres
+#   docker compose up -d
+#
+# Connect from Cellar (or psql) with:
+#   host=localhost  port=5432  database=cellar_demo  user=cellar  password=cellar
+#
+# The init scripts in ./initdb run once, when the data volume is first created.
+# To wipe and re-seed (fresh random data):  docker compose down -v && docker compose up -d
+services:
+  demo-postgres:
+    image: postgres:16
+    container_name: cellar-demo-postgres
+    environment:
+      POSTGRES_USER: cellar
+      POSTGRES_PASSWORD: cellar
+      POSTGRES_DB: cellar_demo
+      # Make the seed deterministic-ish and timestamps readable in screenshots.
+      TZ: UTC
+      PGTZ: UTC
+    ports:
+      - "5432:5432"
+    volumes:
+      - cellar-demo-data:/var/lib/postgresql/data
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cellar -d cellar_demo"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  cellar-demo-data:

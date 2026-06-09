@@ -225,6 +225,44 @@ async fn execute_query_decodes_common_types() {
 }
 
 #[tokio::test]
+async fn execute_query_decodes_user_defined_enums() {
+    // Regression: enum columns hit the decode fallback. sqlx's String decode
+    // rejects the custom type OID, so the driver now reads the raw value bytes
+    // (which carry the enum label) as UTF-8. Before the fix this surfaced as
+    // `UnsupportedType` and failed the whole table/view load.
+    let live = boot().await;
+    let driver = PostgresDriver::new();
+    let conn = driver
+        .connect(&live.config, Some(&live.password))
+        .await
+        .expect("connect");
+
+    driver
+        .execute_query(
+            conn.as_ref(),
+            &Query::new("CREATE TYPE mood AS ENUM ('sad', 'ok', 'happy')"),
+        )
+        .await
+        .expect("create enum type");
+
+    let result = driver
+        .execute_query(
+            conn.as_ref(),
+            &Query::new("SELECT 'happy'::mood AS m, NULL::mood AS n"),
+        )
+        .await
+        .expect("query enum");
+
+    assert_eq!(result.rows.len(), 1);
+    if let CellValue::Text(m) = &result.rows[0][0] {
+        assert_eq!(m, "happy");
+    } else {
+        panic!("expected enum decoded as text, got {:?}", result.rows[0][0]);
+    }
+    assert!(matches!(result.rows[0][1], CellValue::Null));
+}
+
+#[tokio::test]
 async fn execute_query_caps_to_default_limit() {
     let live = boot().await;
     let driver = PostgresDriver::new();
