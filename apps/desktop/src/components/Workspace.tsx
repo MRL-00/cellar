@@ -9,6 +9,7 @@ import { SqlEditor } from "./SqlEditor";
 import { Icon } from "./icons";
 import { useTabs, type TableTab, type WorkspaceTab } from "../state/tabs";
 import { useTableData } from "../hooks/useTableData";
+import { useSettings } from "../lib/settings";
 
 const EMPTY_CHANGES: PendingChanges = {};
 const TABLE_PAGE_SIZE_OPTIONS = [100, 250, 500] as const;
@@ -142,6 +143,7 @@ function TableTabPane({
   tab: TableTab;
   onCommit?: () => void;
 }) {
+  const { settings } = useSettings();
   const refreshKey = useTabs((s) => s.refreshKeys[tab.id] ?? 0);
   const changes = useTabs((s) => s.tableChanges[tab.id] ?? EMPTY_CHANGES);
   const columnLayout = useTabs((s) => s.tableLayouts[tab.id]);
@@ -229,6 +231,8 @@ function TableTabPane({
         onColumnLayoutChange={(next) => setTableLayout(tab.id, next)}
         onCommit={onCommit}
         onRevert={handleRevert}
+        nullDisplay={settings.grid.nullDisplay}
+        stripeRows={settings.grid.stripeRows}
       />
     </div>
   );

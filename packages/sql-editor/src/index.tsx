@@ -76,6 +76,9 @@ export interface SqlEditorProps {
   database?: string | null;
   placeholder?: string;
   wrap?: boolean;
+  showLineNumbers?: boolean;
+  enableBracketMatching?: boolean;
+  tabSize?: 2 | 4 | 8;
   currentStatementRange?: readonly [number, number] | null;
   errorLine?: number | null;
   className?: string;
@@ -98,6 +101,9 @@ const completionCompartment = new Compartment();
 const wrappingCompartment = new Compartment();
 const decorationCompartment = new Compartment();
 const placeholderCompartment = new Compartment();
+const lineNumbersCompartment = new Compartment();
+const bracketMatchingCompartment = new Compartment();
+const tabSizeCompartment = new Compartment();
 
 export function SqlCodeEditor({
   value,
@@ -106,6 +112,9 @@ export function SqlCodeEditor({
   database = null,
   placeholder = "",
   wrap = false,
+  showLineNumbers = true,
+  enableBracketMatching = true,
+  tabSize = 4,
   currentStatementRange = null,
   errorLine = null,
   className = "",
@@ -145,6 +154,9 @@ export function SqlCodeEditor({
           placeholderCompartment.of(editorPlaceholder(placeholder)),
           decorationCompartment.of(lineDecorations(currentStatementRange, errorLine)),
           updateCompartment.of(updateExtension(latest)),
+          lineNumbersCompartment.of(showLineNumbers ? lineNumbers() : []),
+          bracketMatchingCompartment.of(enableBracketMatching ? bracketMatching() : []),
+          tabSizeCompartment.of(EditorState.tabSize.of(tabSize)),
         ],
       }),
     });
@@ -199,6 +211,30 @@ export function SqlCodeEditor({
     const view = viewRef.current;
     if (!view) return;
     view.dispatch({
+      effects: lineNumbersCompartment.reconfigure(showLineNumbers ? lineNumbers() : []),
+    });
+  }, [showLineNumbers]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({
+      effects: bracketMatchingCompartment.reconfigure(enableBracketMatching ? bracketMatching() : []),
+    });
+  }, [enableBracketMatching]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({
+      effects: tabSizeCompartment.reconfigure(EditorState.tabSize.of(tabSize)),
+    });
+  }, [tabSize]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({
       effects: placeholderCompartment.reconfigure(editorPlaceholder(placeholder)),
     });
   }, [placeholder]);
@@ -224,7 +260,6 @@ export function SqlCodeEditor({
 
 function baseExtensions(latest: MutableRefObject<LatestCallbacks>): Extension {
   return [
-    lineNumbers(),
     highlightActiveLineGutter(),
     history(),
     foldGutter(),
@@ -233,7 +268,6 @@ function baseExtensions(latest: MutableRefObject<LatestCallbacks>): Extension {
     EditorState.allowMultipleSelections.of(true),
     indentOnInput(),
     syntaxHighlighting(sqlHighlightStyle, { fallback: true }),
-    bracketMatching(),
     closeBrackets(),
     rectangularSelection(),
     crosshairCursor(),

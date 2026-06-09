@@ -5,7 +5,6 @@ import {
   Row,
   Section,
   StaticSegment,
-  StubBanner,
   Toggle,
 } from "./settingsPrimitives";
 
@@ -90,7 +89,6 @@ export function SettingsHistory() {
           <Toggle on={false} ariaLabel="Store query results" />
         </Row>
       </Section>
-      <StubBanner>23,418 queries · 14.2 MB · last cleared 12 days ago</StubBanner>
     </div>
   );
 }

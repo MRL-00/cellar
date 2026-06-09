@@ -10,6 +10,7 @@ import {
 
 export type Theme = "system" | "dark" | "light";
 export type Density = "compact" | "comfortable";
+export type NullDisplay = "NULL" | "∅" | "(empty)";
 
 export const ACCENT_SWATCHES = [
   "#4ade80",
@@ -28,6 +29,18 @@ export const ACCENT_SWATCHES = [
   "#ffd60a",
 ] as const;
 
+export type EditorSettings = {
+  tabSize: 2 | 4 | 8;
+  softWrap: boolean;
+  lineNumbers: boolean;
+  bracketMatching: boolean;
+};
+
+export type GridSettings = {
+  nullDisplay: NullDisplay;
+  stripeRows: boolean;
+};
+
 export type Settings = {
   theme: Theme;
   density: Density;
@@ -35,6 +48,8 @@ export type Settings = {
   fontSizePx: number;
   interfaceFont: string;
   monoFont: string;
+  editor: EditorSettings;
+  grid: GridSettings;
 };
 
 export const DEFAULTS: Settings = {
@@ -44,6 +59,16 @@ export const DEFAULTS: Settings = {
   fontSizePx: 12.5,
   interfaceFont: "Geist",
   monoFont: "JetBrains Mono",
+  editor: {
+    tabSize: 4,
+    softWrap: false,
+    lineNumbers: true,
+    bracketMatching: true,
+  },
+  grid: {
+    nullDisplay: "NULL",
+    stripeRows: false,
+  },
 };
 
 const STORAGE_KEY = "cellar.settings.v1";
@@ -56,16 +81,38 @@ function load(): Settings {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULTS;
     const parsed = JSON.parse(raw) as Partial<Settings>;
-    return sanitize({ ...DEFAULTS, ...parsed });
+    // Deep-merge nested sub-objects so new fields added to DEFAULTS are
+    // forward-compatible with older persisted values that lack them.
+    return sanitize({
+      ...DEFAULTS,
+      ...parsed,
+      editor: { ...DEFAULTS.editor, ...(parsed.editor ?? {}) },
+      grid: { ...DEFAULTS.grid, ...(parsed.grid ?? {}) },
+    });
   } catch {
     return DEFAULTS;
   }
 }
 
+const TAB_SIZES: EditorSettings["tabSize"][] = [2, 4, 8];
+const NULL_DISPLAYS: NullDisplay[] = ["NULL", "∅", "(empty)"];
+
 export function sanitize(s: Settings): Settings {
+  const editor: EditorSettings = {
+    tabSize: TAB_SIZES.includes(s.editor?.tabSize) ? s.editor.tabSize : DEFAULTS.editor.tabSize,
+    softWrap: typeof s.editor?.softWrap === "boolean" ? s.editor.softWrap : DEFAULTS.editor.softWrap,
+    lineNumbers: typeof s.editor?.lineNumbers === "boolean" ? s.editor.lineNumbers : DEFAULTS.editor.lineNumbers,
+    bracketMatching: typeof s.editor?.bracketMatching === "boolean" ? s.editor.bracketMatching : DEFAULTS.editor.bracketMatching,
+  };
+  const grid: GridSettings = {
+    nullDisplay: NULL_DISPLAYS.includes(s.grid?.nullDisplay) ? s.grid.nullDisplay : DEFAULTS.grid.nullDisplay,
+    stripeRows: typeof s.grid?.stripeRows === "boolean" ? s.grid.stripeRows : DEFAULTS.grid.stripeRows,
+  };
   return {
     ...s,
     fontSizePx: clamp(s.fontSizePx, FONT_SIZE_MIN, FONT_SIZE_MAX),
+    editor,
+    grid,
   };
 }
 
@@ -118,6 +165,8 @@ function hexToRgba(hex: string, alpha: number) {
 type Ctx = {
   settings: Settings;
   set: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
+  setEditor: (patch: Partial<EditorSettings>) => void;
+  setGrid: (patch: Partial<GridSettings>) => void;
   /** Merge a partial settings object (e.g. an imported setup) over current. */
   importSettings: (partial: Partial<Settings>) => void;
   reset: () => void;
@@ -141,9 +190,38 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const setEditor = useCallback((patch: Partial<EditorSettings>) => {
+    setSettings((prev) => {
+      const next = sanitize({
+        ...prev,
+        editor: { ...prev.editor, ...patch },
+      });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      applySideEffects(next);
+      return next;
+    });
+  }, []);
+
+  const setGrid = useCallback((patch: Partial<GridSettings>) => {
+    setSettings((prev) => {
+      const next = sanitize({
+        ...prev,
+        grid: { ...prev.grid, ...patch },
+      });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      applySideEffects(next);
+      return next;
+    });
+  }, []);
+
   const importSettings = useCallback((partial: Partial<Settings>) => {
     setSettings((prev) => {
-      const next = sanitize({ ...prev, ...partial });
+      const next = sanitize({
+        ...prev,
+        ...partial,
+        editor: { ...prev.editor, ...(partial.editor ?? {}) },
+        grid: { ...prev.grid, ...(partial.grid ?? {}) },
+      });
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       applySideEffects(next);
       return next;
@@ -165,8 +243,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   }, [settings]);
 
   const value = useMemo<Ctx>(
-    () => ({ settings, set, importSettings, reset }),
-    [settings, set, importSettings, reset],
+    () => ({ settings, set, setEditor, setGrid, importSettings, reset }),
+    [settings, set, setEditor, setGrid, importSettings, reset],
   );
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;

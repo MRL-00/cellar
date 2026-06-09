@@ -128,6 +128,12 @@ export type DataGridProps = {
 
   /** Read-only result grids can still select/filter, but do not expose edits. */
   readOnly?: boolean;
+
+  /** Text to display for NULL cell values. Defaults to "NULL". */
+  nullDisplay?: string;
+
+  /** Stripe alternating data rows. Defaults to false. */
+  stripeRows?: boolean;
 };
 
 /**
@@ -158,6 +164,8 @@ export function DataGrid({
   onCommit,
   onRevert,
   readOnly = false,
+  nullDisplay = "NULL",
+  stripeRows = false,
 }: DataGridProps) {
   const [internalSort, setInternalSort] = useState<SortState>(null);
   const [internalColumnLayout, setInternalColumnLayout] =
@@ -513,7 +521,9 @@ export function DataGrid({
   return (
     <div
       className={
-        "grid-root mono" + (virtualized ? "" : " grid-stable-scroll")
+        "grid-root mono" +
+        (virtualized ? "" : " grid-stable-scroll") +
+        (stripeRows ? " grid-stripe-rows" : "")
       }
     >
       <FilterBar
@@ -666,6 +676,7 @@ export function DataGrid({
                   editing={editing?.row === ri ? editing : null}
                   frozenCount={frozenCount}
                   readOnly={readOnly}
+                  nullDisplay={nullDisplay}
                   top={
                     virtualRows.totalHeight === undefined
                       ? undefined
@@ -712,6 +723,7 @@ type GridRowViewProps = {
   editing: CellAddress | null;
   frozenCount: number;
   readOnly: boolean;
+  nullDisplay: string;
   top: number | undefined;
   onSelect: (next: CellAddress | null) => void;
   onEdit: (next: CellAddress | null) => void;
@@ -733,6 +745,7 @@ const GridRowView = memo(function GridRowView({
   editing,
   frozenCount,
   readOnly,
+  nullDisplay,
   top,
   onSelect,
   onEdit,
@@ -813,7 +826,7 @@ const GridRowView = memo(function GridRowView({
                 onCancel={() => onEdit(null)}
               />
             ) : (
-              <CellValue col={c} value={displayed} />
+              <CellValue col={c} value={displayed} nullDisplay={nullDisplay} />
             )}
             {cellChange && !isEdit && (
               <span

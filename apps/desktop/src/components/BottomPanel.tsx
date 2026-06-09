@@ -7,6 +7,7 @@ import {
 } from "@cellar/ipc";
 import { DataGrid, useGridState } from "@cellar/data-grid";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useSettings } from "../lib/settings";
 
 import {
   countNoticeSeverities,
@@ -321,6 +322,7 @@ function ReadOnlyResultGrid({
   result: Extract<TabResult, { status: "ready" }>;
 }) {
   const grid = useGridState();
+  const { settings } = useSettings();
 
   return (
     <div className="flex h-full min-h-0 overflow-hidden">
@@ -337,6 +339,8 @@ function ReadOnlyResultGrid({
         filters={grid.filters}
         onFiltersChange={grid.setFilters}
         readOnly
+        nullDisplay={settings.grid.nullDisplay}
+        stripeRows={settings.grid.stripeRows}
       />
     </div>
   );

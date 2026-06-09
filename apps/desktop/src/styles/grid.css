@@ -254,6 +254,12 @@
   border-right: 1px solid var(--border-divider);
 }
 .grid-row:hover { background: var(--bg-2); }
+.grid-stripe-rows .grid-table .grid-row:not(.grid-header-row):not(.grid-row-add):nth-child(even) {
+  background: var(--bg-2);
+}
+.grid-stripe-rows .grid-table .grid-row:not(.grid-header-row):not(.grid-row-add):nth-child(even):hover {
+  background: var(--bg-3);
+}
 
 .grid-row.is-update { background: var(--update-bg); }
 .grid-row.is-update:hover { background: color-mix(in oklab, var(--update-bg) 70%, var(--bg-3)); }
