@@ -41,13 +41,13 @@ export const DEFAULTS: Settings = {
   theme: "dark",
   density: "compact",
   accent: "#a78bfa",
-  fontSizePx: 12.5,
+  fontSizePx: 13.5,
   interfaceFont: "Geist",
   monoFont: "JetBrains Mono",
 };
 
 const STORAGE_KEY = "cellar.settings.v1";
-const FONT_SIZE_BASELINE = 12.5;
+const FONT_SIZE_BASELINE = 13.5;
 export const FONT_SIZE_MIN = 10;
 export const FONT_SIZE_MAX = 22;
 
