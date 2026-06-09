@@ -627,6 +627,117 @@ mod tests {
             r#"SELECT * FROM "public"."users" ORDER BY "id" LIMIT $1 OFFSET $2"#
         );
     }
+
+    // ── build_table_count_query tests ─────────────────────────────────────────
+
+    fn count_sql_for(request: &TableBrowseRequest) -> Result<String, TableBrowseError> {
+        Ok(build_table_count_query(request, &table())?
+            .sql()
+            .to_string())
+    }
+
+    #[test]
+    fn count_query_selects_count_star_from_qualified_table() {
+        let sql = count_sql_for(&request()).expect("count sql");
+
+        assert_eq!(sql, r#"SELECT count(*) FROM "public"."users""#);
+    }
+
+    #[test]
+    fn count_query_omits_limit_offset_and_order_by() {
+        // LIMIT/OFFSET/ORDER BY are irrelevant for a total count; including them
+        // would give wrong results (LIMIT would cap the count) or be wasteful.
+        let mut req = request();
+        req.offset = Some(500);
+        req.sorts.push(super::cellar_core_sort("email"));
+
+        let sql = count_sql_for(&req).expect("count sql");
+
+        assert!(!sql.contains("LIMIT"), "count query must not contain LIMIT");
+        assert!(
+            !sql.contains("OFFSET"),
+            "count query must not contain OFFSET"
+        );
+        assert!(
+            !sql.contains("ORDER BY"),
+            "count query must not contain ORDER BY"
+        );
+        assert_eq!(sql, r#"SELECT count(*) FROM "public"."users""#);
+    }
+
+    #[test]
+    fn count_query_includes_filter_clauses() {
+        let mut req = request();
+        req.filters.push(TableFilterClause {
+            column: "email".into(),
+            operator: TableFilterOperator::Contains,
+            value: Some("example".into()),
+        });
+
+        let sql = count_sql_for(&req).expect("count sql");
+
+        assert_eq!(
+            sql,
+            r#"SELECT count(*) FROM "public"."users" WHERE "email" ILIKE ('%' || $1 || '%')"#
+        );
+        // Ensure the value is NOT inlined — parameterized binding means the
+        // raw literal must not appear in the SQL template.
+        assert!(!sql.contains("example"));
+    }
+
+    #[test]
+    fn count_query_applies_multiple_filters_with_and() {
+        let mut req = request();
+        req.filters.push(TableFilterClause {
+            column: "age".into(),
+            operator: TableFilterOperator::GreaterThan,
+            value: Some("18".into()),
+        });
+        req.filters.push(TableFilterClause {
+            column: "deleted_at".into(),
+            operator: TableFilterOperator::IsNull,
+            value: None,
+        });
+
+        let sql = count_sql_for(&req).expect("count sql");
+
+        assert_eq!(
+            sql,
+            r#"SELECT count(*) FROM "public"."users" WHERE "age" > $1::int4 AND "deleted_at" IS NULL"#
+        );
+    }
+
+    #[test]
+    fn count_query_quotes_identifiers_with_embedded_quotes() {
+        let mut req = request();
+        req.schema = r#"odd"schema"#.into();
+        req.table = r#"user"data"#.into();
+        let mut meta = table();
+        meta.schema = req.schema.clone();
+        meta.name = req.table.clone();
+
+        let sql = build_table_count_query(&req, &meta)
+            .expect("count sql")
+            .sql()
+            .to_string();
+
+        assert_eq!(sql, r#"SELECT count(*) FROM "odd""schema"."user""data""#);
+    }
+
+    #[test]
+    fn count_query_rejects_unknown_filter_column() {
+        let mut req = request();
+        req.filters.push(TableFilterClause {
+            column: "nonexistent".into(),
+            operator: TableFilterOperator::IsNull,
+            value: None,
+        });
+
+        assert_eq!(
+            count_sql_for(&req).unwrap_err(),
+            TableBrowseError::UnknownColumn("nonexistent".into())
+        );
+    }
 }
 
 #[cfg(test)]

@@ -122,6 +122,11 @@ export function useQueryRunner(tab: QueryTab): QueryRunner {
             const existing = useTabResults.getState().byTabId[tab.id];
             if (existing?.status === "ready") {
               const combined = [...existing.rows, ...rows];
+              // Preserve the existing onLoadMore callback during the setReady
+              // call so the "Load more" button does not flicker off between
+              // the store update and the subsequent useEffect that re-registers
+              // the callback. The useEffect below will overwrite it on the
+              // next render cycle if canLoadMore has changed.
               useTabResults.getState().setReady(tab.id, {
                 source: existing.source,
                 columns: existing.columns,
@@ -129,7 +134,18 @@ export function useQueryRunner(tab: QueryTab): QueryRunner {
                 rowCount: combined.length,
                 truncated: result.truncated,
                 durationMs: result.duration_ms,
+                onLoadMore: existing.onLoadMore,
               });
+            } else {
+              // The tab result is no longer in 'ready' status (e.g. the user
+              // started a new query mid-flight). Log a warning and discard the
+              // stale appended rows rather than silently dropping them.
+              console.warn(
+                "[useQueryRunner] Append response arrived but tab result is not ready " +
+                  "(status=%s, tabId=%s) — discarding stale rows.",
+                existing?.status ?? "missing",
+                tab.id,
+              );
             }
           } else {
             useTabResults.getState().setReady(tab.id, {
