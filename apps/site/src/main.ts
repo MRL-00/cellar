@@ -87,14 +87,15 @@ initImageSwap();
 
 /* ───────────── engine chips ───────────── */
 
-type Engine = { name: string; color: string };
+type Engine = { name: string; color: string; status: "supported" | "soon" };
 
 const engines: ReadonlyArray<Engine> = [
-  { name: "PostgreSQL", color: "var(--eng-postgres)" },
-  { name: "MySQL", color: "var(--eng-mysql)" },
-  { name: "SQL Server", color: "var(--eng-mssql)" },
-  { name: "Azure SQL", color: "var(--eng-azure)" },
-  { name: "SQLite", color: "var(--eng-sqlite)" },
+  { name: "PostgreSQL", color: "var(--eng-postgres)", status: "supported" },
+  { name: "SQL Server", color: "var(--eng-mssql)", status: "supported" },
+  { name: "Azure SQL", color: "var(--eng-azure)", status: "supported" },
+  { name: "Firestore", color: "var(--eng-firestore)", status: "supported" },
+  { name: "MySQL", color: "var(--eng-mysql)", status: "soon" },
+  { name: "SQLite", color: "var(--eng-sqlite)", status: "soon" },
 ];
 
 function renderEngineChips(el: HTMLElement | null) {
@@ -108,6 +109,12 @@ function renderEngineChips(el: HTMLElement | null) {
       dot.style.background = engine.color;
       chip.appendChild(dot);
       chip.append(engine.name);
+      if (engine.status === "soon") {
+        const status = document.createElement("span");
+        status.className = "eng-status soon";
+        status.textContent = "coming soon";
+        chip.appendChild(status);
+      }
       return chip;
     }),
   );
@@ -259,20 +266,24 @@ type Qa = readonly [question: string, answer: string];
 
 const qas: ReadonlyArray<Qa> = [
   [
+    "What is Cellar?",
+    "Cellar is a desktop database client for developers, DBAs, and analysts. Use it to connect to PostgreSQL, SQL Server, Azure SQL, and Firestore; browse schemas and table data; run SQL; inspect execution plans; and review edits before they are committed.",
+  ],
+  [
     "Is Cellar really free?",
-    "Yes. Cellar is free and open source under the MIT license. There is no paid tier, no account, and no usage limit. If you use the AI features, you pay your AI provider directly for tokens, and Cellar never marks that up.",
+    "Yes. Cellar is free and open source under the MIT license. There is no paid tier, no account, and no usage limit. AI provider support is coming soon, and will use your own provider key directly.",
   ],
   [
     "Do I need an AI key to use it?",
-    "No. Everything except the AI Assistant works with zero configuration. The AI features are optional and activate only when you add your own Anthropic or OpenAI key in Settings.",
+    "No. The core database workflow does not need AI. The AI features are coming soon and are being designed around bring-your-own provider keys.",
   ],
   [
     "Where do my credentials and AI key live?",
-    "In your operating system’s keychain, never in a plaintext config file and never synced to a server. Cellar is local-first: the only outbound connections are to your databases and, if enabled, your AI provider.",
+    "Database credentials live in your operating system’s keychain, never in a plaintext config file and never synced to a server. Cellar is local-first: the only required outbound connections are to your databases.",
   ],
   [
     "Which databases are supported?",
-    "PostgreSQL, MySQL, SQL Server, Azure SQL, and SQLite, each with engine-specific connection fields, SSH tunneling, and SSL/TLS. More engines are on the roadmap.",
+    "PostgreSQL, SQL Server, Azure SQL, and Firestore are supported today. MySQL and SQLite are coming soon.",
   ],
   [
     "What about Windows and Linux?",
@@ -280,7 +291,7 @@ const qas: ReadonlyArray<Qa> = [
   ],
   [
     "Can I trust the AI not to touch production?",
-    "Yes. Read-only mode and a hard spend cap are on by default, generated SQL is shown as a reviewable diff before it runs, and you can redact column values before they’re sent as context.",
+    "That is the design goal for the coming-soon AI work: generated SQL should be visible, gated, and reviewable before execution, with production connections clearly marked and easy to keep read-only.",
   ],
 ];
 

@@ -36,6 +36,7 @@
   --eng-mssql: #d97a5a;
   --eng-azure: #5bb8e0;
   --eng-sqlite: #a78bfa;
+  --eng-firestore: #f4c542;
 
   --glow: radial-gradient(60% 60% at 50% 0%, rgba(167, 139, 250, 0.22), transparent 70%);
   --shadow-lg: 0 24px 80px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.45);
@@ -400,6 +401,14 @@ h1 .accent {
   color: var(--fg-1);
 }
 .eng-dot { width: 9px; height: 9px; border-radius: 3px; }
+.eng-status {
+  margin-left: 2px;
+  font-size: 10.5px;
+  color: var(--fg-3);
+}
+.eng-status.soon {
+  color: var(--fg-2);
+}
 
 /* ───────────── section scaffolding ───────────── */
 section { position: relative; }
