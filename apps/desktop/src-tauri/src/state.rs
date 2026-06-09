@@ -86,23 +86,38 @@ impl ConnectionRegistry {
         if config.id.is_empty() {
             return Err(CellarError::invalid_config("connection id is empty"));
         }
+        // Build the new configs map, persist to disk FIRST, then update memory.
+        // This prevents in-memory state from diverging from disk if persist fails.
         {
             let mut inner = self.inner.write().await;
-            inner.configs.insert(config.id.clone(), config.clone());
-            persist(&inner.configs).await?;
+            let mut new_configs = inner.configs.clone();
+            new_configs.insert(config.id.clone(), config.clone());
+            persist(&new_configs).await?;
+            inner.configs = new_configs;
         }
         Ok(config)
     }
 
     pub async fn delete(&self, id: &str) -> CellarResult<()> {
-        let mut inner = self.inner.write().await;
-        inner.configs.remove(id);
-        if let Some(open) = inner.open.remove(id) {
+        // Compute the post-delete configs map, persist it FIRST, then mutate
+        // in-memory state (including tearing down the open connection and cache).
+        // If persist fails the in-memory state is left unchanged so the registry
+        // stays consistent with what is on disk.
+        let open_to_close = {
+            let mut inner = self.inner.write().await;
+            let mut new_configs = inner.configs.clone();
+            new_configs.remove(id);
+            persist(&new_configs).await?;
+            // Persist succeeded — safe to update in-memory state now.
+            inner.configs = new_configs;
+            let open = inner.open.remove(id);
+            inner.schema_cache.remove(id);
+            open
+        };
+        if let Some(open) = open_to_close {
             // Best-effort close; ignore errors when tearing down.
             let _ = open.connection.close().await;
         }
-        inner.schema_cache.remove(id);
-        persist(&inner.configs).await?;
         Ok(())
     }
 
@@ -479,7 +494,11 @@ async fn persist(configs: &HashMap<String, ConnectionConfig>) -> CellarResult<()
     let mut list: Vec<_> = configs.values().cloned().collect();
     list.sort_by(|a, b| a.name.cmp(&b.name));
     let json = serde_json::to_string_pretty(&list)?;
-    fs::write(&path, json).await?;
+    // Write to a temp file then atomically rename so a crash mid-write never
+    // leaves connections.json in a partially-written state.
+    let tmp_path = path.with_extension("json.tmp");
+    fs::write(&tmp_path, json).await?;
+    fs::rename(&tmp_path, &path).await?;
     Ok(())
 }
 
