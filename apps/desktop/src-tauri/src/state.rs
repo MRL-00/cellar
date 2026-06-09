@@ -415,16 +415,34 @@ fn reconnectable_error(err: CellarError) -> CellarError {
 }
 
 fn find_table(dbs: &[Database], database: &str, schema: &str, table: &str) -> CellarResult<Table> {
-    dbs.iter()
+    let schema_meta = dbs
+        .iter()
         .find(|db| db.name == database)
-        .and_then(|db| db.schemas.iter().find(|s| s.name == schema))
-        .and_then(|s| s.tables.iter().find(|t| t.name == table))
-        .cloned()
-        .ok_or_else(|| {
-            CellarError::invalid_config(format!(
-                "table {database}.{schema}.{table} was not found in schema metadata"
-            ))
-        })
+        .and_then(|db| db.schemas.iter().find(|s| s.name == schema));
+
+    if let Some(s) = schema_meta {
+        if let Some(t) = s.tables.iter().find(|t| t.name == table) {
+            return Ok(t.clone());
+        }
+        // Views are browsable on the read path too. They carry no primary key,
+        // foreign keys, or indexes, so we present the view as a Table with just
+        // its columns; the browse query falls back to unordered SELECT *.
+        if let Some(v) = s.views.iter().find(|v| v.name == table) {
+            return Ok(Table {
+                name: v.name.clone(),
+                schema: v.schema.clone(),
+                row_count: None,
+                columns: v.columns.clone(),
+                primary_key: Vec::new(),
+                foreign_keys: Vec::new(),
+                indexes: Vec::new(),
+            });
+        }
+    }
+
+    Err(CellarError::invalid_config(format!(
+        "table {database}.{schema}.{table} was not found in schema metadata"
+    )))
 }
 
 fn driver_for(engine: Engine) -> CellarResult<Box<dyn Driver>> {
@@ -463,4 +481,70 @@ async fn persist(configs: &HashMap<String, ConnectionConfig>) -> CellarResult<()
     let json = serde_json::to_string_pretty(&list)?;
     fs::write(&path, json).await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::find_table;
+    use cellar_core::schema::{Column, Database, Schema, Table, View};
+
+    fn column(name: &str, data_type: &str) -> Column {
+        Column {
+            name: name.into(),
+            data_type: data_type.into(),
+            nullable: true,
+            default: None,
+            is_primary_key: false,
+            ordinal: 1,
+            comment: None,
+        }
+    }
+
+    fn dbs() -> Vec<Database> {
+        vec![Database {
+            name: "shop".into(),
+            is_default: true,
+            schemas: vec![Schema {
+                name: "public".into(),
+                tables: vec![Table {
+                    name: "orders".into(),
+                    schema: "public".into(),
+                    row_count: None,
+                    columns: vec![column("id", "int4"), column("status", "order_status")],
+                    primary_key: vec!["id".into()],
+                    foreign_keys: Vec::new(),
+                    indexes: Vec::new(),
+                }],
+                views: vec![View {
+                    name: "customer_order_summary".into(),
+                    schema: "public".into(),
+                    columns: vec![column("email", "text"), column("total_spent", "numeric")],
+                    definition: None,
+                }],
+            }],
+        }]
+    }
+
+    #[test]
+    fn resolves_a_table() {
+        let table = find_table(&dbs(), "shop", "public", "orders").expect("table");
+        assert_eq!(table.name, "orders");
+        assert_eq!(table.primary_key, vec!["id".to_string()]);
+    }
+
+    #[test]
+    fn resolves_a_view_as_a_pkless_table() {
+        // Regression: views were never searched, so browsing one failed with
+        // "not found in schema metadata".
+        let view = find_table(&dbs(), "shop", "public", "customer_order_summary")
+            .expect("view should be browsable");
+        assert_eq!(view.name, "customer_order_summary");
+        assert!(view.primary_key.is_empty());
+        assert_eq!(view.columns.len(), 2);
+    }
+
+    #[test]
+    fn errors_on_unknown_relation() {
+        assert!(find_table(&dbs(), "shop", "public", "nope").is_err());
+    }
 }

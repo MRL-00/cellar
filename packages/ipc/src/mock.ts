@@ -152,4 +152,24 @@ export const mockCommands = {
     _search: string | null,
     _limit: number | null,
   ): Promise<Result<QueryHistoryRecord[], CellarError>> => ok([]),
+
+  // AI keys: in web mode there is no keychain, so hold them in memory for the
+  // session. Enough to drive the settings/panel flow without persistence.
+  aiStoreKey: async (provider: string, key: string): Promise<Result<null, CellarError>> => {
+    mockAiKeys.set(provider, key);
+    return ok(null);
+  },
+
+  aiLoadKey: async (provider: string): Promise<Result<string | null, CellarError>> =>
+    ok(mockAiKeys.get(provider) ?? null),
+
+  aiDeleteKey: async (provider: string): Promise<Result<null, CellarError>> => {
+    mockAiKeys.delete(provider);
+    return ok(null);
+  },
+
+  aiHasKey: async (provider: string): Promise<Result<boolean, CellarError>> =>
+    ok(mockAiKeys.has(provider)),
 };
+
+const mockAiKeys = new Map<string, string>();

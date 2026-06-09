@@ -116,6 +116,53 @@ async listQueryHistory(connectionId: string | null, database: string | null, tab
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+/**
+ * Persist the API key for `provider` in the OS keychain, overwriting any
+ * existing entry.
+ */
+async aiStoreKey(provider: string, key: string) : Promise<Result<null, CellarError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("ai_store_key", { provider, key }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Load the stored API key for `provider`. Returns `None` when nothing is
+ * stored, which is distinct from a keychain failure.
+ */
+async aiLoadKey(provider: string) : Promise<Result<string | null, CellarError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("ai_load_key", { provider }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Remove the stored API key for `provider`. A no-op if none exists.
+ */
+async aiDeleteKey(provider: string) : Promise<Result<null, CellarError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("ai_delete_key", { provider }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Report whether a key is stored for `provider` without returning it — used by
+ * settings to show "configured" state.
+ */
+async aiHasKey(provider: string) : Promise<Result<boolean, CellarError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("ai_has_key", { provider }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 

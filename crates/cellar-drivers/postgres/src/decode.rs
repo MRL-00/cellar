@@ -98,11 +98,16 @@ pub fn decode_cell(row: &PgRow, ordinal: usize) -> CellarResult<CellValue> {
 
         // Fall back to text. `try_get::<String>` works for many implicit
         // string casts (e.g. inet, cidr, mac, money) when sqlx supports the
-        // decode; otherwise we surface the type name so the user can file a
-        // sharper bug.
+        // decode. User-defined enums are the common case here: sqlx rejects the
+        // custom type OID in `try_get`, but Postgres transmits an enum's *label*
+        // as the value bytes in both wire formats, so a raw UTF-8 read recovers
+        // it. Only if that also fails do we surface the type name.
         other => match row.try_get::<String, _>(ordinal) {
             Ok(s) => Ok(CellValue::Text(s)),
-            Err(_) => Err(CellarError::UnsupportedType(other.to_string())),
+            Err(_) => match raw.as_str() {
+                Ok(s) => Ok(CellValue::Text(s.to_string())),
+                Err(_) => Err(CellarError::UnsupportedType(other.to_string())),
+            },
         },
     }
 }
