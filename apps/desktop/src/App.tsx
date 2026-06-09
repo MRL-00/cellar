@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import type { ConnectionConfig } from "@cellar/ipc";
+import { listen } from "@tauri-apps/api/event";
+import { isTauri, type ConnectionConfig } from "@cellar/ipc";
 import { TitleBar } from "./components/TitleBar";
 import { StatusBar } from "./components/StatusBar";
 import { Sidebar } from "./components/Sidebar";
@@ -157,6 +158,14 @@ export function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  // The native macOS app menu's "Settings…" item (see src-tauri/src/menu.rs)
+  // emits this event; open the same modal as the in-app ⌘, shortcut.
+  useEffect(() => {
+    if (!isTauri) return;
+    const unlisten = listen("menu://settings", () => openSettings());
+    return () => void unlisten.then((off) => off());
+  }, [openSettings]);
+
   return (
     <div className="flex h-full w-full flex-col bg-bg-0">
       <TitleBar
@@ -165,7 +174,6 @@ export function App() {
         empty={empty}
         onToggleEmpty={() => setEmpty((v) => !v)}
         onOpenPalette={() => openModal("palette")}
-        onOpenSettings={() => openSettings()}
       />
 
       <div className="flex flex-1 min-h-0">
@@ -179,6 +187,7 @@ export function App() {
                 onNewConnection={openNewConnection}
                 onEditConnection={editConnection}
                 onDuplicateConnection={duplicateConnection}
+                onOpenSettings={() => openSettings()}
               />
             </div>
             <ResizeHandle

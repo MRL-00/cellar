@@ -32,12 +32,14 @@ export interface SidebarProps {
   onNewConnection?: () => void;
   onEditConnection?: (config: ConnectionConfig) => void;
   onDuplicateConnection?: (config: ConnectionConfig) => void;
+  onOpenSettings?: () => void;
 }
 
 export function Sidebar({
   onNewConnection,
   onEditConnection,
   onDuplicateConnection,
+  onOpenSettings,
 }: SidebarProps = {}) {
   const [filter, setFilter] = useState("");
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
@@ -475,6 +477,18 @@ export function Sidebar({
           );
         })}
 
+      </div>
+
+      <div className="flex shrink-0 items-center border-t border-border-default px-2 py-1.5">
+        <button
+          type="button"
+          onClick={onOpenSettings}
+          title="Settings (⌘,)"
+          className="flex items-center gap-1.5 rounded-[4px] px-1.5 py-1 text-[11.5px] text-fg-2 transition-colors duration-150 hover:bg-bg-2 hover:text-fg-0"
+        >
+          <Icon.settings size={13} />
+          <span>Settings</span>
+        </button>
       </div>
 
       <ContextMenu state={menu} onClose={() => setMenu(null)} />
