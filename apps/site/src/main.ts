@@ -180,17 +180,20 @@ document.addEventListener("keydown", (event) => {
 
 /* ───────────── release download ───────────── */
 
-const GITHUB_RELEASE_API = "https://api.github.com/repos/MRL-00/cellar/releases/latest";
+const GITHUB_RELEASES_URL = "https://github.com/MRL-00/cellar/releases";
+const GITHUB_RELEASE_API = "https://api.github.com/repos/MRL-00/cellar/releases";
 
 const downloads = {
   "macos-arm64": {
-    assetName: "Cellar-mac-arm64.dmg",
-    fallbackUrl: "https://github.com/MRL-00/cellar/releases/latest/download/Cellar-mac-arm64.dmg",
+    assetNames: ["Cellar-mac-arm64.dmg"],
+    assetPattern: /^Cellar_.+_aarch64\.dmg$/,
+    fallbackUrl: GITHUB_RELEASES_URL,
     label: "Apple Silicon Macs",
   },
   "macos-x64": {
-    assetName: "Cellar-mac-x64.dmg",
-    fallbackUrl: "https://github.com/MRL-00/cellar/releases/latest/download/Cellar-mac-x64.dmg",
+    assetNames: ["Cellar-mac-x64.dmg"],
+    assetPattern: /^Cellar_.+_x64\.dmg$/,
+    fallbackUrl: GITHUB_RELEASES_URL,
     label: "Intel Macs",
   },
 } as const;
@@ -205,6 +208,7 @@ type ReleaseAsset = {
 
 type GitHubRelease = {
   tag_name: string;
+  draft?: boolean;
   assets: ReleaseAsset[];
 };
 
@@ -222,9 +226,26 @@ function setDownloadLink(key: DownloadKey, url: string, label?: string) {
   }
 }
 
+function setDownloadButtonLabel(label: string) {
+  const labels = document.querySelectorAll<HTMLElement>("[data-download-label]");
+  for (const el of labels) el.textContent = label;
+}
+
+function findDownloadAsset(releases: GitHubRelease[], key: DownloadKey) {
+  const download = downloads[key];
+  for (const release of releases) {
+    if (release.draft) continue;
+    const asset = release.assets.find((candidate) => {
+      return download.assetNames.some((name) => name === candidate.name) || download.assetPattern.test(candidate.name);
+    });
+    if (asset) return { release, asset };
+  }
+  return null;
+}
+
 async function initDownloadLink() {
   for (const [key, download] of Object.entries(downloads) as [DownloadKey, (typeof downloads)[DownloadKey]][]) {
-    setDownloadLink(key, download.fallbackUrl, `Download the latest Cellar release for ${download.label}`);
+    setDownloadLink(key, download.fallbackUrl, `View Cellar releases for ${download.label}`);
   }
 
   try {
@@ -233,28 +254,30 @@ async function initDownloadLink() {
     });
     if (!res.ok) return;
 
-    const release = (await res.json()) as GitHubRelease;
+    const releases = (await res.json()) as GitHubRelease[];
+    const availableSizes: number[] = [];
+
     for (const [key, download] of Object.entries(downloads) as [DownloadKey, (typeof downloads)[DownloadKey]][]) {
-      const asset = release.assets.find((candidate) => candidate.name === download.assetName);
-      if (!asset) continue;
+      const match = findDownloadAsset(releases, key);
+      if (!match) continue;
 
       setDownloadLink(
         key,
-        asset.browser_download_url,
-        `Download Cellar ${release.tag_name} for ${download.label}`,
+        match.asset.browser_download_url,
+        `Download Cellar ${match.release.tag_name} for ${download.label}`,
       );
+      availableSizes.push(match.asset.size);
     }
 
-    const sizeEls = document.querySelectorAll<HTMLElement>("[data-release-size]");
-    const sizes = release.assets
-      .filter((asset) => Object.values(downloads).some((download) => download.assetName === asset.name))
-      .map((asset) => asset.size);
-    if (sizes.length === 0) return;
+    if (availableSizes.length === 0) return;
 
-    const largestSize = Math.max(...sizes);
+    setDownloadButtonLabel("Download for Mac");
+
+    const sizeEls = document.querySelectorAll<HTMLElement>("[data-release-size]");
+    const largestSize = Math.max(...availableSizes);
     for (const el of sizeEls) el.textContent = formatBytes(largestSize);
   } catch {
-    /* Keep the direct latest/download fallback links. */
+    /* Keep the GitHub Releases fallback links. */
   }
 }
 
