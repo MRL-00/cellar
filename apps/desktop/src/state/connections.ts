@@ -5,6 +5,7 @@ import type {
   DriverInfo,
 } from "@cellar/ipc";
 import { create } from "zustand";
+import { useTabs } from "./tabs";
 
 export type ConnStatus = "connected" | "connecting" | "disconnected" | "error";
 
@@ -94,6 +95,10 @@ export const useConnections = create<ConnectionsStore>((set, get) => ({
         byId: rest,
       };
     });
+    // Tear down any workspace tabs left pointing at the now-deleted
+    // connection — otherwise they linger in the tab bar and error the moment
+    // they are touched, making the connection look like it was never removed.
+    useTabs.getState().closeConnectionTabs(id);
   },
 
   async connect(id) {

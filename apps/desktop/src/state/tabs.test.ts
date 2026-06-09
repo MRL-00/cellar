@@ -114,6 +114,41 @@ describe("tab workspace state", () => {
     expect(useTabResults.getState().byTabId[keepId]?.status).toBe("loading");
   });
 
+  it("closes every tab for a removed connection and keeps others intact", () => {
+    const store = useTabs.getState();
+    store.openTable("conn-1", "app", "public", "orders");
+    const goneQuery = useTabs.getState().newQueryTab("conn-1", "app");
+    const keepId = useTabs.getState().newQueryTab("conn-2", "analytics");
+
+    const goneTable = "conn-1::app.public.orders";
+    useTabs.getState().setTableChanges(goneTable, changes);
+    useTabs.getState().refreshTable(goneTable);
+    useTabResults.getState().setLoading(goneTable, source);
+
+    useTabs.getState().closeConnectionTabs("conn-1");
+
+    expect(useTabs.getState().tabs.map((t) => t.id)).toEqual([keepId]);
+    expect(useTabs.getState().activeId).toBe(keepId);
+    expect(
+      useTabs.getState().tabs.some((t) => t.id === goneQuery),
+    ).toBe(false);
+    expect(useTabs.getState().tableChanges[goneTable]).toBeUndefined();
+    expect(useTabs.getState().refreshKeys[goneTable]).toBeUndefined();
+    expect(useTabResults.getState().byTabId[goneTable]).toBeUndefined();
+  });
+
+  it("does not resurrect a removed connection's tab via reopen", () => {
+    const id = useTabs.getState().newQueryTab("conn-1", "app");
+    useTabs.getState().closeTab(id);
+    expect(useTabs.getState().closedTabs).toHaveLength(1);
+
+    useTabs.getState().closeConnectionTabs("conn-1");
+    expect(useTabs.getState().closedTabs).toHaveLength(0);
+
+    useTabs.getState().reopenClosedTab();
+    expect(useTabs.getState().tabs).toHaveLength(0);
+  });
+
   it("moves focus left when closing tabs to the right of a tab", () => {
     const store = useTabs.getState();
     store.openTable("conn-1", "app", "public", "orders");
