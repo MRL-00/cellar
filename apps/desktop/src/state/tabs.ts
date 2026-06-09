@@ -60,6 +60,7 @@ interface TabsStore {
   clearSplit: () => void;
   closeOtherTabs: (id: string) => void;
   closeTabsToRight: (id: string) => void;
+  closeConnectionTabs: (connectionId: string) => void;
   reorderTab: (sourceId: string, targetId: string) => void;
   setActive: (id: string) => void;
   setTableLayout: (id: string, layout: GridColumnLayout) => void;
@@ -296,6 +297,37 @@ export const useTabs = create<TabsStore>((set, get) => ({
       };
     });
     clearTabResults(closedIds);
+  },
+
+  closeConnectionTabs(connectionId) {
+    const removedIds = get()
+      .tabs.filter((t) => t.connectionId === connectionId)
+      .map((t) => t.id);
+    set((s) => {
+      const removed = new Set(removedIds);
+      const tabs = s.tabs.filter((t) => !removed.has(t.id));
+      const activeId = removed.has(s.activeId ?? "")
+        ? tabs[tabs.length - 1]?.id ?? null
+        : s.activeId;
+      const { tableChanges, refreshKeys } = dropTabScopedState(
+        removedIds,
+        s.tableChanges,
+        s.refreshKeys,
+      );
+      return {
+        tabs,
+        activeId,
+        // Drop the connection's tabs from the reopen stack too, so undo-close
+        // can't resurrect a tab that points at a connection that no longer exists.
+        closedTabs: s.closedTabs.filter(
+          (t) => t.connectionId !== connectionId,
+        ),
+        split: splitForTabs(tabs, s.split),
+        tableChanges,
+        refreshKeys,
+      };
+    });
+    if (removedIds.length > 0) clearTabResults(removedIds);
   },
 
   reorderTab(sourceId, targetId) {
