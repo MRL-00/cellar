@@ -1,5 +1,6 @@
 pub mod commands;
 pub mod history;
+pub mod menu;
 pub mod state;
 
 use history::HistoryStore;
@@ -19,6 +20,7 @@ pub fn run() {
         .invoke_handler(invoke_handler)
         .setup(move |app| {
             builder.mount_events(app);
+            menu::setup(app.handle())?;
             Ok(())
         })
         .run(tauri::generate_context!())

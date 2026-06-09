@@ -32,14 +32,12 @@ export function TitleBar({
   empty,
   onToggleEmpty,
   onOpenPalette,
-  onOpenSettings,
 }: {
   panels: Panels;
   onTogglePanel: (k: PanelId) => void;
   empty?: boolean;
   onToggleEmpty?: () => void;
   onOpenPalette?: () => void;
-  onOpenSettings?: () => void;
 }) {
   const activeId = useTabs((s) => s.activeId);
   const tabs = useTabs((s) => s.tabs);
@@ -169,14 +167,6 @@ export function TitleBar({
             <Icon.layout size={13} />
           </button>
         )}
-        <button
-          type="button"
-          className="icon-btn"
-          onClick={onOpenSettings}
-          title="Settings (⌘,)"
-        >
-          <Icon.settings size={13} />
-        </button>
       </div>
     </div>
   );
