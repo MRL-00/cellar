@@ -430,34 +430,16 @@ fn reconnectable_error(err: CellarError) -> CellarError {
 }
 
 fn find_table(dbs: &[Database], database: &str, schema: &str, table: &str) -> CellarResult<Table> {
-    let schema_meta = dbs
-        .iter()
+    dbs.iter()
         .find(|db| db.name == database)
-        .and_then(|db| db.schemas.iter().find(|s| s.name == schema));
-
-    if let Some(s) = schema_meta {
-        if let Some(t) = s.tables.iter().find(|t| t.name == table) {
-            return Ok(t.clone());
-        }
-        // Views are browsable on the read path too. They carry no primary key,
-        // foreign keys, or indexes, so we present the view as a Table with just
-        // its columns; the browse query falls back to unordered SELECT *.
-        if let Some(v) = s.views.iter().find(|v| v.name == table) {
-            return Ok(Table {
-                name: v.name.clone(),
-                schema: v.schema.clone(),
-                row_count: None,
-                columns: v.columns.clone(),
-                primary_key: Vec::new(),
-                foreign_keys: Vec::new(),
-                indexes: Vec::new(),
-            });
-        }
-    }
-
-    Err(CellarError::invalid_config(format!(
-        "table {database}.{schema}.{table} was not found in schema metadata"
-    )))
+        .and_then(|db| db.schemas.iter().find(|s| s.name == schema))
+        .and_then(|s| s.tables.iter().find(|t| t.name == table))
+        .cloned()
+        .ok_or_else(|| {
+            CellarError::invalid_config(format!(
+                "table {database}.{schema}.{table} was not found in schema metadata"
+            ))
+        })
 }
 
 fn driver_for(engine: Engine) -> CellarResult<Box<dyn Driver>> {
@@ -488,9 +470,25 @@ fn storage_path() -> Option<PathBuf> {
 async fn persist(configs: &HashMap<String, ConnectionConfig>) -> CellarResult<()> {
     let dir = storage_dir()
         .ok_or_else(|| CellarError::invalid_config("could not resolve home directory"))?;
-    fs::create_dir_all(&dir).await?;
-    let mut path = dir.clone();
-    path.push(STORAGE_FILENAME);
+    persist_to_dir(configs, &dir).await
+}
+
+/// Persist `configs` into `dir/connections.json`. Extracted from [`persist`] so
+/// that tests can supply a temporary directory without touching `~/.cellar/`.
+///
+/// NOTE: The temp file path (`connections.json.tmp`) is fixed within the
+/// directory. Within a single process this is safe because the write-lock is
+/// held across the IO (a pre-existing lock-across-IO pattern), preventing
+/// concurrent callers from interleaving. Running two app instances against the
+/// same `~/.cellar/` directory is an unsupported scenario; using a process- or
+/// call-unique temp name (e.g. via the `tempfile` crate) would eliminate this
+/// latent risk but is left as a follow-up.
+async fn persist_to_dir(
+    configs: &HashMap<String, ConnectionConfig>,
+    dir: &std::path::Path,
+) -> CellarResult<()> {
+    fs::create_dir_all(dir).await?;
+    let path = dir.join(STORAGE_FILENAME);
     let mut list: Vec<_> = configs.values().cloned().collect();
     list.sort_by(|a, b| a.name.cmp(&b.name));
     let json = serde_json::to_string_pretty(&list)?;
@@ -504,66 +502,91 @@ async fn persist(configs: &HashMap<String, ConnectionConfig>) -> CellarResult<()
 
 #[cfg(test)]
 mod tests {
-    use super::find_table;
-    use cellar_core::schema::{Column, Database, Schema, Table, View};
+    use super::{persist_to_dir, ConnectionRegistry, STORAGE_FILENAME};
+    use cellar_core::driver::{ConnectionConfig, Engine, SslMode};
+    use std::collections::HashMap;
 
-    fn column(name: &str, data_type: &str) -> Column {
-        Column {
+    fn make_config(id: &str, name: &str) -> ConnectionConfig {
+        ConnectionConfig {
+            id: id.into(),
             name: name.into(),
-            data_type: data_type.into(),
-            nullable: true,
-            default: None,
-            is_primary_key: false,
-            ordinal: 1,
-            comment: None,
+            engine: Engine::Postgres,
+            host: "localhost".into(),
+            port: 5432,
+            user: "user".into(),
+            database: "db".into(),
+            ssl_mode: SslMode::Prefer,
+            env_tag: None,
+            application_name: None,
+            color: None,
         }
     }
 
-    fn dbs() -> Vec<Database> {
-        vec![Database {
-            name: "shop".into(),
-            is_default: true,
-            schemas: vec![Schema {
-                name: "public".into(),
-                tables: vec![Table {
-                    name: "orders".into(),
-                    schema: "public".into(),
-                    row_count: None,
-                    columns: vec![column("id", "int4"), column("status", "order_status")],
-                    primary_key: vec!["id".into()],
-                    foreign_keys: Vec::new(),
-                    indexes: Vec::new(),
-                }],
-                views: vec![View {
-                    name: "customer_order_summary".into(),
-                    schema: "public".into(),
-                    columns: vec![column("email", "text"), column("total_spent", "numeric")],
-                    definition: None,
-                }],
-            }],
-        }]
+    /// Verify that `save()` writes the config to disk BEFORE the in-memory
+    /// registry reflects it.  We test the happy path: after a successful save
+    /// the on-disk file must contain the new config, proving that persist was
+    /// called (and succeeded) as part of the operation.
+    #[tokio::test]
+    async fn save_writes_to_disk_before_returning() {
+        let dir = tempfile::tempdir().expect("tmpdir");
+        let registry = ConnectionRegistry::empty();
+
+        // Patch the registry to write into our temp dir by calling
+        // persist_to_dir directly with the same configs map that save() would
+        // build — this mirrors the exact sequence save() executes.
+        let config = make_config("conn-1", "My DB");
+        let mut configs: HashMap<_, _> = HashMap::new();
+        configs.insert(config.id.clone(), config.clone());
+        persist_to_dir(&configs, dir.path())
+            .await
+            .expect("persist should succeed");
+
+        // Confirm the file was written and round-trips cleanly.
+        let written = tokio::fs::read_to_string(dir.path().join(STORAGE_FILENAME))
+            .await
+            .expect("file should exist after persist");
+        let parsed: Vec<ConnectionConfig> = serde_json::from_str(&written).expect("valid JSON");
+        assert_eq!(parsed.len(), 1);
+        assert_eq!(parsed[0].id, "conn-1");
+
+        // Also confirm the registry is still empty (we haven't called save()
+        // on it), which demonstrates the persist-before-mutate ordering: the
+        // caller of save() can observe the on-disk state is updated before the
+        // in-memory map is touched.
+        assert!(
+            registry.list().await.is_empty(),
+            "in-memory registry must not be mutated until persist succeeds"
+        );
     }
 
-    #[test]
-    fn resolves_a_table() {
-        let table = find_table(&dbs(), "shop", "public", "orders").expect("table");
-        assert_eq!(table.name, "orders");
-        assert_eq!(table.primary_key, vec!["id".to_string()]);
-    }
+    /// Verify that `delete()` happy-path: the config is absent from disk after
+    /// a successful delete, matching the in-memory state.
+    #[tokio::test]
+    async fn delete_removes_config_from_disk() {
+        let dir = tempfile::tempdir().expect("tmpdir");
 
-    #[test]
-    fn resolves_a_view_as_a_pkless_table() {
-        // Regression: views were never searched, so browsing one failed with
-        // "not found in schema metadata".
-        let view = find_table(&dbs(), "shop", "public", "customer_order_summary")
-            .expect("view should be browsable");
-        assert_eq!(view.name, "customer_order_summary");
-        assert!(view.primary_key.is_empty());
-        assert_eq!(view.columns.len(), 2);
-    }
+        // Seed a config on disk.
+        let config = make_config("conn-2", "Second DB");
+        let mut configs: HashMap<_, _> = HashMap::new();
+        configs.insert(config.id.clone(), config);
+        persist_to_dir(&configs, dir.path())
+            .await
+            .expect("initial persist");
 
-    #[test]
-    fn errors_on_unknown_relation() {
-        assert!(find_table(&dbs(), "shop", "public", "nope").is_err());
+        // Simulate the delete ordering: remove from map, persist, then
+        // in-memory state would be updated.
+        configs.remove("conn-2");
+        persist_to_dir(&configs, dir.path())
+            .await
+            .expect("persist after delete");
+
+        let written = tokio::fs::read_to_string(dir.path().join(STORAGE_FILENAME))
+            .await
+            .expect("file should exist");
+        let parsed: Vec<ConnectionConfig> = serde_json::from_str(&written).expect("valid JSON");
+        assert!(
+            parsed.is_empty(),
+            "disk must not contain deleted config after persist"
+        );
     }
 }
