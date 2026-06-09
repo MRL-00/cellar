@@ -37,7 +37,7 @@ export type Settings = {
   monoFont: string;
 };
 
-const DEFAULTS: Settings = {
+export const DEFAULTS: Settings = {
   theme: "dark",
   density: "compact",
   accent: "#a78bfa",
@@ -62,7 +62,7 @@ function load(): Settings {
   }
 }
 
-function sanitize(s: Settings): Settings {
+export function sanitize(s: Settings): Settings {
   return {
     ...s,
     fontSizePx: clamp(s.fontSizePx, FONT_SIZE_MIN, FONT_SIZE_MAX),
@@ -118,6 +118,8 @@ function hexToRgba(hex: string, alpha: number) {
 type Ctx = {
   settings: Settings;
   set: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
+  /** Merge a partial settings object (e.g. an imported setup) over current. */
+  importSettings: (partial: Partial<Settings>) => void;
   reset: () => void;
 };
 
@@ -139,6 +141,15 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const importSettings = useCallback((partial: Partial<Settings>) => {
+    setSettings((prev) => {
+      const next = sanitize({ ...prev, ...partial });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      applySideEffects(next);
+      return next;
+    });
+  }, []);
+
   const reset = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
     applySideEffects(DEFAULTS);
@@ -153,7 +164,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     return () => mq.removeEventListener("change", onChange);
   }, [settings]);
 
-  const value = useMemo<Ctx>(() => ({ settings, set, reset }), [settings, set, reset]);
+  const value = useMemo<Ctx>(
+    () => ({ settings, set, importSettings, reset }),
+    [settings, set, importSettings, reset],
+  );
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
 }

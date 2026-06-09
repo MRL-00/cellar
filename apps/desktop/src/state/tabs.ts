@@ -63,6 +63,8 @@ interface TabsStore {
   reorderTab: (sourceId: string, targetId: string) => void;
   setActive: (id: string) => void;
   setTableLayout: (id: string, layout: GridColumnLayout) => void;
+  /** Merge imported per-table layouts over the current ones and persist. */
+  importTableLayouts: (entries: TableLayouts) => void;
   setTableChanges: (id: string, changes: PendingChanges) => void;
   clearTableChanges: (id: string) => void;
   refreshTable: (id: string) => void;
@@ -372,6 +374,14 @@ export const useTabs = create<TabsStore>((set, get) => ({
   setTableLayout(id, layout) {
     set((s) => {
       const tableLayouts = { ...s.tableLayouts, [id]: layout };
+      saveTableLayouts(tableLayouts);
+      return { tableLayouts };
+    });
+  },
+
+  importTableLayouts(entries) {
+    set((s) => {
+      const tableLayouts = { ...s.tableLayouts, ...entries };
       saveTableLayouts(tableLayouts);
       return { tableLayouts };
     });

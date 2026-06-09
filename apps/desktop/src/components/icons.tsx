@@ -216,6 +216,20 @@ export const Icon = {
       <path d="M12 3v18M9 6L6 9l3 3M15 18l3-3-3-3" />
     </I>
   ),
+  download: (p: IconProps) => (
+    <I {...p}>
+      <path d="M12 3v12" />
+      <path d="M7 10l5 5 5-5" />
+      <path d="M5 21h14" />
+    </I>
+  ),
+  upload: (p: IconProps) => (
+    <I {...p}>
+      <path d="M12 21V9" />
+      <path d="M7 14l5-5 5 5" />
+      <path d="M5 3h14" />
+    </I>
+  ),
   commit: (p: IconProps) => (
     <I {...p}>
       <circle cx="12" cy="12" r="4" />
