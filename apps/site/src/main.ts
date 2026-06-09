@@ -183,6 +183,12 @@ document.addEventListener("keydown", (event) => {
 const GITHUB_RELEASES_URL = "https://github.com/MRL-00/cellar/releases";
 const GITHUB_RELEASE_API = "https://api.github.com/repos/MRL-00/cellar/releases";
 
+/* Installer asset filename → counts as a "download". Excludes checksum and
+   signature sidecar files that ship alongside the real installers. */
+function isInstaller(name: string): boolean {
+  return /\.(dmg|pkg|exe|msi|appimage|deb|rpm)$/i.test(name);
+}
+
 const downloads = {
   "macos-arm64": {
     assetNames: ["Cellar-mac-arm64.dmg"],
@@ -204,6 +210,7 @@ type ReleaseAsset = {
   name: string;
   size: number;
   browser_download_url: string;
+  download_count: number;
 };
 
 type GitHubRelease = {
@@ -243,6 +250,19 @@ function findDownloadAsset(releases: GitHubRelease[], key: DownloadKey) {
   return null;
 }
 
+/* Reveal the live download counter. Hidden by default so the site shows
+   nothing (rather than a bare "0") until real downloads have accrued. */
+function setDownloadCount(total: number) {
+  const text = `${total.toLocaleString("en-US")} download${total === 1 ? "" : "s"}`;
+  for (const el of document.querySelectorAll<HTMLElement>("[data-download-count]")) {
+    el.textContent = text;
+    el.hidden = false;
+  }
+  for (const sep of document.querySelectorAll<HTMLElement>("[data-download-count-sep]")) {
+    sep.hidden = false;
+  }
+}
+
 async function initDownloadLink() {
   for (const [key, download] of Object.entries(downloads) as [DownloadKey, (typeof downloads)[DownloadKey]][]) {
     setDownloadLink(key, download.fallbackUrl, `View Cellar releases for ${download.label}`);
@@ -255,6 +275,22 @@ async function initDownloadLink() {
     if (!res.ok) return;
 
     const releases = (await res.json()) as GitHubRelease[];
+    if (!Array.isArray(releases)) return;
+
+    /* Total downloads across every published release, so the counter
+       reflects the full history rather than just the current build. */
+    const totalDownloads = releases.reduce(
+      (sum, release) =>
+        release.draft
+          ? sum
+          : sum +
+            release.assets
+              .filter((asset) => isInstaller(asset.name))
+              .reduce((assetSum, asset) => assetSum + (asset.download_count ?? 0), 0),
+      0,
+    );
+    if (totalDownloads > 0) setDownloadCount(totalDownloads);
+
     const availableSizes: number[] = [];
 
     for (const [key, download] of Object.entries(downloads) as [DownloadKey, (typeof downloads)[DownloadKey]][]) {
