@@ -171,3 +171,32 @@ jobs:
           fi
 
           gh release upload "$RELEASE_TAG" "$dmg_path#$STABLE_ASSET_NAME" --clobber
+
+  publish-release:
+    name: Publish release
+    needs: build-tauri
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve release tag
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            release_tag="${{ inputs.version }}"
+          else
+            release_tag="${GITHUB_REF_NAME}"
+          fi
+
+          echo "tag=$release_tag" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          gh release edit "$RELEASE_TAG" --draft=false
