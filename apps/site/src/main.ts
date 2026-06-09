@@ -267,7 +267,7 @@ type Qa = readonly [question: string, answer: string];
 const qas: ReadonlyArray<Qa> = [
   [
     "What is Cellar?",
-    "Cellar is a desktop database client for developers, DBAs, and analysts. Use it to connect to PostgreSQL, SQL Server, Azure SQL, and Firestore; browse schemas and table data; run SQL; inspect execution plans; and review edits before they are committed.",
+    "Cellar is a desktop database client for developers, DBAs, and analysts. It helps you browse schemas, run SQL, inspect execution plans, and review data changes before committing.",
   ],
   [
     "Is Cellar really free?",
