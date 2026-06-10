@@ -28,6 +28,7 @@ const result: QueryResult = {
   rows_affected: null,
   duration_ms: 12,
   truncated: false,
+  total_rows: null,
 };
 
 describe("query message builders", () => {

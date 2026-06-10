@@ -15,7 +15,9 @@ use crate::connect::{map_tiberius_runtime_err, SqlServerConnection};
 use crate::decode::decode_cell;
 
 const DEFAULT_TABLE_BROWSE_ROWS: u32 = 500;
-const MAX_TABLE_BROWSE_ROWS: u32 = 500;
+/// Hard ceiling raised to 2 000 so that users can request larger pages without
+/// hitting the old 500-row wall. The default page size remains 500.
+const MAX_TABLE_BROWSE_ROWS: u32 = 2000;
 
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub enum TableBrowseError {
@@ -27,7 +29,7 @@ pub enum TableBrowseError {
     TableMetadataMismatch,
     #[error("table browse limit must be greater than zero")]
     EmptyLimit,
-    #[error("table browse limit cannot exceed {MAX_TABLE_BROWSE_ROWS} rows")]
+    #[error("table browse limit cannot exceed {MAX_TABLE_BROWSE_ROWS} rows per page")]
     LimitTooLarge,
     #[error("table browse offset is too large")]
     OffsetTooLarge,
@@ -90,7 +92,12 @@ pub async fn browse_table(
                 QueryItem::Row(row) => {
                     if rows.len() >= max_rows as usize {
                         truncated = true;
-                        continue;
+                        // SQL Server browse uses server-side OFFSET/FETCH, so
+                        // the server already caps the result set. This branch
+                        // can only be reached when the client fetched limit+1
+                        // rows (to detect truncation). Break rather than
+                        // continue to avoid transferring stray rows.
+                        break;
                     }
                     rows.push(row.into_iter().map(decode_cell).collect());
                 }
@@ -108,6 +115,10 @@ pub async fn browse_table(
             rows_affected: None,
             duration_ms: started.elapsed().as_millis() as u64,
             truncated,
+            // TODO: add include_total support for SQL Server once the shared
+            // filter-building code is refactored to support parameterized
+            // count queries (tiberius does not use sqlx QueryBuilder).
+            total_rows: None,
         })
     })
     .await
@@ -351,6 +362,7 @@ mod tests {
             sorts: Vec::new(),
             filters: Vec::new(),
             primary_key_fallback_ordering: true,
+            include_total: false,
         };
 
         let sql = build_table_browse_query(&request, &table).unwrap();
@@ -381,6 +393,7 @@ mod tests {
                 value: Some("O'Hara".into()),
             }],
             primary_key_fallback_ordering: true,
+            include_total: false,
         };
 
         let sql = build_table_browse_query(&request, &table).unwrap();
@@ -403,6 +416,7 @@ mod tests {
             sorts: Vec::new(),
             filters: Vec::new(),
             primary_key_fallback_ordering: true,
+            include_total: false,
         };
         request.sorts.push(TableSortClause {
             column: "missing".into(),

@@ -15,7 +15,9 @@ use crate::connect::PgConnection;
 use crate::decode::decode_cell;
 
 const DEFAULT_TABLE_BROWSE_ROWS: u32 = 500;
-const MAX_TABLE_BROWSE_ROWS: u32 = 500;
+/// Hard ceiling raised to 2 000 so that users can request larger pages without
+/// hitting the old 500-row wall. The default page size remains 500.
+const MAX_TABLE_BROWSE_ROWS: u32 = 2000;
 
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub enum TableBrowseError {
@@ -27,7 +29,7 @@ pub enum TableBrowseError {
     TableMetadataMismatch,
     #[error("table browse limit must be greater than zero")]
     EmptyLimit,
-    #[error("table browse limit cannot exceed {MAX_TABLE_BROWSE_ROWS} rows")]
+    #[error("table browse limit cannot exceed {MAX_TABLE_BROWSE_ROWS} rows per page")]
     LimitTooLarge,
     #[error("table browse offset is too large")]
     OffsetTooLarge,
@@ -63,6 +65,21 @@ pub async fn browse_table(
         .unwrap_or(conn.config().database.as_str());
     let pool = conn.pool_for_database(database).await?;
     let pool = &pool;
+
+    // Optionally fetch the total row count using the same filter clauses
+    // before running the data query. Running it first means the count arrives
+    // with the page even if the data query is slow.
+    let total_rows: Option<u64> = if request.include_total {
+        let count: i64 = build_table_count_query(request, table)
+            .map_err(to_query_err)?
+            .build_query_scalar()
+            .fetch_one(pool)
+            .await
+            .map_err(|e| CellarError::query(e.to_string()))?;
+        Some(count.max(0) as u64)
+    } else {
+        None
+    };
 
     let mut builder = build_table_browse_query(request, table).map_err(to_query_err)?;
     let started = Instant::now();
@@ -111,7 +128,36 @@ pub async fn browse_table(
         rows_affected: None,
         duration_ms: started.elapsed().as_millis() as u64,
         truncated,
+        total_rows,
     })
+}
+
+/// Build a `SELECT count(*) FROM … WHERE …` query using the same filter
+/// clauses as the browse query. LIMIT/OFFSET/ORDER BY are intentionally omitted
+/// — we want the total across all pages.
+fn build_table_count_query<'args>(
+    request: &TableBrowseRequest,
+    table: &Table,
+) -> Result<QueryBuilder<'args, Postgres>, TableBrowseError> {
+    // Validate columns/filters before building so callers see meaningful errors.
+    for filter in &request.filters {
+        column_for(table, &filter.column)?;
+    }
+
+    let mut builder = QueryBuilder::<Postgres>::new("SELECT count(*) FROM ");
+    push_qualified_table(&mut builder, &request.schema, &request.table);
+
+    if !request.filters.is_empty() {
+        builder.push(" WHERE ");
+        for (i, filter) in request.filters.iter().enumerate() {
+            if i > 0 {
+                builder.push(" AND ");
+            }
+            push_filter(&mut builder, filter, table)?;
+        }
+    }
+
+    Ok(builder)
 }
 
 fn build_table_browse_query<'args>(
@@ -415,6 +461,7 @@ mod tests {
             sorts: Vec::new(),
             filters: Vec::new(),
             primary_key_fallback_ordering: true,
+            include_total: false,
         }
     }
 
@@ -560,6 +607,15 @@ mod tests {
     }
 
     #[test]
+    fn allows_limits_up_to_2000() {
+        let mut req = request();
+        req.limit = Some(2000);
+
+        let sql = sql_for(&req).expect("2000-row limit should be accepted");
+        assert!(sql.contains("LIMIT"));
+    }
+
+    #[test]
     fn appends_offset_for_later_pages() {
         let mut req = request();
         req.offset = Some(500);
@@ -569,6 +625,117 @@ mod tests {
         assert_eq!(
             sql,
             r#"SELECT * FROM "public"."users" ORDER BY "id" LIMIT $1 OFFSET $2"#
+        );
+    }
+
+    // ── build_table_count_query tests ─────────────────────────────────────────
+
+    fn count_sql_for(request: &TableBrowseRequest) -> Result<String, TableBrowseError> {
+        Ok(build_table_count_query(request, &table())?
+            .sql()
+            .to_string())
+    }
+
+    #[test]
+    fn count_query_selects_count_star_from_qualified_table() {
+        let sql = count_sql_for(&request()).expect("count sql");
+
+        assert_eq!(sql, r#"SELECT count(*) FROM "public"."users""#);
+    }
+
+    #[test]
+    fn count_query_omits_limit_offset_and_order_by() {
+        // LIMIT/OFFSET/ORDER BY are irrelevant for a total count; including them
+        // would give wrong results (LIMIT would cap the count) or be wasteful.
+        let mut req = request();
+        req.offset = Some(500);
+        req.sorts.push(super::cellar_core_sort("email"));
+
+        let sql = count_sql_for(&req).expect("count sql");
+
+        assert!(!sql.contains("LIMIT"), "count query must not contain LIMIT");
+        assert!(
+            !sql.contains("OFFSET"),
+            "count query must not contain OFFSET"
+        );
+        assert!(
+            !sql.contains("ORDER BY"),
+            "count query must not contain ORDER BY"
+        );
+        assert_eq!(sql, r#"SELECT count(*) FROM "public"."users""#);
+    }
+
+    #[test]
+    fn count_query_includes_filter_clauses() {
+        let mut req = request();
+        req.filters.push(TableFilterClause {
+            column: "email".into(),
+            operator: TableFilterOperator::Contains,
+            value: Some("example".into()),
+        });
+
+        let sql = count_sql_for(&req).expect("count sql");
+
+        assert_eq!(
+            sql,
+            r#"SELECT count(*) FROM "public"."users" WHERE "email" ILIKE ('%' || $1 || '%')"#
+        );
+        // Ensure the value is NOT inlined — parameterized binding means the
+        // raw literal must not appear in the SQL template.
+        assert!(!sql.contains("example"));
+    }
+
+    #[test]
+    fn count_query_applies_multiple_filters_with_and() {
+        let mut req = request();
+        req.filters.push(TableFilterClause {
+            column: "age".into(),
+            operator: TableFilterOperator::GreaterThan,
+            value: Some("18".into()),
+        });
+        req.filters.push(TableFilterClause {
+            column: "deleted_at".into(),
+            operator: TableFilterOperator::IsNull,
+            value: None,
+        });
+
+        let sql = count_sql_for(&req).expect("count sql");
+
+        assert_eq!(
+            sql,
+            r#"SELECT count(*) FROM "public"."users" WHERE "age" > $1::int4 AND "deleted_at" IS NULL"#
+        );
+    }
+
+    #[test]
+    fn count_query_quotes_identifiers_with_embedded_quotes() {
+        let mut req = request();
+        req.schema = r#"odd"schema"#.into();
+        req.table = r#"user"data"#.into();
+        let mut meta = table();
+        meta.schema = req.schema.clone();
+        meta.name = req.table.clone();
+
+        let sql = build_table_count_query(&req, &meta)
+            .expect("count sql")
+            .sql()
+            .to_string();
+
+        assert_eq!(sql, r#"SELECT count(*) FROM "odd""schema"."user""data""#);
+    }
+
+    #[test]
+    fn count_query_rejects_unknown_filter_column() {
+        let mut req = request();
+        req.filters.push(TableFilterClause {
+            column: "nonexistent".into(),
+            operator: TableFilterOperator::IsNull,
+            value: None,
+        });
+
+        assert_eq!(
+            count_sql_for(&req).unwrap_err(),
+            TableBrowseError::UnknownColumn("nonexistent".into())
         );
     }
 }

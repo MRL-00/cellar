@@ -30,6 +30,8 @@ interface TableData {
   columns: GridColumn[];
   rows: GridRow[];
   truncated: boolean;
+  /** Total row count from the server (only set when include_total was requested). */
+  totalRows: number | null;
   loading: boolean;
   fetching: boolean;
   error: string | null;
@@ -65,6 +67,7 @@ export function useTableData(
     columns: [],
     rows: [],
     truncated: false,
+    totalRows: null,
     loading: true,
     fetching: true,
     error: null,
@@ -96,6 +99,9 @@ export function useTableData(
       sorts: [],
       filters: [],
       primary_key_fallback_ordering: true,
+      // Request total count only on the first page so the pagination bar can
+      // show "rows X-Y of TOTAL". Subsequent pages re-use the cached total.
+      include_total: pageIndex === 0,
     };
     const messageTabId = tabId ?? tableTabId(connectionId, database, schema, table);
     const queryContext: TableQueryContext = {
@@ -124,10 +130,15 @@ export function useTableData(
           primaryKey,
           offset,
         );
-        setState({
+        setState((prev) => ({
           columns,
           rows,
           truncated: result.truncated,
+          // Preserve the total count from the first page when navigating to
+          // subsequent pages (include_total is only requested on page 0).
+          totalRows: result.total_rows !== null && result.total_rows !== undefined
+            ? Number(result.total_rows)
+            : prev.totalRows,
           loading: false,
           fetching: false,
           error: null,
@@ -136,7 +147,7 @@ export function useTableData(
           limit: pageSize,
           hasPreviousPage: offset > 0,
           hasNextPage: result.truncated,
-        });
+        }));
         useNotices.getState().recordQueryResult(
           { tabId: tableTabId(connectionId, database, schema, table), connectionId, database },
           result,
@@ -159,6 +170,7 @@ export function useTableData(
           columns: [],
           rows: [],
           truncated: false,
+          totalRows: null,
           loading: false,
           fetching: false,
           error: message,
