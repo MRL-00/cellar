@@ -32,9 +32,17 @@ export function resolveBlurAction(
   return dirty ? "commit" : "cancel";
 }
 
-export function CellValue({ col, value }: { col: GridColumn; value: Value }) {
+export function CellValue({
+  col,
+  value,
+  nullDisplay = "NULL",
+}: {
+  col: GridColumn;
+  value: Value;
+  nullDisplay?: string;
+}) {
   if (value === null || value === undefined) {
-    return <span className="cell-null mono">NULL</span>;
+    return <span className="cell-null mono">{nullDisplay}</span>;
   }
   if (col.enum && col.key === "status") {
     const v = String(value);

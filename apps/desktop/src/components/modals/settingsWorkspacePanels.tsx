@@ -5,6 +5,7 @@ import {
   FONT_SIZE_MIN,
   useSettings,
   type Density,
+  type NullDisplay,
   type Theme,
 } from "../../lib/settings";
 import {
@@ -143,79 +144,50 @@ export function SettingsAppearance() {
 export function SettingsGeneral() {
   return (
     <div className="flex-1 overflow-y-auto pb-6 pt-1">
-      <Section title="General">
-        <Row label="Startup">
-          <StaticSegment
-            values={["Restore last session", "Empty workspace", "Show welcome"]}
-            activeIdx={0}
-          />
-        </Row>
-        <Row label="Default schema search path">
-          <input
-            readOnly
-            className={CD_INPUT + " cursor-not-allowed font-mono opacity-80"}
-            defaultValue="public, audit, analytics"
-            style={{ flex: 1 }}
-          />
-        </Row>
-        <Row label="Confirm before quitting">
-          <Toggle on={true} ariaLabel="Confirm before quitting" />
-        </Row>
-        <Row label="Allow background queries">
-          <Toggle on={true} ariaLabel="Allow background queries" />
-        </Row>
-      </Section>
-      <Section title="Updates">
-        <Row label="Channel">
-          <StaticSegment values={["stable", "beta", "nightly"]} activeIdx={0} />
-        </Row>
-        <Row label="Auto-install on quit">
-          <Toggle on={true} ariaLabel="Auto-install on quit" />
-        </Row>
-      </Section>
+      <p className="px-5 pt-4 text-[11.5px] text-fg-3">
+        General settings will appear here as features are built.
+      </p>
     </div>
   );
 }
 
 export function SettingsEditor() {
+  const { settings, setEditor } = useSettings();
+  const { editor } = settings;
+
   return (
     <div className="flex-1 overflow-y-auto pb-6 pt-1">
       <Section title="SQL editor">
         <Row label="Tab size">
-          <StaticSegment values={["2", "4", "8"]} activeIdx={1} />
-        </Row>
-        <Row label="Indent with">
-          <StaticSegment values={["spaces", "tabs"]} activeIdx={0} />
-        </Row>
-        <Row label="Auto-format on save">
-          <Toggle on={true} ariaLabel="Auto-format on save" />
-        </Row>
-        <Row label="Keyword case">
-          <StaticSegment values={["UPPER", "lower", "Preserve"]} activeIdx={0} />
-        </Row>
-        <Row label="Show line numbers">
-          <Toggle on={true} ariaLabel="Show line numbers" />
-        </Row>
-        <Row label="Soft wrap">
-          <Toggle on={false} ariaLabel="Soft wrap" />
-        </Row>
-        <Row label="Bracket matching">
-          <Toggle on={true} ariaLabel="Bracket matching" />
-        </Row>
-      </Section>
-      <Section title="Execution">
-        <Row label="Statement at cursor runs">
-          <StaticSegment
-            values={["current statement", "selection", "whole file"]}
-            activeIdx={0}
+          <Segment<"2" | "4" | "8">
+            value={String(editor.tabSize) as "2" | "4" | "8"}
+            onChange={(v) => setEditor({ tabSize: Number(v) as 2 | 4 | 8 })}
+            options={[
+              { value: "2", label: "2" },
+              { value: "4", label: "4" },
+              { value: "8", label: "8" },
+            ]}
           />
         </Row>
-        <Row label="LIMIT applied to SELECT *">
-          <input
-            readOnly
-            className={CD_INPUT + " cursor-not-allowed font-mono opacity-80"}
-            defaultValue="500"
-            style={{ width: 70, flex: "none" }}
+        <Row label="Show line numbers">
+          <Toggle
+            on={editor.lineNumbers}
+            onChange={(v) => setEditor({ lineNumbers: v })}
+            ariaLabel="Show line numbers"
+          />
+        </Row>
+        <Row label="Soft wrap" hint="Also toggleable per-editor with the wrap button in the toolbar.">
+          <Toggle
+            on={editor.softWrap}
+            onChange={(v) => setEditor({ softWrap: v })}
+            ariaLabel="Soft wrap"
+          />
+        </Row>
+        <Row label="Bracket matching">
+          <Toggle
+            on={editor.bracketMatching}
+            onChange={(v) => setEditor({ bracketMatching: v })}
+            ariaLabel="Bracket matching"
           />
         </Row>
       </Section>
@@ -223,39 +195,32 @@ export function SettingsEditor() {
   );
 }
 
+const NULL_DISPLAY_OPTIONS: { value: NullDisplay; label: string }[] = [
+  { value: "NULL", label: "NULL" },
+  { value: "∅", label: "∅" },
+  { value: "(empty)", label: "(empty)" },
+];
+
 export function SettingsGrid() {
+  const { settings, setGrid } = useSettings();
+  const { grid } = settings;
+
   return (
     <div className="flex-1 overflow-y-auto pb-6 pt-1">
       <Section title="Data grid">
-        <Row label="Row height">
-          <StaticSegment values={["20px", "22px", "28px", "36px"]} activeIdx={1} />
-        </Row>
-        <Row label="NULL display">
-          <input
-            readOnly
-            className={CD_INPUT + " cursor-not-allowed font-mono opacity-80"}
-            defaultValue="NULL"
-            style={{ width: 120, flex: "none" }}
+        <Row label="NULL display" hint="Text shown in cells where the database value is NULL.">
+          <Segment<NullDisplay>
+            value={grid.nullDisplay}
+            onChange={(v) => setGrid({ nullDisplay: v })}
+            options={NULL_DISPLAY_OPTIONS}
           />
-          <StaticSegment values={["dim italic", "strong"]} activeIdx={0} />
-        </Row>
-        <Row label="Number alignment">
-          <StaticSegment values={["left", "right"]} activeIdx={1} />
         </Row>
         <Row label="Stripe alternating rows">
-          <Toggle on={false} ariaLabel="Stripe alternating rows" />
-        </Row>
-        <Row label="Sticky pkey column">
-          <Toggle on={true} ariaLabel="Sticky pkey column" />
-        </Row>
-        <Row label="Truncate cells over">
-          <input
-            readOnly
-            className={CD_INPUT + " cursor-not-allowed font-mono opacity-80"}
-            defaultValue="200"
-            style={{ width: 70, flex: "none" }}
+          <Toggle
+            on={grid.stripeRows}
+            onChange={(v) => setGrid({ stripeRows: v })}
+            ariaLabel="Stripe alternating rows"
           />
-          <span className="text-[11px] text-fg-2">chars</span>
         </Row>
       </Section>
     </div>

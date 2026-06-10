@@ -17,6 +17,7 @@ import { useBottomPanel } from "../state/bottomPanel";
 import { useConnections } from "../state/connections";
 import type { QueryTab } from "../state/tabs";
 import { useTabs } from "../state/tabs";
+import { useSettings } from "../lib/settings";
 import { Icon } from "./icons";
 
 const DIALECTS: Record<Engine, string> = {
@@ -45,11 +46,14 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
   const refreshSchema = useConnections((s) => s.refreshSchema);
   const setBottomTab = useBottomPanel((s) => s.setActive);
   const requestExplain = useBottomPanel((s) => s.requestExplain);
+  const { settings } = useSettings();
 
   const { running, errorLine, run, clearError } = useQueryRunner(tab);
 
   const [caret, setCaret] = useState(0);
-  const [wrap, setWrap] = useState(false);
+  // Per-editor wrap toggle overrides the global default.
+  const [wrapOverride, setWrapOverride] = useState<boolean | null>(null);
+  const wrap = wrapOverride !== null ? wrapOverride : settings.editor.softWrap;
 
   const sql = tab.sql;
   const connected = status === "connected";
@@ -155,7 +159,13 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
           </button>
           <button
             className={"icon-btn" + (wrap ? " active" : "")}
-            onClick={() => setWrap((w) => !w)}
+            onClick={() => setWrapOverride((prev) => {
+              const globalDefault = settings.editor.softWrap;
+              const desired = !(prev !== null ? prev : globalDefault);
+              // If the desired value equals the global default, clear the override
+              // so future global-setting changes are not silently ignored.
+              return desired === globalDefault ? null : desired;
+            })}
             title={wrap ? "Disable line wrapping" : "Wrap long lines"}
           >
             <Icon.wrap size={12} />
@@ -207,6 +217,9 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
           database={tab.database}
           placeholder={PLACEHOLDER}
           wrap={wrap}
+          showLineNumbers={settings.editor.lineNumbers}
+          enableBracketMatching={settings.editor.bracketMatching}
+          tabSize={settings.editor.tabSize}
           currentStatementRange={range}
           errorLine={errorLine}
           onChange={handleEditorChange}

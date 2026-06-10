@@ -254,6 +254,18 @@
   border-right: 1px solid var(--border-divider);
 }
 .grid-row:hover { background: var(--bg-2); }
+/* Stripe rows: the .is-stripe class is applied in JS (GridRowView) using the
+   absolute rowIndex so it is correct in virtual-scroll mode where nth-child
+   only reflects the current render window.  The rule intentionally does NOT
+   apply to rows that already carry a pending-change tint (is-update / is-insert
+   / is-delete) — those classes are guarded in the JS so this selector is just a
+   safety net for specificity parity. */
+.grid-row.is-stripe {
+  background: var(--bg-2);
+}
+.grid-row.is-stripe:hover {
+  background: var(--bg-3);
+}
 
 .grid-row.is-update { background: var(--update-bg); }
 .grid-row.is-update:hover { background: color-mix(in oklab, var(--update-bg) 70%, var(--bg-3)); }

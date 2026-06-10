@@ -52,6 +52,16 @@ describe("buildBundle", () => {
       fontSizePx: 12.5,
       interfaceFont: "Geist",
       monoFont: "JetBrains Mono",
+      editor: {
+        tabSize: 4 as const,
+        softWrap: false,
+        lineNumbers: true,
+        bracketMatching: true,
+      },
+      grid: {
+        nullDisplay: "NULL" as const,
+        stripeRows: false,
+      },
     },
     connections: [conn()],
     tableLayouts: { "local-pg::app.public.orders": { order: ["id"], widths: { id: 80 } } },
@@ -95,6 +105,16 @@ describe("parseBundle", () => {
             fontSizePx: 12.5,
             interfaceFont: "Geist",
             monoFont: "JetBrains Mono",
+            editor: {
+              tabSize: 4 as const,
+              softWrap: false,
+              lineNumbers: true,
+              bracketMatching: true,
+            },
+            grid: {
+              nullDisplay: "NULL" as const,
+              stripeRows: false,
+            },
           },
           connections: [conn()],
           tableLayouts: {},
@@ -142,6 +162,39 @@ describe("parseBundle", () => {
     expect(r.ok).toBe(true);
   });
 
+  it("round-trips a bundle with editor and grid settings", () => {
+    const bundleWithSettings = serializeBundle(
+      buildBundle(
+        { settings: true, connections: false, tableLayouts: false },
+        {
+          settings: {
+            theme: "dark",
+            density: "compact",
+            accent: "#a78bfa",
+            fontSizePx: 12.5,
+            interfaceFont: "Geist",
+            monoFont: "JetBrains Mono",
+            editor: { tabSize: 2, softWrap: true, lineNumbers: false, bracketMatching: false },
+            grid: { nullDisplay: "∅", stripeRows: true },
+          },
+          connections: [],
+          tableLayouts: {},
+        },
+        { app: "0.1.0", exportedAt: "2026-06-09T00:00:00Z" },
+      ),
+    );
+    const r = parseBundle(bundleWithSettings);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      const s = r.bundle.sections.settings!;
+      expect(s.editor.tabSize).toBe(2);
+      expect(s.editor.softWrap).toBe(true);
+      expect(s.editor.lineNumbers).toBe(false);
+      expect(s.grid.nullDisplay).toBe("∅");
+      expect(s.grid.stripeRows).toBe(true);
+    }
+  });
+
   it("rejects a bundle with no importable sections", () => {
     const r = parseBundle(JSON.stringify({ format: "cellar.setup", version: 1, sections: {} }));
     expect(r.ok).toBe(false);
@@ -167,6 +220,8 @@ describe("computeImportPlan", () => {
         fontSizePx: 14,
         interfaceFont: "Geist",
         monoFont: "JetBrains Mono",
+        editor: { tabSize: 4, softWrap: false, lineNumbers: true, bracketMatching: true },
+        grid: { nullDisplay: "NULL", stripeRows: false },
       },
     },
   };
@@ -221,6 +276,8 @@ describe("applyImportPlan", () => {
             fontSizePx: 14,
             interfaceFont: "Geist",
             monoFont: "JetBrains Mono",
+            editor: { tabSize: 4 as const, softWrap: false, lineNumbers: true, bracketMatching: true },
+            grid: { nullDisplay: "NULL" as const, stripeRows: false },
           },
         },
       },

@@ -1,7 +1,10 @@
 import { Icon } from "../icons";
 import { Row, Section, StaticSegment, Toggle } from "./settingsPrimitives";
+import { useConnections } from "../../state/connections";
 
 export function SettingsPrivacy() {
+  const connectionCount = useConnections((s) => s.connections.length);
+
   return (
     <div className="flex-1 overflow-y-auto pb-6 pt-1">
       <Section title="Telemetry">
@@ -21,19 +24,11 @@ export function SettingsPrivacy() {
       >
         <div className="w-full overflow-hidden rounded-[5px] border border-border-default">
           {[
-            { k: "Connections", v: "12 connections", path: "connections.toml" },
             {
-              k: "Query history",
-              v: "23,418 queries · 14.2 MB",
-              path: "history.sqlite",
+              k: "Connections",
+              v: `${connectionCount} ${connectionCount === 1 ? "connection" : "connections"}`,
+              path: "connections.toml",
             },
-            {
-              k: "AI conversations",
-              v: "20 conversations · 3.2 MB",
-              path: "ai/",
-            },
-            { k: "Snapshots", v: "84 snapshots · 412 MB", path: "snapshots/" },
-            { k: "Cached schemas", v: "12 dbs · 8.4 MB", path: "cache/" },
           ].map((x, i, arr) => (
             <div
               key={x.k}

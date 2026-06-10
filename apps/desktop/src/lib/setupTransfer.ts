@@ -55,6 +55,8 @@ const SSL_MODES: SslMode[] = [
 const ENV_TAGS: EnvTag[] = ["local", "dev", "staging", "prod"];
 const THEMES: Settings["theme"][] = ["system", "dark", "light"];
 const DENSITIES: Settings["density"][] = ["compact", "comfortable"];
+const TAB_SIZES: Array<2 | 4 | 8> = [2, 4, 8];
+const NULL_DISPLAYS: Settings["grid"]["nullDisplay"][] = ["NULL", "∅", "(empty)"];
 
 // ---------------------------------------------------------------------------
 // Build (export)
@@ -218,7 +220,35 @@ function coerceSettings(raw: Record<string, unknown>): Settings {
   if (typeof raw.fontSizePx === "number") picked.fontSizePx = raw.fontSizePx;
   if (typeof raw.interfaceFont === "string") picked.interfaceFont = raw.interfaceFont;
   if (typeof raw.monoFont === "string") picked.monoFont = raw.monoFont;
-  return sanitizeSettings({ ...SETTINGS_DEFAULTS, ...picked });
+
+  // Coerce nested editor settings.
+  if (raw.editor && typeof raw.editor === "object") {
+    const e = raw.editor as Record<string, unknown>;
+    const editorPicked: Partial<Settings["editor"]> = {};
+    if (TAB_SIZES.includes(e.tabSize as 2 | 4 | 8)) editorPicked.tabSize = e.tabSize as 2 | 4 | 8;
+    if (typeof e.softWrap === "boolean") editorPicked.softWrap = e.softWrap;
+    if (typeof e.lineNumbers === "boolean") editorPicked.lineNumbers = e.lineNumbers;
+    if (typeof e.bracketMatching === "boolean") editorPicked.bracketMatching = e.bracketMatching;
+    picked.editor = { ...SETTINGS_DEFAULTS.editor, ...editorPicked };
+  }
+
+  // Coerce nested grid settings.
+  if (raw.grid && typeof raw.grid === "object") {
+    const g = raw.grid as Record<string, unknown>;
+    const gridPicked: Partial<Settings["grid"]> = {};
+    if (NULL_DISPLAYS.includes(g.nullDisplay as Settings["grid"]["nullDisplay"])) {
+      gridPicked.nullDisplay = g.nullDisplay as Settings["grid"]["nullDisplay"];
+    }
+    if (typeof g.stripeRows === "boolean") gridPicked.stripeRows = g.stripeRows;
+    picked.grid = { ...SETTINGS_DEFAULTS.grid, ...gridPicked };
+  }
+
+  return sanitizeSettings({
+    ...SETTINGS_DEFAULTS,
+    ...picked,
+    editor: { ...SETTINGS_DEFAULTS.editor, ...(picked.editor ?? {}) },
+    grid: { ...SETTINGS_DEFAULTS.grid, ...(picked.grid ?? {}) },
+  });
 }
 
 /** Mirror of `loadTableLayouts` coercion in state/tabs.ts. */
