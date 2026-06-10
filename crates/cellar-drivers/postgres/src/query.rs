@@ -27,6 +27,13 @@ pub async fn execute_query(conn: &PgConnection, query: &Query) -> CellarResult<Q
 
     let max_rows = query.max_rows.unwrap_or(DEFAULT_MAX_ROWS);
     let max_rows_usize = max_rows as usize;
+    // offset for free-form queries: skip rows from the stream. Because the SQL
+    // passes through verbatim (no parser to inject OFFSET), we consume and
+    // discard the leading rows. This transfers skipped rows over the wire — an
+    // acceptable trade-off for small offsets (e.g. "Load more" pages of 500
+    // rows each). Very large offsets would benefit from a subquery wrapper, but
+    // that requires dialect-aware SQL rewriting and is deferred.
+    let skip_rows = query.offset.unwrap_or(0) as usize;
     let capacity = max_rows.min(10_000) as usize;
 
     // SQL passes through verbatim. Driving LIMIT into user-supplied SQL would
@@ -37,6 +44,7 @@ pub async fn execute_query(conn: &PgConnection, query: &Query) -> CellarResult<Q
     let mut columns: Option<Vec<ColumnMeta>> = None;
     let mut materialized: Vec<Row> = Vec::with_capacity(capacity);
     let mut truncated = false;
+    let mut rows_seen: usize = 0;
 
     while let Some(r) = stream.try_next().await.map_err(query_sqlx_err)? {
         if columns.is_none() {
@@ -50,6 +58,12 @@ pub async fn execute_query(conn: &PgConnection, query: &Query) -> CellarResult<Q
                     })
                     .collect(),
             );
+        }
+
+        // Skip rows before the requested offset.
+        if rows_seen < skip_rows {
+            rows_seen += 1;
+            continue;
         }
 
         if materialized.len() >= max_rows_usize {
@@ -80,6 +94,9 @@ pub async fn execute_query(conn: &PgConnection, query: &Query) -> CellarResult<Q
         rows_affected: None,
         duration_ms,
         truncated,
+        // Total row count is not available for free-form queries without
+        // wrapping the SQL in a COUNT subquery, which requires parsing.
+        total_rows: None,
     })
 }
 

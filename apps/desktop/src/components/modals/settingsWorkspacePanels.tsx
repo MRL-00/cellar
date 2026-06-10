@@ -87,7 +87,7 @@ export function SettingsAppearance() {
         </Row>
         <Row
           label="Font size"
-          hint="Scales the entire interface. Default is 12.5 px."
+          hint="Scales the entire interface. Default is 13.5 px."
         >
           <input
             className={CD_INPUT + " font-mono"}
@@ -110,7 +110,7 @@ export function SettingsAppearance() {
               {FONT_SIZE_MIN}
             </span>
             <span className="absolute top-0 left-1/2 -translate-x-1/2 whitespace-nowrap text-[9.5px] text-fg-3">
-              12.5
+              13.5
             </span>
             <span className="absolute top-0 right-0 translate-x-1/2 whitespace-nowrap text-[9.5px] text-fg-3">
               {FONT_SIZE_MAX}

@@ -12,6 +12,15 @@ pub struct Query {
     /// asks for streamed page-style results — for the first vertical slice we
     /// just return up to `max_rows` rows in one shot.
     pub max_rows: Option<u32>,
+    /// Zero-based row offset for paginated queries. The driver skips this many
+    /// rows before collecting up to `max_rows`. Because free-form SQL passes
+    /// through verbatim (no parser to inject OFFSET), the driver implements
+    /// this by consuming and discarding the leading rows from the stream — this
+    /// transfers the skipped rows over the wire. For large offsets a re-issued
+    /// query with a subquery wrapper would be cheaper, but that requires a
+    /// parser and is deferred. Use this for "Load more" UX where the offset is
+    /// small relative to `max_rows`.
+    pub offset: Option<u32>,
     /// Target database. For engines like Postgres where a connection is bound
     /// to one database, the driver routes the query to a pool for this
     /// database (the sidebar can browse several databases per connection).
@@ -24,12 +33,18 @@ impl Query {
         Self {
             sql: sql.into(),
             max_rows: None,
+            offset: None,
             database: None,
         }
     }
 
     pub fn with_max_rows(mut self, max_rows: u32) -> Self {
         self.max_rows = Some(max_rows);
+        self
+    }
+
+    pub fn with_offset(mut self, offset: u32) -> Self {
+        self.offset = Some(offset);
         self
     }
 
@@ -57,6 +72,12 @@ pub struct QueryResult {
     /// `true` when the driver truncated the result because it hit
     /// [`Query::max_rows`]. The grid uses this to show a "+ more" badge.
     pub truncated: bool,
+    /// Total row count for the underlying dataset, when the driver can provide
+    /// it cheaply. `None` means "unknown" — the UI shows `truncated` alone.
+    /// For table browse with `include_total: true` the driver runs a
+    /// `SELECT count(*)` with the same filter clauses and returns it here.
+    /// Free-form queries always return `None`.
+    pub total_rows: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]
@@ -181,6 +202,12 @@ pub struct TableBrowseRequest {
     /// metadata is available. This keeps table tabs stable without the UI
     /// building an `ORDER BY` string.
     pub primary_key_fallback_ordering: bool,
+    /// When `true`, the driver additionally runs `SELECT count(*)` with the
+    /// same filter clauses and returns the result in `QueryResult.total_rows`.
+    /// Defaults to `false` to avoid the extra round-trip on every page flip.
+    /// Callers should set this on the first page load of a table tab.
+    #[serde(default)]
+    pub include_total: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]

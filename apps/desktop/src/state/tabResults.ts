@@ -36,6 +36,8 @@ export type TabResult =
       rowCount: number;
       truncated: boolean;
       durationMs: number;
+      /** Callback set by `useQueryRunner` to load the next page of rows. */
+      onLoadMore?: (() => void) | null;
     }
   | {
       status: "error";
@@ -52,6 +54,7 @@ interface TabResultsStore {
     result: Omit<Extract<TabResult, { status: "ready" }>, "status" | "tabId">,
   ) => void;
   setError: (tabId: string, source: ResultSource, message: string) => void;
+  setLoadMoreCallback: (tabId: string, onLoadMore: (() => void) | null) => void;
   clearTab: (tabId: string) => void;
 }
 
@@ -81,6 +84,18 @@ export const useTabResults = create<TabResultsStore>((set) => ({
         [tabId]: { status: "error", tabId, source, message },
       },
     })),
+
+  setLoadMoreCallback: (tabId, onLoadMore) =>
+    set((s) => {
+      const existing = s.byTabId[tabId];
+      if (existing?.status !== "ready") return s;
+      return {
+        byTabId: {
+          ...s.byTabId,
+          [tabId]: { ...existing, onLoadMore },
+        },
+      };
+    }),
 
   clearTab: (tabId) =>
     set((s) => {

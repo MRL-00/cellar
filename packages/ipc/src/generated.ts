@@ -69,9 +69,9 @@ async introspect(connectionId: string, refresh: boolean | null) : Promise<Result
     else return { status: "error", error: e  as any };
 }
 },
-async runQuery(connectionId: string, sql: string, maxRows: number | null, database: string | null, tabId: string | null) : Promise<Result<QueryResult, CellarError>> {
+async runQuery(connectionId: string, sql: string, maxRows: number | null, offset: number | null, database: string | null, tabId: string | null) : Promise<Result<QueryResult, CellarError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("run_query", { connectionId, sql, maxRows, database, tabId }) };
+    return { status: "ok", data: await TAURI_INVOKE("run_query", { connectionId, sql, maxRows, offset, database, tabId }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -322,7 +322,15 @@ duration_ms: number;
  * `true` when the driver truncated the result because it hit
  * [`Query::max_rows`]. The grid uses this to show a "+ more" badge.
  */
-truncated: boolean }
+truncated: boolean; 
+/**
+ * Total row count for the underlying dataset, when the driver can provide
+ * it cheaply. `None` means "unknown" — the UI shows `truncated` alone.
+ * For table browse with `include_total: true` the driver runs a
+ * `SELECT count(*)` with the same filter clauses and returns it here.
+ * Free-form queries always return `None`.
+ */
+total_rows: number | null }
 export type RowChange = { kind: "update"; row_id: string; keys: CellAssignment[]; edits: CellAssignment[] } | { kind: "insert"; row_id: string; values: CellAssignment[] } | { kind: "delete"; row_id: string; keys: CellAssignment[] }
 export type Schema = { name: string; tables: Table[]; views: View[] }
 export type SortDirection = "asc" | "desc"
@@ -349,7 +357,14 @@ offset: number | null; sorts: TableSortClause[]; filters: TableFilterClause[];
  * metadata is available. This keeps table tabs stable without the UI
  * building an `ORDER BY` string.
  */
-primary_key_fallback_ordering: boolean }
+primary_key_fallback_ordering: boolean; 
+/**
+ * When `true`, the driver additionally runs `SELECT count(*)` with the
+ * same filter clauses and returns the result in `QueryResult.total_rows`.
+ * Defaults to `false` to avoid the extra round-trip on every page flip.
+ * Callers should set this on the first page load of a table tab.
+ */
+include_total?: boolean }
 export type TableChangeRequest = { database: string | null; schema: string; table: string; primary_key: string[]; columns: DiffColumn[]; changes: RowChange[] }
 export type TableCommitPreview = { sql: string; expected_rows: number; statement_count: number }
 export type TableCommitResult = { sql: string; rows_affected: number; duration_ms: number }
