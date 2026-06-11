@@ -81,4 +81,17 @@ describe("notice store", () => {
     expect(entryFor(scope).notices).toEqual([]);
     expect(entryFor(other).notices).toHaveLength(1);
   });
+
+  it("drops tab-scoped entries entirely when their tabs close", () => {
+    const other = { ...scope, tabId: "conn::postgres.public.customers" };
+    useNotices.getState().appendNotice(scope, sampleNotice("orders"));
+    useNotices.getState().appendNotice(other, sampleNotice("customers"));
+
+    useNotices.getState().dropTabs([scope.tabId as string]);
+
+    expect(
+      useNotices.getState().byScope[noticeScopeKey(scope)],
+    ).toBeUndefined();
+    expect(entryFor(other).notices).toHaveLength(1);
+  });
 });

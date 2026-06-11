@@ -77,6 +77,24 @@ export const Icon = {
   schema: (p: IconProps) => (
     <I {...p} d="M3 6h7l2 2h9v11a1 1 0 01-1 1H3a1 1 0 01-1-1V7a1 1 0 011-1z" />
   ),
+  folder: (p: IconProps) => (
+    <I
+      {...p}
+      d="M20 20a2 2 0 002-2V8a2 2 0 00-2-2h-7.9a2 2 0 01-1.69-.9L9.6 3.9A2 2 0 007.93 3H4a2 2 0 00-2 2v13a2 2 0 002 2z"
+    />
+  ),
+  folderOpen: (p: IconProps) => (
+    <I
+      {...p}
+      d="M6 14l1.45-2.9A2 2 0 019.24 10H20a2 2 0 011.94 2.5l-1.55 6a2 2 0 01-1.94 1.5H4a2 2 0 01-2-2V5a2 2 0 012-2h3.93a2 2 0 011.66.9l.82 1.2a2 2 0 001.66.9H18a2 2 0 012 2v2"
+    />
+  ),
+  folderPlus: (p: IconProps) => (
+    <I {...p}>
+      <path d="M20 20a2 2 0 002-2V8a2 2 0 00-2-2h-7.9a2 2 0 01-1.69-.9L9.6 3.9A2 2 0 007.93 3H4a2 2 0 00-2 2v13a2 2 0 002 2z" />
+      <path d="M12 10v6M9 13h6" />
+    </I>
+  ),
 
   plus: (p: IconProps) => <I {...p} d="M12 5v14M5 12h14" />,
   close: (p: IconProps) => <I {...p} d="M6 6l12 12M18 6L6 18" />,
@@ -268,6 +286,9 @@ export const Icon = {
   ),
   playSm: (p: IconProps) => (
     <I {...p} fill="currentColor" stroke="none" d="M8 5.5v13l10-6.5z" />
+  ),
+  stop: (p: IconProps) => (
+    <I {...p} fill="currentColor" stroke="none" d="M6.5 6.5h11v11h-11z" />
   ),
   format: (p: IconProps) => (
     <I {...p} d="M4 6h16M4 10h10M4 14h16M4 18h8" />

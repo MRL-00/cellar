@@ -36,6 +36,8 @@ export type TabResult =
       rowCount: number;
       truncated: boolean;
       durationMs: number;
+      /** Affected-row count for DML statements with no result set. */
+      rowsAffected?: number | null;
       /** Callback set by `useQueryRunner` to load the next page of rows. */
       onLoadMore?: (() => void) | null;
     }

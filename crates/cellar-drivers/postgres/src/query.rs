@@ -15,6 +15,38 @@ use crate::decode::decode_cell;
 
 const DEFAULT_MAX_ROWS: u32 = 500;
 
+/// Drop guard that removes a query from the connection's active-query
+/// registry on every exit path of `execute_query`.
+struct RegisteredQuery<'a> {
+    conn: &'a PgConnection,
+    query_id: &'a str,
+}
+
+impl Drop for RegisteredQuery<'_> {
+    fn drop(&mut self) {
+        self.conn.unregister_query(self.query_id);
+    }
+}
+
+/// Signal the backend running `query_id` with `pg_cancel_backend`. Runs on a
+/// second pool connection — the one executing the statement stays busy until
+/// the server acts on the signal. Returns `false` when nothing is registered
+/// under that id (the statement already finished or never started).
+pub async fn cancel_query(conn: &PgConnection, query_id: &str) -> CellarResult<bool> {
+    let Some(active) = conn.lookup_query(query_id) else {
+        return Ok(false);
+    };
+    let pool = conn.pool_for_database(&active.database).await?;
+    let cancelled: bool = sqlx::query_scalar("SELECT pg_cancel_backend($1)")
+        .bind(active.pid)
+        .fetch_one(&pool)
+        .await
+        .map_err(|e| {
+            crate::connect::map_sqlx_err_for_runtime(e, "query cancellation", CellarError::query)
+        })?;
+    Ok(cancelled)
+}
+
 pub async fn execute_query(conn: &PgConnection, query: &Query) -> CellarResult<QueryResult> {
     // Route to the pool for the query's target database so the sidebar can
     // browse and query several databases through one connection.
@@ -40,13 +72,54 @@ pub async fn execute_query(conn: &PgConnection, query: &Query) -> CellarResult<Q
     // need a parser; we cap while reading the stream instead of materializing
     // the full server result first.
     let started = Instant::now();
-    let mut stream = sqlx::query(&query.sql).fetch(pool);
+
+    // When the caller set a query_id it wants cancellation support: pin the
+    // statement to one pool connection so its backend PID is known up front,
+    // and register it so a concurrent cancel_query can signal that PID with
+    // pg_cancel_backend. The registration drops (and unregisters) on every
+    // exit path, including errors.
+    let mut pinned = None;
+    let _registration = match query.query_id.as_deref() {
+        Some(query_id) => {
+            let mut acquired = pool.acquire().await.map_err(query_sqlx_err)?;
+            let pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid()")
+                .fetch_one(&mut *acquired)
+                .await
+                .map_err(query_sqlx_err)?;
+            conn.register_query(query_id, pid, database);
+            pinned = Some(acquired);
+            Some(RegisteredQuery { conn, query_id })
+        }
+        None => None,
+    };
+
+    // fetch_many (vs fetch) also yields the CommandComplete arm, which carries
+    // the affected-row count for DML. Deprecated in sqlx 0.8 over SQLite
+    // multi-statement semantics that don't apply to a single Postgres
+    // statement; the replacement (raw_sql) would switch results to the
+    // text protocol and change every decode path.
+    #[allow(deprecated)]
+    let mut stream = match pinned.as_mut() {
+        Some(acquired) => sqlx::query(&query.sql).fetch_many(&mut **acquired),
+        None => sqlx::query(&query.sql).fetch_many(pool),
+    };
     let mut columns: Option<Vec<ColumnMeta>> = None;
     let mut materialized: Vec<Row> = Vec::with_capacity(capacity);
     let mut truncated = false;
     let mut rows_seen: usize = 0;
+    let mut rows_affected: Option<u64> = None;
 
-    while let Some(r) = stream.try_next().await.map_err(query_sqlx_err)? {
+    while let Some(item) = stream.try_next().await.map_err(query_sqlx_err)? {
+        let r = match item {
+            sqlx::Either::Left(done) => {
+                // Postgres reports the command tag's row count for every
+                // statement, including SELECT; it only means "affected" for
+                // row-returning-free statements, which is gated below.
+                rows_affected = Some(rows_affected.unwrap_or(0) + done.rows_affected());
+                continue;
+            }
+            sqlx::Either::Right(row) => row,
+        };
         if columns.is_none() {
             columns = Some(
                 r.columns()
@@ -79,6 +152,12 @@ pub async fn execute_query(conn: &PgConnection, query: &Query) -> CellarResult<Q
     }
     let duration_ms = started.elapsed().as_millis() as u64;
 
+    // Only surface an affected count for statements without a result set
+    // (INSERT/UPDATE/DELETE/DDL without RETURNING). For row-returning
+    // statements the tag count is just the row count and the UI would
+    // mislabel a SELECT as "N rows affected".
+    let rows_affected = if columns.is_none() { rows_affected } else { None };
+
     Ok(QueryResult {
         columns: columns.unwrap_or_default(),
         rows: materialized,
@@ -91,7 +170,7 @@ pub async fn execute_query(conn: &PgConnection, query: &Query) -> CellarResult<Q
         notice_capture: NoticeCapture::unsupported(
             "Postgres server notices are parsed by sqlx, but the current PgPool query path consumes NoticeResponse frames internally and exposes only log/tracing output without SQLSTATE, detail, hint, or query correlation.",
         ),
-        rows_affected: None,
+        rows_affected,
         duration_ms,
         truncated,
         // Total row count is not available for free-form queries without
@@ -305,6 +384,14 @@ fn normalize_single_statement(sql: &str) -> CellarResult<String> {
 }
 
 fn query_sqlx_err(err: sqlx::Error) -> CellarError {
+    if let sqlx::Error::Database(db) = &err {
+        // SQLSTATE 57014 query_canceled — raised by pg_cancel_backend and by
+        // statement_timeout. The server message ("canceling statement due to
+        // user request") reads better than the generic sqlx wrapper.
+        if db.code().as_deref() == Some("57014") {
+            return CellarError::Query(db.message().to_string());
+        }
+    }
     crate::connect::map_sqlx_err_for_runtime(err, "query execution", CellarError::query)
 }
 

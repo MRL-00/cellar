@@ -48,7 +48,7 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
   const requestExplain = useBottomPanel((s) => s.requestExplain);
   const { settings } = useSettings();
 
-  const { running, errorLine, run, clearError } = useQueryRunner(tab);
+  const { running, errorLine, run, cancel, clearError } = useQueryRunner(tab);
 
   const [caret, setCaret] = useState(0);
   // Per-editor wrap toggle overrides the global default.
@@ -92,6 +92,20 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
     if (errorLine != null) clearError();
   }, [clearError, errorLine, setQuerySql, tab.id]);
 
+  // ⌘. / Ctrl+. cancels the in-flight statement, matching the toolbar button.
+  // Window-level so it works while focus sits inside the code editor.
+  useEffect(() => {
+    if (!running) return;
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === ".") {
+        e.preventDefault();
+        cancel();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [running, cancel]);
+
   useEffect(() => {
     if (!connected || loadingSchema || databases.length > 0) return;
     void refreshSchema(tab.connectionId);
@@ -133,6 +147,17 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
             <span>{running ? "Running…" : "Run"}</span>
             <span className="kbd">⌘⏎</span>
           </button>
+          {running && (
+            <button
+              className="ed-run subtle"
+              onClick={cancel}
+              title="Ask the server to stop the running statement"
+            >
+              <Icon.stop size={11} />
+              <span>Cancel</span>
+              <span className="kbd">⌘.</span>
+            </button>
+          )}
           <button
             className="ed-run subtle"
             onClick={runAll}

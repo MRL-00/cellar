@@ -26,6 +26,12 @@ pub struct Query {
     /// database (the sidebar can browse several databases per connection).
     /// `None` means "use the connection's default database".
     pub database: Option<String>,
+    /// Caller-chosen handle for in-flight cancellation. When `Some`, drivers
+    /// that support [`crate::driver::Driver::cancel_query`] register the
+    /// running statement under this id so a concurrent cancel call can find
+    /// it. `None` opts out of cancellation bookkeeping.
+    #[serde(default)]
+    pub query_id: Option<String>,
 }
 
 impl Query {
@@ -35,6 +41,7 @@ impl Query {
             max_rows: None,
             offset: None,
             database: None,
+            query_id: None,
         }
     }
 
@@ -50,6 +57,11 @@ impl Query {
 
     pub fn with_database(mut self, database: impl Into<String>) -> Self {
         self.database = Some(database.into());
+        self
+    }
+
+    pub fn with_query_id(mut self, query_id: impl Into<String>) -> Self {
+        self.query_id = Some(query_id.into());
         self
     }
 }

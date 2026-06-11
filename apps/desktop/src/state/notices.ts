@@ -20,6 +20,8 @@ interface NoticeStore {
   appendNotice: (scope: NoticeScope, notice: DatabaseNotice) => void;
   clear: (scope: NoticeScope) => void;
   setRetain: (scope: NoticeScope, retain: boolean) => void;
+  /** Remove every tab-scoped entry for the given tabs (used on tab close). */
+  dropTabs: (tabIds: string[]) => void;
 }
 
 const EMPTY_ENTRY: NoticeLogEntry = {
@@ -111,5 +113,19 @@ export const useNotices = create<NoticeStore>((set) => ({
         },
       };
     });
+  },
+
+  dropTabs(tabIds) {
+    if (tabIds.length === 0) return;
+    const dropped = new Set(
+      tabIds.map((tabId) =>
+        noticeScopeKey({ tabId, connectionId: null, database: null }),
+      ),
+    );
+    set((s) => ({
+      byScope: Object.fromEntries(
+        Object.entries(s.byScope).filter(([key]) => !dropped.has(key)),
+      ),
+    }));
   },
 }));

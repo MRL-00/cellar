@@ -41,21 +41,31 @@ export type SchemaVisibilityState = Record<string, SchemaVisibilityPrefs>;
 
 const SCHEMA_VISIBILITY_STORAGE_KEY = "cellar.schemaVisibility.v1";
 
-const ROW_BASE =
+export const ROW_BASE =
   "group relative flex h-[22px] select-none items-center gap-1 pr-1.5 text-fg-1 cursor-default hover:bg-bg-2";
 
 const ROW_ACTIVE = "bg-accent-soft text-accent [&_.sb-icon-slot]:!text-accent";
 
-const ICON_SLOT =
+export const ICON_SLOT =
   "sb-icon-slot inline-flex h-[14px] w-[14px] shrink-0 items-center justify-center";
 
-const TWISTY =
+export const TWISTY =
   "inline-flex h-[14px] w-[14px] shrink-0 items-center justify-center text-fg-3 hover:text-fg-1";
 
-const META = "ml-auto pr-1 whitespace-nowrap text-[10px] text-fg-3 shrink-0";
+export const META =
+  "ml-auto pr-1 whitespace-nowrap text-[10px] text-fg-3 shrink-0";
 
 const PILL =
   "ml-1 rounded-[3px] bg-bg-2 px-1 py-px font-mono text-[9px] text-fg-3";
+
+/** Drag/drop wiring the sidebar list attaches to a connection header row. */
+export interface ConnectionDragHandles {
+  draggable: boolean;
+  onDragStart: React.DragEventHandler;
+  onDragOver: React.DragEventHandler;
+  onDragEnd: () => void;
+  dropIndicator: "before" | "after" | null;
+}
 
 export interface ConnectionRowProps {
   config: ConnectionConfig;
@@ -77,6 +87,7 @@ export interface ConnectionRowProps {
     database: string,
     schemas: Schema[],
   ) => void;
+  drag?: ConnectionDragHandles;
 }
 
 export function ConnectionRow({
@@ -95,6 +106,7 @@ export function ConnectionRow({
   activeTabId,
   schemaVisibility,
   onManageSchemas,
+  drag,
 }: ConnectionRowProps) {
   const accent = config.color ?? engineDefaultColor(config.engine as Engine);
   return (
@@ -110,7 +122,20 @@ export function ConnectionRow({
         }}
         onClick={onToggle}
         onContextMenu={onContextMenu}
+        draggable={drag?.draggable}
+        onDragStart={drag?.onDragStart}
+        onDragOver={drag?.onDragOver}
+        onDragEnd={drag?.onDragEnd}
       >
+        {drag?.dropIndicator && (
+          <span
+            className={
+              "pointer-events-none absolute inset-x-0 z-10 h-[2px] rounded " +
+              (drag.dropIndicator === "before" ? "top-0" : "bottom-0")
+            }
+            style={{ background: "var(--accent)" }}
+          />
+        )}
         <button
           type="button"
           className={TWISTY}

@@ -69,9 +69,22 @@ async introspect(connectionId: string, refresh: boolean | null) : Promise<Result
     else return { status: "error", error: e  as any };
 }
 },
-async runQuery(connectionId: string, sql: string, maxRows: number | null, offset: number | null, database: string | null, tabId: string | null) : Promise<Result<QueryResult, CellarError>> {
+async runQuery(connectionId: string, sql: string, maxRows: number | null, offset: number | null, database: string | null, tabId: string | null, queryId: string | null) : Promise<Result<QueryResult, CellarError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("run_query", { connectionId, sql, maxRows, offset, database, tabId }) };
+    return { status: "ok", data: await TAURI_INVOKE("run_query", { connectionId, sql, maxRows, offset, database, tabId, queryId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Cancel a running query previously started through [`run_query`] with a
+ * `query_id`. Returns `true` when a running statement was found and
+ * signalled, `false` when it had already finished.
+ */
+async cancelQuery(connectionId: string, queryId: string) : Promise<Result<boolean, CellarError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cancel_query", { connectionId, queryId }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };

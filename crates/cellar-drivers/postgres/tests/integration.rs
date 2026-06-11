@@ -288,3 +288,106 @@ async fn execute_query_caps_to_default_limit() {
     assert_eq!(small.rows.len(), 10);
     assert!(!small.truncated);
 }
+
+#[tokio::test]
+async fn cancel_query_stops_a_running_statement() {
+    let live = boot().await;
+    let driver = PostgresDriver::new();
+    let conn = driver
+        .connect(&live.config, Some(&live.password))
+        .await
+        .expect("connect");
+
+    // Unknown ids are a no-op, not an error.
+    assert!(!driver
+        .cancel_query(conn.as_ref(), "never-started")
+        .await
+        .expect("cancel unknown id"));
+
+    let conn = std::sync::Arc::new(conn);
+    let runner = {
+        let conn = std::sync::Arc::clone(&conn);
+        tokio::spawn(async move {
+            PostgresDriver::new()
+                .execute_query(
+                    conn.as_ref().as_ref(),
+                    &Query::new("SELECT pg_sleep(30)").with_query_id("cancel-me"),
+                )
+                .await
+        })
+    };
+
+    // Signal repeatedly until the statement dies: the first attempts may land
+    // before the statement registers or while the backend is still idle, and
+    // pg_cancel_backend only interrupts a statement that is already running.
+    for _ in 0..300 {
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        let _ = driver.cancel_query(conn.as_ref().as_ref(), "cancel-me").await;
+        if runner.is_finished() {
+            break;
+        }
+    }
+    assert!(runner.is_finished(), "query was not cancelled within 30s");
+
+    let err = runner
+        .await
+        .expect("join runner task")
+        .expect_err("cancelled query should report an error");
+    let msg = err.to_string().to_lowercase();
+    assert!(msg.contains("cancel"), "unexpected error: {msg}");
+
+    // The registration is cleaned up after the run settles.
+    assert!(!driver
+        .cancel_query(conn.as_ref().as_ref(), "cancel-me")
+        .await
+        .expect("cancel after completion"));
+}
+
+#[tokio::test]
+async fn execute_query_reports_rows_affected_for_dml_only() {
+    let live = boot().await;
+    let driver = PostgresDriver::new();
+    let conn = driver
+        .connect(&live.config, Some(&live.password))
+        .await
+        .expect("connect");
+
+    let insert = driver
+        .execute_query(
+            conn.as_ref(),
+            &Query::new(
+                "INSERT INTO customers (email) VALUES ('a@example.com'), ('b@example.com')",
+            ),
+        )
+        .await
+        .expect("insert");
+    assert_eq!(insert.rows_affected, Some(2));
+    assert!(insert.rows.is_empty());
+
+    let update = driver
+        .execute_query(
+            conn.as_ref(),
+            &Query::new("UPDATE customers SET email = email || '.x' WHERE email LIKE '%@example.com'"),
+        )
+        .await
+        .expect("update");
+    assert_eq!(update.rows_affected, Some(2));
+
+    // Row-returning statements must not surface the command tag's count:
+    // the UI would mislabel a SELECT as "N rows affected".
+    let select = driver
+        .execute_query(conn.as_ref(), &Query::new("SELECT * FROM customers"))
+        .await
+        .expect("select");
+    assert_eq!(select.rows_affected, None);
+
+    let returning = driver
+        .execute_query(
+            conn.as_ref(),
+            &Query::new("DELETE FROM customers WHERE email LIKE '%@example.com.x' RETURNING id"),
+        )
+        .await
+        .expect("delete returning");
+    assert_eq!(returning.rows_affected, None);
+    assert_eq!(returning.rows.len(), 2);
+}

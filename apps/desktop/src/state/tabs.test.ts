@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import type { PendingChanges } from "@cellar/data-grid";
+import { useNotices } from "./notices";
+import { useQueryMessages } from "./queryMessages";
 import { tableResultSource, useTabResults } from "./tabResults";
-import { useTabs } from "./tabs";
+import { useTabs, type QueryTab } from "./tabs";
 
 const source = tableResultSource(
   "conn-1",
@@ -30,6 +32,8 @@ describe("tab workspace state", () => {
     });
     if (typeof localStorage !== "undefined") localStorage.clear();
     useTabResults.setState({ byTabId: {} });
+    useQueryMessages.setState({ messages: [] });
+    useNotices.setState({ byScope: {} });
   });
 
   it("splits the active tab against a neighboring tab", () => {
@@ -179,6 +183,60 @@ describe("tab workspace state", () => {
       "conn-1::app.events.devices",
       "conn-1::app.public.customers",
     ]);
+  });
+
+  it("clears the dirty flag when the buffer reverts to the last-run SQL", () => {
+    const id = useTabs.getState().newQueryTab("conn-1", "app");
+    const queryTab = () => useTabs.getState().tabs[0] as QueryTab;
+
+    // Fresh tab: type a character, then delete it — back to the baseline.
+    useTabs.getState().setQuerySql(id, "x");
+    expect(queryTab().dirty).toBe(true);
+    useTabs.getState().setQuerySql(id, "");
+    expect(queryTab().dirty).toBe(false);
+
+    // After a run, the baseline is the SQL at run time.
+    useTabs.getState().setQuerySql(id, "select 1;");
+    useTabs.getState().markQueryRun(id);
+    expect(queryTab().dirty).toBe(false);
+
+    useTabs.getState().setQuerySql(id, "select 2;");
+    expect(queryTab().dirty).toBe(true);
+    useTabs.getState().setQuerySql(id, "select 1;");
+    expect(queryTab().dirty).toBe(false);
+  });
+
+  it("drops query messages and notices for a tab when it closes", () => {
+    const id = useTabs.getState().newQueryTab("conn-1", "app");
+    const keepId = useTabs.getState().newQueryTab("conn-1", "app");
+    const message = {
+      connectionId: "conn-1",
+      severity: "info" as const,
+      source: "client" as const,
+      text: "ran",
+    };
+    useQueryMessages.getState().addMessage({ ...message, tabId: id });
+    useQueryMessages.getState().addMessage({ ...message, tabId: keepId });
+    useNotices.getState().appendNotice(
+      { tabId: id, connectionId: "conn-1", database: "app" },
+      {
+        severity: "notice",
+        code: "00000",
+        message: "hi",
+        detail: null,
+        hint: null,
+        timestamp: "2026-06-11T00:00:00Z",
+        connection_id: "conn-1",
+        database: "app",
+        query_id: "q1",
+      },
+    );
+
+    useTabs.getState().closeTab(id);
+
+    const tabIds = useQueryMessages.getState().messages.map((m) => m.tabId);
+    expect(tabIds).toEqual([keepId]);
+    expect(useNotices.getState().byScope[`tab:${id}`]).toBeUndefined();
   });
 
   it("keeps table layouts after a table tab is closed", () => {

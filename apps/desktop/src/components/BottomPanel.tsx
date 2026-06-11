@@ -5,9 +5,34 @@ import {
   type NoticeSeverity,
   type QueryHistoryRecord,
 } from "@cellar/ipc";
-import { DataGrid, useGridState } from "@cellar/data-grid";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  DataGrid,
+  filterRows,
+  sortGridRows,
+  useGridState,
+  type GridColumn,
+  type GridRow,
+} from "@cellar/data-grid";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MutableRefObject,
+  type ReactNode,
+} from "react";
 import { useSettings } from "../lib/settings";
+import {
+  downloadText,
+  exportFilename,
+  exportText,
+  EXPORT_FORMATS,
+  toCsv,
+  toJson,
+  toSqlInserts,
+  toTsv,
+} from "../lib/export";
+import { ContextMenu, type ContextMenuState } from "./ContextMenu";
 
 import {
   countNoticeSeverities,
@@ -54,6 +79,14 @@ const BASE_TABS: Omit<BPTab, "count">[] = [
   { id: "notices", label: "Notices", icon: <Icon.warn size={11} />, enabled: true },
 ];
 
+/**
+ * The rows/columns as the user currently sees them — after the result grid's
+ * local filters and sort. Registered by ReadOnlyResultGrid so the Export
+ * button (which lives outside the grid) exports what is on screen.
+ */
+type ExportView = { columns: readonly GridColumn[]; rows: readonly GridRow[] };
+type ExportViewRef = MutableRefObject<(() => ExportView) | null>;
+
 export function BottomPanel({ onClose }: { onClose: () => void }) {
   const active = useBottomPanel((s) => s.active);
   const setActive = useBottomPanel((s) => s.setActive);
@@ -90,6 +123,14 @@ export function BottomPanel({ onClose }: { onClose: () => void }) {
     useNotices((s) => s.byScope[scopeKey]) ?? emptyNoticeEntry();
   const clearNotices = useNotices((s) => s.clear);
   const setRetain = useNotices((s) => s.setRetain);
+  const exportViewRef: ExportViewRef = useRef(null);
+  const [exportMenu, setExportMenu] = useState<ContextMenuState | null>(null);
+  const exportable =
+    result?.status === "ready" &&
+    result.source.kind === "query" &&
+    result.columns.length > 0
+      ? result
+      : null;
   const bottomTabs: BPTab[] = BASE_TABS.map((tab) => ({
     ...tab,
     count:
@@ -146,7 +187,39 @@ export function BottomPanel({ onClose }: { onClose: () => void }) {
           <HeaderMeta activeTab={activeTab} result={result} />
         </div>
         <div className="flex items-center gap-px">
-          <button className="icon-btn opacity-45" disabled title="Export not implemented yet">
+          <button
+            className={"icon-btn" + (exportable ? "" : " opacity-45")}
+            disabled={!exportable}
+            title={
+              exportable
+                ? "Export results…"
+                : "Export — run a query that returns rows first"
+            }
+            onClick={(e) => {
+              if (!exportable) return;
+              const rect = e.currentTarget.getBoundingClientRect();
+              const label =
+                activeTab?.kind === "query" ? activeTab.title : "result";
+              setExportMenu({
+                x: rect.right,
+                y: rect.bottom + 4,
+                items: EXPORT_FORMATS.map(({ format, label: name }) => ({
+                  label: `Export as ${name}`,
+                  onClick: () => {
+                    const view = exportViewRef.current?.() ?? {
+                      columns: exportable.columns,
+                      rows: exportable.rows,
+                    };
+                    downloadText(
+                      exportFilename(label, format),
+                      format,
+                      exportText(format, view.columns, view.rows),
+                    );
+                  },
+                })),
+              });
+            }}
+          >
             <Icon.fileText size={11} />
           </button>
           <button className="icon-btn opacity-45" disabled title="Pop out not implemented yet">
@@ -158,9 +231,15 @@ export function BottomPanel({ onClose }: { onClose: () => void }) {
         </div>
       </div>
 
+      <ContextMenu state={exportMenu} onClose={() => setExportMenu(null)} />
+
       <div className="min-h-0 flex-1 overflow-hidden">
         {active === "results" ? (
-          <ResultsBody activeTab={activeTab} result={result} />
+          <ResultsBody
+            activeTab={activeTab}
+            result={result}
+            exportViewRef={exportViewRef}
+          />
         ) : active === "messages" ? (
           <MessagesView
             messages={activeMessages}
@@ -235,6 +314,13 @@ function headerItems(
   if (result.status === "error") {
     return [context, "failed"];
   }
+  if (result.columns.length === 0 && result.rowsAffected != null) {
+    return [
+      context,
+      `${result.rowsAffected.toLocaleString("en-US")} affected`,
+      `${result.durationMs} ms`,
+    ];
+  }
   return [
     context,
     rowCountLabel(result.rowCount, result.truncated),
@@ -246,9 +332,11 @@ function headerItems(
 function ResultsBody({
   activeTab,
   result,
+  exportViewRef,
 }: {
   activeTab: ReturnType<typeof useTabs.getState>["tabs"][number] | null;
   result: TabResult | null;
+  exportViewRef: ExportViewRef;
 }) {
   if (!activeTab) {
     return (
@@ -307,23 +395,70 @@ function ResultsBody({
   if (result.columns.length === 0) {
     return (
       <EmptyPanel
-        title="Statement returned no columns"
-        detail="Rows-affected messages are not surfaced in the bottom panel yet."
+        title={
+          result.rowsAffected != null
+            ? `Query OK — ${result.rowsAffected.toLocaleString("en-US")} ${
+                result.rowsAffected === 1 ? "row" : "rows"
+              } affected`
+            : "Statement returned no columns"
+        }
+        detail={
+          result.rowsAffected != null
+            ? `Completed in ${result.durationMs} ms. The statement did not return a result set.`
+            : "The statement completed without producing a result set."
+        }
       />
     );
   }
 
-  return <ReadOnlyResultGrid key={result.tabId} result={result} />;
+  return (
+    <ReadOnlyResultGrid
+      key={result.tabId}
+      result={result}
+      exportViewRef={exportViewRef}
+    />
+  );
 }
 
 function ReadOnlyResultGrid({
   result,
+  exportViewRef,
 }: {
   result: Extract<TabResult, { status: "ready" }>;
+  exportViewRef: ExportViewRef;
 }) {
   const grid = useGridState();
   const { settings } = useSettings();
   const onLoadMore = result.onLoadMore ?? null;
+  const [copyMenu, setCopyMenu] = useState<ContextMenuState | null>(null);
+
+  const visibleRows = () =>
+    sortGridRows(
+      filterRows(result.rows, result.columns, grid.filters, grid.changes),
+      result.columns,
+      grid.sort,
+      grid.changes,
+    );
+
+  useEffect(() => {
+    exportViewRef.current = () => ({
+      columns: result.columns,
+      rows: sortGridRows(
+        filterRows(result.rows, result.columns, grid.filters, grid.changes),
+        result.columns,
+        grid.sort,
+        grid.changes,
+      ),
+    });
+    return () => {
+      exportViewRef.current = null;
+    };
+  });
+
+  const copy = (text: string) => {
+    if (!navigator.clipboard) return;
+    void navigator.clipboard.writeText(text);
+  };
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
@@ -340,11 +475,62 @@ function ReadOnlyResultGrid({
           onEdit={grid.setEditing}
           filters={grid.filters}
           onFiltersChange={grid.setFilters}
+          sort={grid.sort}
+          onSortChange={grid.setSort}
           readOnly
           nullDisplay={settings.grid.nullDisplay}
           stripeRows={settings.grid.stripeRows}
+          onCellContextMenu={(event, row, column) => {
+            event.preventDefault();
+            const cell = row[column.key];
+            setCopyMenu({
+              x: event.clientX,
+              y: event.clientY,
+              items: [
+                {
+                  label: "Copy cell",
+                  onClick: () => copy(cell == null ? "" : String(cell)),
+                },
+                {
+                  label: "Copy row as CSV",
+                  onClick: () =>
+                    copy(
+                      toCsv(result.columns, [row], { header: false }).trimEnd(),
+                    ),
+                },
+                {
+                  label: "Copy row as TSV",
+                  onClick: () =>
+                    copy(
+                      toTsv(result.columns, [row], { header: false }).trimEnd(),
+                    ),
+                },
+                {
+                  label: "Copy row as SQL INSERT",
+                  onClick: () =>
+                    copy(toSqlInserts(result.columns, [row]).trimEnd()),
+                },
+                {
+                  label: "Copy all rows as CSV",
+                  onClick: () =>
+                    copy(toCsv(result.columns, visibleRows()).trimEnd()),
+                },
+                {
+                  label: "Copy all rows as JSON",
+                  onClick: () =>
+                    copy(toJson(result.columns, visibleRows()).trimEnd()),
+                },
+                {
+                  label: "Copy all rows as SQL INSERT",
+                  onClick: () =>
+                    copy(toSqlInserts(result.columns, visibleRows()).trimEnd()),
+                },
+              ],
+            });
+          }}
         />
       </div>
+      <ContextMenu state={copyMenu} onClose={() => setCopyMenu(null)} />
       {result.truncated && (
         <div className="flex shrink-0 items-center justify-between border-t border-border-default bg-bg-1 px-3 py-1.5 text-[11px] text-fg-3">
           <span>

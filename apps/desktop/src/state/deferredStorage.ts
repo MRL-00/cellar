@@ -8,6 +8,17 @@ const WRITE_DELAY_MS = 50;
  * the store.
  */
 export function deferredLocalStorage(): StateStorage {
+  // No window means a test (or SSR-like) environment: keep persisted stores
+  // functional with in-memory storage instead of warning on every write.
+  if (typeof window === "undefined") {
+    const mem = new Map<string, string>();
+    return {
+      getItem: (name) => mem.get(name) ?? null,
+      setItem: (name, value) => void mem.set(name, value),
+      removeItem: (name) => void mem.delete(name),
+    };
+  }
+
   const pending = new Map<string, string>();
   let timer: number | null = null;
 

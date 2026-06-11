@@ -79,4 +79,9 @@ impl Driver for PostgresDriver {
         let pg = connect::as_pg(conn)?;
         query::explain_query(pg, q, mode).await
     }
+
+    async fn cancel_query(&self, conn: &dyn Connection, query_id: &str) -> CellarResult<bool> {
+        let pg = connect::as_pg(conn)?;
+        query::cancel_query(pg, query_id).await
+    }
 }
