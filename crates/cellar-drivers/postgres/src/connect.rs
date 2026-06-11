@@ -11,6 +11,14 @@ use tokio::sync::Mutex;
 
 const DEFAULT_POOL_SIZE: u32 = 4;
 
+/// Backend process running a registered query, so a concurrent cancel call
+/// can signal it with `pg_cancel_backend`.
+#[derive(Debug, Clone)]
+pub(crate) struct ActiveQuery {
+    pub pid: i32,
+    pub database: String,
+}
+
 pub struct PgConnection {
     info: DriverInfo,
     /// Pool bound to `config.database` — the database named in the connection.
@@ -24,6 +32,10 @@ pub struct PgConnection {
     /// database name. Reused across introspection and queries, closed when the
     /// connection is dropped.
     siblings: Mutex<HashMap<String, PgPool>>,
+    /// In-flight statements keyed by [`Query::query_id`], registered for the
+    /// duration of execution. A std mutex is fine: every critical section is
+    /// a map insert/remove/clone with no await inside.
+    active_queries: std::sync::Mutex<HashMap<String, ActiveQuery>>,
 }
 
 impl PgConnection {
@@ -52,6 +64,24 @@ impl PgConnection {
         let pool = build_pool(&sibling, self.password.as_deref(), DEFAULT_POOL_SIZE).await?;
         guard.insert(database.to_string(), pool.clone());
         Ok(pool)
+    }
+
+    pub(crate) fn register_query(&self, query_id: &str, pid: i32, database: &str) {
+        self.active_queries.lock().unwrap().insert(
+            query_id.to_string(),
+            ActiveQuery {
+                pid,
+                database: database.to_string(),
+            },
+        );
+    }
+
+    pub(crate) fn unregister_query(&self, query_id: &str) {
+        self.active_queries.lock().unwrap().remove(query_id);
+    }
+
+    pub(crate) fn lookup_query(&self, query_id: &str) -> Option<ActiveQuery> {
+        self.active_queries.lock().unwrap().get(query_id).cloned()
     }
 }
 
@@ -110,6 +140,7 @@ pub async fn open_pool(
         config: config.clone(),
         password: password.map(|p| p.to_string()),
         siblings: Mutex::new(HashMap::new()),
+        active_queries: std::sync::Mutex::new(HashMap::new()),
     })
 }
 

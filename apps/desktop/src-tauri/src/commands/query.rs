@@ -18,6 +18,7 @@ pub async fn run_query(
     offset: Option<u32>,
     database: Option<String>,
     tab_id: Option<String>,
+    query_id: Option<String>,
 ) -> Result<QueryResult, CellarError> {
     let mut query = Query::new(sql);
     if let Some(n) = max_rows {
@@ -28,6 +29,9 @@ pub async fn run_query(
     }
     if let Some(db) = database {
         query = query.with_database(db);
+    }
+    if let Some(qid) = query_id {
+        query = query.with_query_id(qid);
     }
     let history_sql = query.sql.clone();
     let history_database = query.database.clone();
@@ -51,7 +55,7 @@ pub async fn run_query(
             row_count: query_result
                 .rows_affected
                 .map(|n| n.min(i64::MAX as u64) as i64)
-                .or_else(|| Some(query_result.rows.len() as i64)),
+                .or(Some(query_result.rows.len() as i64)),
             truncated: query_result.truncated,
             error_summary: None,
         },
@@ -72,6 +76,19 @@ pub async fn run_query(
     let _ = history.insert(record).await;
 
     result
+}
+
+/// Cancel a running query previously started through [`run_query`] with a
+/// `query_id`. Returns `true` when a running statement was found and
+/// signalled, `false` when it had already finished.
+#[tauri::command]
+#[specta::specta]
+pub async fn cancel_query(
+    registry: State<'_, ConnectionRegistry>,
+    connection_id: String,
+    query_id: String,
+) -> Result<bool, CellarError> {
+    registry.cancel_query(&connection_id, &query_id).await
 }
 
 #[tauri::command]

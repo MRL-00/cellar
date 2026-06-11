@@ -29,6 +29,7 @@ pub fn builder() -> Builder<tauri::Wry> {
         connection::disconnect,
         schema::introspect,
         query::run_query,
+        query::cancel_query,
         query::explain_query,
         query::browse_table,
         transaction::preview_table_changes,

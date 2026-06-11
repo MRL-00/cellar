@@ -238,6 +238,22 @@ impl ConnectionRegistry {
         }
     }
 
+    /// Best-effort cancel of a query started with a `query_id`. Failures pass
+    /// through verbatim — a failed cancel must not mark the connection broken
+    /// (the original query is still running and reports its own outcome).
+    pub async fn cancel_query(&self, id: &str, query_id: &str) -> CellarResult<bool> {
+        let (engine, connection) = {
+            let inner = self.inner.read().await;
+            let open = inner
+                .open
+                .get(id)
+                .ok_or_else(|| CellarError::NotConnected(format!("no open connection for {id}")))?;
+            (open.config.engine, Arc::clone(&open.connection))
+        };
+        let driver = driver_for(engine)?;
+        driver.cancel_query(connection.as_ref(), query_id).await
+    }
+
     pub async fn browse_table(&self, request: TableBrowseRequest) -> CellarResult<QueryResult> {
         let target_database = self.target_database_for(&request).await?;
         let dbs = self.introspect(&request.connection_id, false).await?;

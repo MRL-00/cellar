@@ -99,6 +99,9 @@ async fn execute_sql(
         notice_capture: NoticeCapture::unsupported(
             "SQL Server informational messages are not exposed through the current tiberius query path.",
         ),
+        // tiberius's simple_query stream only yields Metadata/Row items; the
+        // DONE token's affected-row count never surfaces through QueryItem,
+        // so DML row counts are unavailable on this path.
         rows_affected: None,
         duration_ms: started.elapsed().as_millis() as u64,
         truncated,

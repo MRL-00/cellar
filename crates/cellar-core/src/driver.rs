@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-use crate::error::CellarResult;
+use crate::error::{CellarError, CellarResult};
 use crate::query::{PlanMode, Query, QueryPlan, QueryResult};
 use crate::schema::Database;
 
@@ -138,4 +138,17 @@ pub trait Driver: Send + Sync {
         query: &Query,
         mode: PlanMode,
     ) -> CellarResult<QueryPlan>;
+
+    /// Best-effort cancel of a statement started with [`Query::query_id`]
+    /// set. Returns `Ok(true)` when a running statement was found and a
+    /// cancel signal was delivered, `Ok(false)` when nothing was running
+    /// under that id (it already finished, or was started without an id).
+    /// Engines without a cancellation mechanism keep this default.
+    async fn cancel_query(&self, conn: &dyn Connection, query_id: &str) -> CellarResult<bool> {
+        let _ = (conn, query_id);
+        Err(CellarError::Query(format!(
+            "query cancellation is not supported for the {} driver",
+            self.engine().as_str()
+        )))
+    }
 }

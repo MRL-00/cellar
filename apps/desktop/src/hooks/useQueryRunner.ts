@@ -36,6 +36,12 @@ export interface QueryRunner {
   run: (sql: string, opts: RunOptions) => void;
   /** Fetch the next page and append it to the current result grid. */
   loadMore: () => void;
+  /**
+   * Ask the server to stop the in-flight statement (best effort). The run
+   * itself still settles through its own error path — Postgres reports
+   * SQLSTATE 57014 "canceling statement due to user request".
+   */
+  cancel: () => void;
   clearError: () => void;
 }
 
@@ -53,6 +59,9 @@ export function useQueryRunner(tab: QueryTab): QueryRunner {
   const mounted = useRef(true);
   // Track the current SQL and next offset for "Load more" appends.
   const loadMoreRef = useRef<{ sql: string; offset: number } | null>(null);
+  // Cancellation handle for the in-flight run, passed to the backend so a
+  // cancel call can find the statement's connection.
+  const activeQueryId = useRef<string | null>(null);
 
   useEffect(() => {
     mounted.current = true;
@@ -101,6 +110,9 @@ export function useQueryRunner(tab: QueryTab): QueryRunner {
           .replaceForTab(tab.id, [buildRunStartedMessage(context)]);
       }
 
+      const queryId = crypto.randomUUID();
+      activeQueryId.current = queryId;
+
       void (async () => {
         try {
           const result = await unwrap(
@@ -111,6 +123,7 @@ export function useQueryRunner(tab: QueryTab): QueryRunner {
               offset,
               database,
               tab.id,
+              queryId,
             ),
           );
           if (!mounted.current || token !== runToken.current) return;
@@ -134,6 +147,7 @@ export function useQueryRunner(tab: QueryTab): QueryRunner {
                 rowCount: combined.length,
                 truncated: result.truncated,
                 durationMs: result.duration_ms,
+                rowsAffected: existing.rowsAffected,
                 onLoadMore: existing.onLoadMore,
               });
             } else {
@@ -155,6 +169,7 @@ export function useQueryRunner(tab: QueryTab): QueryRunner {
               rowCount: rows.length,
               truncated: result.truncated,
               durationMs: result.duration_ms,
+              rowsAffected: result.rows_affected,
             });
           }
 
@@ -209,6 +224,9 @@ export function useQueryRunner(tab: QueryTab): QueryRunner {
             .addMessage(buildRunErrorMessage(context, err));
           setErrorLine(opts.errorLine ?? null);
         } finally {
+          if (activeQueryId.current === queryId) {
+            activeQueryId.current = null;
+          }
           if (mounted.current && token === runToken.current) {
             setRunning(false);
           }
@@ -234,6 +252,35 @@ export function useQueryRunner(tab: QueryTab): QueryRunner {
     void executeQuery(sql, { label: "Load more" }, offset, true);
   }, [running, executeQuery]);
 
+  const cancel = useCallback(() => {
+    const queryId = activeQueryId.current;
+    if (!queryId) return;
+    const note = (severity: "info" | "warning", text: string) => {
+      useQueryMessages.getState().addMessage({
+        tabId: tab.id,
+        connectionId: tab.connectionId,
+        database: tab.database || undefined,
+        severity,
+        source: "client",
+        text,
+      });
+    };
+    void unwrap(commands.cancelQuery(tab.connectionId, queryId))
+      .then((cancelled) => {
+        if (cancelled) {
+          note("warning", "Cancel requested — the server was asked to stop the running statement.");
+        } else {
+          note("info", "Nothing to cancel — the statement had already finished.");
+        }
+      })
+      .catch((err) => {
+        note(
+          "warning",
+          `Could not cancel the running statement: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      });
+  }, [tab.connectionId, tab.database, tab.id]);
+
   // Keep the tabResults store in sync with the load-more callback so the
   // bottom panel's result grid can surface the "Load more" button without
   // needing a direct reference to the hook.
@@ -244,7 +291,7 @@ export function useQueryRunner(tab: QueryTab): QueryRunner {
     );
   }, [tab.id, canLoadMore, loadMore]);
 
-  return { running, errorLine, canLoadMore, run, loadMore, clearError };
+  return { running, errorLine, canLoadMore, run, loadMore, cancel, clearError };
 }
 
 // Re-export for callers that only need the type.

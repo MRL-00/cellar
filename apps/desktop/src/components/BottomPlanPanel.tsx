@@ -54,9 +54,19 @@ export function PlanPanel({ activeTab }: { activeTab: WorkspaceTab | null }) {
     };
   }, []);
 
+  // Stale-guard: a plan resolved after the user switched tabs (or re-ran)
+  // must not land on the panel. Bumping the token invalidates in-flight runs.
+  const planToken = useRef(0);
+  const queryTabId = queryTab?.id ?? null;
+  useEffect(() => {
+    planToken.current++;
+    setLoading(false);
+  }, [queryTabId]);
+
   async function loadPlan(nextMode = mode) {
     if (!queryTab || unavailable) return;
     if (nextMode === "analyze" && !confirmAnalyze()) return;
+    const token = ++planToken.current;
     setLoading(true);
     setError(null);
     try {
@@ -68,12 +78,14 @@ export function PlanPanel({ activeTab }: { activeTab: WorkspaceTab | null }) {
           queryTab.database,
         ),
       );
+      if (token !== planToken.current) return;
       setPlan(next);
     } catch (err) {
       noteConnectionIssue(queryTab.connectionId, err);
+      if (token !== planToken.current) return;
       setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setLoading(false);
+      if (token === planToken.current) setLoading(false);
     }
   }
 

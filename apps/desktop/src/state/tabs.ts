@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import type { GridColumnLayout, PendingChanges } from "@cellar/data-grid";
+import { useNotices } from "./notices";
+import { useQueryMessages } from "./queryMessages";
 import { useTabResults } from "./tabResults";
 
 const TABLE_LAYOUTS_STORAGE_KEY = "cellar.tableLayouts.v1";
@@ -20,7 +22,9 @@ export interface QueryTab {
   database: string;
   title: string;
   sql: string;
-  /** `true` when the buffer has unsaved edits since the tab was last run. */
+  /** Buffer contents at the last run — the baseline `dirty` compares against. */
+  savedSql: string;
+  /** `true` when the buffer differs from `savedSql`. */
   dirty: boolean;
 }
 
@@ -141,7 +145,12 @@ function dropTabScopedState(
 
 function clearTabResults(ids: string[]) {
   const results = useTabResults.getState();
-  ids.forEach((id) => results.clearTab(id));
+  const messages = useQueryMessages.getState();
+  ids.forEach((id) => {
+    results.clearTab(id);
+    messages.clearForTab(id);
+  });
+  useNotices.getState().dropTabs(ids);
 }
 
 function splitForTabs(
@@ -200,6 +209,7 @@ export const useTabs = create<TabsStore>((set, get) => ({
           database,
           title,
           sql: "",
+          savedSql: "",
           dirty: false,
         },
       ],
@@ -212,7 +222,7 @@ export const useTabs = create<TabsStore>((set, get) => ({
     set((s) => ({
       tabs: s.tabs.map((t) =>
         t.id === id && t.kind === "query"
-          ? { ...t, sql, dirty: sql !== t.sql ? true : t.dirty }
+          ? { ...t, sql, dirty: sql !== t.savedSql }
           : t,
       ),
     }));
@@ -221,7 +231,9 @@ export const useTabs = create<TabsStore>((set, get) => ({
   markQueryRun(id) {
     set((s) => ({
       tabs: s.tabs.map((t) =>
-        t.id === id && t.kind === "query" ? { ...t, dirty: false } : t,
+        t.id === id && t.kind === "query"
+          ? { ...t, savedSql: t.sql, dirty: false }
+          : t,
       ),
     }));
   },

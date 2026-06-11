@@ -18,7 +18,12 @@ import {
   type SchemaVisibilityState,
   type SidebarNode,
 } from "./SidebarTree";
+import { SidebarConnectionList } from "./SidebarConnectionList";
 import { useConnections } from "../state/connections";
+import {
+  useSidebarLayout,
+  type SidebarFolderItem,
+} from "../state/sidebarLayout";
 import { useTabs } from "../state/tabs";
 import { qualifiedName, selectAllStatement } from "../lib/sqlIdent";
 
@@ -61,6 +66,16 @@ export function Sidebar({
   const newQueryTab = useTabs((s) => s.newQueryTab);
   const setQuerySql = useTabs((s) => s.setQuerySql);
   const activeTabId = useTabs((s) => s.activeId);
+  const layoutItems = useSidebarLayout((s) => s.items);
+  const reconcileLayout = useSidebarLayout((s) => s.reconcile);
+  const createFolder = useSidebarLayout((s) => s.createFolder);
+  const renameFolder = useSidebarLayout((s) => s.renameFolder);
+  const removeFolder = useSidebarLayout((s) => s.removeFolder);
+  const toggleFolder = useSidebarLayout((s) => s.toggleFolder);
+  const moveConnection = useSidebarLayout((s) => s.moveConnection);
+  const moveFolder = useSidebarLayout((s) => s.moveFolder);
+  const moveToFolder = useSidebarLayout((s) => s.moveToFolder);
+  const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loaded) {
@@ -69,13 +84,22 @@ export function Sidebar({
   }, [loaded, load]);
 
   useEffect(() => {
+    if (loaded) reconcileLayout(connections.map((c) => c.id));
+  }, [loaded, connections, reconcileLayout]);
+
+  useEffect(() => {
     saveSchemaVisibility(schemaVisibility);
   }, [schemaVisibility]);
 
-  const filtered = useMemo(() => {
+  const configById = useMemo(
+    () => new Map(connections.map((c) => [c.id, c] as const)),
+    [connections],
+  );
+
+  const matchCount = useMemo(() => {
     const q = filter.trim().toLowerCase();
-    if (!q) return connections;
-    return connections.filter((c) => c.name.toLowerCase().includes(q));
+    if (!q) return connections.length;
+    return connections.filter((c) => c.name.toLowerCase().includes(q)).length;
   }, [filter, connections]);
 
   const copyText = (text: string) => {
@@ -295,6 +319,42 @@ export function Sidebar({
     setSchemaManager({ connectionId, database, schemas });
   };
 
+  const startNewFolder = (connectionId?: string) => {
+    const id = createFolder("New folder");
+    if (connectionId) moveToFolder(connectionId, id);
+    setRenamingFolderId(id);
+  };
+
+  const commitFolderRename = (folderId: string, name: string) => {
+    renameFolder(folderId, name);
+    setRenamingFolderId(null);
+  };
+
+  const openFolderMenu = (e: React.MouseEvent, folder: SidebarFolderItem) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setMenu({
+      x: e.clientX,
+      y: e.clientY,
+      items: [
+        {
+          label: "Rename folder",
+          icon: <Icon.edit size={12} />,
+          onClick: () => setRenamingFolderId(folder.id),
+        },
+        {
+          label:
+            folder.children.length > 0
+              ? "Remove folder (keep connections)"
+              : "Remove folder",
+          icon: <Icon.trash size={12} />,
+          danger: true,
+          onClick: () => removeFolder(folder.id),
+        },
+      ],
+    });
+  };
+
   const openConnectionMenu = (e: React.MouseEvent, config: ConnectionConfig) => {
     e.preventDefault();
     e.stopPropagation();
@@ -325,6 +385,31 @@ export function Sidebar({
         onClick: () => onDuplicateConnection?.(config),
       },
     ];
+    const folders = layoutItems.filter(
+      (it): it is SidebarFolderItem => it.kind === "folder",
+    );
+    const currentFolder =
+      folders.find((f) => f.children.includes(config.id)) ?? null;
+    for (const f of folders) {
+      if (f.id === currentFolder?.id) continue;
+      items.push({
+        label: `Move to "${f.name}"`,
+        icon: <Icon.folder size={12} />,
+        onClick: () => moveToFolder(config.id, f.id),
+      });
+    }
+    items.push({
+      label: "Move to new folder",
+      icon: <Icon.folderPlus size={12} />,
+      onClick: () => startNewFolder(config.id),
+    });
+    if (currentFolder) {
+      items.push({
+        label: "Remove from folder",
+        icon: <Icon.folderOpen size={12} />,
+        onClick: () => moveToFolder(config.id, null),
+      });
+    }
     if (status === "connected" || status === "error") {
       items.push({
         label: status === "error" ? "Retry connection" : "Reconnect",
@@ -385,6 +470,11 @@ export function Sidebar({
           onClick: () => onNewConnection?.(),
         },
         {
+          label: "New folder",
+          icon: <Icon.folderPlus size={12} />,
+          onClick: () => startNewFolder(),
+        },
+        {
           label: "Refresh connected schemas",
           icon: <Icon.history size={12} />,
           disabled: connected.length === 0,
@@ -436,7 +526,7 @@ export function Sidebar({
         <span className="kbd">⌘F</span>
       </div>
 
-      <div className="flex-1 overflow-y-auto pb-3">
+      <div className="flex flex-1 flex-col overflow-y-auto pb-3">
         <button
           type="button"
           onClick={onNewConnection}
@@ -446,37 +536,48 @@ export function Sidebar({
           <span>New connection</span>
         </button>
 
-        {filtered.length === 0 && (
+        {matchCount === 0 && (
           <div className="px-3 py-5 text-center text-[11px] text-fg-3">
-            no connections yet
+            {connections.length === 0 ? "no connections yet" : "no matches"}
           </div>
         )}
-        {filtered.map((c) => {
-          const state = byId[c.id];
-          return (
-            <ConnectionRow
-              key={c.id}
-              config={c}
-              status={state?.status ?? "disconnected"}
-              expanded={state?.expanded ?? false}
-              loadingSchema={state?.loadingSchema ?? false}
-              databases={state?.databases ?? []}
-              error={state?.error ?? null}
-              onToggle={() => toggleExpand(c.id)}
-              onReconnect={() => void reconnect(c.id)}
-              onDisconnect={() => void disconnect(c.id)}
-              onContextMenu={(e) => openConnectionMenu(e, c)}
-              onNodeContextMenu={openNodeMenu}
-              onOpenTable={(database, schema, table) =>
-                openTable(c.id, database, schema, table)
-              }
-              activeTabId={activeTabId}
-              schemaVisibility={schemaVisibility}
-              onManageSchemas={openSchemaManager}
-            />
-          );
-        })}
-
+        <SidebarConnectionList
+          items={layoutItems}
+          configs={configById}
+          filter={filter}
+          renamingFolderId={renamingFolderId}
+          onCommitRename={commitFolderRename}
+          onCancelRename={() => setRenamingFolderId(null)}
+          onToggleFolder={toggleFolder}
+          onFolderContextMenu={openFolderMenu}
+          onMoveConnection={moveConnection}
+          onMoveFolder={moveFolder}
+          renderConnection={(c, drag) => {
+            const state = byId[c.id];
+            return (
+              <ConnectionRow
+                config={c}
+                status={state?.status ?? "disconnected"}
+                expanded={state?.expanded ?? false}
+                loadingSchema={state?.loadingSchema ?? false}
+                databases={state?.databases ?? []}
+                error={state?.error ?? null}
+                onToggle={() => toggleExpand(c.id)}
+                onReconnect={() => void reconnect(c.id)}
+                onDisconnect={() => void disconnect(c.id)}
+                onContextMenu={(e) => openConnectionMenu(e, c)}
+                onNodeContextMenu={openNodeMenu}
+                onOpenTable={(database, schema, table) =>
+                  openTable(c.id, database, schema, table)
+                }
+                activeTabId={activeTabId}
+                schemaVisibility={schemaVisibility}
+                onManageSchemas={openSchemaManager}
+                drag={drag}
+              />
+            );
+          }}
+        />
       </div>
 
       <div className="flex shrink-0 items-center border-t border-border-default px-2 py-1.5">

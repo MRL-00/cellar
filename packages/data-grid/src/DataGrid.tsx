@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type UIEvent,
 } from "react";
@@ -134,6 +135,17 @@ export type DataGridProps = {
 
   /** Stripe alternating data rows. Defaults to false. */
   stripeRows?: boolean;
+
+  /**
+   * Right-click on a data cell. The host receives the row object and column so
+   * it can render its own context menu (e.g. copy-as) without depending on the
+   * grid's internal filter/sort order.
+   */
+  onCellContextMenu?: (
+    event: ReactMouseEvent<HTMLDivElement>,
+    row: GridRow,
+    column: GridColumn,
+  ) => void;
 };
 
 /**
@@ -166,6 +178,7 @@ export function DataGrid({
   readOnly = false,
   nullDisplay = "NULL",
   stripeRows = false,
+  onCellContextMenu,
 }: DataGridProps) {
   const [internalSort, setInternalSort] = useState<SortState>(null);
   const [internalColumnLayout, setInternalColumnLayout] =
@@ -686,6 +699,7 @@ export function DataGrid({
                   onSelect={onSelect}
                   onEdit={onEdit}
                   onCellEdit={handleCellEdit}
+                  onCellContextMenu={onCellContextMenu}
                 />
               );
             })}
@@ -735,6 +749,7 @@ type GridRowViewProps = {
     prev: CellChange["from"],
     next: CellChange["to"],
   ) => void;
+  onCellContextMenu: DataGridProps["onCellContextMenu"];
 };
 
 const GridRowView = memo(function GridRowView({
@@ -753,6 +768,7 @@ const GridRowView = memo(function GridRowView({
   onSelect,
   onEdit,
   onCellEdit,
+  onCellContextMenu,
 }: GridRowViewProps) {
   const kind = change?.kind;
   const rowSelected = selected !== null;
@@ -818,6 +834,13 @@ const GridRowView = memo(function GridRowView({
             onDoubleClick={() => {
               if (!readOnly) onEdit({ row: rowIndex, col: ci });
             }}
+            onContextMenu={
+              onCellContextMenu &&
+              ((event) => {
+                onSelect({ row: rowIndex, col: ci });
+                onCellContextMenu(event, row, c);
+              })
+            }
           >
             {isEdit ? (
               <CellEditor
