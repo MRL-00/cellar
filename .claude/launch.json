@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "desktop-web",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--dir", "apps/desktop", "dev:web"],
+      "port": 1430
+    }
+  ]
+}
