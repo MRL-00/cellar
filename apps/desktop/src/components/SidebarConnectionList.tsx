@@ -199,6 +199,13 @@ export function SidebarConnectionList({
     }
   };
 
+  // WebKit only allows a drop when dragenter is cancelled too, not just
+  // dragover; one bubbling-phase handler here covers every row.
+  const onListDragEnter = (e: React.DragEvent) => {
+    if (!drag || !canDrag) return;
+    e.preventDefault();
+  };
+
   const onListDragOver = (e: React.DragEvent) => {
     if (!drag || !canDrag) return;
     e.preventDefault();
@@ -325,6 +332,7 @@ export function SidebarConnectionList({
     <div
       ref={rootRef}
       className="flex-1"
+      onDragEnter={onListDragEnter}
       onDragOver={onListDragOver}
       onDragLeave={onListDragLeave}
       onDrop={commitDrop}

@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { resolveBlurAction, resolveEnterAction } from "./Cell";
+import { parseCellInput, resolveBlurAction, resolveEnterAction } from "./Cell";
 
 // ---------------------------------------------------------------------------
 // resolveEnterAction — used by the Enter key handler (text editor)
@@ -135,3 +135,134 @@ describe("CellEditor state machine — text editor", () => {
     expect(resolveBlurAction(settled, dirty)).toBe("commit");
   });
 });
+
+describe("parseCellInput", () => {
+  it("coerces boolean values", () => {
+    expect(parseCellInput(column("active", "bool"), "true")).toEqual({
+      ok: true,
+      value: true,
+    });
+    expect(parseCellInput(column("active", "bool"), "0")).toEqual({
+      ok: true,
+      value: false,
+    });
+  });
+
+  it("rejects non-boolean values for boolean columns", () => {
+    expect(parseCellInput(column("active", "bool"), "sometimes")).toEqual({
+      ok: false,
+      message: "Enter TRUE or FALSE",
+    });
+  });
+
+  it("coerces integer values and rejects fractional input", () => {
+    expect(parseCellInput(column("count", "int4"), "42")).toEqual({
+      ok: true,
+      value: 42,
+    });
+    expect(parseCellInput(column("count", "int4"), "4.2")).toEqual({
+      ok: false,
+      message: "Enter a whole number",
+    });
+  });
+
+  it("keeps large integer values as strings to avoid precision loss", () => {
+    expect(parseCellInput(column("id", "int8"), "9007199254740993")).toEqual({
+      ok: true,
+      value: "9007199254740993",
+    });
+  });
+
+  it("keeps numeric decimals as strings to avoid precision loss", () => {
+    expect(parseCellInput(column("amount", "numeric"), "123.45")).toEqual({
+      ok: true,
+      value: "123.45",
+    });
+  });
+
+  it("validates JSON and GUID fields", () => {
+    expect(parseCellInput(column("payload", "jsonb"), '{"ok":true}')).toEqual({
+      ok: true,
+      value: '{"ok":true}',
+    });
+    expect(parseCellInput(column("payload", "jsonb"), "{oops")).toEqual({
+      ok: false,
+      message: "Enter valid JSON",
+    });
+    expect(
+      parseCellInput(
+        column("id", "uuid"),
+        "018f61b3-4f51-7f5a-9db8-0c7b1b7b3930",
+      ),
+    ).toEqual({
+      ok: true,
+      value: "018f61b3-4f51-7f5a-9db8-0c7b1b7b3930",
+    });
+    expect(
+      parseCellInput(
+        column("id", "uuid"),
+        "018f61b3-4f51-7f5a-9db8",
+      ),
+    ).toEqual({
+      ok: false,
+      message: "Enter a valid GUID",
+    });
+    expect(parseCellInput(column("Id", "guid"), "aaa")).toEqual({
+      ok: false,
+      message: "Enter a valid GUID",
+    });
+    expect(parseCellInput(column("Id", "uniqueidentifier"), "aaa")).toEqual({
+      ok: false,
+      message: "Enter a valid GUID",
+    });
+  });
+
+  it("maps blank nullable non-text values to NULL", () => {
+    expect(parseCellInput(column("due_at", "timestamptz", true), "")).toEqual({
+      ok: true,
+      value: null,
+    });
+  });
+
+  it("rejects blank non-null non-text values", () => {
+    expect(parseCellInput(column("due_at", "timestamptz", false), "")).toEqual({
+      ok: false,
+      message: "due_at cannot be NULL",
+    });
+  });
+
+  it("allows empty strings for text columns", () => {
+    expect(parseCellInput(column("name", "text", false), "")).toEqual({
+      ok: true,
+      value: "",
+    });
+  });
+
+  it("requires enum values to match the column options", () => {
+    expect(
+      parseCellInput(
+        { ...column("status", "text"), enum: ["new", "done"] },
+        "done",
+      ),
+    ).toEqual({ ok: true, value: "done" });
+    expect(
+      parseCellInput(
+        { ...column("status", "text"), enum: ["new", "done"] },
+        "stuck",
+      ),
+    ).toEqual({
+      ok: false,
+      message: "Choose one of: new, done",
+    });
+  });
+});
+
+function column(name: string, type: string, nullable = true) {
+  return {
+    key: name,
+    name,
+    type,
+    width: 120,
+    nullable,
+  };
+}

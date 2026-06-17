@@ -15,6 +15,7 @@
         "title": "Cellar",
         "width": 1440,
         "height": 900,
+        "dragDropEnabled": false,
         "minWidth": 960,
         "minHeight": 600,
         "decorations": true,

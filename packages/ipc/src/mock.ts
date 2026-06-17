@@ -61,6 +61,7 @@ export const mockCommands = {
     _offset: number | null,
     _database: string | null,
     _tabId: string | null,
+    _queryId: string | null,
   ): Promise<Result<QueryResult, CellarError>> =>
     ok({
       columns: [],

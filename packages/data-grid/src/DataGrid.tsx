@@ -192,6 +192,7 @@ export function DataGrid({
   const resizingRef = useRef<ColumnResizeState | null>(null);
   const suppressNextSortRef = useRef(false);
   const measureCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const insertCounterRef = useRef(0);
 
   const renderedColumns = useMemo(
     () => layoutForColumns(columns, activeColumnLayout),
@@ -204,10 +205,27 @@ export function DataGrid({
     return filterRows(rows, renderedColumns, filters, changes);
   }, [rows, renderedColumns, filters, changes]);
 
-  const visibleRows = useMemo(
-    () => sortGridRows(filteredRows, renderedColumns, activeSort, changes),
-    [filteredRows, renderedColumns, activeSort, changes],
-  );
+  const insertedRows = useMemo(() => {
+    const existingIds = new Set(rows.map((row) => row.id));
+    return Object.entries(changes)
+      .filter(
+        ([rowId, change]) => change.kind === "insert" && !existingIds.has(rowId),
+      )
+      .map(([rowId, change]) => {
+        const row: GridRow = { id: rowId };
+        for (const column of renderedColumns) {
+          row[column.key] = change.edits[column.key]?.to ?? null;
+        }
+        return row;
+      });
+  }, [changes, renderedColumns, rows]);
+
+  const visibleRows = useMemo(() => {
+    return [
+      ...sortGridRows(filteredRows, renderedColumns, activeSort, changes),
+      ...insertedRows,
+    ];
+  }, [activeSort, changes, filteredRows, insertedRows, renderedColumns]);
 
   const minTableWidth = useMemo(
     () => renderedColumns.reduce((acc, c) => acc + c.width, ROWNO_WIDTH + 8),
@@ -381,7 +399,7 @@ export function DataGrid({
     ): CellAddress | null => {
       if (!address) return null;
       const row = before[address.row];
-      if (!row) return null;
+      if (!row) return after[address.row] ? address : null;
       const nextRow = after.findIndex((candidate) => candidate.id === row.id);
       if (nextRow === -1) return null;
       return { row: nextRow, col: address.col };
@@ -530,6 +548,33 @@ export function DataGrid({
     },
     [changes, onChange],
   );
+
+  const handleInsertRow = useCallback(() => {
+    if (readOnly || renderedColumns.length === 0) return;
+    insertCounterRef.current += 1;
+    const rowId = `insert:${Date.now()}:${insertCounterRef.current}`;
+    onChange({
+      ...changes,
+      [rowId]: { kind: "insert", edits: {} },
+    });
+    const nextRowIndex = visibleRows.length;
+    onSelect({ row: nextRowIndex, col: 0 });
+    onEdit({ row: nextRowIndex, col: 0 });
+    window.requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior: "smooth",
+      });
+    });
+  }, [
+    changes,
+    onChange,
+    onEdit,
+    onSelect,
+    readOnly,
+    renderedColumns.length,
+    visibleRows.length,
+  ]);
 
   return (
     <div
@@ -705,7 +750,19 @@ export function DataGrid({
             })}
           </div>
           {!readOnly && (
-            <div className="grid-row grid-row-add">
+            <div
+              className="grid-row grid-row-add"
+              role="button"
+              tabIndex={0}
+              onClick={handleInsertRow}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  handleInsertRow();
+                }
+              }}
+              title="Insert new row"
+            >
               <div className="grid-cell grid-cell-rowno">
                 <GridIcon.plus size={9} stroke="var(--fg-3)" />
               </div>
