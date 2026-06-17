@@ -32,6 +32,160 @@ export function resolveBlurAction(
   return dirty ? "commit" : "cancel";
 }
 
+export type ParsedCellValue =
+  | { ok: true; value: GridValue }
+  | { ok: false; message: string };
+
+export function parseCellInput(col: GridColumn, raw: string): ParsedCellValue {
+  if (col.enum) {
+    return col.enum.includes(raw)
+      ? { ok: true, value: raw }
+      : { ok: false, message: `Choose one of: ${col.enum.join(", ")}` };
+  }
+
+  const type = normalizeType(col.type);
+  const trimmed = raw.trim();
+
+  if (trimmed === "" && type !== "text") {
+    if (col.nullable) return { ok: true, value: null };
+    return { ok: false, message: `${col.name} cannot be NULL` };
+  }
+
+  if (type === "bool") {
+    const lower = trimmed.toLowerCase();
+    if (["true", "t", "1", "yes", "y"].includes(lower)) {
+      return { ok: true, value: true };
+    }
+    if (["false", "f", "0", "no", "n"].includes(lower)) {
+      return { ok: true, value: false };
+    }
+    return { ok: false, message: "Enter TRUE or FALSE" };
+  }
+
+  if (type === "integer") {
+    if (!/^[+-]?\d+$/.test(trimmed)) {
+      return { ok: false, message: "Enter a whole number" };
+    }
+    const value = Number(trimmed);
+    return { ok: true, value: Number.isSafeInteger(value) ? value : trimmed };
+  }
+
+  if (type === "float") {
+    const value = Number(trimmed);
+    if (!Number.isFinite(value)) {
+      return { ok: false, message: "Enter a valid number" };
+    }
+    return { ok: true, value };
+  }
+
+  if (type === "numeric") {
+    if (!/^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(trimmed)) {
+      return { ok: false, message: "Enter a valid numeric value" };
+    }
+    return { ok: true, value: trimmed };
+  }
+
+  if (type === "guid") {
+    if (
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        trimmed,
+      )
+    ) {
+      return { ok: false, message: "Enter a valid GUID" };
+    }
+    return { ok: true, value: trimmed };
+  }
+
+  if (type === "json") {
+    try {
+      JSON.parse(trimmed);
+      return { ok: true, value: trimmed };
+    } catch {
+      return { ok: false, message: "Enter valid JSON" };
+    }
+  }
+
+  if (type === "date") {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed) || Number.isNaN(Date.parse(trimmed))) {
+      return { ok: false, message: "Use YYYY-MM-DD" };
+    }
+    return { ok: true, value: trimmed };
+  }
+
+  if (type === "time") {
+    if (!/^\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?(?:[+-]\d{2}(?::?\d{2})?)?$/.test(trimmed)) {
+      return { ok: false, message: "Use HH:MM[:SS]" };
+    }
+    return { ok: true, value: trimmed };
+  }
+
+  if (type === "timestamp") {
+    if (Number.isNaN(Date.parse(trimmed))) {
+      return { ok: false, message: "Enter a valid timestamp" };
+    }
+    return { ok: true, value: trimmed };
+  }
+
+  if (type === "bytea") {
+    if (!/^\\x(?:[0-9a-f]{2})*$/i.test(trimmed)) {
+      return { ok: false, message: "Use hex bytea format, e.g. \\x0a2b" };
+    }
+    return { ok: true, value: trimmed };
+  }
+
+  return { ok: true, value: raw };
+}
+
+function normalizeType(type: string):
+  | "bool"
+  | "bytea"
+  | "date"
+  | "float"
+  | "integer"
+  | "json"
+  | "numeric"
+  | "text"
+  | "time"
+  | "timestamp"
+  | "guid"
+  | "unknown" {
+  const t = type.toLowerCase().replace(/\(.+\)$/, "").trim();
+  if (["bool", "boolean"].includes(t)) return "bool";
+  if (["bytea", "binary", "varbinary", "blob"].includes(t)) return "bytea";
+  if (t === "date") return "date";
+  if (["float4", "float8", "real", "double precision"].includes(t)) {
+    return "float";
+  }
+  if (
+    ["int2", "int4", "int8", "smallint", "integer", "bigint", "serial", "bigserial", "oid"].includes(
+      t,
+    )
+  ) {
+    return "integer";
+  }
+  if (["json", "jsonb"].includes(t)) return "json";
+  if (["numeric", "decimal", "money"].includes(t)) return "numeric";
+  if (
+    ["text", "varchar", "char", "bpchar", "citext", "name", "character varying", "character"].includes(
+      t,
+    )
+  ) {
+    return "text";
+  }
+  if (["time", "timetz", "time without time zone", "time with time zone"].includes(t)) {
+    return "time";
+  }
+  if (
+    ["timestamp", "timestamptz", "timestamp without time zone", "timestamp with time zone"].includes(
+      t,
+    )
+  ) {
+    return "timestamp";
+  }
+  if (["uuid", "guid", "uniqueidentifier"].includes(t)) return "guid";
+  return "unknown";
+}
+
 export function CellValue({
   col,
   value,
@@ -83,6 +237,7 @@ export type CellEditorProps = {
 export function CellEditor({ col, value, onCommit, onCancel }: CellEditorProps) {
   const initialValue = value == null ? "" : String(value);
   const [v, setV] = useState<string>(initialValue);
+  const [error, setError] = useState<string | null>(null);
   const ref = useRef<HTMLInputElement | null>(null);
   // Tracks whether Enter or Escape has already been handled so that the
   // subsequent blur event does not fire a second commit or override a cancel.
@@ -97,6 +252,20 @@ export function CellEditor({ col, value, onCommit, onCancel }: CellEditorProps) 
     ref.current?.focus();
     ref.current?.select();
   }, []);
+
+  const commitRawValue = () => {
+    const parsed = parseCellInput(col, v);
+    if (!parsed.ok) {
+      settledRef.current = false;
+      setError(parsed.message);
+      window.setTimeout(() => {
+        ref.current?.focus();
+        ref.current?.select();
+      }, 0);
+      return;
+    }
+    onCommit(parsed.value);
+  };
 
   if (col.enum) {
     return (
@@ -151,6 +320,7 @@ export function CellEditor({ col, value, onCommit, onCancel }: CellEditorProps) 
       value={v}
       onChange={(e) => {
         dirtyRef.current = true;
+        setError(null);
         setV(e.target.value);
       }}
       onKeyDown={(e) => {
@@ -158,7 +328,7 @@ export function CellEditor({ col, value, onCommit, onCancel }: CellEditorProps) 
           settledRef.current = true;
           const decision = resolveEnterAction(dirtyRef.current);
           if (decision === "commit") {
-            onCommit(v);
+            commitRawValue();
           } else {
             onCancel();
           }
@@ -173,11 +343,13 @@ export function CellEditor({ col, value, onCommit, onCancel }: CellEditorProps) 
         if (decision === "noop") return;
         settledRef.current = true;
         if (decision === "commit") {
-          onCommit(v);
+          commitRawValue();
         } else {
           onCancel();
         }
       }}
+      aria-invalid={error ? true : undefined}
+      title={error ?? undefined}
     />
   );
 }

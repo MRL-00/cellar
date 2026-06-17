@@ -322,7 +322,9 @@ async fn cancel_query_stops_a_running_statement() {
     // pg_cancel_backend only interrupts a statement that is already running.
     for _ in 0..300 {
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-        let _ = driver.cancel_query(conn.as_ref().as_ref(), "cancel-me").await;
+        let _ = driver
+            .cancel_query(conn.as_ref().as_ref(), "cancel-me")
+            .await;
         if runner.is_finished() {
             break;
         }
@@ -367,7 +369,9 @@ async fn execute_query_reports_rows_affected_for_dml_only() {
     let update = driver
         .execute_query(
             conn.as_ref(),
-            &Query::new("UPDATE customers SET email = email || '.x' WHERE email LIKE '%@example.com'"),
+            &Query::new(
+                "UPDATE customers SET email = email || '.x' WHERE email LIKE '%@example.com'",
+            ),
         )
         .await
         .expect("update");

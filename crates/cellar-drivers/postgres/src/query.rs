@@ -156,7 +156,11 @@ pub async fn execute_query(conn: &PgConnection, query: &Query) -> CellarResult<Q
     // (INSERT/UPDATE/DELETE/DDL without RETURNING). For row-returning
     // statements the tag count is just the row count and the UI would
     // mislabel a SELECT as "N rows affected".
-    let rows_affected = if columns.is_none() { rows_affected } else { None };
+    let rows_affected = if columns.is_none() {
+        rows_affected
+    } else {
+        None
+    };
 
     Ok(QueryResult {
         columns: columns.unwrap_or_default(),
