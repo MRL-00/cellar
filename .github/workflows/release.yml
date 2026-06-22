@@ -178,12 +178,23 @@ jobs:
           gh release upload "$RELEASE_TAG" "$dmg_path#$STABLE_ASSET_NAME" --clobber
 
           # Upload the updater signature file so latest.json can reference it.
-          sig_path="$(find "${search_roots[@]}" \
-            -path "*/$TARGET_TRIPLE/release/bundle/macos/*.app.tar.gz.sig" -type f \
-            -print -quit 2>/dev/null || true)"
+          # The .sig file lives in the sibling macos/ directory next to dmg/.
+          # Rename to match the arch-suffixed .app.tar.gz that tauri-action
+          # uploaded (Cellar_aarch64.app.tar.gz / Cellar_x64.app.tar.gz).
+          bundle_root="$(dirname "$(dirname "$dmg_path")")"
+          sig_path="$(find "$bundle_root/macos" -name "*.app.tar.gz.sig" -type f -print -quit 2>/dev/null || true)"
           if [[ -n "$sig_path" ]]; then
-            echo "Found signature at: $sig_path"
-            gh release upload "$RELEASE_TAG" "$sig_path" --clobber
+            sig_name="$(basename "$sig_path")"
+            # Insert the arch short name before .app.tar.gz.sig
+            if [[ "$TARGET_TRIPLE" == "aarch64-apple-darwin" ]]; then
+              stable_sig_name="Cellar_aarch64.app.tar.gz.sig"
+            else
+              stable_sig_name="Cellar_x64.app.tar.gz.sig"
+            fi
+            echo "Found signature at: $sig_path (uploading as $stable_sig_name)"
+            gh release upload "$RELEASE_TAG" "$sig_path#$stable_sig_name" --clobber
+          else
+            echo "No .sig file found under $bundle_root/macos" >&2
           fi
 
   publish-release:
