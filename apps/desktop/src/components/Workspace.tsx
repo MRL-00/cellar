@@ -62,7 +62,11 @@ export function Workspace({ onCommit }: { onCommit?: () => void } = {}) {
     }
   }
 
-  return renderTab(active, onCommit);
+  return (
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      {renderTab(active, onCommit)}
+    </div>
+  );
 }
 
 function SplitPane({
