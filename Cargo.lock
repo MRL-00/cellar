@@ -401,7 +401,7 @@ dependencies = [
 
 [[package]]
 name = "cellar-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -414,7 +414,7 @@ dependencies = [
 
 [[package]]
 name = "cellar-desktop"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "cellar-core",
@@ -441,7 +441,7 @@ dependencies = [
 
 [[package]]
 name = "cellar-diff"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde",
  "specta",
@@ -450,7 +450,7 @@ dependencies = [
 
 [[package]]
 name = "cellar-driver-firestore"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "cellar-core",
@@ -463,7 +463,7 @@ dependencies = [
 
 [[package]]
 name = "cellar-driver-postgres"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "cellar-core",
@@ -482,7 +482,7 @@ dependencies = [
 
 [[package]]
 name = "cellar-driver-sqlserver"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "cellar-core",
@@ -495,15 +495,15 @@ dependencies = [
 
 [[package]]
 name = "cellar-drivers"
-version = "0.1.0"
+version = "0.2.0"
 
 [[package]]
 name = "cellar-plugin-host"
-version = "0.1.0"
+version = "0.2.0"
 
 [[package]]
 name = "cellar-secrets"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cellar-core",
  "keyring",
@@ -512,7 +512,7 @@ dependencies = [
 
 [[package]]
 name = "cellar-sql"
-version = "0.1.0"
+version = "0.2.0"
 
 [[package]]
 name = "cesu8"
