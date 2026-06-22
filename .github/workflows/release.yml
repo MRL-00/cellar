@@ -164,7 +164,9 @@ jobs:
           # The build output may land at either the repo-root target dir
           # (when CARGO_TARGET_DIR is set by rust-cache) or under
           # apps/desktop/src-tauri/target. Search both.
-          dmg_path="$(find target "apps/desktop/src-tauri/target" \
+          search_roots=(target "apps/desktop/src-tauri/target")
+
+          dmg_path="$(find "${search_roots[@]}" \
             -path "*/$TARGET_TRIPLE/release/bundle/dmg/*.dmg" -type f \
             -print -quit 2>/dev/null || true)"
           if [[ -z "$dmg_path" ]]; then
@@ -174,6 +176,15 @@ jobs:
 
           echo "Found DMG at: $dmg_path"
           gh release upload "$RELEASE_TAG" "$dmg_path#$STABLE_ASSET_NAME" --clobber
+
+          # Upload the updater signature file so latest.json can reference it.
+          sig_path="$(find "${search_roots[@]}" \
+            -path "*/$TARGET_TRIPLE/release/bundle/macos/*.app.tar.gz.sig" -type f \
+            -print -quit 2>/dev/null || true)"
+          if [[ -n "$sig_path" ]]; then
+            echo "Found signature at: $sig_path"
+            gh release upload "$RELEASE_TAG" "$sig_path" --clobber
+          fi
 
   publish-release:
     name: Publish release
@@ -193,6 +204,58 @@ jobs:
           fi
 
           echo "tag=$release_tag" >> "$GITHUB_OUTPUT"
+
+      - name: Generate and upload updater manifest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Download the .sig files from the release to build latest.json.
+          tmpdir="$(mktemp -d)"
+          gh release download "$RELEASE_TAG" \
+            --pattern '*.app.tar.gz.sig' \
+            --dir "$tmpdir" || true
+
+          aarch64_sig="$(cat "$tmpdir/Cellar_aarch64.app.tar.gz.sig" 2>/dev/null || echo "")"
+          x64_sig="$(cat "$tmpdir/Cellar_x64.app.tar.gz.sig" 2>/dev/null || echo "")"
+
+          if [[ -z "$aarch64_sig" && -z "$x64_sig" ]]; then
+            echo "No signature files found — skipping latest.json generation" >&2
+          else
+            base_url="https://github.com/${GH_REPO}/releases/download/${RELEASE_TAG}"
+            pub_date="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+            # Build the updater manifest. Tauri's updater expects platform keys
+            # in the format {os}-{arch}.
+            platforms='{'
+            first=true
+            if [[ -n "$aarch64_sig" ]]; then
+              platforms+=' "darwin-aarch64": { "signature": "'"$aarch64_sig"'", "url": "'"$base_url"'/Cellar_aarch64.app.tar.gz" }'
+              first=false
+            fi
+            if [[ -n "$x64_sig" ]]; then
+              if [[ $first == false ]]; then platforms+=','; fi
+              platforms+=' "darwin-x86_64": { "signature": "'"$x64_sig"'", "url": "'"$base_url"'/Cellar_x64.app.tar.gz" }'
+            fi
+            platforms+=' }'
+
+            cat > "$tmpdir/latest.json" <<EOF
+          {
+            "version": "$RELEASE_TAG",
+            "notes": "See the assets below to download Cellar for your platform.",
+            "pub_date": "$pub_date",
+            "platforms": $platforms
+          }
+          EOF
+
+            echo "Generated latest.json:"
+            cat "$tmpdir/latest.json"
+            gh release upload "$RELEASE_TAG" "$tmpdir/latest.json" --clobber
+          fi
 
       - name: Publish GitHub Release
         env:
