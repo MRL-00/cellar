@@ -36,6 +36,8 @@ sqlx = { version = "0.8", default-features = false, features = [
 specta = { version = "=2.0.0-rc.22", features = ["derive", "chrono", "uuid", "serde_json"] }
 specta-typescript = "=0.0.9"
 tauri-specta = { version = "=2.0.0-rc.21", features = ["derive", "typescript"] }
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
 cellar-core = { path = "../../../crates/cellar-core" }
 cellar-driver-firestore = { path = "../../../crates/cellar-drivers/firestore" }
 cellar-driver-postgres = { path = "../../../crates/cellar-drivers/postgres" }

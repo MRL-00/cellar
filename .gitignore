@@ -23,4 +23,9 @@ apps/desktop/src-tauri/gen/
 # env
 .env
 .env.local
+.opencode/plugins/emdash-notifications.js
 
+# updater signing keys (never commit)
+*.updater.key
+*.updater.key.pub
+tauri-signing-key*

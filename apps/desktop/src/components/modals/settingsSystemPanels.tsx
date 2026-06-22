@@ -1,6 +1,7 @@
 import { Icon } from "../icons";
 import { Row, Section, StaticSegment, Toggle } from "./settingsPrimitives";
 import { useConnections } from "../../state/connections";
+import { useUpdater } from "../../lib/updater";
 
 export function SettingsPrivacy() {
   const connectionCount = useConnections((s) => s.connections.length);
@@ -59,29 +60,80 @@ export function SettingsPrivacy() {
 }
 
 export function SettingsUpdates() {
+  const { appVersion, status, lastChecked, checkForUpdate, downloadAndInstall } = useUpdater();
+
+  const versionLabel = appVersion ? `v${appVersion}` : "v0.0.0";
+  const lastCheckedLabel = lastChecked
+    ? `last checked ${new Date(lastChecked).toLocaleString()}`
+    : "last checked never";
+
+  const statusText = (() => {
+    switch (status.kind) {
+      case "idle":
+        return "Ready";
+      case "checking":
+        return "Checking…";
+      case "available":
+        return `Update available: v${status.version}`;
+      case "up-to-date":
+        return "Up to date";
+      case "downloading":
+        return `Downloading… ${Math.round(status.fraction * 100)}%`;
+      case "installing":
+        return "Installing…";
+      case "error":
+        return `Error: ${status.message}`;
+    }
+  })();
+
+  const isBusy =
+    status.kind === "checking" ||
+    status.kind === "downloading" ||
+    status.kind === "installing";
+  const canCheck = !isBusy && status.kind !== "available";
+  const canInstall = status.kind === "available";
+
   return (
     <div className="flex-1 overflow-y-auto pb-6 pt-1">
       <Section title="Updates">
         <div className="mb-2 flex items-center justify-between rounded-[5px] border border-border-default bg-bg-inset px-3 py-2.5">
           <div className="flex items-center gap-2.5">
             <span className="font-mono text-[13px] font-semibold text-fg-0">
-              v0.1.0-alpha
+              {versionLabel}
             </span>
             <span className="inline-flex items-center gap-1 text-[11px]">
               <Icon.info size={11} stroke="var(--fg-2)" />
-              <span className="text-fg-2">Updater not configured</span>
+              <span className="text-fg-2">{statusText}</span>
             </span>
-            <span className="text-[11px] text-fg-3">last checked never</span>
+            <span className="text-[11px] text-fg-3">{lastCheckedLabel}</span>
           </div>
-          <button
-            type="button"
-            disabled
-            title="Updater checks are not wired yet"
-            className="inline-flex h-[26px] cursor-not-allowed items-center gap-1 rounded-[4px] border border-border-default bg-bg-2 px-2 text-[11px] text-fg-2 opacity-70"
-          >
-            <Icon.power size={11} />
-            <span>Check now</span>
-          </button>
+          <div className="flex items-center gap-1.5">
+            {canInstall && (
+              <button
+                type="button"
+                onClick={downloadAndInstall}
+                disabled={isBusy}
+                className="inline-flex h-[26px] items-center gap-1 rounded-[4px] border border-accent-line bg-accent-soft px-2 text-[11px] font-medium text-accent hover:bg-accent/20"
+              >
+                <Icon.download size={11} />
+                <span>Download &amp; install</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={checkForUpdate}
+              disabled={!canCheck}
+              title={canCheck ? "Check for updates" : "Update check in progress"}
+              className={
+                canCheck
+                  ? "inline-flex h-[26px] items-center gap-1 rounded-[4px] border border-border-default bg-bg-2 px-2 text-[11px] text-fg-1 hover:bg-bg-3"
+                  : "inline-flex h-[26px] cursor-not-allowed items-center gap-1 rounded-[4px] border border-border-default bg-bg-2 px-2 text-[11px] text-fg-2 opacity-70"
+              }
+            >
+              <Icon.power size={11} />
+              <span>Check now</span>
+            </button>
+          </div>
         </div>
         <Row label="Channel">
           <StaticSegment values={["stable", "beta", "nightly"]} activeIdx={0} />
