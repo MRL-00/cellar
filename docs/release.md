@@ -46,6 +46,17 @@ To publish an already-created draft manually:
 gh release edit 0.1.0 --draft=false
 ```
 
+## In-app auto-updates
+
+Cellar ships with the Tauri updater plugin enabled. Each release build signs
+its update bundle with an Ed25519 private key; the matching public key is
+embedded in `tauri.conf.json` so the app can verify updates before installing.
+
+The frontend "Check now" button in Settings → Updates calls the updater, and
+"Download & install" applies the signed bundle and relaunches the app.
+
+### Required GitHub Actions secrets
+
 Release signing and notarization require these GitHub Actions secrets:
 
 - `DEVELOPER_ID_CERTIFICATE_BASE64` - base64-encoded `.p12` export of the
@@ -57,6 +68,27 @@ Release signing and notarization require these GitHub Actions secrets:
   key `.p8` file.
 - `APP_STORE_CONNECT_KEY_ID` - App Store Connect API key ID.
 - `APP_STORE_CONNECT_ISSUER_ID` - App Store Connect issuer ID.
+- `TAURI_SIGNING_PRIVATE_KEY` - the contents of the Tauri updater private key
+  (generated with `tauri signer generate`). Keep a backup off-repo.
+- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` - the password for the private key, or
+  empty if the key was generated without one.
+
+### How the manifest is published
+
+`tauri-action` generates and uploads a `latest.json` manifest to each GitHub
+Release. The app fetches it from
+`https://github.com/MRL-00/cellar/releases/latest/download/latest.json`.
+Prereleases are excluded from the `/releases/latest` redirect, so only stable
+releases are served to the updater. The manifest maps each platform target
+(`aarch64-apple-darwin`, `x86_64-apple-darwin`) to its signed bundle URL.
+
+### Rotating or losing the signing key
+
+The public key is baked into every shipped build. If the private key is lost,
+already-installed builds cannot verify updates from a new keypair. Keep the
+private key backed up in a secure location (for example, a password manager
+or secrets vault). A new keypair only takes effect for builds shipped after
+the public key is swapped in `tauri.conf.json`.
 
 ## Website downloads
 
@@ -84,4 +116,5 @@ Only macOS builds are published today; Windows and Linux should be added after t
 - Windows: code-signing certificate.
 - Linux: package metadata review for AppImage/deb/rpm outputs.
 
-Do not enable Tauri auto-update until release signing keys and updater metadata are deliberately configured.
+Do not enable Tauri auto-update on Windows/Linux until those platforms have
+tested signed bundles and matching manifest entries in `latest.json`.

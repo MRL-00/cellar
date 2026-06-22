@@ -17,6 +17,8 @@ pub fn run() {
     tauri::Builder::default()
         .manage(registry)
         .manage(history)
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .invoke_handler(invoke_handler)
         .setup(move |app| {
             builder.mount_events(app);
