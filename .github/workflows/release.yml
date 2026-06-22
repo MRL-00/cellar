@@ -157,6 +157,7 @@ jobs:
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
           STABLE_ASSET_NAME: ${{ matrix.stable-asset-name }}
           TARGET_TRIPLE: ${{ matrix.rust-targets }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         shell: bash
         run: |
           set -euo pipefail
@@ -177,26 +178,37 @@ jobs:
           echo "Found DMG at: $dmg_path"
           gh release upload "$RELEASE_TAG" "$dmg_path#$STABLE_ASSET_NAME" --clobber
 
-          # Upload the updater signature file so latest.json can reference it.
-          # The .sig file lives in the sibling macos/ directory next to dmg/.
-          # Rename to match the arch-suffixed .app.tar.gz that tauri-action
-          # uploaded (Cellar_aarch64.app.tar.gz / Cellar_x64.app.tar.gz).
+          # Sign the .app.tar.gz updater bundle and upload the signature.
+          # tauri-action@v0 doesn't correctly handle Tauri v2 updater artifacts,
+          # so we sign the bundle ourselves using the tauri CLI.
           bundle_root="$(dirname "$(dirname "$dmg_path")")"
           macos_dir="$bundle_root/macos"
-          echo "Listing $macos_dir:"
-          ls -la "$macos_dir" || echo "Directory does not exist: $macos_dir"
+          tarball="$(find "$macos_dir" -name "*.app.tar.gz" -type f -print -quit 2>/dev/null || true)"
 
-          sig_path="$(find "$macos_dir" -name "*.sig" -type f -print -quit 2>/dev/null || true)"
-          if [[ -n "$sig_path" ]]; then
+          if [[ -n "$tarball" ]]; then
+            echo "Signing updater bundle: $tarball"
             if [[ "$TARGET_TRIPLE" == "aarch64-apple-darwin" ]]; then
               stable_sig_name="Cellar_aarch64.app.tar.gz.sig"
             else
               stable_sig_name="Cellar_x64.app.tar.gz.sig"
             fi
-            echo "Found signature at: $sig_path (uploading as $stable_sig_name)"
-            gh release upload "$RELEASE_TAG" "$sig_path#$stable_sig_name" --clobber
+
+            # tauri signer sign writes the .sig file next to the input.
+            npx @tauri-apps/cli signer sign \
+              -k "$TAURI_SIGNING_PRIVATE_KEY" \
+              -p "" \
+              "$tarball" || true
+
+            sig_file="${tarball}.sig"
+            if [[ -f "$sig_file" ]]; then
+              echo "Uploading signature as $stable_sig_name"
+              gh release upload "$RELEASE_TAG" "$sig_file#$stable_sig_name" --clobber
+            else
+              echo "Sign command did not produce $sig_file" >&2
+              ls -la "$macos_dir"
+            fi
           else
-            echo "No .sig file found under $macos_dir" >&2
+            echo "No .app.tar.gz found under $macos_dir" >&2
           fi
 
   publish-release:
