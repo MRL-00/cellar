@@ -161,18 +161,18 @@ jobs:
         run: |
           set -euo pipefail
 
-          target_dir="apps/desktop/src-tauri/target/$TARGET_TRIPLE"
-          if [[ ! -d "$target_dir" ]]; then
-            echo "Expected build target directory does not exist: $target_dir" >&2
-            exit 1
-          fi
-
-          dmg_path="$(find "$target_dir" -path '*/release/bundle/dmg/*.dmg' -type f -print -quit)"
+          # The build output may land at either the repo-root target dir
+          # (when CARGO_TARGET_DIR is set by rust-cache) or under
+          # apps/desktop/src-tauri/target. Search both.
+          dmg_path="$(find target "apps/desktop/src-tauri/target" \
+            -path "*/$TARGET_TRIPLE/release/bundle/dmg/*.dmg" -type f \
+            -print -quit 2>/dev/null || true)"
           if [[ -z "$dmg_path" ]]; then
-            echo "No DMG artifact found under $target_dir" >&2
+            echo "No DMG artifact found for $TARGET_TRIPLE" >&2
             exit 1
           fi
 
+          echo "Found DMG at: $dmg_path"
           gh release upload "$RELEASE_TAG" "$dmg_path#$STABLE_ASSET_NAME" --clobber
 
   publish-release:
