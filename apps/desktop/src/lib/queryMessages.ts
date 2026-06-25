@@ -196,6 +196,52 @@ export function buildRunErrorMessage(
   };
 }
 
+export function buildRunCancelRequestedMessage(
+  context: QueryRunContext,
+): PendingQueryMessage {
+  return {
+    tabId: context.tabId,
+    connectionId: context.connectionId,
+    database: context.database,
+    severity: "warning",
+    source: "client",
+    text: `Cancel requested for ${context.label}; waiting for the server to stop the statement.`,
+    sql: context.sql,
+  };
+}
+
+export function buildRunCancelResultMessage(
+  context: QueryRunContext,
+  cancelled: boolean,
+): PendingQueryMessage {
+  return {
+    tabId: context.tabId,
+    connectionId: context.connectionId,
+    database: context.database,
+    severity: cancelled ? "warning" : "info",
+    source: "client",
+    text: cancelled
+      ? "The server accepted the cancel request; the running statement will settle shortly."
+      : "Nothing to cancel; the statement had already finished.",
+    sql: context.sql,
+  };
+}
+
+export function buildRunCancelErrorMessage(
+  context: QueryRunContext,
+  error: unknown,
+): PendingQueryMessage {
+  return {
+    tabId: context.tabId,
+    connectionId: context.connectionId,
+    database: context.database,
+    severity: "warning",
+    source: "client",
+    text: `Could not cancel ${context.label}: ${errorMessage(error)}`,
+    sql: context.sql,
+  };
+}
+
 export function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms} ms`;
   return `${(ms / 1000).toFixed(ms < 10_000 ? 2 : 1)} s`;

@@ -1,0 +1,8 @@
+#:schema https://conductor.build/schemas/settings.repo.schema.json
+"$schema" = "https://conductor.build/schemas/settings.repo.schema.json"
+
+[scripts]
+setup = "pnpm install --frozen-lockfile"
+run = "CELLAR_DEV_PORT=$CONDUCTOR_PORT pnpm dev"
+archive = "true"
+run_mode = "concurrent"

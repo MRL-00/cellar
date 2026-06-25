@@ -48,7 +48,14 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
   const requestExplain = useBottomPanel((s) => s.requestExplain);
   const { settings } = useSettings();
 
-  const { running, errorLine, run, cancel, clearError } = useQueryRunner(tab);
+  const {
+    running,
+    cancelRequested,
+    errorLine,
+    run,
+    cancel,
+    clearError,
+  } = useQueryRunner(tab);
 
   const [caret, setCaret] = useState(0);
   // Per-editor wrap toggle overrides the global default.
@@ -151,10 +158,15 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
             <button
               className="ed-run subtle"
               onClick={cancel}
-              title="Ask the server to stop the running statement"
+              disabled={cancelRequested}
+              title={
+                cancelRequested
+                  ? "Waiting for the running statement to settle"
+                  : "Ask the server to stop the running statement"
+              }
             >
               <Icon.stop size={11} />
-              <span>Cancel</span>
+              <span>{cancelRequested ? "Cancelling…" : "Cancel"}</span>
               <span className="kbd">⌘.</span>
             </button>
           )}

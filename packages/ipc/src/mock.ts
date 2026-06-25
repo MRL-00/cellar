@@ -77,6 +77,11 @@ export const mockCommands = {
       total_rows: null,
     }),
 
+  cancelQuery: async (
+    _connectionId: string,
+    _queryId: string,
+  ): Promise<Result<boolean, CellarError>> => ok(false),
+
   explainQuery: async (
     _connectionId: string,
     sql: string,

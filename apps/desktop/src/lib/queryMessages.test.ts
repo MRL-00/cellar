@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { QueryResult } from "@cellar/ipc";
 import {
+  buildRunCancelErrorMessage,
+  buildRunCancelRequestedMessage,
+  buildRunCancelResultMessage,
   buildQueryErrorMessage,
   buildQueryResultMessages,
   buildTableLoadStartedMessage,
   formatDuration,
   severityCounts,
+  type QueryRunContext,
   type QueryMessage,
   type TableQueryContext,
 } from "./queryMessages";
@@ -29,6 +33,15 @@ const result: QueryResult = {
   duration_ms: 12,
   truncated: false,
   total_rows: null,
+};
+
+const runContext: QueryRunContext = {
+  tabId: "query-tab-1",
+  connectionId: "conn-1",
+  database: "app",
+  label: "statement",
+  sql: "SELECT pg_sleep(30)",
+  maxRows: 1000,
 };
 
 describe("query message builders", () => {
@@ -72,6 +85,20 @@ describe("query message builders", () => {
     expect(message.severity).toBe("error");
     expect(message.source).toBe("driver");
     expect(message.text).toContain("permission denied");
+  });
+
+  it("builds cancellation status messages for running statements", () => {
+    const requested = buildRunCancelRequestedMessage(runContext);
+    const accepted = buildRunCancelResultMessage(runContext, true);
+    const missed = buildRunCancelResultMessage(runContext, false);
+    const failed = buildRunCancelErrorMessage(runContext, new Error("not connected"));
+
+    expect(requested.text).toContain("Cancel requested");
+    expect(accepted.severity).toBe("warning");
+    expect(accepted.text).toContain("accepted");
+    expect(missed.severity).toBe("info");
+    expect(missed.text).toContain("already finished");
+    expect(failed.text).toContain("not connected");
   });
 
   it("counts severities for rendering filters", () => {

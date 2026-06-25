@@ -20,6 +20,7 @@ describe("@cellar/ipc", () => {
         "aiLoadKey",
         "aiStoreKey",
         "browseTable",
+        "cancelQuery",
         "commitTableChanges",
         "connect",
         "deleteConnection",
@@ -83,6 +84,11 @@ describe("@cellar/ipc", () => {
         truncated: false,
       });
     }
+  });
+
+  it("cancelQuery is available in mock mode", async () => {
+    const result = await commands.cancelQuery("any", "query-1");
+    expect(result).toEqual({ status: "ok", data: false });
   });
 
   it("returns empty query history in mock mode", async () => {
