@@ -94,7 +94,7 @@ const engines: ReadonlyArray<Engine> = [
   { name: "SQL Server", color: "var(--eng-mssql)", status: "supported" },
   { name: "Azure SQL", color: "var(--eng-azure)", status: "supported" },
   { name: "Firestore", color: "var(--eng-firestore)", status: "supported" },
-  { name: "MySQL", color: "var(--eng-mysql)", status: "soon" },
+  { name: "MySQL", color: "var(--eng-mysql)", status: "supported" },
   { name: "SQLite", color: "var(--eng-sqlite)", status: "soon" },
 ];
 
@@ -342,7 +342,7 @@ const qas: ReadonlyArray<Qa> = [
   ],
   [
     "Which databases are supported?",
-    "PostgreSQL, SQL Server, Azure SQL, and Firestore are supported today. MySQL and SQLite are coming soon.",
+    "PostgreSQL, SQL Server, Azure SQL, Firestore, and MySQL are supported today. SQLite is coming soon.",
   ],
   [
     "What about Windows and Linux?",

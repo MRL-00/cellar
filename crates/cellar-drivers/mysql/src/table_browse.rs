@@ -1,0 +1,387 @@
+use std::time::Instant;
+
+use cellar_core::error::CellarError;
+use cellar_core::error::CellarResult;
+use cellar_core::query::{
+    NoticeCapture, QueryResult, SortDirection, TableBrowseRequest, TableFilterClause,
+    TableFilterOperator,
+};
+use cellar_core::schema::{Column, Table};
+use cellar_core::value::{ColumnMeta, Row};
+use futures::TryStreamExt;
+use sqlx::{Column as _, MySql, QueryBuilder, Row as _, TypeInfo as _};
+use thiserror::Error;
+
+use crate::connect::MySqlConnection;
+use crate::decode::decode_cell;
+
+const DEFAULT_TABLE_BROWSE_ROWS: u32 = 500;
+const MAX_TABLE_BROWSE_ROWS: u32 = 2000;
+
+#[derive(Debug, Error, Clone, PartialEq, Eq)]
+pub enum TableBrowseError {
+    #[error("schema name is empty")]
+    EmptySchema,
+    #[error("table name is empty")]
+    EmptyTable,
+    #[error("table metadata does not match requested table")]
+    TableMetadataMismatch,
+    #[error("table browse limit must be greater than zero")]
+    EmptyLimit,
+    #[error("table browse limit cannot exceed {MAX_TABLE_BROWSE_ROWS} rows per page")]
+    LimitTooLarge,
+    #[error("table browse offset is too large")]
+    OffsetTooLarge,
+    #[error("unknown column {0}")]
+    UnknownColumn(String),
+    #[error("operator {operator:?} requires a value for column {column}")]
+    MissingValue {
+        column: String,
+        operator: TableFilterOperator,
+    },
+    #[error("operator {operator:?} does not accept a value for column {column}")]
+    UnexpectedValue {
+        column: String,
+        operator: TableFilterOperator,
+    },
+    #[error("operator {operator:?} is not supported for column {column} ({data_type})")]
+    UnsupportedOperator {
+        column: String,
+        data_type: String,
+        operator: TableFilterOperator,
+    },
+}
+
+pub async fn browse_table(
+    conn: &MySqlConnection,
+    request: &TableBrowseRequest,
+    table: &Table,
+) -> CellarResult<QueryResult> {
+    let max_rows = normalized_limit(request).map_err(to_query_err)?;
+    let pool = conn.pool();
+
+    let total_rows: Option<u64> = if request.include_total {
+        let count: i64 = build_table_count_query(request, table)
+            .map_err(to_query_err)?
+            .build_query_scalar()
+            .fetch_one(pool)
+            .await
+            .map_err(|e| CellarError::query(e.to_string()))?;
+        Some(count.max(0) as u64)
+    } else {
+        None
+    };
+
+    let mut builder = build_table_browse_query(request, table).map_err(to_query_err)?;
+    let started = Instant::now();
+    let mut stream = builder.build().fetch(pool);
+    let mut columns: Option<Vec<ColumnMeta>> = None;
+    let mut materialized: Vec<Row> = Vec::with_capacity(max_rows as usize);
+    let mut truncated = false;
+
+    while let Some(r) = stream
+        .try_next()
+        .await
+        .map_err(|e| CellarError::query(e.to_string()))?
+    {
+        if columns.is_none() {
+            columns = Some(
+                r.columns()
+                    .iter()
+                    .map(|c| ColumnMeta {
+                        name: c.name().to_string(),
+                        data_type: c.type_info().name().to_string().to_lowercase(),
+                        nullable: true,
+                    })
+                    .collect(),
+            );
+        }
+
+        if materialized.len() >= max_rows as usize {
+            truncated = true;
+            break;
+        }
+
+        let mut cells: Row = Vec::with_capacity(r.columns().len());
+        for i in 0..r.columns().len() {
+            cells.push(decode_cell(&r, i)?);
+        }
+        materialized.push(cells);
+    }
+
+    Ok(QueryResult {
+        columns: columns.unwrap_or_default(),
+        rows: materialized,
+        notices: Vec::new(),
+        notice_capture: NoticeCapture::unsupported(
+            "MySQL does not expose server notices through the sqlx query path.",
+        ),
+        rows_affected: None,
+        duration_ms: started.elapsed().as_millis() as u64,
+        truncated,
+        total_rows,
+    })
+}
+
+fn build_table_count_query<'args>(
+    request: &'args TableBrowseRequest,
+    table: &Table,
+) -> Result<QueryBuilder<'args, MySql>, TableBrowseError> {
+    for filter in &request.filters {
+        column_for(table, &filter.column)?;
+    }
+
+    let mut builder = QueryBuilder::<MySql>::new("SELECT count(*) FROM ");
+    push_qualified_table(&mut builder, &request.schema, &request.table);
+
+    if !request.filters.is_empty() {
+        builder.push(" WHERE ");
+        for (i, filter) in request.filters.iter().enumerate() {
+            if i > 0 {
+                builder.push(" AND ");
+            }
+            push_filter(&mut builder, filter, table)?;
+        }
+    }
+
+    Ok(builder)
+}
+
+fn build_table_browse_query<'args>(
+    request: &'args TableBrowseRequest,
+    table: &Table,
+) -> Result<QueryBuilder<'args, MySql>, TableBrowseError> {
+    validate_table_request(request, table)?;
+
+    let mut builder = QueryBuilder::<MySql>::new("SELECT * FROM ");
+    push_qualified_table(&mut builder, &request.schema, &request.table);
+
+    if !request.filters.is_empty() {
+        builder.push(" WHERE ");
+        for (i, filter) in request.filters.iter().enumerate() {
+            if i > 0 {
+                builder.push(" AND ");
+            }
+            push_filter(&mut builder, filter, table)?;
+        }
+    }
+
+    if !request.sorts.is_empty() {
+        builder.push(" ORDER BY ");
+        for (i, sort) in request.sorts.iter().enumerate() {
+            if i > 0 {
+                builder.push(", ");
+            }
+            let column = column_for(table, &sort.column)?;
+            push_ident(&mut builder, &column.name);
+            match sort.direction {
+                SortDirection::Asc => builder.push(" ASC"),
+                SortDirection::Desc => builder.push(" DESC"),
+            };
+        }
+    } else if request.primary_key_fallback_ordering && !table.primary_key.is_empty() {
+        builder.push(" ORDER BY ");
+        for (i, column_name) in table.primary_key.iter().enumerate() {
+            if i > 0 {
+                builder.push(", ");
+            }
+            let column = column_for(table, column_name)?;
+            push_ident(&mut builder, &column.name);
+        }
+    }
+
+    let fetch_limit = normalized_limit(request)? + 1;
+    builder.push(" LIMIT ");
+    builder.push_bind(fetch_limit as i64);
+    if let Some(offset) = normalized_offset(request)? {
+        builder.push(" OFFSET ");
+        builder.push_bind(offset as i64);
+    }
+
+    Ok(builder)
+}
+
+fn validate_table_request(
+    request: &TableBrowseRequest,
+    table: &Table,
+) -> Result<(), TableBrowseError> {
+    if request.schema.trim().is_empty() {
+        return Err(TableBrowseError::EmptySchema);
+    }
+    if request.table.trim().is_empty() {
+        return Err(TableBrowseError::EmptyTable);
+    }
+    if table.schema != request.schema || table.name != request.table {
+        return Err(TableBrowseError::TableMetadataMismatch);
+    }
+    normalized_limit(request)?;
+    normalized_offset(request)?;
+    for sort in &request.sorts {
+        column_for(table, &sort.column)?;
+    }
+    for filter in &request.filters {
+        column_for(table, &filter.column)?;
+    }
+    Ok(())
+}
+
+fn normalized_limit(request: &TableBrowseRequest) -> Result<u32, TableBrowseError> {
+    let limit = request.limit.unwrap_or(DEFAULT_TABLE_BROWSE_ROWS);
+    if limit == 0 {
+        return Err(TableBrowseError::EmptyLimit);
+    }
+    if limit > MAX_TABLE_BROWSE_ROWS {
+        return Err(TableBrowseError::LimitTooLarge);
+    }
+    Ok(limit)
+}
+
+fn normalized_offset(request: &TableBrowseRequest) -> Result<Option<u32>, TableBrowseError> {
+    match request.offset {
+        Some(offset) if offset > i32::MAX as u32 => Err(TableBrowseError::OffsetTooLarge),
+        Some(0) | None => Ok(None),
+        Some(offset) => Ok(Some(offset)),
+    }
+}
+
+fn push_filter<'args>(
+    builder: &mut QueryBuilder<'args, MySql>,
+    filter: &'args TableFilterClause,
+    table: &Table,
+) -> Result<(), TableBrowseError> {
+    let column = column_for(table, &filter.column)?;
+    let kind = ColumnKind::from_mysql_type(&column.data_type);
+
+    match filter.operator {
+        TableFilterOperator::IsNull => {
+            reject_value(filter)?;
+            push_ident(builder, &column.name);
+            builder.push(" IS NULL");
+        }
+        TableFilterOperator::IsNotNull => {
+            reject_value(filter)?;
+            push_ident(builder, &column.name);
+            builder.push(" IS NOT NULL");
+        }
+        TableFilterOperator::Contains => {
+            let value = require_value(filter)?;
+            if !matches!(kind, ColumnKind::Text) {
+                return Err(unsupported(column, filter.operator));
+            }
+            push_ident(builder, &column.name);
+            builder.push(" LIKE CONCAT('%', ");
+            builder.push_bind(value);
+            builder.push(", '%')");
+        }
+        TableFilterOperator::Equals | TableFilterOperator::NotEquals => {
+            let value = require_value(filter)?;
+            let operator = if filter.operator == TableFilterOperator::Equals {
+                " = "
+            } else {
+                " <> "
+            };
+            push_ident(builder, &column.name);
+            builder.push(operator);
+            builder.push_bind(value);
+        }
+        TableFilterOperator::GreaterThan
+        | TableFilterOperator::GreaterThanOrEqual
+        | TableFilterOperator::LessThan
+        | TableFilterOperator::LessThanOrEqual => {
+            let value = require_value(filter)?;
+            if !matches!(kind, ColumnKind::Numeric) {
+                return Err(unsupported(column, filter.operator));
+            }
+            let operator = match filter.operator {
+                TableFilterOperator::GreaterThan => " > ",
+                TableFilterOperator::GreaterThanOrEqual => " >= ",
+                TableFilterOperator::LessThan => " < ",
+                TableFilterOperator::LessThanOrEqual => " <= ",
+                _ => unreachable!(),
+            };
+            push_ident(builder, &column.name);
+            builder.push(operator);
+            builder.push_bind(value);
+        }
+    }
+
+    Ok(())
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ColumnKind {
+    Numeric,
+    Text,
+    Temporal,
+    Other,
+}
+
+impl ColumnKind {
+    fn from_mysql_type(type_name: &str) -> Self {
+        let t = type_name.to_uppercase();
+        match t.as_str() {
+            "TINYINT" | "SMALLINT" | "MEDIUMINT" | "INT" | "INTEGER" | "BIGINT" | "FLOAT"
+            | "DOUBLE" | "DECIMAL" | "NUMERIC" | "NEWDECIMAL" | "UNSIGNED TINYINT"
+            | "UNSIGNED SMALLINT" | "UNSIGNED INT" | "UNSIGNED INTEGER" | "UNSIGNED BIGINT" => {
+                ColumnKind::Numeric
+            }
+            "CHAR" | "VARCHAR" | "TEXT" | "TINYTEXT" | "MEDIUMTEXT" | "LONGTEXT" | "ENUM"
+            | "SET" => ColumnKind::Text,
+            "DATE" | "TIME" | "DATETIME" | "TIMESTAMP" => ColumnKind::Temporal,
+            _ => ColumnKind::Other,
+        }
+    }
+}
+
+fn column_for<'a>(table: &'a Table, column_name: &str) -> Result<&'a Column, TableBrowseError> {
+    table
+        .columns
+        .iter()
+        .find(|c| c.name == column_name)
+        .ok_or_else(|| TableBrowseError::UnknownColumn(column_name.to_string()))
+}
+
+fn require_value(filter: &TableFilterClause) -> Result<&str, TableBrowseError> {
+    filter.value.as_deref().ok_or_else(|| TableBrowseError::MissingValue {
+        column: filter.column.clone(),
+        operator: filter.operator,
+    })
+}
+
+fn reject_value(filter: &TableFilterClause) -> Result<(), TableBrowseError> {
+    if filter.value.is_some() {
+        return Err(TableBrowseError::UnexpectedValue {
+            column: filter.column.clone(),
+            operator: filter.operator,
+        });
+    }
+    Ok(())
+}
+
+fn unsupported(column: &Column, operator: TableFilterOperator) -> TableBrowseError {
+    TableBrowseError::UnsupportedOperator {
+        column: column.name.clone(),
+        data_type: column.data_type.clone(),
+        operator,
+    }
+}
+
+fn push_ident<'args>(builder: &mut QueryBuilder<'args, MySql>, ident: &str) {
+    builder.push('`');
+    builder.push(ident.replace('`', "``"));
+    builder.push('`');
+}
+
+fn push_qualified_table<'args>(
+    builder: &mut QueryBuilder<'args, MySql>,
+    schema: &str,
+    table: &str,
+) {
+    push_ident(builder, schema);
+    builder.push('.');
+    push_ident(builder, table);
+}
+
+fn to_query_err(err: TableBrowseError) -> CellarError {
+    CellarError::query(err.to_string())
+}

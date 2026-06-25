@@ -8,6 +8,7 @@ use cellar_core::query::{PlanMode, Query, QueryPlan, QueryResult, TableBrowseReq
 use cellar_core::schema::{Database, Table};
 use cellar_diff::{TableChangeRequest, TableCommitResult};
 use cellar_driver_firestore::FirestoreDriver;
+use cellar_driver_mysql::MySqlDriver;
 use cellar_driver_postgres::PostgresDriver;
 use cellar_driver_sqlserver::SqlServerDriver;
 use tokio::fs;
@@ -275,6 +276,16 @@ impl ConnectionRegistry {
                 cellar_driver_firestore::browse_collection(connection.as_ref(), &request, &table)
                     .await
             }
+            Engine::MySql => {
+                match cellar_driver_mysql::browse_table(connection.as_ref(), &request, &table)
+                    .await
+                {
+                    Ok(result) => Ok(result),
+                    Err(err) => Err(self
+                        .handle_operation_error(&request.connection_id, err)
+                        .await),
+                }
+            }
             Engine::Postgres => {
                 match cellar_driver_postgres::browse_table(connection.as_ref(), &request, &table)
                     .await
@@ -461,6 +472,7 @@ fn find_table(dbs: &[Database], database: &str, schema: &str, table: &str) -> Ce
 fn driver_for(engine: Engine) -> CellarResult<Box<dyn Driver>> {
     match engine {
         Engine::Firestore => Ok(Box::new(FirestoreDriver::new())),
+        Engine::MySql => Ok(Box::new(MySqlDriver::new())),
         Engine::Postgres => Ok(Box::new(PostgresDriver::new())),
         Engine::Mssql => Ok(Box::new(SqlServerDriver::new())),
         Engine::Azure => Ok(Box::new(SqlServerDriver::azure())),
