@@ -289,7 +289,9 @@ fn push_filter<'args>(
         | TableFilterOperator::LessThan
         | TableFilterOperator::LessThanOrEqual => {
             let value = require_value(filter)?;
-            if !matches!(kind, ColumnKind::Numeric) {
+            // Range comparisons are valid for numeric and temporal columns;
+            // MySQL coerces the bound string for DATE/TIME/DATETIME.
+            if !matches!(kind, ColumnKind::Numeric | ColumnKind::Temporal) {
                 return Err(unsupported(column, filter.operator));
             }
             let operator = match filter.operator {
@@ -488,6 +490,21 @@ mod tests {
             "SELECT * FROM `app`.`users` WHERE `email` LIKE CONCAT('%', ?, '%') ORDER BY `id` LIMIT ?"
         );
         assert!(!sql.contains("o'reilly"));
+    }
+
+    #[test]
+    fn allows_range_comparison_on_temporal_column() {
+        let mut req = request();
+        req.filters.push(TableFilterClause {
+            column: "created_at".into(),
+            operator: TableFilterOperator::GreaterThan,
+            value: Some("2024-01-01".into()),
+        });
+        let sql = sql_for(&req).expect("sql");
+        assert_eq!(
+            sql,
+            "SELECT * FROM `app`.`users` WHERE `created_at` > ? ORDER BY `id` LIMIT ?"
+        );
     }
 
     #[test]

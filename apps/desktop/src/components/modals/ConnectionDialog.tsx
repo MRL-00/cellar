@@ -29,6 +29,19 @@ const DEFAULT_PORT: Record<Engine, number> = {
   firestore: 443,
 };
 
+// Default catalog to target when the user first picks an engine. MySQL has no
+// "postgres"-style user database, so we use the always-present `mysql` system
+// schema as a connectable starting point. Firestore/SQLite carry no SQL
+// catalog (project id / file path), so they default to empty.
+const DEFAULT_DATABASE: Record<Engine, string> = {
+  postgres: "postgres",
+  mysql: "mysql",
+  mssql: "master",
+  azure: "master",
+  sqlite: "",
+  firestore: "",
+};
+
 type Tab = "general" | "ssh" | "ssl" | "options";
 type TestStatus =
   | { kind: "idle" }
@@ -111,15 +124,14 @@ export function ConnectionDialog({
     if (!userPickedEngine.current) return;
     setPort(DEFAULT_PORT[engine] || 5432);
     setSwatch(ENGINE_HEX[engine]);
+    setDatabase(DEFAULT_DATABASE[engine]);
     if (engine === "firestore") {
       setHost("firestore.googleapis.com");
-      setDatabase("");
       setUser("(default)");
       setSsl(true);
       setSslMode("require");
     } else if (engine === "mssql") {
       setHost("localhost");
-      setDatabase("master");
       setSsl(true);
       setSslMode("prefer");
     }
