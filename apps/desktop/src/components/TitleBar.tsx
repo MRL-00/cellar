@@ -97,27 +97,6 @@ export function TitleBar({
           aria-hidden="true"
           className="pointer-events-none h-full w-[68px] shrink-0"
         />
-        <div className="flex items-center gap-1.5 px-1">
-          <span
-            className="relative h-[14px] w-[14px] rounded-[3px]"
-            style={{
-              background:
-                "linear-gradient(135deg, #c4b5fd 0%, var(--accent) 55%, #6d4ed1 100%)",
-              boxShadow: "0 0 0 1px rgba(0, 0, 0, 0.2) inset",
-            }}
-          >
-            <span
-              className="absolute inset-[2px] rounded-[1px] bg-bg-1"
-              style={{
-                clipPath:
-                  "polygon(0 0, 100% 0, 100% 35%, 35% 35%, 35% 65%, 100% 65%, 100% 100%, 0 100%)",
-              }}
-            />
-          </span>
-          <span className="text-[12px] font-semibold tracking-[0.02em] text-fg-0">
-            Cellar
-          </span>
-        </div>
         {!empty && activeTab && (
           <>
             <div className="mx-0.5 h-4 w-px bg-border-default" />
@@ -161,9 +140,9 @@ export function TitleBar({
       <button
         type="button"
         onClick={onOpenPalette}
-        className="absolute left-1/2 top-1/2 flex h-[22px] min-w-0 w-[320px] max-w-[320px] -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-[5px] border border-border-default bg-bg-inset px-2 text-[11px] text-fg-3 transition-[border-color] duration-150 hover:border-border-strong"
+        className="absolute left-1/2 top-1/2 flex h-[24px] min-w-0 w-[320px] max-w-[320px] -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-[5px] border border-border-default bg-bg-inset px-2 text-[11.5px] text-fg-3 transition-[border-color] duration-150 hover:border-border-strong"
       >
-        <Icon.search size={11} />
+        <Icon.search size={12} />
         <span className="flex-1 text-left">
           Search tables, columns, queries…
         </span>
