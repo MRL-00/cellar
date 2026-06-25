@@ -298,7 +298,7 @@ export function ConnectionDialog({
                 className={CD_INPUT}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder={isFirestore ? "prod-firestore" : "local-postgres"}
+                placeholder={isFirestore ? "prod-firestore" : `local-${engine}`}
               />
             </FormRow>
 
