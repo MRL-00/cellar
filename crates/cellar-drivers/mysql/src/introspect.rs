@@ -233,7 +233,11 @@ async fn list_indexes(pool: &MySqlPool, db_name: &str) -> CellarResult<IdxMap> {
     for r in rows {
         let table: String = r.try_get("TABLE_NAME").map_err(intro_err)?;
         let name: String = r.try_get("INDEX_NAME").map_err(intro_err)?;
-        let col: String = r.try_get("COLUMN_NAME").map_err(intro_err)?;
+        // COLUMN_NAME is NULL for MySQL 8+ expression (functional) index parts;
+        // the expression lives in a separate EXPRESSION column we don't model.
+        // Keep the index but skip the unnamed part rather than erroring the
+        // whole introspection.
+        let col: Option<String> = r.try_get("COLUMN_NAME").map_err(intro_err)?;
         let non_unique: i64 = r.try_get("NON_UNIQUE").map_err(intro_err)?;
         let unique = non_unique == 0;
         let primary = name == "PRIMARY";
@@ -245,7 +249,9 @@ async fn list_indexes(pool: &MySqlPool, db_name: &str) -> CellarResult<IdxMap> {
                 unique,
                 primary,
             });
-        entry.columns.push(col);
+        if let Some(col) = col {
+            entry.columns.push(col);
+        }
     }
 
     let mut out: IdxMap = BTreeMap::new();

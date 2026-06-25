@@ -17,17 +17,26 @@ pub async fn execute_query(conn: &MySqlConnection, query: &Query) -> CellarResul
     let offset = query.offset.unwrap_or(0) as usize;
     let started = Instant::now();
 
-    let mut stream = sqlx::query(&query.sql).fetch(pool);
+    // fetch_many (vs fetch) also yields the command-complete arm, which carries
+    // the affected-row count for DML (INSERT/UPDATE/DELETE). fetch alone drops
+    // it, so those statements would never report a count.
+    #[allow(deprecated)]
+    let mut stream = sqlx::query(&query.sql).fetch_many(pool);
     let mut columns: Option<Vec<ColumnMeta>> = None;
     let mut rows: Vec<Row> = Vec::with_capacity(max_rows.min(10_000));
     let mut truncated = false;
     let mut rows_seen: usize = 0;
+    let mut rows_affected: Option<u64> = None;
 
-    while let Some(r) = stream
-        .try_next()
-        .await
-        .map_err(query_sqlx_err)?
-    {
+    while let Some(item) = stream.try_next().await.map_err(query_sqlx_err)? {
+        let r = match item {
+            sqlx::Either::Left(done) => {
+                rows_affected = Some(rows_affected.unwrap_or(0) + done.rows_affected());
+                continue;
+            }
+            sqlx::Either::Right(row) => row,
+        };
+
         if columns.is_none() {
             columns = Some(
                 r.columns()
@@ -59,6 +68,11 @@ pub async fn execute_query(conn: &MySqlConnection, query: &Query) -> CellarResul
         rows.push(cells);
     }
 
+    // Only surface an affected count for statements without a result set
+    // (INSERT/UPDATE/DELETE/DDL). For SELECTs the count is just the row count
+    // and the UI would mislabel it as "N rows affected".
+    let rows_affected = if columns.is_none() { rows_affected } else { None };
+
     Ok(QueryResult {
         columns: columns.unwrap_or_default(),
         rows,
@@ -66,7 +80,7 @@ pub async fn execute_query(conn: &MySqlConnection, query: &Query) -> CellarResul
         notice_capture: NoticeCapture::unsupported(
             "MySQL does not expose server notices through the sqlx query path.",
         ),
-        rows_affected: None,
+        rows_affected,
         duration_ms: started.elapsed().as_millis() as u64,
         truncated,
         total_rows: None,
