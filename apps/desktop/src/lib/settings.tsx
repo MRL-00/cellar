@@ -72,7 +72,9 @@ export const DEFAULTS: Settings = {
 };
 
 const STORAGE_KEY = "cellar.settings.v1";
-const FONT_SIZE_BASELINE = 13.5;
+// Most compact UI labels are authored around 10-12px. Treat the user's setting
+// as the target readable size, so the default 13.5px setting is not a no-op.
+const FONT_SIZE_BASELINE = 12;
 export const FONT_SIZE_MIN = 10;
 export const FONT_SIZE_MAX = 22;
 
@@ -116,7 +118,7 @@ export function sanitize(s: Settings): Settings {
   };
 }
 
-function applySideEffects(s: Settings) {
+export function applySettingsSideEffects(s: Settings) {
   const html = document.documentElement;
   const body = document.body;
 
@@ -177,7 +179,7 @@ const SettingsContext = createContext<Ctx | null>(null);
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<Settings>(() => {
     const initial = load();
-    applySideEffects(initial);
+    applySettingsSideEffects(initial);
     return initial;
   });
 
@@ -185,7 +187,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setSettings((prev) => {
       const next = sanitize({ ...prev, [key]: value });
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      applySideEffects(next);
+      applySettingsSideEffects(next);
       return next;
     });
   }, []);
@@ -197,7 +199,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         editor: { ...prev.editor, ...patch },
       });
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      applySideEffects(next);
+      applySettingsSideEffects(next);
       return next;
     });
   }, []);
@@ -209,7 +211,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         grid: { ...prev.grid, ...patch },
       });
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      applySideEffects(next);
+      applySettingsSideEffects(next);
       return next;
     });
   }, []);
@@ -223,21 +225,21 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         grid: { ...prev.grid, ...(partial.grid ?? {}) },
       });
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      applySideEffects(next);
+      applySettingsSideEffects(next);
       return next;
     });
   }, []);
 
   const reset = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
-    applySideEffects(DEFAULTS);
+    applySettingsSideEffects(DEFAULTS);
     setSettings(DEFAULTS);
   }, []);
 
   useEffect(() => {
     if (settings.theme !== "system") return;
     const mq = window.matchMedia("(prefers-color-scheme: light)");
-    const onChange = () => applySideEffects(settings);
+    const onChange = () => applySettingsSideEffects(settings);
     mq.addEventListener("change", onChange);
     return () => mq.removeEventListener("change", onChange);
   }, [settings]);
