@@ -18,6 +18,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type KeyboardEvent as ReactKeyboardEvent,
   type MutableRefObject,
   type ReactNode,
 } from "react";
@@ -455,39 +456,53 @@ function ReadOnlyResultGrid({
     };
   }, [exportViewRef, result.columns, visibleRows]);
 
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
   const copy = (text: string) => {
     if (!navigator.clipboard) return;
     void navigator.clipboard.writeText(text);
   };
 
   // ⌘/Ctrl+C copies the selected row as TSV (pastes cleanly into spreadsheets),
-  // or the selected single cell's value. Native text selections are left alone.
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "c") {
-        return;
-      }
-      if (!window.getSelection()?.isCollapsed) return;
-      if (grid.selectedRow !== null) {
-        const row = visibleRows[grid.selectedRow];
-        if (!row) return;
-        event.preventDefault();
-        copy(toTsv(result.columns, [row], { header: false }).trimEnd());
-      } else if (grid.selection) {
-        const column = result.columns[grid.selection.col];
-        const row = visibleRows[grid.selection.row];
-        if (!column || !row) return;
-        const cell = row[column.key];
-        event.preventDefault();
-        copy(cell == null ? "" : String(cell));
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [grid.selectedRow, grid.selection, result.columns, visibleRows]);
+  // or the selected single cell's value. Scoped to the grid container's focus so
+  // it never hijacks copy from the SQL editor or another pane, and leaves native
+  // text selections (and copies from inline editors) alone.
+  const handleCopyKey = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "c") {
+      return;
+    }
+    const active = document.activeElement;
+    if (
+      active instanceof HTMLElement &&
+      (active.tagName === "INPUT" ||
+        active.tagName === "TEXTAREA" ||
+        active.isContentEditable)
+    ) {
+      return;
+    }
+    if (!window.getSelection()?.isCollapsed) return;
+    if (grid.selectedRow !== null) {
+      const row = visibleRows[grid.selectedRow];
+      if (!row) return;
+      event.preventDefault();
+      copy(toTsv(result.columns, [row], { header: false }).trimEnd());
+    } else if (grid.selection) {
+      const column = result.columns[grid.selection.col];
+      const row = visibleRows[grid.selection.row];
+      if (!column || !row) return;
+      const cell = row[column.key];
+      event.preventDefault();
+      copy(cell == null ? "" : String(cell));
+    }
+  };
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+    <div
+      ref={containerRef}
+      tabIndex={-1}
+      onKeyDown={handleCopyKey}
+      className="flex h-full min-h-0 flex-col overflow-hidden outline-none"
+    >
       <div className="min-h-0 flex-1 overflow-hidden">
         <DataGrid
           columns={result.columns}
@@ -496,7 +511,11 @@ function ReadOnlyResultGrid({
           changes={grid.changes}
           onChange={grid.setChanges}
           selection={grid.selection}
-          onSelect={grid.setSelection}
+          onSelect={(next) => {
+            grid.setSelection(next);
+            // Pull keyboard focus into the grid so ⌘C targets this pane.
+            if (next) containerRef.current?.focus({ preventScroll: true });
+          }}
           editing={grid.editing}
           onEdit={grid.setEditing}
           filters={grid.filters}
@@ -507,7 +526,12 @@ function ReadOnlyResultGrid({
           nullDisplay={settings.grid.nullDisplay}
           stripeRows={settings.grid.stripeRows}
           selectedRow={grid.selectedRow}
-          onRowSelect={(rowIndex) => grid.setSelectedRow(rowIndex)}
+          onRowSelect={(rowIndex) => {
+            grid.setSelectedRow(rowIndex);
+            if (rowIndex !== null) {
+              containerRef.current?.focus({ preventScroll: true });
+            }
+          }}
           onRowContextMenu={(event, row) => {
             event.preventDefault();
             setCopyMenu({
@@ -527,6 +551,10 @@ function ReadOnlyResultGrid({
                     copy(
                       toTsv(result.columns, [row], { header: false }).trimEnd(),
                     ),
+                },
+                {
+                  label: "Copy row as JSON",
+                  onClick: () => copy(toJson(result.columns, [row]).trimEnd()),
                 },
                 {
                   label: "Copy row as SQL INSERT",
@@ -574,6 +602,10 @@ function ReadOnlyResultGrid({
                     copy(
                       toTsv(result.columns, [row], { header: false }).trimEnd(),
                     ),
+                },
+                {
+                  label: "Copy row as JSON",
+                  onClick: () => copy(toJson(result.columns, [row]).trimEnd()),
                 },
                 {
                   label: "Copy row as SQL INSERT",

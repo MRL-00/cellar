@@ -4,7 +4,13 @@ import {
   type GridRow,
   type PendingChanges,
 } from "@cellar/data-grid";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
 
 import { SqlEditor } from "./SqlEditor";
 import { ContextMenu, type ContextMenuState } from "./ContextMenu";
@@ -182,28 +188,36 @@ function TableTabPane({
     () => clearTableChanges(tab.id),
     [clearTableChanges, tab.id],
   );
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const copyText = useCallback((text: string) => {
     if (!navigator.clipboard) return;
     void navigator.clipboard.writeText(text);
   }, []);
 
   // ⌘/Ctrl+C copies the selected row as TSV (drops cleanly into spreadsheets).
-  // Native text selections are left to the browser.
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "c") {
-        return;
-      }
-      if (!window.getSelection()?.isCollapsed) return;
-      if (!selectedRowData) return;
-      event.preventDefault();
-      copyText(
-        toTsv(data.columns, [selectedRowData], { header: false }).trimEnd(),
-      );
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [copyText, data.columns, selectedRowData]);
+  // Scoped to the grid container's focus so it never hijacks copy from the SQL
+  // editor or another pane; native text selections and inline editors are left
+  // to the browser.
+  const handleCopyKey = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "c") {
+      return;
+    }
+    const active = document.activeElement;
+    if (
+      active instanceof HTMLElement &&
+      (active.tagName === "INPUT" ||
+        active.tagName === "TEXTAREA" ||
+        active.isContentEditable)
+    ) {
+      return;
+    }
+    if (!window.getSelection()?.isCollapsed) return;
+    if (!selectedRowData) return;
+    event.preventDefault();
+    copyText(
+      toTsv(data.columns, [selectedRowData], { header: false }).trimEnd(),
+    );
+  };
   const pagination = useMemo(
     () => ({
       offset: data.offset,
@@ -246,7 +260,12 @@ function TableTabPane({
   }
 
   return (
-    <div className="flex flex-1 min-h-0 overflow-hidden">
+    <div
+      ref={containerRef}
+      tabIndex={-1}
+      onKeyDown={handleCopyKey}
+      className="flex flex-1 min-h-0 overflow-hidden outline-none"
+    >
       <DataGrid
         columns={data.columns}
         rows={data.rows}
@@ -272,6 +291,9 @@ function TableTabPane({
         onRowSelect={(rowIndex, row) => {
           grid.setSelectedRow(rowIndex);
           setSelectedRowData(row);
+          if (rowIndex !== null) {
+            containerRef.current?.focus({ preventScroll: true });
+          }
         }}
         onRowContextMenu={(event, row) => {
           event.preventDefault();

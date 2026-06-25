@@ -603,6 +603,9 @@ export function DataGrid({
       [rowId]: { kind: "insert", edits: {} },
     });
     const nextRowIndex = visibleRows.length;
+    // Inserting starts editing a cell, so clear any full-row selection to keep
+    // row- and cell-selection mutually exclusive.
+    onRowSelect?.(null, null);
     onSelect({ row: nextRowIndex, col: 0 });
     onEdit({ row: nextRowIndex, col: 0 });
     window.requestAnimationFrame(() => {
@@ -615,6 +618,7 @@ export function DataGrid({
     changes,
     onChange,
     onEdit,
+    onRowSelect,
     onSelect,
     readOnly,
     renderedColumns.length,
