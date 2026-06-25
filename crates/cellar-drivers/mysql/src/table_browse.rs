@@ -317,17 +317,25 @@ enum ColumnKind {
 }
 
 impl ColumnKind {
+    /// Classify a column from its `information_schema.COLUMN_TYPE`, e.g.
+    /// `"varchar(255)"`, `"int(10) unsigned"`, `"decimal(10,2)"`,
+    /// `"enum('a','b')"`. We key off the leading base-type token, ignoring the
+    /// length/enum-value parenthetical and the trailing `unsigned`/`zerofill`
+    /// attributes.
     fn from_mysql_type(type_name: &str) -> Self {
-        let t = type_name.to_uppercase();
-        match t.as_str() {
-            "TINYINT" | "SMALLINT" | "MEDIUMINT" | "INT" | "INTEGER" | "BIGINT" | "FLOAT"
-            | "DOUBLE" | "DECIMAL" | "NUMERIC" | "NEWDECIMAL" | "UNSIGNED TINYINT"
-            | "UNSIGNED SMALLINT" | "UNSIGNED INT" | "UNSIGNED INTEGER" | "UNSIGNED BIGINT" => {
+        let lowered = type_name.to_ascii_lowercase();
+        let base = lowered
+            .split(['(', ' '])
+            .next()
+            .unwrap_or(lowered.as_str());
+        match base {
+            "tinyint" | "smallint" | "mediumint" | "int" | "integer" | "bigint" | "float"
+            | "double" | "real" | "decimal" | "numeric" | "dec" | "fixed" | "bit" | "year" => {
                 ColumnKind::Numeric
             }
-            "CHAR" | "VARCHAR" | "TEXT" | "TINYTEXT" | "MEDIUMTEXT" | "LONGTEXT" | "ENUM"
-            | "SET" => ColumnKind::Text,
-            "DATE" | "TIME" | "DATETIME" | "TIMESTAMP" => ColumnKind::Temporal,
+            "char" | "varchar" | "text" | "tinytext" | "mediumtext" | "longtext" | "enum"
+            | "set" => ColumnKind::Text,
+            "date" | "time" | "datetime" | "timestamp" => ColumnKind::Temporal,
             _ => ColumnKind::Other,
         }
     }
@@ -384,4 +392,196 @@ fn push_qualified_table<'args>(
 
 fn to_query_err(err: TableBrowseError) -> CellarError {
     CellarError::query(err.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cellar_core::query::TableSortClause;
+
+    fn request() -> TableBrowseRequest {
+        TableBrowseRequest {
+            connection_id: "conn".into(),
+            database: Some("app".into()),
+            schema: "app".into(),
+            table: "users".into(),
+            limit: Some(500),
+            offset: None,
+            sorts: Vec::new(),
+            filters: Vec::new(),
+            primary_key_fallback_ordering: true,
+            include_total: false,
+        }
+    }
+
+    fn table() -> Table {
+        Table {
+            name: "users".into(),
+            schema: "app".into(),
+            row_count: None,
+            primary_key: vec!["id".into()],
+            foreign_keys: Vec::new(),
+            indexes: Vec::new(),
+            columns: vec![
+                column("id", "bigint(20)", true),
+                column("email", "varchar(255)", false),
+                column("age", "int(11)", false),
+                column("created_at", "datetime", false),
+            ],
+        }
+    }
+
+    fn column(name: &str, data_type: &str, primary: bool) -> Column {
+        Column {
+            name: name.into(),
+            data_type: data_type.into(),
+            nullable: true,
+            default: None,
+            is_primary_key: primary,
+            ordinal: 1,
+            comment: None,
+        }
+    }
+
+    fn sql_for(request: &TableBrowseRequest) -> Result<String, TableBrowseError> {
+        Ok(build_table_browse_query(request, &table())?
+            .sql()
+            .to_string())
+    }
+
+    #[test]
+    fn backtick_quotes_and_uses_primary_key_fallback_ordering() {
+        let sql = sql_for(&request()).expect("sql");
+        assert_eq!(sql, "SELECT * FROM `app`.`users` ORDER BY `id` LIMIT ?");
+    }
+
+    #[test]
+    fn doubles_embedded_backticks() {
+        let mut req = request();
+        req.schema = "odd`schema".into();
+        req.table = "user`data".into();
+        let mut meta = table();
+        meta.schema = req.schema.clone();
+        meta.name = req.table.clone();
+
+        let sql = build_table_browse_query(&req, &meta)
+            .expect("sql")
+            .sql()
+            .to_string();
+        assert_eq!(
+            sql,
+            "SELECT * FROM `odd``schema`.`user``data` ORDER BY `id` LIMIT ?"
+        );
+    }
+
+    #[test]
+    fn binds_contains_value_instead_of_inlining() {
+        let mut req = request();
+        req.filters.push(TableFilterClause {
+            column: "email".into(),
+            operator: TableFilterOperator::Contains,
+            value: Some("o'reilly".into()),
+        });
+        let sql = sql_for(&req).expect("sql");
+        assert_eq!(
+            sql,
+            "SELECT * FROM `app`.`users` WHERE `email` LIKE CONCAT('%', ?, '%') ORDER BY `id` LIMIT ?"
+        );
+        assert!(!sql.contains("o'reilly"));
+    }
+
+    #[test]
+    fn comparison_on_numeric_column_with_is_null_and_sort() {
+        let mut req = request();
+        req.filters.push(TableFilterClause {
+            column: "age".into(),
+            operator: TableFilterOperator::GreaterThanOrEqual,
+            value: Some("21".into()),
+        });
+        req.filters.push(TableFilterClause {
+            column: "created_at".into(),
+            operator: TableFilterOperator::IsNull,
+            value: None,
+        });
+        req.sorts.push(TableSortClause {
+            column: "email".into(),
+            direction: SortDirection::Desc,
+        });
+        let sql = sql_for(&req).expect("sql");
+        assert_eq!(
+            sql,
+            "SELECT * FROM `app`.`users` WHERE `age` >= ? AND `created_at` IS NULL ORDER BY `email` DESC LIMIT ?"
+        );
+    }
+
+    #[test]
+    fn rejects_comparison_on_text_column() {
+        let mut req = request();
+        req.filters.push(TableFilterClause {
+            column: "email".into(),
+            operator: TableFilterOperator::GreaterThan,
+            value: Some("a".into()),
+        });
+        let err = match build_table_browse_query(&req, &table()) {
+            Err(e) => e,
+            Ok(_) => panic!("expected the comparison to be rejected"),
+        };
+        assert!(matches!(
+            err,
+            TableBrowseError::UnsupportedOperator { .. }
+        ));
+    }
+
+    #[test]
+    fn rejects_unknown_column() {
+        let mut req = request();
+        req.filters.push(TableFilterClause {
+            column: "ghost".into(),
+            operator: TableFilterOperator::Equals,
+            value: Some("x".into()),
+        });
+        let err = match build_table_browse_query(&req, &table()) {
+            Err(e) => e,
+            Ok(_) => panic!("expected the unknown column to be rejected"),
+        };
+        assert!(matches!(err, TableBrowseError::UnknownColumn(c) if c == "ghost"));
+    }
+
+    #[test]
+    fn count_query_omits_limit_and_order() {
+        let mut req = request();
+        req.filters.push(TableFilterClause {
+            column: "age".into(),
+            operator: TableFilterOperator::Equals,
+            value: Some("21".into()),
+        });
+        let sql = build_table_count_query(&req, &table())
+            .expect("sql")
+            .sql()
+            .to_string();
+        assert_eq!(
+            sql,
+            "SELECT count(*) FROM `app`.`users` WHERE `age` = ?"
+        );
+        assert!(!sql.contains("LIMIT"));
+        assert!(!sql.contains("ORDER BY"));
+    }
+
+    #[test]
+    fn column_kind_parses_column_type_modifiers() {
+        assert_eq!(ColumnKind::from_mysql_type("varchar(255)"), ColumnKind::Text);
+        assert_eq!(
+            ColumnKind::from_mysql_type("int(10) unsigned"),
+            ColumnKind::Numeric
+        );
+        assert_eq!(
+            ColumnKind::from_mysql_type("decimal(10,2)"),
+            ColumnKind::Numeric
+        );
+        assert_eq!(
+            ColumnKind::from_mysql_type("enum('a','b')"),
+            ColumnKind::Text
+        );
+        assert_eq!(ColumnKind::from_mysql_type("datetime"), ColumnKind::Temporal);
+    }
 }

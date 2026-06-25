@@ -211,7 +211,11 @@ export function ConnectionDialog({
             const m = ENGINE_META[e];
             const hex = ENGINE_HEX[e];
             const active = engine === e;
-            const disabled = e !== "postgres" && e !== "firestore" && e !== "mssql";
+            const disabled =
+              e !== "postgres" &&
+              e !== "firestore" &&
+              e !== "mssql" &&
+              e !== "mysql";
             return (
               <button
                 key={e}

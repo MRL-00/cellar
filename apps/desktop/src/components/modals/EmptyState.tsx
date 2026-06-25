@@ -98,7 +98,11 @@ export function EmptyState({ onNew }: { onNew: () => void }) {
           {ENGINE_ORDER.map((e) => {
             const m = ENGINE_META[e];
             const hex = ENGINE_HEX[e];
-            const available = e === "postgres" || e === "mssql";
+            const available =
+              e === "postgres" ||
+              e === "mssql" ||
+              e === "firestore" ||
+              e === "mysql";
             return (
               <button
                 key={e}
