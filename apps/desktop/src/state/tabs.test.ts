@@ -206,6 +206,16 @@ describe("tab workspace state", () => {
     expect(queryTab().dirty).toBe(false);
   });
 
+  it("re-points a query tab at a different database without touching the buffer", () => {
+    const id = useTabs.getState().newQueryTab("conn-1", "app");
+    const queryTab = () => useTabs.getState().tabs[0] as QueryTab;
+    useTabs.getState().setQuerySql(id, "select 1;");
+
+    useTabs.getState().setQueryDatabase(id, "analytics");
+    expect(queryTab().database).toBe("analytics");
+    expect(queryTab().sql).toBe("select 1;");
+  });
+
   it("drops query messages and notices for a tab when it closes", () => {
     const id = useTabs.getState().newQueryTab("conn-1", "app");
     const keepId = useTabs.getState().newQueryTab("conn-1", "app");

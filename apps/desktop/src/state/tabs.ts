@@ -57,6 +57,8 @@ interface TabsStore {
   ) => void;
   newQueryTab: (connectionId: string, database: string) => string;
   setQuerySql: (id: string, sql: string) => void;
+  /** Re-point a query tab at a different database on the same connection. */
+  setQueryDatabase: (id: string, database: string) => void;
   markQueryRun: (id: string) => void;
   closeTab: (id: string) => void;
   reopenClosedTab: () => void;
@@ -224,6 +226,14 @@ export const useTabs = create<TabsStore>((set, get) => ({
         t.id === id && t.kind === "query"
           ? { ...t, sql, dirty: sql !== t.savedSql }
           : t,
+      ),
+    }));
+  },
+
+  setQueryDatabase(id, database) {
+    set((s) => ({
+      tabs: s.tabs.map((t) =>
+        t.id === id && t.kind === "query" ? { ...t, database } : t,
       ),
     }));
   },
