@@ -4,6 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { queryResultToGrid } from "../lib/gridMapping";
 import {
+  buildRunCancelErrorMessage,
+  buildRunCancelRequestedMessage,
+  buildRunCancelResultMessage,
   buildRunErrorMessage,
   buildRunResultMessages,
   buildRunStartedMessage,
@@ -29,6 +32,8 @@ export interface RunOptions {
 
 export interface QueryRunner {
   running: boolean;
+  /** `true` after a cancel request is sent and before the run settles. */
+  cancelRequested: boolean;
   /** 1-based editor line to squiggle, or null when the last run was clean. */
   errorLine: number | null;
   /** Whether more rows can be fetched (driver truncated the last result). */
@@ -53,6 +58,7 @@ export interface QueryRunner {
  */
 export function useQueryRunner(tab: QueryTab): QueryRunner {
   const [running, setRunning] = useState(false);
+  const [cancelRequested, setCancelRequested] = useState(false);
   const [errorLine, setErrorLine] = useState<number | null>(null);
   const [canLoadMore, setCanLoadMore] = useState(false);
   const runToken = useRef(0);
@@ -61,7 +67,11 @@ export function useQueryRunner(tab: QueryTab): QueryRunner {
   const loadMoreRef = useRef<{ sql: string; offset: number } | null>(null);
   // Cancellation handle for the in-flight run, passed to the backend so a
   // cancel call can find the statement's connection.
-  const activeQueryId = useRef<string | null>(null);
+  const activeRun = useRef<{
+    queryId: string;
+    context: QueryRunContext;
+    cancelRequested: boolean;
+  } | null>(null);
 
   useEffect(() => {
     mounted.current = true;
@@ -102,6 +112,7 @@ export function useQueryRunner(tab: QueryTab): QueryRunner {
       };
 
       setRunning(true);
+      setCancelRequested(false);
       setErrorLine(null);
       if (!append) {
         useTabResults.getState().setLoading(tab.id, source);
@@ -111,7 +122,7 @@ export function useQueryRunner(tab: QueryTab): QueryRunner {
       }
 
       const queryId = crypto.randomUUID();
-      activeQueryId.current = queryId;
+      activeRun.current = { queryId, context, cancelRequested: false };
 
       void (async () => {
         try {
@@ -216,6 +227,8 @@ export function useQueryRunner(tab: QueryTab): QueryRunner {
           if (!mounted.current || token !== runToken.current) return;
           noteConnectionIssue(tab.connectionId, err);
           const message = err instanceof Error ? err.message : String(err);
+          loadMoreRef.current = null;
+          setCanLoadMore(false);
           if (!append) {
             useTabResults.getState().setError(tab.id, source, message);
           }
@@ -224,11 +237,12 @@ export function useQueryRunner(tab: QueryTab): QueryRunner {
             .addMessage(buildRunErrorMessage(context, err));
           setErrorLine(opts.errorLine ?? null);
         } finally {
-          if (activeQueryId.current === queryId) {
-            activeQueryId.current = null;
+          if (activeRun.current?.queryId === queryId) {
+            activeRun.current = null;
           }
           if (mounted.current && token === runToken.current) {
             setRunning(false);
+            setCancelRequested(false);
           }
         }
       })();
@@ -253,33 +267,33 @@ export function useQueryRunner(tab: QueryTab): QueryRunner {
   }, [running, executeQuery]);
 
   const cancel = useCallback(() => {
-    const queryId = activeQueryId.current;
-    if (!queryId) return;
-    const note = (severity: "info" | "warning", text: string) => {
-      useQueryMessages.getState().addMessage({
-        tabId: tab.id,
-        connectionId: tab.connectionId,
-        database: tab.database || undefined,
-        severity,
-        source: "client",
-        text,
-      });
-    };
-    void unwrap(commands.cancelQuery(tab.connectionId, queryId))
+    const run = activeRun.current;
+    if (!run || run.cancelRequested) return;
+    run.cancelRequested = true;
+    setCancelRequested(true);
+    useQueryMessages
+      .getState()
+      .addMessage(buildRunCancelRequestedMessage(run.context));
+    void unwrap(commands.cancelQuery(tab.connectionId, run.queryId))
       .then((cancelled) => {
-        if (cancelled) {
-          note("warning", "Cancel requested — the server was asked to stop the running statement.");
-        } else {
-          note("info", "Nothing to cancel — the statement had already finished.");
+        useQueryMessages
+          .getState()
+          .addMessage(buildRunCancelResultMessage(run.context, cancelled));
+        if (!cancelled && activeRun.current?.queryId === run.queryId) {
+          activeRun.current.cancelRequested = false;
+          setCancelRequested(false);
         }
       })
       .catch((err) => {
-        note(
-          "warning",
-          `Could not cancel the running statement: ${err instanceof Error ? err.message : String(err)}`,
-        );
+        useQueryMessages
+          .getState()
+          .addMessage(buildRunCancelErrorMessage(run.context, err));
+        if (activeRun.current?.queryId === run.queryId) {
+          activeRun.current.cancelRequested = false;
+          setCancelRequested(false);
+        }
       });
-  }, [tab.connectionId, tab.database, tab.id]);
+  }, [tab.connectionId]);
 
   // Keep the tabResults store in sync with the load-more callback so the
   // bottom panel's result grid can surface the "Load more" button without
@@ -291,7 +305,16 @@ export function useQueryRunner(tab: QueryTab): QueryRunner {
     );
   }, [tab.id, canLoadMore, loadMore]);
 
-  return { running, errorLine, canLoadMore, run, loadMore, cancel, clearError };
+  return {
+    running,
+    cancelRequested,
+    errorLine,
+    canLoadMore,
+    run,
+    loadMore,
+    cancel,
+    clearError,
+  };
 }
 
 // Re-export for callers that only need the type.
