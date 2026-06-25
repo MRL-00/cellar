@@ -420,6 +420,7 @@ dependencies = [
  "cellar-core",
  "cellar-diff",
  "cellar-driver-firestore",
+ "cellar-driver-mysql",
  "cellar-driver-postgres",
  "cellar-driver-sqlserver",
  "cellar-secrets",
@@ -459,6 +460,22 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+]
+
+[[package]]
+name = "cellar-driver-mysql"
+version = "0.2.0"
+dependencies = [
+ "async-trait",
+ "cellar-core",
+ "chrono",
+ "futures",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "thiserror 1.0.69",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]
