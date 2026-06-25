@@ -297,6 +297,16 @@
 .grid-row.is-insert .grid-cell-rowno { background: color-mix(in oklab, var(--insert-bg) 60%, var(--bg-1)); }
 .grid-row.is-delete .grid-cell-rowno { background: color-mix(in oklab, var(--delete-bg) 60%, var(--bg-1)); }
 .grid-rowno-num { font-variant-numeric: tabular-nums; }
+.grid-cell-rowno.is-interactive { cursor: pointer; }
+.grid-cell-rowno.is-interactive:hover {
+  background: var(--bg-2);
+  color: var(--fg-1);
+}
+.grid-cell-rowno.is-interactive:focus-visible {
+  outline: 1.5px solid var(--accent);
+  outline-offset: -1.5px;
+  z-index: 4;
+}
 .grid-gutter-mark {
   position: absolute;
   left: 0;
@@ -404,6 +414,36 @@
   z-index: 3;
 }
 .grid-cell.is-editing { outline: 2px solid var(--accent); padding: 0; }
+
+/* ── full-row selection (row-number gutter) ───────────────────
+   Placed after the stripe/change/hover rules so it wins by source order at
+   equal specificity. The gutter cell becomes a solid accent "handle" and the
+   rest of the row picks up the soft accent tint, including frozen cells. */
+.grid-row.is-row-selected { background: var(--accent-soft); }
+.grid-row.is-row-selected:hover {
+  background: color-mix(in oklab, var(--accent-soft) 82%, var(--bg-3));
+}
+/* Frozen cells are opaque (they overlap scrolled content), so the tint must be
+   composited over their own --bg-inset base — NOT layered on top of the row's
+   translucent tint, which would double the alpha and over-saturate these
+   columns. The gradient paints one accent-soft layer over an opaque base. */
+.grid-row.is-row-selected .grid-cell.frozen {
+  background:
+    linear-gradient(var(--accent-soft), var(--accent-soft)), var(--bg-inset);
+}
+.grid-row.is-row-selected:hover .grid-cell.frozen {
+  background:
+    linear-gradient(
+      color-mix(in oklab, var(--accent-soft) 82%, var(--bg-3)),
+      color-mix(in oklab, var(--accent-soft) 82%, var(--bg-3))
+    ),
+    var(--bg-inset);
+}
+.grid-row.is-row-selected .grid-cell-rowno {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+.grid-cell-rowno.is-active .grid-rowno-num { font-weight: 600; }
 .grid-cell.is-edited { background: var(--update-bg); }
 .grid-row.is-update .grid-cell.is-edited {
   background: color-mix(in oklab, var(--update) 18%, transparent);

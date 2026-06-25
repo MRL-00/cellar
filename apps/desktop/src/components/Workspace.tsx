@@ -1,15 +1,18 @@
 import {
   DataGrid,
   useGridState,
+  type GridRow,
   type PendingChanges,
 } from "@cellar/data-grid";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { SqlEditor } from "./SqlEditor";
+import { ContextMenu, type ContextMenuState } from "./ContextMenu";
 import { Icon } from "./icons";
 import { useTabs, type TableTab, type WorkspaceTab } from "../state/tabs";
 import { useTableData } from "../hooks/useTableData";
 import { useSettings } from "../lib/settings";
+import { toCsv, toJson, toSqlInserts, toTsv } from "../lib/export";
 
 const EMPTY_CHANGES: PendingChanges = {};
 const TABLE_PAGE_SIZE_OPTIONS = [100, 250, 500, 1000, 2000] as const;
@@ -167,6 +170,10 @@ function TableTabPane({
     pageSize,
   );
   const grid = useGridState();
+  const [rowMenu, setRowMenu] = useState<ContextMenuState | null>(null);
+  // The grid hands back the row object on selection, so copy never has to
+  // re-derive the grid's filter/sort/insert order.
+  const [selectedRowData, setSelectedRowData] = useState<GridRow | null>(null);
   const handleGridChange = useCallback(
     (next: PendingChanges) => setTableChanges(tab.id, next),
     [setTableChanges, tab.id],
@@ -175,6 +182,28 @@ function TableTabPane({
     () => clearTableChanges(tab.id),
     [clearTableChanges, tab.id],
   );
+  const copyText = useCallback((text: string) => {
+    if (!navigator.clipboard) return;
+    void navigator.clipboard.writeText(text);
+  }, []);
+
+  // ⌘/Ctrl+C copies the selected row as TSV (drops cleanly into spreadsheets).
+  // Native text selections are left to the browser.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "c") {
+        return;
+      }
+      if (!window.getSelection()?.isCollapsed) return;
+      if (!selectedRowData) return;
+      event.preventDefault();
+      copyText(
+        toTsv(data.columns, [selectedRowData], { header: false }).trimEnd(),
+      );
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [copyText, data.columns, selectedRowData]);
   const pagination = useMemo(
     () => ({
       offset: data.offset,
@@ -239,7 +268,45 @@ function TableTabPane({
         onRevert={handleRevert}
         nullDisplay={settings.grid.nullDisplay}
         stripeRows={settings.grid.stripeRows}
+        selectedRow={grid.selectedRow}
+        onRowSelect={(rowIndex, row) => {
+          grid.setSelectedRow(rowIndex);
+          setSelectedRowData(row);
+        }}
+        onRowContextMenu={(event, row) => {
+          event.preventDefault();
+          setRowMenu({
+            x: event.clientX,
+            y: event.clientY,
+            items: [
+              {
+                label: "Copy row as CSV",
+                onClick: () =>
+                  copyText(
+                    toCsv(data.columns, [row], { header: false }).trimEnd(),
+                  ),
+              },
+              {
+                label: "Copy row as TSV",
+                onClick: () =>
+                  copyText(
+                    toTsv(data.columns, [row], { header: false }).trimEnd(),
+                  ),
+              },
+              {
+                label: "Copy row as JSON",
+                onClick: () => copyText(toJson(data.columns, [row]).trimEnd()),
+              },
+              {
+                label: "Copy row as SQL INSERT",
+                onClick: () =>
+                  copyText(toSqlInserts(data.columns, [row]).trimEnd()),
+              },
+            ],
+          });
+        }}
       />
+      <ContextMenu state={rowMenu} onClose={() => setRowMenu(null)} />
     </div>
   );
 }

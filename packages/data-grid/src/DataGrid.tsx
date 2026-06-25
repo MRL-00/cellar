@@ -146,6 +146,22 @@ export type DataGridProps = {
     row: GridRow,
     column: GridColumn,
   ) => void;
+
+  /**
+   * Full-row selection, driven by clicking the row-number gutter. Independent of
+   * the single-cell `selection` (the two are mutually exclusive). The index is
+   * into the grid's current visible (filtered + sorted) order; the callback also
+   * hands back the row object so the host can copy it without re-deriving order.
+   */
+  selectedRow?: number | null;
+  onRowSelect?: (rowIndex: number | null, row: GridRow | null) => void;
+
+  /** Right-click on the row-number gutter. Selects the row, then notifies. */
+  onRowContextMenu?: (
+    event: ReactMouseEvent<HTMLDivElement>,
+    row: GridRow,
+    rowIndex: number,
+  ) => void;
 };
 
 /**
@@ -179,6 +195,9 @@ export function DataGrid({
   nullDisplay = "NULL",
   stripeRows = false,
   onCellContextMenu,
+  selectedRow = null,
+  onRowSelect,
+  onRowContextMenu,
 }: DataGridProps) {
   const [internalSort, setInternalSort] = useState<SortState>(null);
   const [internalColumnLayout, setInternalColumnLayout] =
@@ -413,6 +432,21 @@ export function DataGrid({
     [],
   );
 
+  const translateRow = useCallback(
+    (
+      index: number | null,
+      before: readonly GridRow[],
+      after: readonly GridRow[],
+    ): number | null => {
+      if (index === null) return null;
+      const row = before[index];
+      if (!row) return after[index] ? index : null;
+      const nextRow = after.findIndex((candidate) => candidate.id === row.id);
+      return nextRow === -1 ? null : nextRow;
+    },
+    [],
+  );
+
   const previousVisibleRows = useRef<readonly GridRow[]>(visibleRows);
   useEffect(() => {
     const before = previousVisibleRows.current;
@@ -423,13 +457,24 @@ export function DataGrid({
     const nextEditing = translateAddress(editing, before, visibleRows);
     if (!sameAddress(nextSelection, selection)) onSelect(nextSelection);
     if (!sameAddress(nextEditing, editing)) onEdit(nextEditing);
+
+    const nextSelectedRow = translateRow(selectedRow, before, visibleRows);
+    if (nextSelectedRow !== selectedRow) {
+      onRowSelect?.(
+        nextSelectedRow,
+        nextSelectedRow === null ? null : visibleRows[nextSelectedRow] ?? null,
+      );
+    }
   }, [
     editing,
     onEdit,
+    onRowSelect,
     onSelect,
     sameAddress,
+    selectedRow,
     selection,
     translateAddress,
+    translateRow,
     visibleRows,
   ]);
 
@@ -731,6 +776,7 @@ export function DataGrid({
                   columns={renderedColumns}
                   change={change}
                   selected={selection?.row === ri ? selection : null}
+                  rowSelected={selectedRow === ri}
                   editing={editing?.row === ri ? editing : null}
                   frozenCount={frozenCount}
                   readOnly={readOnly}
@@ -745,6 +791,8 @@ export function DataGrid({
                   onEdit={onEdit}
                   onCellEdit={handleCellEdit}
                   onCellContextMenu={onCellContextMenu}
+                  onRowSelect={onRowSelect}
+                  onRowContextMenu={onRowContextMenu}
                 />
               );
             })}
@@ -792,6 +840,7 @@ type GridRowViewProps = {
   columns: readonly GridColumn[];
   change: PendingChange | undefined;
   selected: CellAddress | null;
+  rowSelected: boolean;
   editing: CellAddress | null;
   frozenCount: number;
   readOnly: boolean;
@@ -807,6 +856,8 @@ type GridRowViewProps = {
     next: CellChange["to"],
   ) => void;
   onCellContextMenu: DataGridProps["onCellContextMenu"];
+  onRowSelect: DataGridProps["onRowSelect"];
+  onRowContextMenu: DataGridProps["onRowContextMenu"];
 };
 
 const GridRowView = memo(function GridRowView({
@@ -816,6 +867,7 @@ const GridRowView = memo(function GridRowView({
   columns,
   change,
   selected,
+  rowSelected,
   editing,
   frozenCount,
   readOnly,
@@ -826,9 +878,16 @@ const GridRowView = memo(function GridRowView({
   onEdit,
   onCellEdit,
   onCellContextMenu,
+  onRowSelect,
+  onRowContextMenu,
 }: GridRowViewProps) {
   const kind = change?.kind;
-  const rowSelected = selected !== null;
+  // A single selected cell gives the row a faint tint; clicking the row-number
+  // gutter selects the whole row (a stronger highlight). The two are mutually
+  // exclusive — selecting one clears the other in the handlers below.
+  const cellInRow = selected !== null;
+  const rowGutterInteractive = onRowSelect !== undefined;
+
   // Compute stripe class from absolute rowIndex so it stays correct in virtual
   // scroll mode (where nth-child reflects only the current render window).
   // Only apply the stripe when there is no pending-change tint (is-update,
@@ -841,11 +900,58 @@ const GridRowView = memo(function GridRowView({
         "grid-row" +
         (kind ? " is-" + kind : "") +
         (isStripe ? " is-stripe" : "") +
-        (rowSelected ? " is-selected-row" : "")
+        (cellInRow ? " is-selected-row" : "") +
+        (rowSelected ? " is-row-selected" : "")
       }
       style={top === undefined ? undefined : { top }}
     >
-      <div className="grid-cell grid-cell-rowno">
+      <div
+        className={
+          "grid-cell grid-cell-rowno" +
+          (rowGutterInteractive ? " is-interactive" : "") +
+          (rowSelected ? " is-active" : "")
+        }
+        role={rowGutterInteractive ? "button" : undefined}
+        tabIndex={rowGutterInteractive ? 0 : undefined}
+        aria-pressed={rowGutterInteractive ? rowSelected : undefined}
+        title={rowGutterInteractive ? "Select row" : undefined}
+        onClick={
+          rowGutterInteractive
+            ? () => {
+                onSelect(null);
+                onEdit(null);
+                onRowSelect?.(
+                  rowSelected ? null : rowIndex,
+                  rowSelected ? null : row,
+                );
+              }
+            : undefined
+        }
+        onKeyDown={
+          rowGutterInteractive
+            ? (event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onSelect(null);
+                  onEdit(null);
+                  onRowSelect?.(
+                    rowSelected ? null : rowIndex,
+                    rowSelected ? null : row,
+                  );
+                }
+              }
+            : undefined
+        }
+        onContextMenu={
+          onRowContextMenu &&
+          ((event) => {
+            onSelect(null);
+            onEdit(null);
+            onRowSelect?.(rowIndex, row);
+            onRowContextMenu(event, row, rowIndex);
+          })
+        }
+      >
         <span className="grid-rowno-num tnum">{rowNumber}</span>
         {kind === "update" && (
           <span
@@ -887,13 +993,17 @@ const GridRowView = memo(function GridRowView({
               (isEdit ? " is-editing" : "")
             }
             style={{ width: c.width, flexBasis: c.width }}
-            onClick={() => onSelect({ row: rowIndex, col: ci })}
+            onClick={() => {
+              if (rowSelected) onRowSelect?.(null, null);
+              onSelect({ row: rowIndex, col: ci });
+            }}
             onDoubleClick={() => {
               if (!readOnly) onEdit({ row: rowIndex, col: ci });
             }}
             onContextMenu={
               onCellContextMenu &&
               ((event) => {
+                if (rowSelected) onRowSelect?.(null, null);
                 onSelect({ row: rowIndex, col: ci });
                 onCellContextMenu(event, row, c);
               })
@@ -1035,6 +1145,7 @@ export function useGridState({
   const [sort, setSort] = useState<SortState>(initialSort);
   const [selection, setSelection] = useState<CellAddress | null>(null);
   const [editing, setEditing] = useState<CellAddress | null>(null);
+  const [selectedRow, setSelectedRow] = useState<number | null>(null);
 
   const revert = useCallback(() => setChanges({}), []);
 
@@ -1049,6 +1160,8 @@ export function useGridState({
     setSelection,
     editing,
     setEditing,
+    selectedRow,
+    setSelectedRow,
     revert,
   };
 }
