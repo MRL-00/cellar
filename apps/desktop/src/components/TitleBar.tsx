@@ -115,9 +115,9 @@ export function TitleBar({
       <button
         type="button"
         onClick={onOpenPalette}
-        className="absolute left-1/2 top-1/2 flex h-[22px] min-w-0 w-[320px] max-w-[320px] -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-[5px] border border-border-default bg-bg-inset px-2 text-[11px] text-fg-3 transition-[border-color] duration-150 hover:border-border-strong"
+        className="absolute left-1/2 top-1/2 flex h-[24px] min-w-0 w-[320px] max-w-[320px] -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-[5px] border border-border-default bg-bg-inset px-2 text-[11.5px] text-fg-3 transition-[border-color] duration-150 hover:border-border-strong"
       >
-        <Icon.search size={11} />
+        <Icon.search size={12} />
         <span className="flex-1 text-left">
           Search tables, columns, queries…
         </span>
