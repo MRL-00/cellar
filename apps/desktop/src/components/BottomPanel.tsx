@@ -18,6 +18,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type KeyboardEvent as ReactKeyboardEvent,
   type MutableRefObject,
   type ReactNode,
 } from "react";
@@ -432,36 +433,76 @@ function ReadOnlyResultGrid({
   const onLoadMore = result.onLoadMore ?? null;
   const [copyMenu, setCopyMenu] = useState<ContextMenuState | null>(null);
 
-  const visibleRows = () =>
-    sortGridRows(
-      filterRows(result.rows, result.columns, grid.filters, grid.changes),
-      result.columns,
-      grid.sort,
-      grid.changes,
-    );
-
-  useEffect(() => {
-    exportViewRef.current = () => ({
-      columns: result.columns,
-      rows: sortGridRows(
+  // The rows in the exact order the grid shows them (local filter + sort). Row
+  // selection indexes into this list, so it must match the grid's own order.
+  const visibleRows = useMemo(
+    () =>
+      sortGridRows(
         filterRows(result.rows, result.columns, grid.filters, grid.changes),
         result.columns,
         grid.sort,
         grid.changes,
       ),
+    [result.rows, result.columns, grid.filters, grid.sort, grid.changes],
+  );
+
+  useEffect(() => {
+    exportViewRef.current = () => ({
+      columns: result.columns,
+      rows: visibleRows,
     });
     return () => {
       exportViewRef.current = null;
     };
-  });
+  }, [exportViewRef, result.columns, visibleRows]);
+
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   const copy = (text: string) => {
     if (!navigator.clipboard) return;
     void navigator.clipboard.writeText(text);
   };
 
+  // ⌘/Ctrl+C copies the selected row as TSV (pastes cleanly into spreadsheets),
+  // or the selected single cell's value. Scoped to the grid container's focus so
+  // it never hijacks copy from the SQL editor or another pane, and leaves native
+  // text selections (and copies from inline editors) alone.
+  const handleCopyKey = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "c") {
+      return;
+    }
+    const active = document.activeElement;
+    if (
+      active instanceof HTMLElement &&
+      (active.tagName === "INPUT" ||
+        active.tagName === "TEXTAREA" ||
+        active.isContentEditable)
+    ) {
+      return;
+    }
+    if (!window.getSelection()?.isCollapsed) return;
+    if (grid.selectedRow !== null) {
+      const row = visibleRows[grid.selectedRow];
+      if (!row) return;
+      event.preventDefault();
+      copy(toTsv(result.columns, [row], { header: false }).trimEnd());
+    } else if (grid.selection) {
+      const column = result.columns[grid.selection.col];
+      const row = visibleRows[grid.selection.row];
+      if (!column || !row) return;
+      const cell = row[column.key];
+      event.preventDefault();
+      copy(cell == null ? "" : String(cell));
+    }
+  };
+
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+    <div
+      ref={containerRef}
+      tabIndex={-1}
+      onKeyDown={handleCopyKey}
+      className="flex h-full min-h-0 flex-col overflow-hidden outline-none"
+    >
       <div className="min-h-0 flex-1 overflow-hidden">
         <DataGrid
           columns={result.columns}
@@ -470,7 +511,11 @@ function ReadOnlyResultGrid({
           changes={grid.changes}
           onChange={grid.setChanges}
           selection={grid.selection}
-          onSelect={grid.setSelection}
+          onSelect={(next) => {
+            grid.setSelection(next);
+            // Pull keyboard focus into the grid so ⌘C targets this pane.
+            if (next) containerRef.current?.focus({ preventScroll: true });
+          }}
           editing={grid.editing}
           onEdit={grid.setEditing}
           filters={grid.filters}
@@ -480,6 +525,59 @@ function ReadOnlyResultGrid({
           readOnly
           nullDisplay={settings.grid.nullDisplay}
           stripeRows={settings.grid.stripeRows}
+          selectedRow={grid.selectedRow}
+          onRowSelect={(rowIndex) => {
+            grid.setSelectedRow(rowIndex);
+            if (rowIndex !== null) {
+              containerRef.current?.focus({ preventScroll: true });
+            }
+          }}
+          onRowContextMenu={(event, row) => {
+            event.preventDefault();
+            setCopyMenu({
+              x: event.clientX,
+              y: event.clientY,
+              items: [
+                {
+                  label: "Copy row as CSV",
+                  onClick: () =>
+                    copy(
+                      toCsv(result.columns, [row], { header: false }).trimEnd(),
+                    ),
+                },
+                {
+                  label: "Copy row as TSV",
+                  onClick: () =>
+                    copy(
+                      toTsv(result.columns, [row], { header: false }).trimEnd(),
+                    ),
+                },
+                {
+                  label: "Copy row as JSON",
+                  onClick: () => copy(toJson(result.columns, [row]).trimEnd()),
+                },
+                {
+                  label: "Copy row as SQL INSERT",
+                  onClick: () =>
+                    copy(toSqlInserts(result.columns, [row]).trimEnd()),
+                },
+                {
+                  label: "Copy all rows as CSV",
+                  onClick: () => copy(toCsv(result.columns, visibleRows).trimEnd()),
+                },
+                {
+                  label: "Copy all rows as JSON",
+                  onClick: () =>
+                    copy(toJson(result.columns, visibleRows).trimEnd()),
+                },
+                {
+                  label: "Copy all rows as SQL INSERT",
+                  onClick: () =>
+                    copy(toSqlInserts(result.columns, visibleRows).trimEnd()),
+                },
+              ],
+            });
+          }}
           onCellContextMenu={(event, row, column) => {
             event.preventDefault();
             const cell = row[column.key];
@@ -506,24 +604,27 @@ function ReadOnlyResultGrid({
                     ),
                 },
                 {
+                  label: "Copy row as JSON",
+                  onClick: () => copy(toJson(result.columns, [row]).trimEnd()),
+                },
+                {
                   label: "Copy row as SQL INSERT",
                   onClick: () =>
                     copy(toSqlInserts(result.columns, [row]).trimEnd()),
                 },
                 {
                   label: "Copy all rows as CSV",
-                  onClick: () =>
-                    copy(toCsv(result.columns, visibleRows()).trimEnd()),
+                  onClick: () => copy(toCsv(result.columns, visibleRows).trimEnd()),
                 },
                 {
                   label: "Copy all rows as JSON",
                   onClick: () =>
-                    copy(toJson(result.columns, visibleRows()).trimEnd()),
+                    copy(toJson(result.columns, visibleRows).trimEnd()),
                 },
                 {
                   label: "Copy all rows as SQL INSERT",
                   onClick: () =>
-                    copy(toSqlInserts(result.columns, visibleRows()).trimEnd()),
+                    copy(toSqlInserts(result.columns, visibleRows).trimEnd()),
                 },
               ],
             });

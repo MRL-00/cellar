@@ -1,15 +1,24 @@
 import {
   DataGrid,
   useGridState,
+  type GridRow,
   type PendingChanges,
 } from "@cellar/data-grid";
-import { useCallback, useMemo, useState } from "react";
+import {
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
 
 import { SqlEditor } from "./SqlEditor";
+import { ContextMenu, type ContextMenuState } from "./ContextMenu";
 import { Icon } from "./icons";
 import { useTabs, type TableTab, type WorkspaceTab } from "../state/tabs";
 import { useTableData } from "../hooks/useTableData";
 import { useSettings } from "../lib/settings";
+import { toCsv, toJson, toSqlInserts, toTsv } from "../lib/export";
 
 const EMPTY_CHANGES: PendingChanges = {};
 const TABLE_PAGE_SIZE_OPTIONS = [100, 250, 500, 1000, 2000] as const;
@@ -167,6 +176,10 @@ function TableTabPane({
     pageSize,
   );
   const grid = useGridState();
+  const [rowMenu, setRowMenu] = useState<ContextMenuState | null>(null);
+  // The grid hands back the row object on selection, so copy never has to
+  // re-derive the grid's filter/sort/insert order.
+  const [selectedRowData, setSelectedRowData] = useState<GridRow | null>(null);
   const handleGridChange = useCallback(
     (next: PendingChanges) => setTableChanges(tab.id, next),
     [setTableChanges, tab.id],
@@ -175,6 +188,36 @@ function TableTabPane({
     () => clearTableChanges(tab.id),
     [clearTableChanges, tab.id],
   );
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const copyText = useCallback((text: string) => {
+    if (!navigator.clipboard) return;
+    void navigator.clipboard.writeText(text);
+  }, []);
+
+  // ⌘/Ctrl+C copies the selected row as TSV (drops cleanly into spreadsheets).
+  // Scoped to the grid container's focus so it never hijacks copy from the SQL
+  // editor or another pane; native text selections and inline editors are left
+  // to the browser.
+  const handleCopyKey = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "c") {
+      return;
+    }
+    const active = document.activeElement;
+    if (
+      active instanceof HTMLElement &&
+      (active.tagName === "INPUT" ||
+        active.tagName === "TEXTAREA" ||
+        active.isContentEditable)
+    ) {
+      return;
+    }
+    if (!window.getSelection()?.isCollapsed) return;
+    if (!selectedRowData) return;
+    event.preventDefault();
+    copyText(
+      toTsv(data.columns, [selectedRowData], { header: false }).trimEnd(),
+    );
+  };
   const pagination = useMemo(
     () => ({
       offset: data.offset,
@@ -217,7 +260,12 @@ function TableTabPane({
   }
 
   return (
-    <div className="flex flex-1 min-h-0 overflow-hidden">
+    <div
+      ref={containerRef}
+      tabIndex={-1}
+      onKeyDown={handleCopyKey}
+      className="flex flex-1 min-h-0 overflow-hidden outline-none"
+    >
       <DataGrid
         columns={data.columns}
         rows={data.rows}
@@ -239,7 +287,48 @@ function TableTabPane({
         onRevert={handleRevert}
         nullDisplay={settings.grid.nullDisplay}
         stripeRows={settings.grid.stripeRows}
+        selectedRow={grid.selectedRow}
+        onRowSelect={(rowIndex, row) => {
+          grid.setSelectedRow(rowIndex);
+          setSelectedRowData(row);
+          if (rowIndex !== null) {
+            containerRef.current?.focus({ preventScroll: true });
+          }
+        }}
+        onRowContextMenu={(event, row) => {
+          event.preventDefault();
+          setRowMenu({
+            x: event.clientX,
+            y: event.clientY,
+            items: [
+              {
+                label: "Copy row as CSV",
+                onClick: () =>
+                  copyText(
+                    toCsv(data.columns, [row], { header: false }).trimEnd(),
+                  ),
+              },
+              {
+                label: "Copy row as TSV",
+                onClick: () =>
+                  copyText(
+                    toTsv(data.columns, [row], { header: false }).trimEnd(),
+                  ),
+              },
+              {
+                label: "Copy row as JSON",
+                onClick: () => copyText(toJson(data.columns, [row]).trimEnd()),
+              },
+              {
+                label: "Copy row as SQL INSERT",
+                onClick: () =>
+                  copyText(toSqlInserts(data.columns, [row]).trimEnd()),
+              },
+            ],
+          });
+        }}
       />
+      <ContextMenu state={rowMenu} onClose={() => setRowMenu(null)} />
     </div>
   );
 }
