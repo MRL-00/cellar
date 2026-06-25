@@ -231,11 +231,17 @@ export const useTabs = create<TabsStore>((set, get) => ({
   },
 
   setQueryDatabase(id, database) {
+    const tab = get().tabs.find((t) => t.id === id);
+    if (!tab || tab.kind !== "query" || tab.database === database) return;
     set((s) => ({
       tabs: s.tabs.map((t) =>
         t.id === id && t.kind === "query" ? { ...t, database } : t,
       ),
     }));
+    // The grid, its `result.source` header, the "Load more" callback, and any
+    // messages/notices still describe the previous database — drop them so the
+    // user isn't shown stale data until they re-run.
+    clearTabResults([id]);
   },
 
   markQueryRun(id) {

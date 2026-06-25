@@ -216,6 +216,37 @@ describe("tab workspace state", () => {
     expect(queryTab().sql).toBe("select 1;");
   });
 
+  it("clears stale results when switching a query tab's database", () => {
+    const id = useTabs.getState().newQueryTab("conn-1", "app");
+    useTabResults.getState().setReady(id, {
+      source,
+      columns: [],
+      rows: [],
+      rowCount: 0,
+      truncated: false,
+      durationMs: 1,
+    });
+    expect(useTabResults.getState().byTabId[id]).toBeDefined();
+
+    useTabs.getState().setQueryDatabase(id, "analytics");
+    expect(useTabResults.getState().byTabId[id]).toBeUndefined();
+  });
+
+  it("leaves results intact when the database is unchanged", () => {
+    const id = useTabs.getState().newQueryTab("conn-1", "app");
+    useTabResults.getState().setReady(id, {
+      source,
+      columns: [],
+      rows: [],
+      rowCount: 0,
+      truncated: false,
+      durationMs: 1,
+    });
+
+    useTabs.getState().setQueryDatabase(id, "app");
+    expect(useTabResults.getState().byTabId[id]).toBeDefined();
+  });
+
   it("drops query messages and notices for a tab when it closes", () => {
     const id = useTabs.getState().newQueryTab("conn-1", "app");
     const keepId = useTabs.getState().newQueryTab("conn-1", "app");
