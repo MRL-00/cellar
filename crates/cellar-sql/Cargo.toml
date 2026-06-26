@@ -5,3 +5,8 @@ edition.workspace = true
 license.workspace = true
 description = "Cellar — SQL parsing, formatting, dialect awareness"
 publish = false
+
+[dependencies]
+cellar-core = { path = "../cellar-core" }
+sqlparser = "0.52"
+thiserror = { workspace = true }

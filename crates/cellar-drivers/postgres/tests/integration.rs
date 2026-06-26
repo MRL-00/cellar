@@ -9,7 +9,7 @@
 #![cfg(feature = "integration-tests")]
 
 use cellar_core::driver::{ConnectionConfig, Driver, Engine, SslMode};
-use cellar_core::query::Query;
+use cellar_core::query::{Query, QueryParam};
 use cellar_core::value::CellValue;
 use cellar_driver_postgres::PostgresDriver;
 use testcontainers::runners::AsyncRunner;
@@ -394,4 +394,122 @@ async fn execute_query_reports_rows_affected_for_dml_only() {
         .expect("delete returning");
     assert_eq!(returning.rows_affected, None);
     assert_eq!(returning.rows.len(), 2);
+}
+
+#[tokio::test]
+async fn binds_named_and_positional_parameters() {
+    let live = boot().await;
+    let driver = PostgresDriver::new();
+    let conn = driver
+        .connect(&live.config, Some(&live.password))
+        .await
+        .expect("connect");
+
+    driver
+        .execute_query(
+            conn.as_ref(),
+            &Query::new(
+                "INSERT INTO customers (email) VALUES ('alice@example.com'), ('bob@example.com')",
+            ),
+        )
+        .await
+        .expect("seed rows");
+
+    // Named parameter bound against an int column.
+    let by_id = driver
+        .execute_query(
+            conn.as_ref(),
+            &Query::new("SELECT email FROM customers WHERE id = :cid").with_params(vec![
+                QueryParam {
+                    name: "cid".into(),
+                    value: CellValue::Int(1),
+                },
+            ]),
+        )
+        .await
+        .expect("named bind");
+    assert_eq!(by_id.rows.len(), 1);
+    assert_eq!(
+        by_id.rows[0][0],
+        CellValue::Text("alice@example.com".into())
+    );
+
+    // Positional `$1` bound against a text column.
+    let by_email = driver
+        .execute_query(
+            conn.as_ref(),
+            &Query::new("SELECT id FROM customers WHERE email = $1").with_params(vec![
+                QueryParam {
+                    name: "1".into(),
+                    value: CellValue::Text("bob@example.com".into()),
+                },
+            ]),
+        )
+        .await
+        .expect("positional bind");
+    assert_eq!(by_email.rows.len(), 1);
+    assert_eq!(by_email.rows[0][0], CellValue::Int(2));
+
+    // A repeated named parameter is supplied once and bound to every position
+    // it appears in (the rewrite collapses it to a single `$1`).
+    let repeated = driver
+        .execute_query(
+            conn.as_ref(),
+            &Query::new("SELECT email FROM customers WHERE id >= :cid AND id <= :cid").with_params(
+                vec![QueryParam {
+                    name: "cid".into(),
+                    value: CellValue::Int(1),
+                }],
+            ),
+        )
+        .await
+        .expect("repeated named bind");
+    assert_eq!(repeated.rows.len(), 1);
+    assert_eq!(
+        repeated.rows[0][0],
+        CellValue::Text("alice@example.com".into())
+    );
+}
+
+#[tokio::test]
+async fn bound_value_is_never_interpreted_as_sql() {
+    let live = boot().await;
+    let driver = PostgresDriver::new();
+    let conn = driver
+        .connect(&live.config, Some(&live.password))
+        .await
+        .expect("connect");
+
+    driver
+        .execute_query(
+            conn.as_ref(),
+            &Query::new("INSERT INTO customers (email) VALUES ('alice@example.com')"),
+        )
+        .await
+        .expect("seed row");
+
+    // A classic injection payload as a *value*. If it were interpolated into the
+    // SQL it would either match every row or drop the table. Bound, it is just a
+    // string that matches nothing.
+    let injection = "' OR '1'='1";
+    let result = driver
+        .execute_query(
+            conn.as_ref(),
+            &Query::new("SELECT email FROM customers WHERE email = :email").with_params(vec![
+                QueryParam {
+                    name: "email".into(),
+                    value: CellValue::Text(injection.into()),
+                },
+            ]),
+        )
+        .await
+        .expect("injection-as-value query");
+    assert_eq!(result.rows.len(), 0, "payload must be treated as a value");
+
+    // The table is still intact and the original row is untouched.
+    let count = driver
+        .execute_query(conn.as_ref(), &Query::new("SELECT count(*) FROM customers"))
+        .await
+        .expect("count");
+    assert_eq!(count.rows[0][0], CellValue::Int(1));
 }

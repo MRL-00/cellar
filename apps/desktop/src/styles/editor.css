@@ -442,3 +442,105 @@
   display: inline-flex;
   gap: 2px;
 }
+
+/* Parameter panel — collects values for :name / $N placeholders before a run.
+   Sits between the toolbar and the editor scroll area. */
+.param-panel {
+  flex-shrink: 0;
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--border-default);
+  padding: 8px 10px 10px;
+  font-family: var(--font-sans);
+  max-height: 38vh;
+  overflow-y: auto;
+}
+.param-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.param-panel-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--fg-1);
+}
+.param-panel-hint {
+  flex: 1;
+  font-size: 11px;
+  color: var(--fg-3);
+}
+.param-panel-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.param-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 200px) 96px 1fr;
+  align-items: center;
+  gap: 8px;
+}
+.param-label {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+.param-placeholder {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.param-col-hint {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.param-type,
+.param-value {
+  height: 24px;
+  padding: 0 7px;
+  border-radius: 4px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-inset);
+  color: var(--fg-0);
+  font-size: 12px;
+  font-family: var(--font-mono);
+  outline: none;
+}
+.param-type {
+  font-family: var(--font-sans);
+}
+.param-value:focus,
+.param-type:focus {
+  border-color: var(--accent);
+}
+.param-value.invalid {
+  border-color: var(--delete);
+}
+.param-null {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--fg-3);
+}
+.param-error {
+  grid-column: 3;
+  font-size: 10.5px;
+  color: var(--delete);
+}
+.param-panel-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}

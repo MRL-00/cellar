@@ -8,11 +8,15 @@ import type {
   CellarError,
   ConnectionConfig,
   Database,
+  DetectedParameter,
   DriverInfo,
+  Engine,
   ErGraph,
+  QueryParam,
   QueryPlan,
   QueryHistoryRecord,
   QueryResult,
+  QueryTemplate,
   Result,
   TableBrowseRequest,
   TableChangeRequest,
@@ -70,6 +74,7 @@ export const mockCommands = {
     _database: string | null,
     _tabId: string | null,
     _queryId: string | null,
+    _params: QueryParam[] | null,
   ): Promise<Result<QueryResult, CellarError>> =>
     ok({
       columns: [],
@@ -84,6 +89,13 @@ export const mockCommands = {
       truncated: false,
       total_rows: null,
     }),
+
+  // Web mode has no Rust tokenizer; report no parameters so the editor runs
+  // queries directly. Real parameter detection only runs in the Tauri build.
+  detectQueryParameters: async (
+    _sql: string,
+    _engine: Engine,
+  ): Promise<Result<DetectedParameter[], CellarError>> => ok([]),
 
   cancelQuery: async (
     _connectionId: string,
@@ -187,6 +199,28 @@ export const mockCommands = {
 
   aiHasKey: async (provider: string): Promise<Result<boolean, CellarError>> =>
     ok(mockAiKeys.has(provider)),
+
+  // Query templates: in web mode there is no `~/.cellar/queries`, so hold them
+  // in memory for the session — enough to drive the save/list/delete flow.
+  listQueryTemplates: async (): Promise<Result<QueryTemplate[], CellarError>> =>
+    ok(
+      [...mockTemplates.values()].sort((a, b) =>
+        a.name.toLowerCase().localeCompare(b.name.toLowerCase()),
+      ),
+    ),
+
+  saveQueryTemplate: async (
+    template: QueryTemplate,
+  ): Promise<Result<QueryTemplate, CellarError>> => {
+    mockTemplates.set(template.name, template);
+    return ok(template);
+  },
+
+  deleteQueryTemplate: async (name: string): Promise<Result<null, CellarError>> => {
+    mockTemplates.delete(name);
+    return ok(null);
+  },
 };
 
 const mockAiKeys = new Map<string, string>();
+const mockTemplates = new Map<string, QueryTemplate>();

@@ -4,7 +4,8 @@ import {
   useMemo,
   useState,
 } from "react";
-import type { Database, Engine } from "@cellar/ipc";
+import { commands, unwrap } from "@cellar/ipc";
+import type { Database, DetectedParameter, Engine, QueryParam } from "@cellar/ipc";
 import { SqlCodeEditor } from "@cellar/sql-editor";
 
 import {
@@ -13,12 +14,21 @@ import {
   type SqlStatement,
 } from "../lib/sqlStatements";
 import { useQueryRunner } from "../hooks/useQueryRunner";
+import {
+  defaultParamValue,
+  isFilled,
+  toCellValue,
+  type ParamValue,
+} from "../lib/queryParamValues";
 import { useBottomPanel } from "../state/bottomPanel";
 import { useConnections } from "../state/connections";
+import { useQueryParams } from "../state/queryParams";
 import type { QueryTab } from "../state/tabs";
 import { useTabs } from "../state/tabs";
 import { useSettings } from "../lib/settings";
 import { Icon } from "./icons";
+import { ParameterPanel } from "./ParameterPanel";
+import { SaveTemplateModal } from "./modals/SaveTemplateModal";
 
 const DIALECTS: Record<Engine, string> = {
   postgres: "PostgreSQL",
@@ -57,7 +67,14 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
     clearError,
   } = useQueryRunner(tab);
 
+  const openPanel = useQueryParams((s) => s.openPanel);
+  const requestParamFocus = useQueryParams((s) => s.requestFocus);
+  const rememberParams = useQueryParams((s) => s.remember);
+  const closePanel = useQueryParams((s) => s.closePanel);
+  const hasParamPanel = useQueryParams((s) => Boolean(s.panels[tab.id]));
+
   const [caret, setCaret] = useState(0);
+  const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
   // Per-editor wrap toggle overrides the global default.
   const [wrapOverride, setWrapOverride] = useState<boolean | null>(null);
   const wrap = wrapOverride !== null ? wrapOverride : settings.editor.softWrap;
@@ -74,12 +91,99 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
   );
   const range = current ? ([current.startLine, current.endLine] as const) : null;
 
-  const runStatementAt = useCallback((offset: number) => {
-    const stmt = statementAtOffset(sql, offset);
-    if (!stmt) return;
+  // Collect the panel's current values, bind-validate them, and run — or, if
+  // any are empty/invalid, focus the first one instead of running.
+  const runPanel = useCallback(() => {
+    const panel = useQueryParams.getState().panels[tab.id];
+    if (!panel) return;
+    const params: QueryParam[] = [];
+    let complete = true;
+    for (const param of panel.params) {
+      const pv = panel.values[param.name] ?? { type: "text", value: "" };
+      if (!isFilled(pv)) {
+        complete = false;
+        break;
+      }
+      const conversion = toCellValue(pv);
+      if (!conversion.ok) {
+        complete = false;
+        break;
+      }
+      params.push({ name: param.name, value: conversion.value });
+    }
+    if (!complete) {
+      requestParamFocus(tab.id);
+      return;
+    }
+    rememberParams(panel.values);
     setBottomTab("results");
-    run(stmt.text, { label: statementLabel(stmt, statements), errorLine: stmt.startLine });
-  }, [sql, run, setBottomTab, statements]);
+    run(panel.sql, { label: panel.label, errorLine: panel.errorLine }, params);
+  }, [tab.id, requestParamFocus, rememberParams, run, setBottomTab]);
+
+  // Detect placeholders in `sql`; run directly when there are none, otherwise
+  // open the parameter panel pre-filled from session memory / column hints.
+  const prepareAndRun = useCallback(
+    async (statementSql: string, label: string, errorLine: number | null) => {
+      const trimmed = statementSql.trim();
+      if (!trimmed) return;
+      let detected: DetectedParameter[] = [];
+      try {
+        detected = await unwrap(
+          commands.detectQueryParameters(trimmed, engine ?? "postgres"),
+        );
+      } catch (err) {
+        // A parser hiccup must never block running — fall back to no params.
+        console.warn("[SqlEditor] parameter detection failed", err);
+      }
+
+      if (detected.length === 0) {
+        closePanel(tab.id);
+        setBottomTab("results");
+        run(trimmed, { label, errorLine });
+        return;
+      }
+
+      const state = useQueryParams.getState();
+      const values: Record<string, ParamValue> = {};
+      for (const param of detected) {
+        values[param.name] =
+          state.panels[tab.id]?.values[param.name] ??
+          state.remembered[param.name] ??
+          defaultParamValue(param, databases);
+      }
+      openPanel(tab.id, { sql: trimmed, label, errorLine, params: detected, values });
+
+      if (detected.every((p) => isFilled(values[p.name]!))) {
+        runPanel();
+      } else {
+        requestParamFocus(tab.id);
+      }
+    },
+    [
+      engine,
+      databases,
+      tab.id,
+      closePanel,
+      openPanel,
+      requestParamFocus,
+      run,
+      runPanel,
+      setBottomTab,
+    ],
+  );
+
+  const runStatementAt = useCallback(
+    (offset: number) => {
+      const stmt = statementAtOffset(sql, offset);
+      if (!stmt) return;
+      void prepareAndRun(
+        stmt.text,
+        statementLabel(stmt, statements),
+        stmt.startLine,
+      );
+    },
+    [sql, prepareAndRun, statements],
+  );
 
   const runStatement = useCallback(() => {
     runStatementAt(caret);
@@ -87,12 +191,12 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
 
   const runAll = useCallback(() => {
     if (statements.length === 0) return;
-    setBottomTab("results");
-    run(sql, {
-      label: statements.length > 1 ? "all statements" : "statement",
-      errorLine: statements[0]?.startLine ?? 1,
-    });
-  }, [sql, statements, run, setBottomTab]);
+    void prepareAndRun(
+      sql,
+      statements.length > 1 ? "all statements" : "statement",
+      statements[0]?.startLine ?? 1,
+    );
+  }, [sql, statements, prepareAndRun]);
 
   const handleEditorChange = useCallback((next: string) => {
     setQuerySql(tab.id, next);
@@ -225,8 +329,9 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
           </button>
           <button
             className="icon-btn"
-            disabled
-            title="Bookmarks arrive with query history work"
+            onClick={() => setSaveTemplateOpen(true)}
+            disabled={sql.trim().length === 0}
+            title="Save this query to your local template library"
           >
             <Icon.star size={12} />
           </button>
@@ -245,6 +350,16 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
           </span>
         </div>
       </div>
+
+      {hasParamPanel && (
+        <ParameterPanel
+          tabId={tab.id}
+          running={running}
+          onRun={runPanel}
+          onClose={() => closePanel(tab.id)}
+          onEdit={clearError}
+        />
+      )}
 
       <div className="ed-scroll">
         <SqlCodeEditor
@@ -276,6 +391,14 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
           </span>
         </div>
       </div>
+
+      {saveTemplateOpen && (
+        <SaveTemplateModal
+          sql={sql}
+          defaultName={tab.title.replace(/\.sql$/, "")}
+          onClose={() => setSaveTemplateOpen(false)}
+        />
+      )}
     </div>
   );
 }

@@ -13,8 +13,8 @@ pub use driver::{Connection, ConnectionConfig, Driver, DriverInfo, Engine, EnvTa
 pub use er::{ErColumn, ErEdge, ErGraph, ErNode};
 pub use error::{CellarError, CellarResult};
 pub use query::{
-    DatabaseNotice, NoticeCapture, NoticeSeverity, PlanDetail, PlanMode, PlanNode, Query,
-    QueryPlan, QueryResult,
+    DatabaseNotice, DetectedParameter, NoticeCapture, NoticeSeverity, ParameterStyle, PlanDetail,
+    PlanMode, PlanNode, Query, QueryParam, QueryPlan, QueryResult,
 };
 pub use schema::{Column, Database, ForeignKey, Index, Schema, Table, View};
 pub use value::{CellValue, ColumnMeta, Row};
