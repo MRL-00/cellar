@@ -45,14 +45,8 @@ pub fn decode_cell(row: &MySqlRow, ordinal: usize) -> CellarResult<CellValue> {
 
         // Unsigned columns need u64. A BIGINT UNSIGNED can exceed i64::MAX, so
         // keep those as Numeric text rather than silently wrapping.
-        "TINYINT UNSIGNED"
-        | "SMALLINT UNSIGNED"
-        | "MEDIUMINT UNSIGNED"
-        | "INT UNSIGNED"
-        | "INTEGER UNSIGNED"
-        | "BIGINT UNSIGNED"
-        | "YEAR"
-        | "BIT" => row
+        "TINYINT UNSIGNED" | "SMALLINT UNSIGNED" | "MEDIUMINT UNSIGNED" | "INT UNSIGNED"
+        | "INTEGER UNSIGNED" | "BIGINT UNSIGNED" | "YEAR" | "BIT" => row
             .try_get::<u64, _>(ordinal)
             .map(uint_to_cell)
             .map_err(decode_err),
@@ -69,7 +63,9 @@ pub fn decode_cell(row: &MySqlRow, ordinal: usize) -> CellarResult<CellValue> {
         // DECIMAL is not String-compatible in sqlx and we have no decimal
         // feature; the unchecked decode reads its ASCII bytes and keeps
         // arbitrary precision.
-        "DECIMAL" | "NUMERIC" | "NEWDECIMAL" => unchecked_text(row, ordinal).map(CellValue::Numeric),
+        "DECIMAL" | "NUMERIC" | "NEWDECIMAL" => {
+            unchecked_text(row, ordinal).map(CellValue::Numeric)
+        }
 
         "CHAR" | "VARCHAR" | "TEXT" | "TINYTEXT" | "MEDIUMTEXT" | "LONGTEXT" | "ENUM" | "SET" => {
             // ENUM is String-compatible but SET is not, so fall back to the
