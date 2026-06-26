@@ -8,6 +8,7 @@ import type {
   CellarError,
   ConnectionConfig,
   Database,
+  DatagripImport,
   DetectedParameter,
   DriverInfo,
   Engine,
@@ -64,6 +65,9 @@ export const mockCommands = {
   reconnect: async (_id: string): Promise<Result<DriverInfo, CellarError>> => ok(mockDriverInfo),
 
   disconnect: async (_id: string): Promise<Result<null, CellarError>> => ok(null),
+
+  importDatagrip: async (): Promise<Result<DatagripImport, CellarError>> =>
+    ok({ connections: [], skipped: [] }),
 
   introspect: async (
     _connectionId: string,

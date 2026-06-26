@@ -9,6 +9,8 @@ import { Workspace } from "./components/Workspace";
 import { BottomPanel } from "./components/BottomPanel";
 import { AIPanel } from "./components/AIPanel";
 import { ConnectionDialog } from "./components/modals/ConnectionDialog";
+import { ImportDatagripDialog } from "./components/modals/ImportDatagripDialog";
+import { ConfirmDialog } from "./components/modals/ConfirmDialog";
 import { CommitModal } from "./components/modals/CommitModal";
 import { CommandPalette } from "./components/modals/CommandPalette";
 import { EmptyState } from "./components/modals/EmptyState";
@@ -115,6 +117,7 @@ export function App() {
   const [modal, setModal] = useState<ModalId>(null);
   const [connDialog, setConnDialog] = useState<ConnDialog>(null);
   const [empty, setEmpty] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [comparePreset, setComparePreset] = useState<ComparePreset | null>(null);
   const [settingsInitialCat, setSettingsInitialCat] =
     useState<SettingsCatId>("appearance");
@@ -197,6 +200,7 @@ export function App() {
             >
               <Sidebar
                 onNewConnection={openNewConnection}
+                onImportDatagrip={() => setImportOpen(true)}
                 onEditConnection={editConnection}
                 onDuplicateConnection={duplicateConnection}
                 onOpenSettings={() => openSettings()}
@@ -285,6 +289,10 @@ export function App() {
           initial={connDialog.initial}
         />
       )}
+      {importOpen && (
+        <ImportDatagripDialog onClose={() => setImportOpen(false)} />
+      )}
+      <ConfirmDialog />
       {modal === "commit" && <CommitModal onClose={closeModal} />}
       {modal === "palette" && (
         <CommandPalette

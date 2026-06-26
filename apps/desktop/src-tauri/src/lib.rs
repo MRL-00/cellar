@@ -1,4 +1,5 @@
 pub mod commands;
+pub mod datagrip;
 pub mod history;
 pub mod menu;
 pub mod state;

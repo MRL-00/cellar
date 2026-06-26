@@ -427,6 +427,7 @@ dependencies = [
  "cellar-secrets",
  "cellar-sql",
  "dirs 5.0.1",
+ "quick-xml",
  "serde",
  "serde_json",
  "specta",

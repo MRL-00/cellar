@@ -29,6 +29,7 @@ pub fn builder() -> Builder<tauri::Wry> {
         connection::connect,
         connection::reconnect,
         connection::disconnect,
+        connection::import_datagrip,
         schema::introspect,
         schema::find_usages,
         schema::er_graph,
