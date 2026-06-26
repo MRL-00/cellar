@@ -28,8 +28,23 @@ export interface QueryTab {
   dirty: boolean;
 }
 
-export type WorkspaceTab = TableTab | QueryTab;
+export interface ErDiagramTab {
+  id: string;
+  kind: "er-diagram";
+  connectionId: string;
+  database: string;
+  title: string;
+  /** Schema scope the graph was opened for; `null` means every schema. */
+  schemas: string[] | null;
+}
+
+export type WorkspaceTab = TableTab | QueryTab | ErDiagramTab;
 export type SplitOrientation = "horizontal" | "vertical";
+
+/** Short label for a tab — title for query/ER tabs, `schema.table` for tables. */
+export function tabLabel(tab: WorkspaceTab): string {
+  return tab.kind === "table" ? `${tab.schema}.${tab.table}` : tab.title;
+}
 
 export interface WorkspaceSplit {
   orientation: SplitOrientation;
@@ -56,6 +71,11 @@ interface TabsStore {
     table: string,
   ) => void;
   newQueryTab: (connectionId: string, database: string) => string;
+  openErDiagram: (
+    connectionId: string,
+    database: string,
+    schemas: string[] | null,
+  ) => void;
   setQuerySql: (id: string, sql: string) => void;
   markQueryRun: (id: string) => void;
   closeTab: (id: string) => void;
@@ -191,6 +211,28 @@ export const useTabs = create<TabsStore>((set, get) => ({
       tabs: [
         ...s.tabs,
         { id, kind: "table", connectionId, database, schema, table },
+      ],
+      activeId: id,
+    }));
+  },
+
+  openErDiagram(connectionId, database, schemas) {
+    const scope =
+      schemas && schemas.length > 0 ? [...schemas].sort() : null;
+    const id = `er:${connectionId}::${database}::${scope?.join(",") ?? "all"}`;
+    const existing = get().tabs.find((t) => t.id === id);
+    if (existing) {
+      set({ activeId: id });
+      return;
+    }
+    const title =
+      scope && scope.length === 1
+        ? `ER: ${scope[0]}`
+        : `ER: ${database}`;
+    set((s) => ({
+      tabs: [
+        ...s.tabs,
+        { id, kind: "er-diagram", connectionId, database, title, schemas: scope },
       ],
       activeId: id,
     }));

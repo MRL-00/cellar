@@ -69,6 +69,20 @@ async introspect(connectionId: string, refresh: boolean | null) : Promise<Result
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Build the foreign-key graph for the ER diagram view. Reuses the cached
+ * introspection tree (so it never re-hits the server when the schema is warm)
+ * and derives the graph in [`cellar_core::er`]. `schemas` scopes the graph to
+ * a subset of schemas; `None` includes them all.
+ */
+async erGraph(connectionId: string, database: string, schemas: string[] | null) : Promise<Result<ErGraph, CellarError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("er_graph", { connectionId, database, schemas }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async runQuery(connectionId: string, sql: string, maxRows: number | null, offset: number | null, database: string | null, tabId: string | null, queryId: string | null) : Promise<Result<QueryResult, CellarError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("run_query", { connectionId, sql, maxRows, offset, database, tabId, queryId }) };
@@ -291,6 +305,45 @@ export type Engine = "postgres" | "mysql" | "sqlite" | "mssql" | "azure" | "fire
  * styling and confirmation guardrails — this PR wires the data, not the UX.
  */
 export type EnvTag = "local" | "dev" | "staging" | "prod"
+/**
+ * A column rendered inside an ER node. Carries just enough for the diagram:
+ * name, type, and key-role badges.
+ */
+export type ErColumn = { name: string; data_type: string; nullable: boolean; is_primary_key: boolean; 
+/**
+ * `true` when the column participates in at least one outgoing foreign key.
+ */
+is_foreign_key: boolean }
+/**
+ * A foreign-key relationship, drawn as an edge from the referencing table to
+ * the referenced table.
+ */
+export type ErEdge = { 
+/**
+ * Stable id derived from the endpoints and constraint name.
+ */
+id: string; constraint_name: string; 
+/**
+ * `"schema.table"` of the table that holds the FK columns.
+ */
+source: string; 
+/**
+ * `"schema.table"` of the referenced table.
+ */
+target: string; source_columns: string[]; target_columns: string[] }
+/**
+ * The full graph for one database, scoped to a selection of schemas.
+ */
+export type ErGraph = { database: string; 
+/**
+ * Schema names present in this graph, sorted — drives the show/hide UI.
+ */
+schemas: string[]; nodes: ErNode[]; edges: ErEdge[] }
+/**
+ * One table in the diagram. `id` is `"schema.table"`; edges reference nodes by
+ * this id.
+ */
+export type ErNode = { id: string; schema: string; name: string; columns: ErColumn[]; primary_key: string[]; row_count: number | null }
 export type ForeignKey = { name: string; columns: string[]; referenced_schema: string; referenced_table: string; referenced_columns: string[] }
 export type Index = { name: string; columns: string[]; unique: boolean; primary: boolean }
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>

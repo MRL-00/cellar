@@ -468,7 +468,7 @@ function pickQueryTarget(
 }
 
 function tabLabel(tab: WorkspaceTab): string {
-  return tab.kind === "query" ? tab.title : `${tab.schema}.${tab.table}`;
+  return tab.kind === "table" ? `${tab.schema}.${tab.table}` : tab.title;
 }
 
 function titleCase(value: string): string {
