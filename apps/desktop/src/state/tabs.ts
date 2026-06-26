@@ -61,17 +61,16 @@ export type WorkspaceTab =
   | SchemaCompareTab
   | ErDiagramTab;
 export type SplitOrientation = "horizontal" | "vertical";
+/** Edge a tab was dropped on to create/redirect a split. */
+export type SplitEdge = "left" | "right" | "top" | "bottom";
 
 /** Short label for a tab — title for query/ER tabs, `schema.table` for tables. */
 export function tabLabel(tab: WorkspaceTab): string {
   return tab.kind === "table" ? `${tab.schema}.${tab.table}` : tab.title;
 }
 
-export interface WorkspaceSplit {
-  orientation: SplitOrientation;
-  primaryId: string;
-  secondaryId: string;
-}
+/** 0 = primary (left/top) pane, 1 = secondary (right/bottom) pane. */
+export type PaneIndex = 0 | 1;
 
 export type TableLayouts = Record<string, GridColumnLayout>;
 
@@ -80,9 +79,19 @@ let schemaCompareSeq = 0;
 
 interface TabsStore {
   tabs: WorkspaceTab[];
+  /** The globally focused tab — mirrors the focused pane's active tab. */
   activeId: string | null;
   closedTabs: WorkspaceTab[];
-  split: WorkspaceSplit | null;
+  /** Split orientation, or `null` when the workspace is a single pane. */
+  split: SplitOrientation | null;
+  /** Pane each tab lives in; absence means the primary pane (0). */
+  tabPane: Record<string, PaneIndex>;
+  /** Active tab per pane: [primary, secondary]. */
+  paneActive: [string | null, string | null];
+  /** Which pane has focus — drives `activeId` and where new tabs land. */
+  focusedPane: PaneIndex;
+  /** Tab id currently being dragged, or `null` — drives the drop-zone overlay. */
+  draggingTabId: string | null;
   tableChanges: Record<string, PendingChanges>;
   tableLayouts: TableLayouts;
   refreshKeys: Record<string, number>;
@@ -121,6 +130,13 @@ interface TabsStore {
   closeTabsToRight: (id: string) => void;
   closeConnectionTabs: (connectionId: string) => void;
   reorderTab: (sourceId: string, targetId: string) => void;
+  /** Move a tab into a pane (used when dragging onto the other pane's strip). */
+  moveTabToPane: (id: string, pane: PaneIndex) => void;
+  /** Focus a pane without changing its active tab (e.g. clicking its "+"). */
+  focusPane: (pane: PaneIndex) => void;
+  setDraggingTab: (id: string | null) => void;
+  /** Split (or re-split) by dropping a tab on a workspace edge. */
+  dropTabToSplit: (id: string, edge: SplitEdge) => void;
   setActive: (id: string) => void;
   setTableLayout: (id: string, layout: GridColumnLayout) => void;
   /** Merge imported per-table layouts over the current ones and persist. */
@@ -210,15 +226,62 @@ function clearTabResults(ids: string[]) {
   useNotices.getState().dropTabs(ids);
 }
 
-function splitForTabs(
-  tabs: WorkspaceTab[],
-  split: WorkspaceSplit | null,
-): WorkspaceSplit | null {
-  return split &&
-    tabs.some((t) => t.id === split.primaryId) &&
-    tabs.some((t) => t.id === split.secondaryId)
-    ? split
-    : null;
+/** The pane a tab lives in (primary unless explicitly placed in secondary). */
+function paneOf(tabPane: Record<string, PaneIndex>, id: string): PaneIndex {
+  return tabPane[id] ?? 0;
+}
+
+function setPaneActive(
+  paneActive: [string | null, string | null],
+  pane: PaneIndex,
+  id: string | null,
+): [string | null, string | null] {
+  return pane === 0 ? [id, paneActive[1]] : [paneActive[0], id];
+}
+
+type SplitState = Pick<
+  TabsStore,
+  "split" | "tabPane" | "paneActive" | "focusedPane" | "activeId"
+>;
+
+/**
+ * Re-derive the split-layout fields so they stay consistent with `tabs`:
+ * drop stale pane membership, collapse the split if a pane is empty, and pick a
+ * valid active tab per pane (keeping the requested one when it's still valid,
+ * else the last tab in that pane). `activeId` mirrors the focused pane.
+ */
+function reconcile(s: { tabs: WorkspaceTab[] } & SplitState): SplitState {
+  const ids = new Set(s.tabs.map((t) => t.id));
+  let tabPane: Record<string, PaneIndex> = Object.fromEntries(
+    Object.entries(s.tabPane).filter(([id]) => ids.has(id)),
+  );
+
+  let split = s.split;
+  if (split) {
+    const hasPrimary = s.tabs.some((t) => paneOf(tabPane, t.id) === 0);
+    const hasSecondary = s.tabs.some((t) => paneOf(tabPane, t.id) === 1);
+    if (!hasPrimary || !hasSecondary) split = null;
+  }
+  // Collapsed (or never split): everything lives in the primary pane.
+  if (!split) tabPane = {};
+
+  const pickActive = (pane: PaneIndex): string | null => {
+    const requested = s.paneActive[pane];
+    if (requested && ids.has(requested) && paneOf(tabPane, requested) === pane) {
+      return requested;
+    }
+    const inPane = s.tabs.filter((t) => paneOf(tabPane, t.id) === pane);
+    return inPane.length ? inPane[inPane.length - 1]!.id : null;
+  };
+  const paneActive: [string | null, string | null] = [
+    pickActive(0),
+    pickActive(1),
+  ];
+
+  const focusedPane: PaneIndex = split ? s.focusedPane : 0;
+  const activeId = paneActive[focusedPane] ?? paneActive[focusedPane ? 0 : 1];
+
+  return { split, tabPane, paneActive, focusedPane, activeId };
 }
 
 function stackClosedTabs(
@@ -228,84 +291,106 @@ function stackClosedTabs(
   return [...closed, ...current].slice(0, 12);
 }
 
+/** Append a new tab into the focused pane and make it active there. */
+function openInFocusedPane(s: TabsStore, tab: WorkspaceTab): Partial<TabsStore> {
+  const pane: PaneIndex = s.split ? s.focusedPane : 0;
+  const tabs = [...s.tabs, tab];
+  const tabPane = pane === 1 ? { ...s.tabPane, [tab.id]: pane } : s.tabPane;
+  const paneActive = setPaneActive(s.paneActive, pane, tab.id);
+  return { tabs, ...reconcile({ ...s, tabs, tabPane, paneActive, focusedPane: pane }) };
+}
+
+/** Focus an already-open tab in whichever pane it lives. */
+function activateExisting(s: TabsStore, id: string): Partial<TabsStore> {
+  const pane = paneOf(s.tabPane, id);
+  return reconcile({
+    ...s,
+    focusedPane: pane,
+    paneActive: setPaneActive(s.paneActive, pane, id),
+  });
+}
+
 export const useTabs = create<TabsStore>((set, get) => ({
   tabs: [],
   activeId: null,
   closedTabs: [],
   split: null,
+  tabPane: {},
+  paneActive: [null, null],
+  focusedPane: 0,
+  draggingTabId: null,
   tableChanges: {},
   tableLayouts: loadTableLayouts(),
   refreshKeys: {},
 
   openTable(connectionId, database, schema, table) {
     const id = tableKey(connectionId, database, schema, table);
-    const existing = get().tabs.find((t) => t.id === id);
-    if (existing) {
-      set({ activeId: id });
-      return;
-    }
-    set((s) => ({
-      tabs: [
-        ...s.tabs,
-        { id, kind: "table", connectionId, database, schema, table },
-      ],
-      activeId: id,
-    }));
+    set((s) =>
+      s.tabs.some((t) => t.id === id)
+        ? activateExisting(s, id)
+        : openInFocusedPane(s, {
+            id,
+            kind: "table",
+            connectionId,
+            database,
+            schema,
+            table,
+          }),
+    );
   },
 
   openErDiagram(connectionId, database, schemas) {
     const scope =
       schemas && schemas.length > 0 ? [...schemas].sort() : null;
     const id = `er:${connectionId}::${database}::${scope?.join(",") ?? "all"}`;
-    const existing = get().tabs.find((t) => t.id === id);
-    if (existing) {
-      set({ activeId: id });
-      return;
-    }
     const title =
       scope && scope.length === 1
         ? `ER: ${scope[0]}`
         : `ER: ${database}`;
-    set((s) => ({
-      tabs: [
-        ...s.tabs,
-        { id, kind: "er-diagram", connectionId, database, title, schemas: scope },
-      ],
-      activeId: id,
-    }));
+    set((s) =>
+      s.tabs.some((t) => t.id === id)
+        ? activateExisting(s, id)
+        : openInFocusedPane(s, {
+            id,
+            kind: "er-diagram",
+            connectionId,
+            database,
+            title,
+            schemas: scope,
+          }),
+    );
   },
 
   newQueryTab(connectionId, database) {
     const id = `query:${++queryTabSeq}:${connectionId}`;
     const title = `untitled-${queryTabSeq}.sql`;
-    set((s) => ({
-      tabs: [
-        ...s.tabs,
-        {
-          id,
-          kind: "query",
-          connectionId,
-          database,
-          title,
-          sql: "",
-          savedSql: "",
-          dirty: false,
-        },
-      ],
-      activeId: id,
-    }));
+    set((s) =>
+      openInFocusedPane(s, {
+        id,
+        kind: "query",
+        connectionId,
+        database,
+        title,
+        sql: "",
+        savedSql: "",
+        dirty: false,
+      }),
+    );
     return id;
   },
 
   openSchemaCompare(title, connectionId, database, config) {
     const id = `schema-compare:${++schemaCompareSeq}`;
-    set((s) => ({
-      tabs: [
-        ...s.tabs,
-        { id, kind: "schema-compare", connectionId, database, title, config },
-      ],
-      activeId: id,
-    }));
+    set((s) =>
+      openInFocusedPane(s, {
+        id,
+        kind: "schema-compare",
+        connectionId,
+        database,
+        title,
+        config,
+      }),
+    );
     return id;
   },
 
@@ -347,8 +432,6 @@ export const useTabs = create<TabsStore>((set, get) => ({
     set((s) => {
       const closed = s.tabs.find((t) => t.id === id);
       const tabs = s.tabs.filter((t) => t.id !== id);
-      const activeId =
-        s.activeId === id ? tabs[tabs.length - 1]?.id ?? null : s.activeId;
       const { tableChanges, refreshKeys } = dropTabScopedState(
         [id],
         s.tableChanges,
@@ -356,11 +439,10 @@ export const useTabs = create<TabsStore>((set, get) => ({
       );
       return {
         tabs,
-        activeId,
         closedTabs: closed ? [closed, ...s.closedTabs].slice(0, 12) : s.closedTabs,
-        split: splitForTabs(tabs, s.split),
         tableChanges,
         refreshKeys,
+        ...reconcile({ ...s, tabs }),
       };
     });
     clearTabResults([id]);
@@ -381,11 +463,10 @@ export const useTabs = create<TabsStore>((set, get) => ({
       );
       return {
         tabs,
-        activeId: tabs[0]?.id ?? null,
         closedTabs: stackClosedTabs(closed, s.closedTabs),
-        split: null,
         tableChanges,
         refreshKeys,
+        ...reconcile({ ...s, tabs }),
       };
     });
     clearTabResults(closedIds);
@@ -400,7 +481,6 @@ export const useTabs = create<TabsStore>((set, get) => ({
     set((s) => {
       const tabs = s.tabs.slice(0, tabIndex + 1);
       const closed = s.tabs.slice(tabIndex + 1);
-      const activeId = closedIds.includes(s.activeId ?? "") ? id : s.activeId;
       const { tableChanges, refreshKeys } = dropTabScopedState(
         closedIds,
         s.tableChanges,
@@ -408,11 +488,10 @@ export const useTabs = create<TabsStore>((set, get) => ({
       );
       return {
         tabs,
-        activeId,
         closedTabs: stackClosedTabs(closed, s.closedTabs),
-        split: splitForTabs(tabs, s.split),
         tableChanges,
         refreshKeys,
+        ...reconcile({ ...s, tabs }),
       };
     });
     clearTabResults(closedIds);
@@ -425,9 +504,6 @@ export const useTabs = create<TabsStore>((set, get) => ({
     set((s) => {
       const removed = new Set(removedIds);
       const tabs = s.tabs.filter((t) => !removed.has(t.id));
-      const activeId = removed.has(s.activeId ?? "")
-        ? tabs[tabs.length - 1]?.id ?? null
-        : s.activeId;
       const { tableChanges, refreshKeys } = dropTabScopedState(
         removedIds,
         s.tableChanges,
@@ -435,15 +511,14 @@ export const useTabs = create<TabsStore>((set, get) => ({
       );
       return {
         tabs,
-        activeId,
         // Drop the connection's tabs from the reopen stack too, so undo-close
         // can't resurrect a tab that points at a connection that no longer exists.
         closedTabs: s.closedTabs.filter(
           (t) => t.connectionId !== connectionId,
         ),
-        split: splitForTabs(tabs, s.split),
         tableChanges,
         refreshKeys,
+        ...reconcile({ ...s, tabs }),
       };
     });
     if (removedIds.length > 0) clearTabResults(removedIds);
@@ -453,13 +528,70 @@ export const useTabs = create<TabsStore>((set, get) => ({
     if (sourceId === targetId) return;
     set((s) => {
       const sourceIndex = s.tabs.findIndex((t) => t.id === sourceId);
-      const targetIndex = s.tabs.findIndex((t) => t.id === targetId);
-      if (sourceIndex === -1 || targetIndex === -1) return {};
+      if (sourceIndex === -1 || !s.tabs.some((t) => t.id === targetId)) {
+        return {};
+      }
       const tabs = [...s.tabs];
       const [moved] = tabs.splice(sourceIndex, 1);
       if (!moved) return {};
-      tabs.splice(targetIndex, 0, moved);
-      return { tabs, split: splitForTabs(tabs, s.split) };
+      tabs.splice(tabs.findIndex((t) => t.id === targetId), 0, moved);
+      // When split, dropping onto another pane's tab moves the source into it.
+      const tabPane = s.split
+        ? { ...s.tabPane, [sourceId]: paneOf(s.tabPane, targetId) }
+        : s.tabPane;
+      return { tabs, ...reconcile({ ...s, tabs, tabPane }) };
+    });
+  },
+
+  moveTabToPane(id, pane) {
+    set((s) => {
+      if (!s.split || !s.tabs.some((t) => t.id === id)) return {};
+      if (paneOf(s.tabPane, id) === pane) return activateExisting(s, id);
+      const tabPane = { ...s.tabPane, [id]: pane };
+      return reconcile({
+        ...s,
+        tabPane,
+        paneActive: setPaneActive(s.paneActive, pane, id),
+        focusedPane: pane,
+      });
+    });
+  },
+
+  focusPane(pane) {
+    set((s) => (s.split ? reconcile({ ...s, focusedPane: pane }) : {}));
+  },
+
+  setDraggingTab(id) {
+    set({ draggingTabId: id });
+  },
+
+  dropTabToSplit(id, edge) {
+    set((s) => {
+      if (!s.tabs.some((t) => t.id === id)) return { draggingTabId: null };
+      const orientation: SplitOrientation =
+        edge === "left" || edge === "right" ? "vertical" : "horizontal";
+      const targetPane: PaneIndex = edge === "left" || edge === "top" ? 0 : 1;
+      let tabPane: Record<string, PaneIndex>;
+      if (s.split) {
+        // Already split — just move the dropped tab to the chosen pane.
+        tabPane = { ...s.tabPane, [id]: targetPane };
+      } else {
+        // Fresh split — the dropped tab takes its edge, everything else the
+        // opposite pane (a no-op when it's the only tab: reconcile collapses).
+        const other: PaneIndex = targetPane === 0 ? 1 : 0;
+        tabPane = {};
+        for (const t of s.tabs) tabPane[t.id] = t.id === id ? targetPane : other;
+      }
+      return {
+        draggingTabId: null,
+        ...reconcile({
+          ...s,
+          split: orientation,
+          tabPane,
+          paneActive: setPaneActive(s.paneActive, targetPane, id),
+          focusedPane: targetPane,
+        }),
+      };
     });
   },
 
@@ -467,57 +599,47 @@ export const useTabs = create<TabsStore>((set, get) => ({
     set((s) => {
       const [closed, ...closedTabs] = s.closedTabs;
       if (!closed) return {};
-
-      const existing = s.tabs.find((t) => t.id === closed.id);
-      if (existing) {
-        return { activeId: existing.id, closedTabs };
-      }
-
-      return {
-        tabs: [...s.tabs, closed],
-        activeId: closed.id,
-        closedTabs,
-      };
+      return s.tabs.some((t) => t.id === closed.id)
+        ? { closedTabs, ...activateExisting(s, closed.id) }
+        : { closedTabs, ...openInFocusedPane(s, closed) };
     });
   },
 
   splitActiveTab(orientation) {
     set((s) => {
-      if (!s.activeId || s.tabs.length < 2) return {};
-
-      if (s.split?.orientation === orientation) {
-        return { split: null };
+      // Same orientation again → collapse back to a single pane.
+      if (s.split === orientation) {
+        return reconcile({
+          ...s,
+          split: null,
+          paneActive: [s.activeId, null],
+          focusedPane: 0,
+        });
       }
-
-      const activeIndex = s.tabs.findIndex((t) => t.id === s.activeId);
-      if (activeIndex === -1) return {};
-
-      const secondary =
-        s.tabs[activeIndex + 1] ?? s.tabs[activeIndex - 1] ?? null;
-      if (!secondary) return {};
-
-      return {
-        split: {
-          orientation,
-          primaryId: s.activeId,
-          secondaryId: secondary.id,
-        },
-      };
+      // Already split the other way → just flip the orientation.
+      if (s.split) return reconcile({ ...s, split: orientation });
+      // Create a split: move the active tab into the secondary pane and keep
+      // the rest in the primary (needs another tab so neither pane is empty).
+      if (!s.activeId || s.tabs.length < 2) return {};
+      const tabPane = { ...s.tabPane, [s.activeId]: 1 as PaneIndex };
+      return reconcile({
+        ...s,
+        split: orientation,
+        tabPane,
+        paneActive: [null, s.activeId],
+        focusedPane: 1,
+      });
     });
   },
 
   clearSplit() {
-    set({ split: null });
+    set((s) =>
+      reconcile({ ...s, split: null, paneActive: [s.activeId, null], focusedPane: 0 }),
+    );
   },
 
   setActive(id) {
-    set((s) => ({
-      activeId: id,
-      split:
-        s.split && id !== s.split.primaryId && id !== s.split.secondaryId
-          ? { ...s.split, primaryId: id }
-          : s.split,
-    }));
+    set((s) => activateExisting(s, id));
   },
 
   setTableLayout(id, layout) {
