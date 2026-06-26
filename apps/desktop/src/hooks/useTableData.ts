@@ -2,11 +2,15 @@ import { commands, unwrap } from "@cellar/ipc";
 import type { QueryResult, TableBrowseRequest } from "@cellar/ipc";
 import type {
   CellAlign,
+  FilterClause,
   GridColumn,
   GridRow,
   GridValue,
+  SortState,
 } from "@cellar/data-grid";
 import { useEffect, useState } from "react";
+
+import { buildBrowseFilters, sortToClauses } from "../lib/browseFilters";
 
 import {
   cellValueToGrid,
@@ -61,8 +65,25 @@ export function useTableData(
   tabId?: string,
   pageIndex = 0,
   pageSize = DEFAULT_LIMIT,
+  advancedFilters: readonly FilterClause[] = [],
+  quickFilter = "",
+  quickFilterColumn: string | null = null,
+  sort: SortState = null,
 ): TableData {
   const offset = pageIndex * pageSize;
+  // Column metadata comes from the connection cache so the filter/sort mapping
+  // is stable across page loads (the query result columns get a fresh identity
+  // every fetch, which would otherwise re-trigger the effect below).
+  const columnMeta = tableColumnsMeta(connectionId, database, schema, table);
+  const filters = buildBrowseFilters(
+    columnMeta,
+    advancedFilters,
+    quickFilter,
+    quickFilterColumn,
+  );
+  const sorts = sortToClauses(sort);
+  const filtersKey = JSON.stringify(filters);
+  const sortsKey = JSON.stringify(sorts);
   const [state, setState] = useState<TableData>({
     columns: [],
     rows: [],
@@ -96,8 +117,8 @@ export function useTableData(
       table,
       limit: pageSize,
       offset,
-      sorts: [],
-      filters: [],
+      sorts,
+      filters,
       primary_key_fallback_ordering: true,
       // Request total count only on the first page so the pagination bar can
       // show "rows X-Y of TOTAL". Subsequent pages re-use the cached total.
@@ -188,7 +209,7 @@ export function useTableData(
     return () => {
       cancelled = true;
     };
-  }, [connectionId, database, schema, table, refreshKey, tabId, offset, pageSize]);
+  }, [connectionId, database, schema, table, refreshKey, tabId, offset, pageSize, filtersKey, sortsKey]);
 
   return state;
 }
@@ -257,6 +278,32 @@ function columnsFor(
       nullable: meta ? meta.nullable : c.nullable,
     };
   });
+}
+
+/**
+ * Minimal column metadata from the connection cache (available before the first
+ * query result), used to compile quick/advanced filters into the browse request.
+ */
+function tableColumnsMeta(
+  connectionId: string,
+  database: string,
+  schema: string,
+  table: string,
+): GridColumn[] {
+  const cache = useConnections.getState().byId[connectionId];
+  const tableMeta = cache?.databases
+    .filter((d) => d.name === database)
+    .flatMap((d) => d.schemas)
+    .find((s) => s.name === schema)
+    ?.tables.find((t) => t.name === table);
+  return (tableMeta?.columns ?? []).map((c) => ({
+    key: c.name,
+    name: c.name,
+    type: c.data_type,
+    width: 0,
+    pk: c.is_primary_key,
+    nullable: c.nullable,
+  }));
 }
 
 function tablePrimaryKey(

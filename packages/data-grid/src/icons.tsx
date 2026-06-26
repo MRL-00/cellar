@@ -55,6 +55,12 @@ export const GridIcon = {
     </I>
   ),
   filter: (p: IconProps) => <I {...p} d="M3 5h18l-7 9v6l-4-2v-4z" />,
+  search: (p: IconProps) => (
+    <I {...p}>
+      <circle cx="11" cy="11" r="7" />
+      <path d="M21 21l-4.3-4.3" />
+    </I>
+  ),
   sortAsc: (p: IconProps) => (
     <I {...p}>
       <path d="M7 4v16M3 16l4 4 4-4" />

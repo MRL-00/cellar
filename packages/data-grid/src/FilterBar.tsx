@@ -28,6 +28,15 @@ export type FilterBarProps = {
   columns: readonly GridColumn[];
   filters: ColumnFilters;
   setFilters: (next: ColumnFilters) => void;
+  /**
+   * Optional quick filter, pinned at the start of the toolbar. Lives alongside
+   * the advanced chips — clearing one never touches the other. Hidden when no
+   * `onQuickFilterChange` is supplied.
+   */
+  quickFilter?: string;
+  onQuickFilterChange?: (next: string) => void;
+  quickFilterColumn?: string | null;
+  onQuickFilterColumnChange?: (next: string | null) => void;
   totalRows: number;
   filteredRows: number;
   serverRows?: number;
@@ -37,6 +46,10 @@ export function FilterBar({
   columns,
   filters,
   setFilters,
+  quickFilter,
+  onQuickFilterChange,
+  quickFilterColumn,
+  onQuickFilterColumnChange,
   totalRows,
   filteredRows,
   serverRows,
@@ -138,11 +151,63 @@ export function FilterBar({
   const canApply =
     !!draft && !!draftColumn && (!needsValue || draft.value.trim().length > 0);
 
+  // Quick filter targets a single text-ish column (one that accepts `contains`).
+  const textColumns = useMemo(
+    () => columns.filter((column) => operatorsForColumn(column).includes("contains")),
+    [columns],
+  );
+  const showQuickFilter = !!onQuickFilterChange;
+  const quickValue = quickFilter ?? "";
+  const quickColumnValue = quickFilterColumn ?? textColumns[0]?.key ?? "";
+  const quickActive = quickValue.trim().length > 0;
+  const activeCount = filters.length + (quickActive ? 1 : 0);
+
   return (
     <div className="grid-filterbar">
+      {showQuickFilter && (
+        <div className="grid-quickfilter">
+          <GridIcon.search size={11} style={{ color: "var(--fg-3)" }} />
+          <input
+            className="grid-quickfilter-input mono"
+            value={quickValue}
+            onChange={(e) => onQuickFilterChange?.(e.target.value)}
+            placeholder="Quick filter (id or text)…"
+            aria-label="Quick filter"
+          />
+          {textColumns.length > 0 && (
+            <select
+              className="grid-filter-select grid-quickfilter-column"
+              value={quickColumnValue}
+              onChange={(e) => onQuickFilterColumnChange?.(e.target.value || null)}
+              aria-label="Quick filter column"
+              title="Text column searched by the quick filter (numeric values match the id/primary key)"
+            >
+              {textColumns.map((column) => (
+                <option key={column.key} value={column.key}>
+                  {column.name}
+                </option>
+              ))}
+            </select>
+          )}
+          {quickActive && (
+            <button
+              className="grid-filter-remove"
+              onClick={() => onQuickFilterChange?.("")}
+              aria-label="Clear quick filter"
+            >
+              <GridIcon.close size={9} />
+            </button>
+          )}
+        </div>
+      )}
       <div className="grid-filterbar-label">
         <GridIcon.filter size={11} style={{ color: "var(--accent)" }} />
         <span>where</span>
+        {activeCount > 0 && (
+          <span className="grid-filter-active-count" title="Active filters (quick + advanced)">
+            {activeCount} active
+          </span>
+        )}
       </div>
       <div className="grid-filterbar-chips">
         {filters.map((clause, index) => {

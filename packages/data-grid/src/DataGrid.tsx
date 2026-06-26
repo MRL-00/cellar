@@ -110,6 +110,16 @@ export type DataGridProps = {
   filters: ColumnFilters;
   onFiltersChange: (next: ColumnFilters) => void;
 
+  /**
+   * Quick filter pinned in the toolbar. Independent of the advanced filter
+   * chips: clearing one never touches the other. When omitted, the quick filter
+   * input is hidden. The compiled clause is applied server-side by the host.
+   */
+  quickFilter?: string;
+  onQuickFilterChange?: (next: string) => void;
+  quickFilterColumn?: string | null;
+  onQuickFilterColumnChange?: (next: string | null) => void;
+
   sort?: SortState;
   onSortChange?: (next: SortState) => void;
 
@@ -204,6 +214,10 @@ export function DataGrid({
   onEdit,
   filters,
   onFiltersChange,
+  quickFilter,
+  onQuickFilterChange,
+  quickFilterColumn,
+  onQuickFilterColumnChange,
   sort,
   onSortChange,
   columnLayout,
@@ -662,6 +676,10 @@ export function DataGrid({
         columns={renderedColumns}
         filters={filters}
         setFilters={onFiltersChange}
+        quickFilter={quickFilter}
+        onQuickFilterChange={onQuickFilterChange}
+        quickFilterColumn={quickFilterColumn}
+        onQuickFilterColumnChange={onQuickFilterColumnChange}
         totalRows={rows.length}
         filteredRows={visibleRows.length}
         serverRows={totalRows}

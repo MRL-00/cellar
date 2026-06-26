@@ -205,6 +205,40 @@
   font-size: 10.5px;
 }
 
+/* ── quick filter (pinned, alongside advanced chips) ──────── */
+.grid-quickfilter {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding-right: 8px;
+  border-right: 1px solid var(--border-default);
+}
+.grid-quickfilter-input {
+  height: 18px;
+  width: 160px;
+  padding: 0 6px;
+  border: 1px solid var(--border-default);
+  border-radius: 3px;
+  background: var(--bg-inset);
+  color: var(--fg-0);
+  font-size: 10.5px;
+  outline: none;
+}
+.grid-quickfilter-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-line);
+}
+.grid-quickfilter-column { max-width: 120px; }
+.grid-filter-active-count {
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 9.5px;
+  font-weight: 600;
+}
+
 /* ── table scroll + rows ──────────────────────────────────── */
 .grid-scroll {
   flex: 1;
