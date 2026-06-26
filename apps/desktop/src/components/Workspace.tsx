@@ -235,30 +235,56 @@ function TableTabPane({
     void navigator.clipboard.writeText(text);
   }, []);
 
-  // ⌘/Ctrl+C copies the selected row as TSV (drops cleanly into spreadsheets).
-  // Scoped to the grid container's focus so it never hijacks copy from the SQL
-  // editor or another pane; native text selections and inline editors are left
-  // to the browser.
-  const handleCopyKey = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "c") {
-      return;
-    }
-    const active = document.activeElement;
-    if (
-      active instanceof HTMLElement &&
-      (active.tagName === "INPUT" ||
-        active.tagName === "TEXTAREA" ||
-        active.isContentEditable)
-    ) {
-      return;
-    }
-    if (!window.getSelection()?.isCollapsed) return;
-    if (!selectedRowData) return;
-    event.preventDefault();
-    copyText(
-      toTsv(data.columns, [selectedRowData], { header: false }).trimEnd(),
-    );
-  };
+  // Toggle the given row's pending delete. A pending insert is cancelled
+  // outright (nothing in the DB to delete); a row already marked delete toggles
+  // back off. Otherwise mark it (dropping any pending edits — the delete wins).
+  const handleDeleteRow = useCallback(
+    (row: GridRow) => {
+      const existing = changes[row.id];
+      const next = { ...changes };
+      if (existing?.kind === "insert" || existing?.kind === "delete") {
+        delete next[row.id];
+      } else {
+        next[row.id] = { kind: "delete", edits: {} };
+      }
+      setTableChanges(tab.id, next);
+    },
+    [changes, setTableChanges, tab.id],
+  );
+
+  // Keyboard shortcuts active while the grid container holds focus. Native text
+  // selections and inline editors (input/textarea/contenteditable) are left to
+  // the browser so we never hijack copy/delete from the SQL editor or a cell.
+  const handleGridKey = useCallback(
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      const active = document.activeElement;
+      const inEditor =
+        active instanceof HTMLElement &&
+        (active.tagName === "INPUT" ||
+          active.tagName === "TEXTAREA" ||
+          active.isContentEditable);
+      if (inEditor) return;
+
+      // Delete/Backspace marks the selected row for deletion.
+      if (event.key === "Delete" || event.key === "Backspace") {
+        if (!selectedRowData) return;
+        event.preventDefault();
+        handleDeleteRow(selectedRowData);
+        return;
+      }
+
+      // ⌘/Ctrl+C copies the selected row as TSV (drops cleanly into spreadsheets).
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "c") {
+        if (!window.getSelection()?.isCollapsed) return;
+        if (!selectedRowData) return;
+        event.preventDefault();
+        copyText(
+          toTsv(data.columns, [selectedRowData], { header: false }).trimEnd(),
+        );
+      }
+    },
+    [handleDeleteRow, selectedRowData, data.columns, copyText],
+  );
   const pagination = useMemo(
     () => ({
       offset: data.offset,
@@ -288,14 +314,18 @@ function TableTabPane({
   if (data.loading) {
     return (
       <PaneMessage>
-        <span className="animate-sb-pulse">loading {tab.schema}.{tab.table}…</span>
+        <span className="animate-sb-pulse">
+          loading {tab.schema}.{tab.table}…
+        </span>
       </PaneMessage>
     );
   }
   if (data.error) {
     return (
       <PaneMessage>
-        <span className="text-warn">Table load failed. See Messages for details.</span>
+        <span className="text-warn">
+          Table load failed. See Messages for details.
+        </span>
       </PaneMessage>
     );
   }
@@ -304,13 +334,15 @@ function TableTabPane({
     <div
       ref={containerRef}
       tabIndex={-1}
-      onKeyDown={handleCopyKey}
+      onKeyDown={handleGridKey}
       className="flex flex-1 min-h-0 overflow-hidden outline-none"
     >
       <DataGrid
         columns={data.columns}
         rows={data.rows}
-        totalRows={data.totalRows ?? (data.truncated ? undefined : data.rows.length)}
+        totalRows={
+          data.totalRows ?? (data.truncated ? undefined : data.rows.length)
+        }
         pagination={pagination}
         changes={changes}
         onChange={handleGridChange}
@@ -407,6 +439,17 @@ function TableTabPane({
                 onClick: () =>
                   copyText(toSqlInserts(data.columns, [row]).trimEnd()),
               },
+              {
+                label:
+                  changes[row.id]?.kind === "delete"
+                    ? "Unmark row for delete"
+                    : changes[row.id]?.kind === "insert"
+                      ? "Cancel insert"
+                      : "Delete row",
+                icon: <Icon.trash size={12} />,
+                danger: changes[row.id]?.kind !== "delete",
+                onClick: () => handleDeleteRow(row),
+              },
             ],
           });
         }}
@@ -449,9 +492,9 @@ function EmptyWorkspace() {
           Open a table to begin
         </div>
         <div className="max-w-[360px] text-[11.5px] leading-[1.5] text-fg-3">
-          Add a Postgres connection in the sidebar, expand it, and click a
-          table to load real rows — or hit <span className="font-mono">+</span>{" "}
-          in the tab bar to open a SQL editor.
+          Add a Postgres connection in the sidebar, expand it, and click a table
+          to load real rows — or hit <span className="font-mono">+</span> in the
+          tab bar to open a SQL editor.
         </div>
       </div>
       <div className="flex gap-3 text-[10.5px] text-fg-3">
