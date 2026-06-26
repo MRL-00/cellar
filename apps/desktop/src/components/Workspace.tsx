@@ -14,9 +14,10 @@ import {
 
 import { SqlEditor } from "./SqlEditor";
 import { SchemaComparePane } from "./SchemaComparePane";
+import { ErDiagram } from "./er/ErDiagram";
 import { ContextMenu, type ContextMenuState } from "./ContextMenu";
 import { Icon } from "./icons";
-import { useTabs, type TableTab, type WorkspaceTab } from "../state/tabs";
+import { useTabs, tabLabel, type TableTab, type WorkspaceTab } from "../state/tabs";
 import { useTableData } from "../hooks/useTableData";
 import { useSettings } from "../lib/settings";
 import { toCsv, toJson, toSqlInserts, toTsv } from "../lib/export";
@@ -112,7 +113,9 @@ function SplitPane({
           onClick={onActivate}
           title={tabTitle(tab)}
         >
-          <span className="inline-flex shrink-0 text-fg-3">{tabIcon(tab)}</span>
+          <span className="inline-flex shrink-0 text-fg-3">
+            <TabIcon tab={tab} />
+          </span>
           <span className="truncate font-mono">{tabTitle(tab)}</span>
         </button>
         <button
@@ -142,20 +145,24 @@ function renderTab(tab: WorkspaceTab, onCommit?: () => void) {
   if (tab.kind === "schema-compare") {
     return <SchemaComparePane key={tab.id} tab={tab} />;
   }
+  if (tab.kind === "er-diagram") {
+    // `key` resets zoom/pan and node positions per diagram tab.
+    return <ErDiagram key={tab.id} tab={tab} />;
+  }
   // `key` resets the grid's local state (filters/selection) when the user
   // switches to a different table tab.
   return <TableTabPane key={tab.id} tab={tab} onCommit={onCommit} />;
 }
 
-function tabTitle(tab: WorkspaceTab): string {
-  if (tab.kind === "table") return `${tab.schema}.${tab.table}`;
-  return tab.title;
-}
-
-function tabIcon(tab: WorkspaceTab) {
+function TabIcon({ tab }: { tab: WorkspaceTab }) {
   if (tab.kind === "query") return <Icon.terminal size={11} />;
   if (tab.kind === "schema-compare") return <Icon.diff size={11} />;
+  if (tab.kind === "er-diagram") return <Icon.diagram size={11} />;
   return <Icon.table size={11} />;
+}
+
+function tabTitle(tab: WorkspaceTab): string {
+  return tabLabel(tab);
 }
 
 function TableTabPane({

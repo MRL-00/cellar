@@ -69,6 +69,7 @@ export function Sidebar({
   const deleteConnection = useConnections((s) => s.deleteConnection);
   const refreshSchema = useConnections((s) => s.refreshSchema);
   const openTable = useTabs((s) => s.openTable);
+  const openErDiagram = useTabs((s) => s.openErDiagram);
   const newQueryTab = useTabs((s) => s.newQueryTab);
   const setQuerySql = useTabs((s) => s.setQuerySql);
   const activeTabId = useTabs((s) => s.activeId);
@@ -125,6 +126,11 @@ export function Sidebar({
             label: "New SQL query",
             icon: <Icon.terminal size={12} />,
             onClick: () => queryFor(node.connectionId, node.database),
+          },
+          {
+            label: "Open ER diagram",
+            icon: <Icon.diagram size={12} />,
+            onClick: () => openErDiagram(node.connectionId, node.database, null),
           },
           {
             label: "Refresh schemas",
@@ -189,6 +195,12 @@ export function Sidebar({
                 database: node.database,
                 schema: node.schema,
               }),
+          },
+          {
+            label: "Open ER diagram",
+            icon: <Icon.diagram size={12} />,
+            onClick: () =>
+              openErDiagram(node.connectionId, node.database, [node.schema]),
           },
           {
             label: node.hidden ? "Show in sidebar" : "Hide from sidebar",

@@ -45,8 +45,27 @@ export interface SchemaCompareTab {
   config: CompareConfig;
 }
 
-export type WorkspaceTab = TableTab | QueryTab | SchemaCompareTab;
+export interface ErDiagramTab {
+  id: string;
+  kind: "er-diagram";
+  connectionId: string;
+  database: string;
+  title: string;
+  /** Schema scope the graph was opened for; `null` means every schema. */
+  schemas: string[] | null;
+}
+
+export type WorkspaceTab =
+  | TableTab
+  | QueryTab
+  | SchemaCompareTab
+  | ErDiagramTab;
 export type SplitOrientation = "horizontal" | "vertical";
+
+/** Short label for a tab — title for query/ER tabs, `schema.table` for tables. */
+export function tabLabel(tab: WorkspaceTab): string {
+  return tab.kind === "table" ? `${tab.schema}.${tab.table}` : tab.title;
+}
 
 export interface WorkspaceSplit {
   orientation: SplitOrientation;
@@ -85,7 +104,14 @@ interface TabsStore {
     database: string,
     config: CompareConfig,
   ) => string;
+  openErDiagram: (
+    connectionId: string,
+    database: string,
+    schemas: string[] | null,
+  ) => void;
   setQuerySql: (id: string, sql: string) => void;
+  /** Re-point a query tab at a different database on the same connection. */
+  setQueryDatabase: (id: string, database: string) => void;
   markQueryRun: (id: string) => void;
   closeTab: (id: string) => void;
   reopenClosedTab: () => void;
@@ -227,6 +253,28 @@ export const useTabs = create<TabsStore>((set, get) => ({
     }));
   },
 
+  openErDiagram(connectionId, database, schemas) {
+    const scope =
+      schemas && schemas.length > 0 ? [...schemas].sort() : null;
+    const id = `er:${connectionId}::${database}::${scope?.join(",") ?? "all"}`;
+    const existing = get().tabs.find((t) => t.id === id);
+    if (existing) {
+      set({ activeId: id });
+      return;
+    }
+    const title =
+      scope && scope.length === 1
+        ? `ER: ${scope[0]}`
+        : `ER: ${database}`;
+    set((s) => ({
+      tabs: [
+        ...s.tabs,
+        { id, kind: "er-diagram", connectionId, database, title, schemas: scope },
+      ],
+      activeId: id,
+    }));
+  },
+
   newQueryTab(connectionId, database) {
     const id = `query:${++queryTabSeq}:${connectionId}`;
     const title = `untitled-${queryTabSeq}.sql`;
@@ -269,6 +317,20 @@ export const useTabs = create<TabsStore>((set, get) => ({
           : t,
       ),
     }));
+  },
+
+  setQueryDatabase(id, database) {
+    const tab = get().tabs.find((t) => t.id === id);
+    if (!tab || tab.kind !== "query" || tab.database === database) return;
+    set((s) => ({
+      tabs: s.tabs.map((t) =>
+        t.id === id && t.kind === "query" ? { ...t, database } : t,
+      ),
+    }));
+    // The grid, its `result.source` header, the "Load more" callback, and any
+    // messages/notices still describe the previous database — drop them so the
+    // user isn't shown stale data until they re-run.
+    clearTabResults([id]);
   },
 
   markQueryRun(id) {

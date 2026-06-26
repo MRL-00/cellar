@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Icon } from "./icons";
 import { useTabs } from "../state/tabs";
 import { useConnections } from "../state/connections";
 import { ENGINE_META } from "./EngineBadge";
+import { ContextMenu, type ContextMenuState } from "./ContextMenu";
 import type { PanelId, Panels } from "../state/layout";
 
 // WKWebView ignores Electron's `-webkit-app-region`, so window dragging and
@@ -41,11 +43,42 @@ export function TitleBar({
 }) {
   const activeId = useTabs((s) => s.activeId);
   const tabs = useTabs((s) => s.tabs);
+  const setQueryDatabase = useTabs((s) => s.setQueryDatabase);
   const connections = useConnections((s) => s.connections);
+  const byId = useConnections((s) => s.byId);
   const activeTab = tabs.find((t) => t.id === activeId) ?? null;
   const activeConn = activeTab
     ? connections.find((c) => c.id === activeTab.connectionId) ?? null
     : null;
+
+  const [menu, setMenu] = useState<ContextMenuState | null>(null);
+
+  const engineColor = ENGINE_META[activeConn?.engine ?? "postgres"].color;
+  // The database list is loaded per-connection into `byId`, not onto the
+  // connection config itself.
+  const databases = activeTab ? byId[activeTab.connectionId]?.databases ?? [] : [];
+  // Only query tabs can be re-pointed — a table tab is bound to its database.
+  const canSwitchDatabase =
+    activeTab?.kind === "query" && databases.length > 0;
+
+  function openDatabaseMenu(e: React.MouseEvent<HTMLButtonElement>) {
+    if (!activeTab || activeTab.kind !== "query") return;
+    const tabId = activeTab.id;
+    const rect = e.currentTarget.getBoundingClientRect();
+    setMenu({
+      x: rect.left,
+      y: rect.bottom + 4,
+      items: databases.map((db) => ({
+        label: db.name,
+        icon: (
+          <span style={{ color: engineColor }}>
+            {db.name === activeTab.database ? "●" : "○"}
+          </span>
+        ),
+        onClick: () => setQueryDatabase(tabId, db.name),
+      })),
+    });
+  }
 
   return (
     <div
@@ -73,16 +106,31 @@ export function TitleBar({
                 <span>{activeConn?.name ?? activeTab.connectionId}</span>
               </span>
               <Icon.chevronRight size={11} style={{ opacity: 0.4 }} />
-              <span className="inline-flex items-center gap-[5px] whitespace-nowrap rounded-[4px] px-1.5 py-[3px] text-[11.5px] text-fg-1 max-[1080px]:hidden">
-                <span style={{ color: ENGINE_META[activeConn?.engine ?? "postgres"].color }}>●</span>
-                <span>{activeTab.database}</span>
-              </span>
+              {canSwitchDatabase ? (
+                <button
+                  type="button"
+                  onClick={openDatabaseMenu}
+                  title="Switch database"
+                  className="inline-flex items-center gap-[5px] whitespace-nowrap rounded-[4px] px-1.5 py-[3px] text-[11.5px] text-fg-1 transition-colors hover:bg-bg-2 max-[1080px]:hidden"
+                >
+                  <span style={{ color: engineColor }}>●</span>
+                  <span>{activeTab.database}</span>
+                  <Icon.chevronDown size={10} style={{ opacity: 0.5 }} />
+                </button>
+              ) : (
+                <span className="inline-flex items-center gap-[5px] whitespace-nowrap rounded-[4px] px-1.5 py-[3px] text-[11.5px] text-fg-1 max-[1080px]:hidden">
+                  <span style={{ color: engineColor }}>●</span>
+                  <span>{activeTab.database}</span>
+                </span>
+              )}
               <Icon.chevronRight size={11} style={{ opacity: 0.4 }} />
               <span className="inline-flex items-center gap-[5px] whitespace-nowrap rounded-[4px] px-1.5 py-[3px] text-[11.5px] text-fg-1 max-[1080px]:hidden">
                 {activeTab.kind === "query" ? (
                   <Icon.terminal size={11} />
                 ) : activeTab.kind === "schema-compare" ? (
                   <Icon.diff size={11} />
+                ) : activeTab.kind === "er-diagram" ? (
+                  <Icon.diagram size={11} />
                 ) : (
                   <Icon.schema size={11} />
                 )}
@@ -151,6 +199,8 @@ export function TitleBar({
           </button>
         )}
       </div>
+
+      <ContextMenu state={menu} onClose={() => setMenu(null)} />
     </div>
   );
 }

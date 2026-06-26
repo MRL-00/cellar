@@ -51,7 +51,7 @@ import {
 } from "../state/notices";
 import { useBottomPanel, type BottomTabId } from "../state/bottomPanel";
 import { useStatus } from "../state/status";
-import { useTabs, type TableTab } from "../state/tabs";
+import { useTabs, tabLabel, type TableTab } from "../state/tabs";
 import {
   maxRowsLabel,
   resultContextLabel,
@@ -253,11 +253,7 @@ export function BottomPanel({ onClose }: { onClose: () => void }) {
             activeConnectionName={activeConnection?.name ?? null}
             activeEngine={activeConnection?.engine ?? null}
             activeTabLabel={
-                activeTab
-                  ? activeTab.kind === "table"
-                    ? `${activeTab.database}.${activeTab.schema}.${activeTab.table}`
-                    : `${activeTab.database}.${activeTab.title}`
-                  : null
+              activeTab ? `${activeTab.database}.${tabLabel(activeTab)}` : null
             }
             entry={noticeEntry}
             onClear={() => clearNotices(noticeScope)}
@@ -305,6 +301,7 @@ function headerItems(
   if (activeTab.kind === "query") return [activeTab.title, "query tab"];
   if (activeTab.kind === "schema-compare")
     return [activeTab.title, "schema compare tab"];
+  if (activeTab.kind === "er-diagram") return [activeTab.title, "ER diagram"];
   if (!result) return [tableLabel(activeTab), "table rows shown above"];
 
   const context = resultContextLabel(result.source);
@@ -364,6 +361,14 @@ function ResultsBody({
         <EmptyPanel
           title="Schema comparison"
           detail={`${activeTab.title} is a schema-compare tab. Its diff and generated migration are shown in the main pane above.`}
+        />
+      );
+    }
+    if (activeTab.kind === "er-diagram") {
+      return (
+        <EmptyPanel
+          title="ER diagram"
+          detail={`${activeTab.title} renders the foreign-key graph above. The Results grid is reserved for SQL query output.`}
         />
       );
     }
@@ -761,9 +766,7 @@ function HistoryPanel({
 
   const scopeLabel = useMemo(() => {
     if (!activeTab) return "No active tab";
-    if (activeTab.kind === "table")
-      return `${activeTab.database}.${activeTab.schema}.${activeTab.table}`;
-    return `${activeTab.database}.${activeTab.title}`;
+    return `${activeTab.database}.${tabLabel(activeTab)}`;
   }, [activeTab]);
 
   return (

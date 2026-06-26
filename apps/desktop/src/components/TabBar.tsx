@@ -8,7 +8,7 @@ import {
 import { Icon } from "./icons";
 import { qualifiedName, selectAllStatement } from "../lib/sqlIdent";
 import { useConnections } from "../state/connections";
-import { useTabs, type WorkspaceTab } from "../state/tabs";
+import { useTabs, tabLabel, type WorkspaceTab } from "../state/tabs";
 
 /**
  * Pick the connection + database a new query tab should bind to: the active
@@ -103,7 +103,7 @@ export function TabBar() {
           ]
         : []),
       {
-        label: tab.kind === "query" ? "Copy title" : "Copy qualified name",
+        label: tab.kind === "table" ? "Copy qualified name" : "Copy title",
         icon: <Icon.copy size={12} />,
         onClick: () => copyText(name),
       },
@@ -198,12 +198,14 @@ export function TabBar() {
                   <Icon.terminal size={11} />
                 ) : t.kind === "schema-compare" ? (
                   <Icon.diff size={11} />
+                ) : t.kind === "er-diagram" ? (
+                  <Icon.diagram size={11} />
                 ) : (
                   <Icon.table size={11} />
                 )}
               </span>
               <span className="overflow-hidden text-ellipsis whitespace-nowrap font-mono">
-                {t.kind === "table" ? `${t.schema}.${t.table}` : t.title}
+                {tabLabel(t)}
               </span>
               {t.kind === "query" && t.dirty && (
                 <span

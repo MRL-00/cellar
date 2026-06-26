@@ -29,6 +29,7 @@ describe("@cellar/ipc", () => {
         "deleteConnection",
         "deleteSchemaSnapshot",
         "disconnect",
+        "erGraph",
         "explainQuery",
         "introspect",
         "listQueryHistory",
