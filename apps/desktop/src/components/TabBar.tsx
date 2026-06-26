@@ -65,6 +65,9 @@ export function TabBar() {
   };
 
   const queryFor = (tab: WorkspaceTab, sql?: string) => {
+    // Snapshot-only schema-compare tabs carry no connection; a query tab bound
+    // to nothing would be useless and error on run.
+    if (!tab.connectionId) return;
     const id = newQueryTab(tab.connectionId, tab.database);
     if (sql) {
       setQuerySql(id, sql);
@@ -81,6 +84,7 @@ export function TabBar() {
       {
         label: "New SQL query",
         icon: <Icon.terminal size={12} />,
+        disabled: !tab.connectionId,
         onClick: () => queryFor(tab),
       },
       ...(tab.kind === "table"

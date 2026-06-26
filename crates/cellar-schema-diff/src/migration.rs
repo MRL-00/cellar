@@ -79,6 +79,30 @@ pub fn build_migration(
             _ => {}
         }
     }
+    // Also drop inbound FKs: any other table in this schema whose FK points at
+    // a table being removed. Without this, Postgres rejects the DROP TABLE for
+    // the referenced parent. Dedup in `drop_foreign_key` keeps this from
+    // re-emitting constraints already dropped above.
+    let removed: std::collections::HashSet<&str> = diff
+        .tables
+        .iter()
+        .filter(|t| matches!(t.status, ChangeStatus::Removed))
+        .map(|t| t.name.as_str())
+        .collect();
+    if !removed.is_empty() {
+        for table in &diff.tables {
+            let Some(source) = table.source.as_ref() else {
+                continue;
+            };
+            let qualified = b.qualified(&source.name);
+            for fk in &source.foreign_keys {
+                if fk.referenced_schema == schema && removed.contains(fk.referenced_table.as_str())
+                {
+                    b.drop_foreign_key(&qualified, &fk.name);
+                }
+            }
+        }
+    }
     for view in &diff.views {
         if matches!(view.status, ChangeStatus::Removed) {
             if let Some(v) = &view.source {
@@ -198,6 +222,10 @@ struct Builder<'a> {
     schema: &'a str,
     dialect: Dialect,
     statements: Vec<MigrationStatement>,
+    /// Foreign keys already emitted as drops (`qualified.name`), so the same
+    /// constraint is not dropped twice when it is both owned by a removed
+    /// table and discovered again as an inbound reference.
+    dropped_fks: std::collections::HashSet<String>,
 }
 
 impl<'a> Builder<'a> {
@@ -206,6 +234,7 @@ impl<'a> Builder<'a> {
             schema,
             dialect,
             statements: Vec::new(),
+            dropped_fks: std::collections::HashSet::new(),
         }
     }
 
@@ -552,6 +581,11 @@ impl<'a> Builder<'a> {
     }
 
     fn drop_foreign_key(&mut self, qualified: &str, name: &str) {
+        // A constraint name is only unique within its table, so key dedup on
+        // the qualified table plus the constraint name.
+        if !self.dropped_fks.insert(format!("{qualified}.{name}")) {
+            return;
+        }
         self.push(
             MigrationKind::DropForeignKey,
             format!("{}.{}", self.schema, name),

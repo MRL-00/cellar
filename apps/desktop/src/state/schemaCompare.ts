@@ -125,6 +125,9 @@ export const useSchemaCompare = create<SchemaCompareStore>((set, get) => ({
         selected: selectAllChanges(comparison.statements),
         loading: false,
         error: null,
+        // A fresh comparison supersedes any prior apply outcome.
+        applyError: null,
+        appliedAt: null,
       });
       // Auto-generate the script once so the editor is populated on open.
       await get().generateScript(tabId);

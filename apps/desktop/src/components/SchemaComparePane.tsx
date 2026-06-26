@@ -14,10 +14,10 @@ import { Icon } from "./icons";
 export function SchemaComparePane({ tab }: { tab: SchemaCompareTab }) {
   const state = useSchemaCompare((s) => s.byTab[tab.id]);
   const recompare = useSchemaCompare((s) => s.recompare);
-  const sourceEnvTag = useConnections((s) => {
+  const sourceConn = useConnections((s) => {
     if (!state || state.config.source.kind !== "live") return null;
     const id = state.config.source.connection_id;
-    return s.connections.find((c) => c.id === id)?.env_tag ?? null;
+    return s.connections.find((c) => c.id === id) ?? null;
   });
 
   if (!state) {
@@ -54,22 +54,23 @@ export function SchemaComparePane({ tab }: { tab: SchemaCompareTab }) {
   const { diff } = state.comparison;
   const sourceIsLive = state.config.source.kind === "live";
   // Apply executes DDL against the live source, which only the Postgres driver
-  // supports today. Gate the button (and explain why) instead of letting the
-  // user pass review only to hit a backend error.
-  const applyableEngine = state.comparison.dialect === "postgres";
+  // supports today. Gate on the connection's real engine — not the DDL dialect,
+  // which falls back to Postgres for engines without their own dialect (e.g.
+  // Firestore) — so an unsupported engine can't pass review and then error.
+  const applyableEngine = sourceConn?.engine === "postgres";
   const applyTarget: ApplyTarget | null =
     state.config.source.kind === "live" && applyableEngine
       ? {
           connectionId: state.config.source.connection_id,
           database: state.config.source.database,
-          envTag: sourceEnvTag,
+          envTag: sourceConn?.env_tag ?? null,
         }
       : null;
   const applyUnsupportedReason = applyTarget
     ? null
     : !sourceIsLive
       ? "apply needs a live source connection — snapshot sources are read-only"
-      : `apply is only supported for Postgres sources right now (source is ${state.comparison.dialect})`;
+      : `apply is only supported for Postgres sources right now (source is ${sourceConn?.engine ?? "unknown"})`;
 
   const s = diff.summary;
   const total =

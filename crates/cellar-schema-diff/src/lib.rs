@@ -247,6 +247,40 @@ mod tests {
     }
 
     #[test]
+    fn drops_inbound_fk_referencing_a_removed_table() {
+        let a = table("a", vec![col("id", "int4", false)]);
+        let mut b = table("b", vec![col("id", "int4", false)]);
+        b.foreign_keys = vec![ForeignKey {
+            name: "b_a_fk".into(),
+            columns: vec!["a_id".into()],
+            referenced_schema: "public".into(),
+            referenced_table: "a".into(),
+            referenced_columns: vec!["id".into()],
+        }];
+        // Target keeps b (with its FK) but drops a. The FK on the otherwise
+        // unchanged b must be dropped before a is dropped.
+        let diff = diff_schemas(&schema(vec![a, b.clone()]), &schema(vec![b]), "s", "t");
+        let statements = build_migration(&diff, "public", Dialect::Postgres);
+        let drop_fk = statements
+            .iter()
+            .position(|s| s.kind == MigrationKind::DropForeignKey && s.object.contains("b_a_fk"))
+            .expect("inbound fk dropped");
+        let drop_table = statements
+            .iter()
+            .position(|s| s.kind == MigrationKind::DropTable)
+            .expect("drop table");
+        assert!(drop_fk < drop_table);
+        // And only once, despite the multi-pass scan.
+        assert_eq!(
+            statements
+                .iter()
+                .filter(|s| s.kind == MigrationKind::DropForeignKey && s.object.contains("b_a_fk"))
+                .count(),
+            1
+        );
+    }
+
+    #[test]
     fn drops_modified_foreign_key_before_column_alter() {
         let mut src = table(
             "orders",
