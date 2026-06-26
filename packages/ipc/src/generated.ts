@@ -122,6 +122,69 @@ async commitTableChanges(connectionId: string, request: TableChangeRequest, tabI
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Compare `source` against `target`, returning the render-ready diff and the
+ * migration statements that transform source into target.
+ */
+async compareSchemas(source: SchemaSource, target: SchemaSource) : Promise<Result<SchemaComparison, CellarError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("compare_schemas", { source, target }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Assemble the user's selected statements into a single runnable script.
+ * Kept in Rust so transaction wrapping stays dialect-aware and the frontend
+ * never hand-builds executable SQL.
+ */
+async buildMigrationScript(statements: MigrationStatement[], wrapInTransaction: boolean) : Promise<string> {
+    return await TAURI_INVOKE("build_migration_script", { statements, wrapInTransaction });
+},
+/**
+ * Apply a reviewed (and possibly hand-edited) migration script against
+ * `database` on the open connection. Logged to query history like any other
+ * executed statement.
+ */
+async applyMigration(connectionId: string, database: string, sql: string, tabId: string | null) : Promise<Result<MigrationApplyResult, CellarError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("apply_migration", { connectionId, database, sql, tabId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Capture a live database's schema tree to `~/.cellar/snapshots/`.
+ */
+async saveSchemaSnapshot(connectionId: string, database: string) : Promise<Result<SchemaSnapshotMeta, CellarError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("save_schema_snapshot", { connectionId, database }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * List saved snapshots, newest first.
+ */
+async listSchemaSnapshots() : Promise<Result<SchemaSnapshotMeta[], CellarError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("list_schema_snapshots") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async deleteSchemaSnapshot(id: string) : Promise<Result<null, CellarError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_schema_snapshot", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async listQueryHistory(connectionId: string | null, database: string | null, tabId: string | null, search: string | null, limit: number | null) : Promise<Result<QueryHistoryRecord[], CellarError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("list_query_history", { connectionId, database, tabId, search, limit }) };
@@ -227,6 +290,26 @@ export type CellValue = { type: "Null" } | { type: "Bool"; value: boolean } | { 
  * of these variants and stash the original message in `detail`.
  */
 export type CellarError = { kind: "Connection"; detail: string } | { kind: "Authentication"; detail: string } | { kind: "Tls"; detail: string } | { kind: "Query"; detail: string } | { kind: "Introspection"; detail: string } | { kind: "UnsupportedType"; detail: string } | { kind: "Decode"; detail: string } | { kind: "Timeout"; detail: string } | { kind: "NotConnected"; detail: string } | { kind: "InvalidConfig"; detail: string } | { kind: "Io"; detail: string } | { kind: "Internal"; detail: string }
+/**
+ * Per-object classification in a schema comparison.
+ */
+export type ChangeStatus = 
+/**
+ * Present in target but not source — a `CREATE`/`ADD` candidate.
+ */
+"added" | 
+/**
+ * Present in source but not target — a `DROP` candidate.
+ */
+"removed" | 
+/**
+ * Present in both, but the definitions differ.
+ */
+"modified" | 
+/**
+ * Present in both and identical.
+ */
+"unchanged"
 export type Column = { name: string; 
 /**
  * The engine-native type name as reported by the catalog (e.g. `int4`,
@@ -234,6 +317,12 @@ export type Column = { name: string;
  * raw type to render badges and pick the right editor.
  */
 data_type: string; nullable: boolean; default: string | null; is_primary_key: boolean; ordinal: number; comment: string | null }
+export type ColumnDiff = { name: string; status: ChangeStatus; source: Column | null; target: Column | null; 
+/**
+ * Human-readable field-level changes when `status == Modified`
+ * (e.g. `type int4 → bigint`, `set NOT NULL`).
+ */
+changes: string[] }
 /**
  * Lightweight column descriptor for a query result. The full structural
  * schema lives in [`crate::schema::Column`]; this only carries what the grid
@@ -274,6 +363,11 @@ code: string | null; message: string; detail: string | null; hint: string | null
  */
 timestamp: string; connection_id: string | null; database: string | null; query_id: string | null }
 export type DiffColumn = { name: string; data_type: string; nullable: boolean }
+/**
+ * Aggregate counts, used for the comparison header without re-walking the
+ * tree on the frontend.
+ */
+export type DiffSummary = { tables_added: number; tables_removed: number; tables_modified: number; tables_unchanged: number; views_added: number; views_removed: number; views_modified: number; views_unchanged: number }
 export type DiffValue = { value: string | null }
 export type DriverInfo = { engine: Engine; 
 /**
@@ -292,8 +386,35 @@ export type Engine = "postgres" | "mysql" | "sqlite" | "mssql" | "azure" | "fire
  */
 export type EnvTag = "local" | "dev" | "staging" | "prod"
 export type ForeignKey = { name: string; columns: string[]; referenced_schema: string; referenced_table: string; referenced_columns: string[] }
+export type ForeignKeyDiff = { name: string; status: ChangeStatus; source: ForeignKey | null; target: ForeignKey | null }
 export type Index = { name: string; columns: string[]; unique: boolean; primary: boolean }
+export type IndexDiff = { name: string; status: ChangeStatus; source: Index | null; target: Index | null }
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
+export type MigrationApplyResult = { duration_ms: number }
+/**
+ * What a single migration statement does. Drives grouping/iconography in the
+ * UI and the destructive-confirmation gate.
+ */
+export type MigrationKind = "create-table" | "drop-table" | "add-column" | "drop-column" | "alter-column" | "alter-primary-key" | "create-index" | "drop-index" | "add-foreign-key" | "drop-foreign-key" | "create-view" | "replace-view" | "drop-view"
+/**
+ * One reviewable, individually selectable unit of the migration. `sql` may
+ * span multiple physical statements (e.g. drop-then-add a constraint) but is
+ * one logical change the user toggles together.
+ */
+export type MigrationStatement = { 
+/**
+ * Stable id (`kind:object`) the frontend uses for selection state.
+ */
+id: string; kind: MigrationKind; 
+/**
+ * Qualified object the statement targets, for display.
+ */
+object: string; description: string; 
+/**
+ * `true` for statements that drop objects or can lose data — gated behind
+ * explicit confirmation in the UI.
+ */
+destructive: boolean; sql: string }
 export type NoticeCapture = { supported: boolean; reason: string | null }
 export type NoticeSeverity = "panic" | "fatal" | "error" | "warning" | "notice" | "info" | "log" | "debug" | "unknown"
 export type PlanDetail = { label: string; value: string }
@@ -304,6 +425,7 @@ export type PlanDetail = { label: string; value: string }
  */
 export type PlanMode = "estimate" | "analyze"
 export type PlanNode = { node_type: string; relation_name: string | null; schema_name: string | null; alias: string | null; index_name: string | null; join_type: string | null; startup_cost: number | null; total_cost: number | null; plan_rows: number | null; plan_width: number | null; actual_startup_time_ms: number | null; actual_total_time_ms: number | null; actual_rows: number | null; actual_loops: number | null; details: PlanDetail[]; children: PlanNode[] }
+export type PrimaryKeyDiff = { status: ChangeStatus; source: string[]; target: string[] }
 export type QueryHistoryRecord = { id: number; connection_id: string; connection_name: string | null; tab_id: string | null; database: string | null; sql: string; executed_at_ms: number; duration_ms: number; success: boolean; row_count: number | null; truncated: boolean; error_summary: string | null }
 export type QueryPlan = { mode: PlanMode; engine: string; database: string | null; sql: string; root: PlanNode; planning_time_ms: number | null; execution_time_ms: number | null; duration_ms: number; 
 /**
@@ -346,6 +468,34 @@ truncated: boolean;
 total_rows: number | null }
 export type RowChange = { kind: "update"; row_id: string; keys: CellAssignment[]; edits: CellAssignment[] } | { kind: "insert"; row_id: string; values: CellAssignment[] } | { kind: "delete"; row_id: string; keys: CellAssignment[] }
 export type Schema = { name: string; tables: Table[]; views: View[] }
+/**
+ * Bundled output of a comparison: the render-ready diff tree plus the
+ * migration statements that transform source into target. Returned by the
+ * `compare_schemas` IPC command so the UI gets both in one round-trip.
+ */
+export type SchemaComparison = { diff: SchemaDiff; statements: MigrationStatement[] }
+/**
+ * Top-level result of comparing a `source` schema against a `target` schema.
+ */
+export type SchemaDiff = { source_label: string; target_label: string; source_schema: string; target_schema: string; tables: TableDiff[]; views: ViewDiff[]; summary: DiffSummary }
+/**
+ * Lightweight descriptor listed in the snapshot picker without loading the
+ * full schema tree from disk.
+ */
+export type SchemaSnapshotMeta = { id: string; label: string; engine: string; connection_id: string; connection_name: string; database: string; 
+/**
+ * Schema names captured, so the picker can offer a namespace to compare.
+ */
+schemas: string[]; table_count: number; 
+/**
+ * Unix epoch milliseconds when the snapshot was saved.
+ */
+created_at_ms: number }
+/**
+ * One side of a comparison. A schema either comes from a live connection
+ * (introspected fresh) or from a saved snapshot on disk.
+ */
+export type SchemaSource = { kind: "live"; connection_id: string; database: string; schema: string; label: string | null } | { kind: "snapshot"; id: string; schema: string; label: string | null }
 export type SortDirection = "asc" | "desc"
 export type SslMode = "disable" | "prefer" | "require" | "verify-ca" | "verify-full"
 export type Table = { name: string; schema: string; 
@@ -381,6 +531,11 @@ include_total?: boolean }
 export type TableChangeRequest = { database: string | null; schema: string; table: string; primary_key: string[]; columns: DiffColumn[]; changes: RowChange[] }
 export type TableCommitPreview = { sql: string; expected_rows: number; statement_count: number }
 export type TableCommitResult = { sql: string; rows_affected: number; duration_ms: number }
+export type TableDiff = { name: string; status: ChangeStatus; columns: ColumnDiff[]; indexes: IndexDiff[]; foreign_keys: ForeignKeyDiff[]; primary_key: PrimaryKeyDiff; 
+/**
+ * Full source/target objects so the UI can render either side verbatim.
+ */
+source: Table | null; target: Table | null }
 export type TableFilterClause = { column: string; operator: TableFilterOperator; 
 /**
  * User-entered scalar value. Null checks intentionally use operators
@@ -390,6 +545,7 @@ value: string | null }
 export type TableFilterOperator = "equals" | "not_equals" | "contains" | "is_null" | "is_not_null" | "greater_than" | "greater_than_or_equal" | "less_than" | "less_than_or_equal"
 export type TableSortClause = { column: string; direction: SortDirection }
 export type View = { name: string; schema: string; columns: Column[]; definition: string | null }
+export type ViewDiff = { name: string; status: ChangeStatus; source: View | null; target: View | null }
 
 /** tauri-specta globals **/
 

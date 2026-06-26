@@ -5,7 +5,7 @@ use std::sync::Arc;
 use cellar_core::driver::{Connection, ConnectionConfig, Driver, DriverInfo, Engine};
 use cellar_core::error::{CellarError, CellarResult};
 use cellar_core::query::{PlanMode, Query, QueryPlan, QueryResult, TableBrowseRequest};
-use cellar_core::schema::{Database, Table};
+use cellar_core::schema::{Database, Schema, Table};
 use cellar_diff::{TableChangeRequest, TableCommitResult};
 use cellar_driver_firestore::FirestoreDriver;
 use cellar_driver_mysql::MySqlDriver;
@@ -277,8 +277,7 @@ impl ConnectionRegistry {
                     .await
             }
             Engine::MySql => {
-                match cellar_driver_mysql::browse_table(connection.as_ref(), &request, &table)
-                    .await
+                match cellar_driver_mysql::browse_table(connection.as_ref(), &request, &table).await
                 {
                     Ok(result) => Ok(result),
                     Err(err) => Err(self
@@ -337,6 +336,72 @@ impl ConnectionRegistry {
             }
             other => Err(CellarError::invalid_config(format!(
                 "engine {} does not support grid commits yet",
+                other.as_str()
+            ))),
+        }
+    }
+
+    /// Resolve one schema namespace from a connection's introspected tree,
+    /// using the cached schema where available. Used by schema comparison to
+    /// pull a live side without forcing a refresh.
+    pub async fn schema_for(&self, id: &str, database: &str, schema: &str) -> CellarResult<Schema> {
+        let dbs = self.introspect(id, false).await?;
+        dbs.iter()
+            .find(|db| db.name == database)
+            .and_then(|db| db.schemas.iter().find(|s| s.name == schema))
+            .cloned()
+            .ok_or_else(|| {
+                CellarError::invalid_config(format!(
+                    "schema {database}.{schema} was not found on connection {id}"
+                ))
+            })
+    }
+
+    /// Resolve a whole database tree from a connection, for snapshot capture.
+    pub async fn database_for(&self, id: &str, database: &str) -> CellarResult<Database> {
+        let dbs = self.introspect(id, false).await?;
+        dbs.into_iter()
+            .find(|db| db.name == database)
+            .ok_or_else(|| {
+                CellarError::invalid_config(format!(
+                    "database {database} was not found on connection {id}"
+                ))
+            })
+    }
+
+    /// The engine for a saved or open connection, if Cellar knows about it.
+    pub async fn engine_for(&self, id: &str) -> Option<Engine> {
+        let inner = self.inner.read().await;
+        inner
+            .configs
+            .get(id)
+            .map(|c| c.engine)
+            .or_else(|| inner.open.get(id).map(|o| o.config.engine))
+    }
+
+    /// Apply a reviewed schema migration script against `database` on the open
+    /// connection `id`. Engine-gated to drivers that support it; the script is
+    /// executed verbatim (transaction wrapping is part of the script itself).
+    pub async fn apply_migration(&self, id: &str, database: &str, sql: &str) -> CellarResult<u64> {
+        let (engine, connection) = {
+            let inner = self.inner.read().await;
+            let open = inner
+                .open
+                .get(id)
+                .ok_or_else(|| CellarError::NotConnected(format!("no open connection for {id}")))?;
+            (open.config.engine, Arc::clone(&open.connection))
+        };
+        match engine {
+            Engine::Postgres => {
+                match cellar_driver_postgres::apply_migration(connection.as_ref(), database, sql)
+                    .await
+                {
+                    Ok(duration) => Ok(duration),
+                    Err(err) => Err(self.handle_operation_error(id, err).await),
+                }
+            }
+            other => Err(CellarError::invalid_config(format!(
+                "engine {} does not support schema migrations yet",
                 other.as_str()
             ))),
         }

@@ -17,7 +17,16 @@ import type {
   TableChangeRequest,
   TableCommitPreview,
   TableCommitResult,
+  SchemaSource,
+  SchemaComparison,
+  MigrationStatement,
+  MigrationApplyResult,
+  SchemaSnapshotMeta,
 } from "./generated";
+
+function sourceLabel(source: SchemaSource): string {
+  return source.label ?? source.schema;
+}
 
 function ok<T>(data: T): Result<T, CellarError> {
   return { status: "ok", data };
@@ -161,6 +170,69 @@ export const mockCommands = {
     _search: string | null,
     _limit: number | null,
   ): Promise<Result<QueryHistoryRecord[], CellarError>> => ok([]),
+
+  // Schema comparison / migration: web mode has no live DB to introspect, so
+  // return an empty comparison and no-op snapshot operations.
+  compareSchemas: async (
+    source: SchemaSource,
+    target: SchemaSource,
+  ): Promise<Result<SchemaComparison, CellarError>> =>
+    ok({
+      diff: {
+        source_label: sourceLabel(source),
+        target_label: sourceLabel(target),
+        source_schema: source.schema,
+        target_schema: target.schema,
+        tables: [],
+        views: [],
+        summary: {
+          tables_added: 0,
+          tables_removed: 0,
+          tables_modified: 0,
+          tables_unchanged: 0,
+          views_added: 0,
+          views_removed: 0,
+          views_modified: 0,
+          views_unchanged: 0,
+        },
+      },
+      statements: [],
+    }),
+
+  buildMigrationScript: async (
+    _statements: MigrationStatement[],
+    _wrapInTransaction: boolean,
+  ): Promise<string> => "-- Cellar schema migration\n-- No changes selected.\n",
+
+  applyMigration: async (
+    _connectionId: string,
+    _database: string,
+    _sql: string,
+    _tabId: string | null,
+  ): Promise<Result<MigrationApplyResult, CellarError>> => ok({ duration_ms: 0 }),
+
+  saveSchemaSnapshot: async (
+    connectionId: string,
+    database: string,
+  ): Promise<Result<SchemaSnapshotMeta, CellarError>> =>
+    ok({
+      id: `mock-${database}`,
+      label: `${connectionId} · ${database}`,
+      engine: "postgres",
+      connection_id: connectionId,
+      connection_name: connectionId,
+      database,
+      schemas: [],
+      table_count: 0,
+      created_at_ms: 0,
+    }),
+
+  listSchemaSnapshots: async (): Promise<
+    Result<SchemaSnapshotMeta[], CellarError>
+  > => ok([]),
+
+  deleteSchemaSnapshot: async (_id: string): Promise<Result<null, CellarError>> =>
+    ok(null),
 
   // AI keys: in web mode there is no keychain, so hold them in memory for the
   // session. Enough to drive the settings/panel flow without persistence.

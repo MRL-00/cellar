@@ -38,6 +38,11 @@ export interface SidebarProps {
   onEditConnection?: (config: ConnectionConfig) => void;
   onDuplicateConnection?: (config: ConnectionConfig) => void;
   onOpenSettings?: () => void;
+  onCompareSchemas?: (preset?: {
+    connectionId: string;
+    database: string;
+    schema?: string;
+  }) => void;
 }
 
 export function Sidebar({
@@ -45,6 +50,7 @@ export function Sidebar({
   onEditConnection,
   onDuplicateConnection,
   onOpenSettings,
+  onCompareSchemas,
 }: SidebarProps = {}) {
   const [filter, setFilter] = useState("");
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
@@ -126,6 +132,16 @@ export function Sidebar({
             onClick: () => void refreshSchema(node.connectionId),
           },
           {
+            label: "Compare schema…",
+            icon: <Icon.diff size={12} />,
+            onClick: () =>
+              onCompareSchemas?.({
+                connectionId: node.connectionId,
+                database: node.database,
+                schema: node.schemas[0]?.name,
+              }),
+          },
+          {
             label: "Choose visible schemas…",
             icon: <Icon.eye size={12} />,
             onClick: () =>
@@ -163,6 +179,16 @@ export function Sidebar({
             label: "New SQL query",
             icon: <Icon.terminal size={12} />,
             onClick: () => queryFor(node.connectionId, node.database),
+          },
+          {
+            label: "Compare schema…",
+            icon: <Icon.diff size={12} />,
+            onClick: () =>
+              onCompareSchemas?.({
+                connectionId: node.connectionId,
+                database: node.database,
+                schema: node.schema,
+              }),
           },
           {
             label: node.hidden ? "Show in sidebar" : "Hide from sidebar",

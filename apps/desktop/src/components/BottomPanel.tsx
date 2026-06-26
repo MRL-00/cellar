@@ -254,9 +254,9 @@ export function BottomPanel({ onClose }: { onClose: () => void }) {
             activeEngine={activeConnection?.engine ?? null}
             activeTabLabel={
                 activeTab
-                  ? activeTab.kind === "query"
-                    ? `${activeTab.database}.${activeTab.title}`
-                    : `${activeTab.database}.${activeTab.schema}.${activeTab.table}`
+                  ? activeTab.kind === "table"
+                    ? `${activeTab.database}.${activeTab.schema}.${activeTab.table}`
+                    : `${activeTab.database}.${activeTab.title}`
                   : null
             }
             entry={noticeEntry}
@@ -303,6 +303,8 @@ function headerItems(
 ): string[] {
   if (!activeTab) return ["no active tab"];
   if (activeTab.kind === "query") return [activeTab.title, "query tab"];
+  if (activeTab.kind === "schema-compare")
+    return [activeTab.title, "schema compare tab"];
   if (!result) return [tableLabel(activeTab), "table rows shown above"];
 
   const context = resultContextLabel(result.source);
@@ -354,6 +356,14 @@ function ResultsBody({
         <EmptyPanel
           title="Run a query to see results"
           detail={`${activeTab.title} has not produced a result set yet.`}
+        />
+      );
+    }
+    if (activeTab.kind === "schema-compare") {
+      return (
+        <EmptyPanel
+          title="Schema comparison"
+          detail={`${activeTab.title} is a schema-compare tab. Its diff and generated migration are shown in the main pane above.`}
         />
       );
     }
@@ -751,8 +761,9 @@ function HistoryPanel({
 
   const scopeLabel = useMemo(() => {
     if (!activeTab) return "No active tab";
-    if (activeTab.kind === "query") return `${activeTab.database}.${activeTab.title}`;
-    return `${activeTab.database}.${activeTab.schema}.${activeTab.table}`;
+    if (activeTab.kind === "table")
+      return `${activeTab.database}.${activeTab.schema}.${activeTab.table}`;
+    return `${activeTab.database}.${activeTab.title}`;
   }, [activeTab]);
 
   return (

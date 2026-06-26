@@ -10,6 +10,7 @@ members = [
     "crates/cellar-drivers/sqlserver",
     "crates/cellar-sql",
     "crates/cellar-diff",
+    "crates/cellar-schema-diff",
     "crates/cellar-secrets",
     "crates/cellar-plugin-host",
 ]
