@@ -8,6 +8,7 @@ publish = false
 
 [dependencies]
 cellar-core = { path = "../../cellar-core" }
+chrono = { version = "0.4", default-features = false }
 async-trait = "0.1"
 futures-util = "0.3"
 tokio = { workspace = true }

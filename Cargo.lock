@@ -508,6 +508,7 @@ version = "0.2.0"
 dependencies = [
  "async-trait",
  "cellar-core",
+ "chrono",
  "futures-util",
  "thiserror 1.0.69",
  "tiberius",

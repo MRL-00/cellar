@@ -285,7 +285,7 @@
   text-overflow: ellipsis;
   position: relative;
   flex-shrink: 0;
-  border-right: 1px solid var(--border-divider);
+  border-right: 1px solid var(--grid-column-line);
 }
 .grid-row:hover { background: var(--bg-2); }
 /* Stripe rows: the .is-stripe class is applied in JS (GridRowView) using the
@@ -321,7 +321,7 @@
   justify-content: center;
   color: var(--fg-3);
   background: var(--bg-1);
-  border-right: 1px solid var(--border-divider);
+  border-right: 1px solid var(--grid-column-line);
   font-size: 10px;
   position: sticky;
   left: 0;
@@ -375,7 +375,7 @@
   text-transform: none;
   background: var(--bg-1);
   cursor: pointer;
-  border-right: 1px solid var(--border-default);
+  border-right: 1px solid var(--grid-column-line);
 }
 .grid-header-cell:hover { background: var(--bg-2); }
 .grid-header-cell:focus-visible {
