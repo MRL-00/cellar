@@ -6,6 +6,7 @@ import {
 } from "@cellar/data-grid";
 import {
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -182,6 +183,17 @@ function TableTabPane({
   const clearTableChanges = useTabs((s) => s.clearTableChanges);
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(500);
+  const grid = useGridState();
+  // Quick filter is kept separate from the advanced chips (`grid.filters`) so
+  // clearing one never disturbs the other. `quickInput` is the immediate text
+  // box value; `quickFilter` is its debounced form that drives the server query.
+  const [quickInput, setQuickInput] = useState("");
+  const [quickFilter, setQuickFilter] = useState("");
+  const [quickColumn, setQuickColumn] = useState<string | null>(null);
+  useEffect(() => {
+    const handle = setTimeout(() => setQuickFilter(quickInput.trim()), 250);
+    return () => clearTimeout(handle);
+  }, [quickInput]);
   const data = useTableData(
     tab.connectionId,
     tab.database,
@@ -191,8 +203,18 @@ function TableTabPane({
     tab.id,
     pageIndex,
     pageSize,
+    grid.filters,
+    quickFilter,
+    quickColumn,
+    grid.sort,
   );
-  const grid = useGridState();
+  // Filters/sort apply to the whole table, so any change must jump back to the
+  // first page (page size already resets in its own handler below).
+  const filtersKey = JSON.stringify(grid.filters);
+  const sortKey = JSON.stringify(grid.sort);
+  useEffect(() => {
+    setPageIndex(0);
+  }, [filtersKey, sortKey, quickFilter, quickColumn]);
   const [rowMenu, setRowMenu] = useState<ContextMenuState | null>(null);
   const [headerMenu, setHeaderMenu] = useState<ContextMenuState | null>(null);
   const findUsages = useFindUsages((s) => s.findUsages);
@@ -298,6 +320,10 @@ function TableTabPane({
         onEdit={grid.setEditing}
         filters={grid.filters}
         onFiltersChange={grid.setFilters}
+        quickFilter={quickInput}
+        onQuickFilterChange={setQuickInput}
+        quickFilterColumn={quickColumn}
+        onQuickFilterColumnChange={setQuickColumn}
         sort={grid.sort}
         onSortChange={grid.setSort}
         columnLayout={columnLayout}
