@@ -412,28 +412,36 @@ function SchemaRow({
       {open && (
         <>
           {schema.tables.length > 0 && (
-            <GroupHeader label="tables" count={schema.tables.length} />
+            <GroupFolder
+              storageKey={`${connectionId}.${database}.${schema.name}.tables`}
+              label="tables"
+              count={schema.tables.length}
+            >
+              {schema.tables.map((t) => (
+                <TableRow
+                  key={t.name}
+                  connectionId={connectionId}
+                  database={database}
+                  schema={schema.name}
+                  table={t}
+                  onOpen={() => onOpenTable(database, schema.name, t.name)}
+                  onNodeContextMenu={onNodeContextMenu}
+                  activeTabId={activeTabId}
+                />
+              ))}
+            </GroupFolder>
           )}
-          {schema.tables.map((t) => (
-            <TableRow
-              key={t.name}
-              connectionId={connectionId}
-              database={database}
-              schema={schema.name}
-              table={t}
-              onOpen={() => onOpenTable(database, schema.name, t.name)}
-              onNodeContextMenu={onNodeContextMenu}
-              activeTabId={activeTabId}
-            />
-          ))}
           {schema.views.length > 0 && (
-            <>
-              <GroupHeader label="views" count={schema.views.length} />
+            <GroupFolder
+              storageKey={`${connectionId}.${database}.${schema.name}.views`}
+              label="views"
+              count={schema.views.length}
+            >
               {schema.views.map((v) => (
                 <div
                   key={v.name}
                   className={ROW_BASE + " cursor-pointer"}
-                  style={{ paddingLeft: 54 }}
+                  style={{ paddingLeft: 66 }}
                   onClick={() => onOpenTable(database, schema.name, v.name)}
                   onContextMenu={(e) =>
                     onNodeContextMenu(e, {
@@ -456,7 +464,7 @@ function SchemaRow({
                   </span>
                 </div>
               ))}
-            </>
+            </GroupFolder>
           )}
         </>
       )}
@@ -464,18 +472,55 @@ function SchemaRow({
   );
 }
 
-function GroupHeader({ label, count }: { label: string; count: number }) {
+function GroupFolder({
+  storageKey,
+  label,
+  count,
+  children,
+}: {
+  storageKey: string;
+  label: string;
+  count: number;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(() => readFolderOpen(storageKey, true));
+  const toggle = () =>
+    setOpen((v) => {
+      const next = !v;
+      writeFolderOpen(storageKey, next);
+      return next;
+    });
   return (
-    <div
-      className={
-        ROW_BASE +
-        " mt-0.5 h-5 text-[10px] uppercase tracking-[0.05em] text-fg-3 hover:bg-transparent hover:text-fg-2"
-      }
-      style={{ paddingLeft: 42 }}
-    >
-      <span className={TWISTY + " invisible"} />
-      <span className="flex-1 font-semibold">{label}</span>
-      <span className="font-mono text-[10px] text-fg-3">{count}</span>
+    <div>
+      <div
+        className={ROW_BASE + " cursor-pointer"}
+        style={{ paddingLeft: 42 }}
+        onClick={toggle}
+      >
+        <button
+          type="button"
+          className={TWISTY}
+          aria-label={open ? `Collapse ${label}` : `Expand ${label}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            toggle();
+          }}
+        >
+          {open ? (
+            <Icon.chevronDown size={10} />
+          ) : (
+            <Icon.chevronRight size={10} />
+          )}
+        </button>
+        <span className={ICON_SLOT}>
+          {open ? <Icon.folderOpen size={12} /> : <Icon.folder size={12} />}
+        </span>
+        <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[11.5px]">
+          {label}
+        </span>
+        <span className={META + " font-mono"}>{count}</span>
+      </div>
+      {open && children}
     </div>
   );
 }
@@ -503,7 +548,7 @@ function TableRow({
   return (
     <div
       className={ROW_BASE + " cursor-pointer" + (active ? " " + ROW_ACTIVE : "")}
-      style={{ paddingLeft: 54 }}
+      style={{ paddingLeft: 66 }}
       onClick={onOpen}
       onContextMenu={(e) =>
         onNodeContextMenu(e, {
@@ -632,6 +677,34 @@ export function saveSchemaVisibility(state: SchemaVisibilityState) {
     SCHEMA_VISIBILITY_STORAGE_KEY,
     JSON.stringify(state),
   );
+}
+
+const FOLDER_OPEN_STORAGE_KEY = "cellar.folderOpen.v1";
+
+function readFolderOpenMap(): Record<string, boolean> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(FOLDER_OPEN_STORAGE_KEY);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : {};
+    return parsed && typeof parsed === "object"
+      ? (parsed as Record<string, boolean>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Persisted open/closed state for a sidebar folder, keyed by a stable id. */
+function readFolderOpen(key: string, fallback: boolean): boolean {
+  const v = readFolderOpenMap()[key];
+  return typeof v === "boolean" ? v : fallback;
+}
+
+function writeFolderOpen(key: string, open: boolean) {
+  if (typeof window === "undefined") return;
+  const map = readFolderOpenMap();
+  map[key] = open;
+  window.localStorage.setItem(FOLDER_OPEN_STORAGE_KEY, JSON.stringify(map));
 }
 
 function engineDefaultColor(engine: Engine): string {

@@ -106,7 +106,8 @@ async fn list_objects(
             let schema = get_string(&r, "schema_name")?;
             let object = get_string(&r, "object_name")?;
             let ty = get_string(&r, "object_type")?;
-            Ok((schema, object, ty == "V"))
+            // sys.objects.type is CHAR(2), so it comes back space-padded ("V ").
+            Ok((schema, object, ty.trim() == "V"))
         })
         .collect()
 }
