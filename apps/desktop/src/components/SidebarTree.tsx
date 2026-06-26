@@ -116,10 +116,7 @@ export function ConnectionRow({
           ROW_BASE +
           " h-[26px] border-l-2 pl-1 font-medium text-fg-0 cursor-pointer"
         }
-        style={{
-          borderLeftColor:
-            expanded && status === "connected" ? accent : "transparent",
-        }}
+        style={{ borderLeftColor: accent }}
         onClick={onToggle}
         onContextMenu={onContextMenu}
         draggable={drag?.draggable}
@@ -150,7 +147,7 @@ export function ConnectionRow({
             <Icon.chevronRight size={10} />
           )}
         </button>
-        <EngineBadge engine={config.engine as Engine} size={12} />
+        <EngineBadge engine={config.engine as Engine} size={12} color={accent} />
         <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[12px] font-medium">
           {config.name}
         </span>
