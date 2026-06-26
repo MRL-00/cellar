@@ -9,7 +9,6 @@ import {
 import { Icon } from "../icons";
 import { Modal } from "./Modal";
 import { useConnections } from "../../state/connections";
-import { useSchemaCompare } from "../../state/schemaCompare";
 import { useTabs } from "../../state/tabs";
 
 export interface ComparePreset {
@@ -42,7 +41,6 @@ export function SchemaCompareDialog({
   const connections = useConnections((s) => s.connections);
   const byId = useConnections((s) => s.byId);
   const openSchemaCompare = useTabs((s) => s.openSchemaCompare);
-  const start = useSchemaCompare((s) => s.start);
 
   const [source, setSource] = useState<Picker>(() => emptyLive(preset ?? undefined));
   const [target, setTarget] = useState<Picker>(() => emptyLive());
@@ -76,8 +74,12 @@ export function SchemaCompareDialog({
         ? { connectionId: source.connectionId, database: source.database }
         : { connectionId: "", database: "" };
     const title = `${sourceRef.schema} ↔ ${targetRef.schema}`;
-    const tabId = openSchemaCompare(title, liveAnchor.connectionId, liveAnchor.database);
-    void start(tabId, { source: sourceRef, target: targetRef });
+    // Config is stored on the tab; the pane starts the comparison from it (so
+    // a reopened tab re-initializes itself rather than rendering empty).
+    openSchemaCompare(title, liveAnchor.connectionId, liveAnchor.database, {
+      source: sourceRef,
+      target: targetRef,
+    });
     onClose();
   }
 

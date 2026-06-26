@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+
 import { useConnections } from "../state/connections";
 import { useSchemaCompare } from "../state/schemaCompare";
 import type { SchemaCompareTab } from "../state/tabs";
@@ -8,22 +10,27 @@ import { Icon } from "./icons";
 /**
  * Workspace pane for a schema comparison. Top half is the side-by-side diff
  * tree; bottom half is the migration panel (statement selection + editable
- * script + apply). Comparison state is owned by `useSchemaCompare`, keyed by
- * the tab id.
+ * script + apply). Live working state is owned by `useSchemaCompare`, keyed by
+ * the tab id; the immutable config lives on the tab so a reopened tab can
+ * re-initialize itself.
  */
 export function SchemaComparePane({ tab }: { tab: SchemaCompareTab }) {
   const state = useSchemaCompare((s) => s.byTab[tab.id]);
   const recompare = useSchemaCompare((s) => s.recompare);
+  const start = useSchemaCompare((s) => s.start);
   const sourceConn = useConnections((s) => {
-    if (!state || state.config.source.kind !== "live") return null;
-    const id = state.config.source.connection_id;
+    if (tab.config.source.kind !== "live") return null;
+    const id = tab.config.source.connection_id;
     return s.connections.find((c) => c.id === id) ?? null;
   });
 
-  if (!state) {
-    return <PaneMessage>Comparison not initialized.</PaneMessage>;
-  }
-  if (state.loading) {
+  // Initialize (or re-initialize, after a close/reopen disposed the store
+  // entry) the comparison from the config carried on the tab.
+  useEffect(() => {
+    if (!state) void start(tab.id, tab.config);
+  }, [state, start, tab.id, tab.config]);
+
+  if (!state || state.loading) {
     return (
       <PaneMessage>
         <span className="animate-sb-pulse">comparing schemas…</span>

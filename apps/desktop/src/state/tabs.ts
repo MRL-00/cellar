@@ -3,7 +3,7 @@ import type { GridColumnLayout, PendingChanges } from "@cellar/data-grid";
 import { useNotices } from "./notices";
 import { useQueryMessages } from "./queryMessages";
 import { useTabResults } from "./tabResults";
-import { useSchemaCompare } from "./schemaCompare";
+import { useSchemaCompare, type CompareConfig } from "./schemaCompare";
 
 const TABLE_LAYOUTS_STORAGE_KEY = "cellar.tableLayouts.v1";
 
@@ -30,10 +30,11 @@ export interface QueryTab {
 }
 
 /**
- * A schema comparison view. Its configuration and result live in
- * `useSchemaCompare`, keyed by this tab's id; the tab itself just anchors the
- * view in the workspace. `connectionId`/`database` track a live source (or the
- * live target, when the source is a snapshot) so connection teardown closes it.
+ * A schema comparison view. The live working state (diff, selection, script)
+ * lives in `useSchemaCompare`, keyed by this tab's id, but the immutable
+ * `config` is carried on the tab itself so the comparison can be re-derived
+ * after the tab is closed and reopened (the store entry is disposed on close).
+ * `connectionId`/`database` track a live source so connection teardown closes it.
  */
 export interface SchemaCompareTab {
   id: string;
@@ -41,6 +42,7 @@ export interface SchemaCompareTab {
   connectionId: string;
   database: string;
   title: string;
+  config: CompareConfig;
 }
 
 export type WorkspaceTab = TableTab | QueryTab | SchemaCompareTab;
@@ -74,14 +76,14 @@ interface TabsStore {
   newQueryTab: (connectionId: string, database: string) => string;
   /**
    * Open a schema-comparison tab. `connectionId`/`database` scope the tab for
-   * teardown; comparison config/results are stored separately in
-   * `useSchemaCompare`. Returns the new tab id so the caller can kick off the
-   * compare.
+   * teardown; `config` is carried on the tab so the comparison can be
+   * re-initialized on reopen. Returns the new tab id.
    */
   openSchemaCompare: (
     title: string,
     connectionId: string,
     database: string,
+    config: CompareConfig,
   ) => string;
   setQuerySql: (id: string, sql: string) => void;
   markQueryRun: (id: string) => void;
@@ -247,12 +249,12 @@ export const useTabs = create<TabsStore>((set, get) => ({
     return id;
   },
 
-  openSchemaCompare(title, connectionId, database) {
+  openSchemaCompare(title, connectionId, database, config) {
     const id = `schema-compare:${++schemaCompareSeq}`;
     set((s) => ({
       tabs: [
         ...s.tabs,
-        { id, kind: "schema-compare", connectionId, database, title },
+        { id, kind: "schema-compare", connectionId, database, title, config },
       ],
       activeId: id,
     }));
