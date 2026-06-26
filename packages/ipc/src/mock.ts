@@ -9,6 +9,7 @@ import type {
   ConnectionConfig,
   Database,
   DriverInfo,
+  ErGraph,
   QueryPlan,
   QueryHistoryRecord,
   QueryResult,
@@ -53,6 +54,13 @@ export const mockCommands = {
     _connectionId: string,
     _refresh: boolean | null,
   ): Promise<Result<Database[], CellarError>> => ok([]),
+
+  erGraph: async (
+    _connectionId: string,
+    database: string,
+    _schemas: string[] | null,
+  ): Promise<Result<ErGraph, CellarError>> =>
+    ok({ database, schemas: [], nodes: [], edges: [] }),
 
   runQuery: async (
     _connectionId: string,

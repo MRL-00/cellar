@@ -13,9 +13,10 @@ import {
 } from "react";
 
 import { SqlEditor } from "./SqlEditor";
+import { ErDiagram } from "./er/ErDiagram";
 import { ContextMenu, type ContextMenuState } from "./ContextMenu";
 import { Icon } from "./icons";
-import { useTabs, type TableTab, type WorkspaceTab } from "../state/tabs";
+import { useTabs, tabLabel, type TableTab, type WorkspaceTab } from "../state/tabs";
 import { useTableData } from "../hooks/useTableData";
 import { useSettings } from "../lib/settings";
 import { toCsv, toJson, toSqlInserts, toTsv } from "../lib/export";
@@ -112,7 +113,7 @@ function SplitPane({
           title={tabTitle(tab)}
         >
           <span className="inline-flex shrink-0 text-fg-3">
-            {tab.kind === "query" ? <Icon.terminal size={11} /> : <Icon.table size={11} />}
+            <TabIcon tab={tab} />
           </span>
           <span className="truncate font-mono">{tabTitle(tab)}</span>
         </button>
@@ -140,13 +141,23 @@ function renderTab(tab: WorkspaceTab, onCommit?: () => void) {
     // `key` gives each query tab its own caret/wrap state.
     return <SqlEditor key={tab.id} tab={tab} />;
   }
+  if (tab.kind === "er-diagram") {
+    // `key` resets zoom/pan and node positions per diagram tab.
+    return <ErDiagram key={tab.id} tab={tab} />;
+  }
   // `key` resets the grid's local state (filters/selection) when the user
   // switches to a different table tab.
   return <TableTabPane key={tab.id} tab={tab} onCommit={onCommit} />;
 }
 
+function TabIcon({ tab }: { tab: WorkspaceTab }) {
+  if (tab.kind === "query") return <Icon.terminal size={11} />;
+  if (tab.kind === "er-diagram") return <Icon.diagram size={11} />;
+  return <Icon.table size={11} />;
+}
+
 function tabTitle(tab: WorkspaceTab): string {
-  return tab.kind === "query" ? tab.title : `${tab.schema}.${tab.table}`;
+  return tabLabel(tab);
 }
 
 function TableTabPane({

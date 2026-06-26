@@ -25,6 +25,7 @@ describe("@cellar/ipc", () => {
         "connect",
         "deleteConnection",
         "disconnect",
+        "erGraph",
         "explainQuery",
         "introspect",
         "listQueryHistory",

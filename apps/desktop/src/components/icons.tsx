@@ -97,6 +97,7 @@ export const Icon = {
   ),
 
   plus: (p: IconProps) => <I {...p} d="M12 5v14M5 12h14" />,
+  minus: (p: IconProps) => <I {...p} d="M5 12h14" />,
   close: (p: IconProps) => <I {...p} d="M6 6l12 12M18 6L6 18" />,
   check: (p: IconProps) => <I {...p} d="M5 12l5 5L20 7" />,
   search: (p: IconProps) => (
@@ -313,6 +314,13 @@ export const Icon = {
     </I>
   ),
   bracket: (p: IconProps) => <I {...p} d="M8 4H4v16h4M16 4h4v16h-4" />,
+  diagram: (p: IconProps) => (
+    <I {...p}>
+      <rect x="2.5" y="4" width="8" height="6" rx="1" />
+      <rect x="13.5" y="14" width="8" height="6" rx="1" />
+      <path d="M6.5 10v3a1 1 0 001 1h6" />
+    </I>
+  ),
   trash: (p: IconProps) => (
     <I {...p}>
       <path d="M3 6h18" />
