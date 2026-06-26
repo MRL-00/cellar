@@ -34,8 +34,19 @@ export {
   rowMatchesFilters,
 } from "./filters";
 export { compareGridValues, cycleSortState, sortGridRows } from "./sort";
-export { DataGrid, useGridState, type DataGridProps } from "./DataGrid";
-export { CellEditor, CellValue, type CellEditorProps } from "./Cell";
+export {
+  DataGrid,
+  useGridState,
+  type DataGridProps,
+  type CellEditorRenderer,
+} from "./DataGrid";
+export {
+  CellEditor,
+  CellValue,
+  nativeControl,
+  parseCellInput,
+  type CellEditorProps,
+} from "./Cell";
 export { FilterBar, type FilterBarProps } from "./FilterBar";
 export { PendingBar, type PendingBarProps } from "./PendingBar";
 export { TypeIcon } from "./TypeIcon";

@@ -14,6 +14,7 @@ import {
 } from "react";
 
 import { SqlEditor } from "./SqlEditor";
+import { renderGridEditor } from "./grid/GridDateEditor";
 import { SchemaComparePane } from "./SchemaComparePane";
 import { ErDiagram } from "./er/ErDiagram";
 import { ContextMenu, type ContextMenuState } from "./ContextMenu";
@@ -318,6 +319,7 @@ function TableTabPane({
         onSelect={grid.setSelection}
         editing={grid.editing}
         onEdit={grid.setEditing}
+        renderEditor={renderGridEditor}
         filters={grid.filters}
         onFiltersChange={grid.setFilters}
         quickFilter={quickInput}

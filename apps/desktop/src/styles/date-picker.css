@@ -1,0 +1,113 @@
+/* react-day-picker base layout, themed to the app's design tokens. We import
+   the library's stylesheet (the same one shadcn/ui builds on) for the month
+   grid layout, then override its CSS variables so it adopts the dark/light
+   theme instead of its 2002-looking native cousin. */
+@import "react-day-picker/style.css";
+
+.grid-date-popover {
+  position: fixed;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  background: var(--bg-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  color: var(--fg-0);
+}
+
+.grid-date-popover .rdp-root {
+  --rdp-accent-color: var(--accent);
+  --rdp-accent-background-color: var(--accent-soft);
+  --rdp-today-color: var(--accent);
+  --rdp-day-width: 32px;
+  --rdp-day-height: 32px;
+  --rdp-day_button-width: 30px;
+  --rdp-day_button-height: 30px;
+  --rdp-day_button-border-radius: var(--radius-sm);
+  --rdp-font-family: inherit;
+  margin: 0;
+  font-size: var(--fs-sm, 12px);
+}
+
+.grid-date-popover .rdp-caption_label,
+.grid-date-popover .rdp-weekday {
+  color: var(--fg-2);
+}
+.grid-date-popover .rdp-day_button {
+  color: var(--fg-0);
+}
+.grid-date-popover .rdp-day_button:hover {
+  background: var(--bg-3);
+}
+.grid-date-popover .rdp-selected .rdp-day_button {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border: none;
+}
+.grid-date-popover .rdp-outside .rdp-day_button {
+  color: var(--fg-3);
+}
+.grid-date-popover .rdp-chevron {
+  fill: var(--fg-1);
+}
+.grid-date-popover .rdp-button_previous:hover,
+.grid-date-popover .rdp-button_next:hover {
+  background: var(--bg-3);
+}
+
+/* Time field shown for datetime columns. */
+.grid-date-popover-time {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-sm, 12px);
+  color: var(--fg-2);
+}
+.grid-date-popover-time input {
+  flex: 1;
+  padding: 4px 8px;
+  background: var(--bg-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  color: var(--fg-0);
+  font-family: inherit;
+}
+.grid-date-popover-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.grid-date-popover-actions button {
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-sm, 12px);
+  cursor: pointer;
+}
+.grid-date-popover-actions .gdp-cancel {
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--fg-1);
+}
+.grid-date-popover-actions .gdp-apply {
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: var(--accent-fg);
+}
+
+/* The in-cell anchor shown while the picker is open — mirrors .cell-edit-input
+   so the cell reads as "being edited" with the current value visible. */
+.grid-date-anchor {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  padding: 0 8px;
+  background: var(--bg-2);
+  color: var(--fg-0);
+  font-size: 11.5px;
+  white-space: nowrap;
+  overflow: hidden;
+}

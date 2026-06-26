@@ -8,9 +8,16 @@ import {
   useState,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
   type UIEvent,
 } from "react";
-import { CellEditor, CellValue } from "./Cell";
+import { CellEditor, CellValue, type CellEditorProps } from "./Cell";
+
+/**
+ * Renders a custom inline editor for a cell, or returns `null` to defer to the
+ * built-in editor. See {@link DataGridProps.renderEditor}.
+ */
+export type CellEditorRenderer = (props: CellEditorProps) => ReactNode | null;
 import {
   emptyColumnLayout,
   layoutForColumns,
@@ -152,6 +159,15 @@ export type DataGridProps = {
    */
   renderers?: RendererRegistry | null;
 
+  /**
+   * Optional override for the inline cell editor. Receives the same props as the
+   * built-in editor; return an element to take over editing for a cell, or
+   * `null` to fall back to the built-in text/number/native-picker editor. Lets a
+   * host supply a richer editor — e.g. a calendar date picker — without pulling
+   * its UI dependencies into this dependency-free package.
+   */
+  renderEditor?: CellEditorRenderer;
+
   /** Override how a renderer persists binary payloads (e.g. a native dialog). */
   saveBlob?: SaveBlob;
 
@@ -230,6 +246,7 @@ export function DataGrid({
   readOnly = false,
   nullDisplay = "NULL",
   renderers = defaultRendererRegistry,
+  renderEditor,
   saveBlob,
   stripeRows = false,
   onCellContextMenu,
@@ -834,6 +851,7 @@ export function DataGrid({
                   readOnly={readOnly}
                   nullDisplay={nullDisplay}
                   renderers={renderers}
+                  renderEditor={renderEditor}
                   saveBlob={saveBlob}
                   stripeRows={stripeRows}
                   top={
@@ -900,6 +918,7 @@ type GridRowViewProps = {
   readOnly: boolean;
   nullDisplay: string;
   renderers: RendererRegistry | null;
+  renderEditor: CellEditorRenderer | undefined;
   saveBlob: SaveBlob | undefined;
   stripeRows: boolean;
   top: number | undefined;
@@ -929,6 +948,7 @@ const GridRowView = memo(function GridRowView({
   readOnly,
   nullDisplay,
   renderers,
+  renderEditor,
   saveBlob,
   stripeRows,
   top,
@@ -1068,20 +1088,25 @@ const GridRowView = memo(function GridRowView({
             }
           >
             {isEdit ? (
-              <CellEditor
-                col={c}
-                value={displayed}
-                onCommit={(v) => {
-                  onCellEdit(
-                    row.id,
-                    c.key,
-                    (original ?? null) as CellChange["from"],
-                    (v ?? null) as CellChange["to"],
-                  );
-                  onEdit(null);
-                }}
-                onCancel={() => onEdit(null)}
-              />
+              (() => {
+                const editorProps: CellEditorProps = {
+                  col: c,
+                  value: displayed,
+                  onCommit: (v) => {
+                    onCellEdit(
+                      row.id,
+                      c.key,
+                      (original ?? null) as CellChange["from"],
+                      (v ?? null) as CellChange["to"],
+                    );
+                    onEdit(null);
+                  },
+                  onCancel: () => onEdit(null),
+                };
+                // Host-supplied editor wins when it claims the cell; otherwise
+                // fall back to the built-in text/number/native-picker editor.
+                return renderEditor?.(editorProps) ?? <CellEditor {...editorProps} />;
+              })()
             ) : (
               <CellValue
                 col={c}
