@@ -412,28 +412,28 @@ function SchemaRow({
       {open && (
         <>
           {schema.tables.length > 0 && (
-            <GroupHeader label="tables" count={schema.tables.length} />
+            <GroupFolder label="tables" count={schema.tables.length}>
+              {schema.tables.map((t) => (
+                <TableRow
+                  key={t.name}
+                  connectionId={connectionId}
+                  database={database}
+                  schema={schema.name}
+                  table={t}
+                  onOpen={() => onOpenTable(database, schema.name, t.name)}
+                  onNodeContextMenu={onNodeContextMenu}
+                  activeTabId={activeTabId}
+                />
+              ))}
+            </GroupFolder>
           )}
-          {schema.tables.map((t) => (
-            <TableRow
-              key={t.name}
-              connectionId={connectionId}
-              database={database}
-              schema={schema.name}
-              table={t}
-              onOpen={() => onOpenTable(database, schema.name, t.name)}
-              onNodeContextMenu={onNodeContextMenu}
-              activeTabId={activeTabId}
-            />
-          ))}
           {schema.views.length > 0 && (
-            <>
-              <GroupHeader label="views" count={schema.views.length} />
+            <GroupFolder label="views" count={schema.views.length}>
               {schema.views.map((v) => (
                 <div
                   key={v.name}
                   className={ROW_BASE + " cursor-pointer"}
-                  style={{ paddingLeft: 54 }}
+                  style={{ paddingLeft: 66 }}
                   onClick={() => onOpenTable(database, schema.name, v.name)}
                   onContextMenu={(e) =>
                     onNodeContextMenu(e, {
@@ -456,7 +456,7 @@ function SchemaRow({
                   </span>
                 </div>
               ))}
-            </>
+            </GroupFolder>
           )}
         </>
       )}
@@ -464,18 +464,43 @@ function SchemaRow({
   );
 }
 
-function GroupHeader({ label, count }: { label: string; count: number }) {
+function GroupFolder({
+  label,
+  count,
+  children,
+}: {
+  label: string;
+  count: number;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(true);
   return (
-    <div
-      className={
-        ROW_BASE +
-        " mt-0.5 h-5 text-[10px] uppercase tracking-[0.05em] text-fg-3 hover:bg-transparent hover:text-fg-2"
-      }
-      style={{ paddingLeft: 42 }}
-    >
-      <span className={TWISTY + " invisible"} />
-      <span className="flex-1 font-semibold">{label}</span>
-      <span className="font-mono text-[10px] text-fg-3">{count}</span>
+    <div>
+      <div
+        className={ROW_BASE + " cursor-pointer"}
+        style={{ paddingLeft: 42 }}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <button
+          type="button"
+          className={TWISTY}
+          aria-label={open ? `Collapse ${label}` : `Expand ${label}`}
+        >
+          {open ? (
+            <Icon.chevronDown size={10} />
+          ) : (
+            <Icon.chevronRight size={10} />
+          )}
+        </button>
+        <span className={ICON_SLOT}>
+          {open ? <Icon.folderOpen size={12} /> : <Icon.folder size={12} />}
+        </span>
+        <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[11.5px]">
+          {label}
+        </span>
+        <span className={META + " font-mono"}>{count}</span>
+      </div>
+      {open && children}
     </div>
   );
 }
@@ -503,7 +528,7 @@ function TableRow({
   return (
     <div
       className={ROW_BASE + " cursor-pointer" + (active ? " " + ROW_ACTIVE : "")}
-      style={{ paddingLeft: 54 }}
+      style={{ paddingLeft: 66 }}
       onClick={onOpen}
       onContextMenu={(e) =>
         onNodeContextMenu(e, {
