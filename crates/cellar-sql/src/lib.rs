@@ -1,7 +1,7 @@
-//! Cellar SQL support: parsing, formatting, and dialect awareness built on
-//! `sqlparser-rs`.
+//! Cellar SQL support: parsing, formatting, dialect awareness, and reference
+//! analysis built on `sqlparser-rs`.
 //!
-//! Two slices live here today:
+//! The slices that live here today:
 //!
 //! - Parameter handling ([`params`]) — named/positional placeholder detection
 //!   and bind preparation for parameterized query execution.
@@ -10,10 +10,16 @@
 //!   grid commit path in `cellar-diff`, the schema migration path in
 //!   `cellar-schema-diff`) format through here so escaping rules live in one
 //!   audited spot rather than being re-implemented per builder.
+//! - Reference detection ([`find_references`]) — the "Find Usages" feature:
+//!   given the text of a view definition, routine body, trigger definition, or
+//!   constraint, decide whether it *really* references a given table or column —
+//!   structurally, via the SQL tokenizer, never by naive substring matching.
 
 pub mod params;
+mod references;
 
 pub use params::{detect_parameters, order_values, prepare, ParamError, PreparedStatement};
+pub use references::{find_references, Reference};
 
 use serde::{Deserialize, Serialize};
 use specta::Type;

@@ -70,6 +70,20 @@ async introspect(connectionId: string, refresh: boolean | null) : Promise<Result
 }
 },
 /**
+ * Find every view, function, procedure, trigger, and constraint that
+ * references `object_name` (optionally narrowed to `column_name`). Scoped to
+ * `schema` within `database` by default; set `all_schemas` to search the whole
+ * database. References are confirmed structurally, never by substring match.
+ */
+async findUsages(connectionId: string, database: string | null, schema: string, objectName: string, columnName: string | null, allSchemas: boolean | null) : Promise<Result<UsageReference[], CellarError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("find_usages", { connectionId, database, schema, objectName, columnName, allSchemas }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * Build the foreign-key graph for the ER diagram view. Reuses the cached
  * introspection tree (so it never re-hits the server when the schema is warm)
  * and derives the graph in [`cellar_core::er`]. `schemas` scopes the graph to
@@ -699,6 +713,46 @@ export type TableFilterClause = { column: string; operator: TableFilterOperator;
 value: string | null }
 export type TableFilterOperator = "equals" | "not_equals" | "contains" | "is_null" | "is_not_null" | "greater_than" | "greater_than_or_equal" | "less_than" | "less_than_or_equal"
 export type TableSortClause = { column: string; direction: SortDirection }
+/**
+ * What kind of database object references a searched table or column. Returned
+ * by the `find_usages` command. See SPEC §6.2 (schema navigation).
+ */
+export type UsageKind = "view" | "materialized_view" | "function" | "procedure" | "trigger" | "constraint"
+/**
+ * A confirmed reference to the searched table/column found inside a view
+ * definition, routine body, trigger definition, or constraint. The reference
+ * is structurally confirmed by `cellar-sql` (real identifier, not a substring
+ * match) before it ever reaches this type.
+ */
+export type UsageReference = { kind: UsageKind; 
+/**
+ * Schema the referencing object lives in.
+ */
+schema: string; 
+/**
+ * Name of the referencing object (view / function / trigger / constraint).
+ */
+name: string; 
+/**
+ * For triggers and constraints, the table the object is attached to.
+ */
+on_table: string | null; 
+/**
+ * 1-based line within `definition` where the reference was found.
+ */
+line: number; 
+/**
+ * The matching line, trimmed for display.
+ */
+snippet: string; 
+/**
+ * The column matched, when the search was column-scoped.
+ */
+matched_column: string | null; 
+/**
+ * Full object definition so the UI can open it in an editor tab.
+ */
+definition: string }
 export type View = { name: string; schema: string; columns: Column[]; definition: string | null }
 export type ViewDiff = { name: string; status: ChangeStatus; source: View | null; target: View | null }
 

@@ -16,7 +16,10 @@ pub use query::{
     DatabaseNotice, DetectedParameter, NoticeCapture, NoticeSeverity, ParameterStyle, PlanDetail,
     PlanMode, PlanNode, Query, QueryParam, QueryPlan, QueryResult,
 };
-pub use schema::{Column, Database, ForeignKey, Index, Schema, Table, View};
+pub use schema::{
+    Column, Database, ForeignKey, Index, Schema, Table, UsageDefinition, UsageKind, UsageReference,
+    View,
+};
 pub use value::{CellValue, ColumnMeta, Row};
 
 #[cfg(test)]

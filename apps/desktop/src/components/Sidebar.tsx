@@ -25,6 +25,7 @@ import {
   type SidebarFolderItem,
 } from "../state/sidebarLayout";
 import { useTabs } from "../state/tabs";
+import { useFindUsages } from "../state/findUsages";
 import { qualifiedName, selectAllStatement } from "../lib/sqlIdent";
 
 type SchemaManagerState = {
@@ -72,6 +73,7 @@ export function Sidebar({
   const openErDiagram = useTabs((s) => s.openErDiagram);
   const newQueryTab = useTabs((s) => s.newQueryTab);
   const setQuerySql = useTabs((s) => s.setQuerySql);
+  const findUsages = useFindUsages((s) => s.findUsages);
   const activeTabId = useTabs((s) => s.activeId);
   const layoutItems = useSidebarLayout((s) => s.items);
   const reconcileLayout = useSidebarLayout((s) => s.reconcile);
@@ -251,6 +253,18 @@ export function Sidebar({
                 node.database,
                 selectAllStatement(node.schema, node.name),
               ),
+          },
+          {
+            label: "Find Usages",
+            icon: <Icon.search size={12} />,
+            onClick: () =>
+              findUsages({
+                connectionId: node.connectionId,
+                database: node.database,
+                schema: node.schema,
+                table: node.name,
+                column: null,
+              }),
           },
           {
             label: "Copy qualified name",

@@ -30,6 +30,7 @@ pub fn builder() -> Builder<tauri::Wry> {
         connection::reconnect,
         connection::disconnect,
         schema::introspect,
+        schema::find_usages,
         schema::er_graph,
         query::run_query,
         query::cancel_query,

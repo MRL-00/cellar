@@ -5,7 +5,7 @@ use std::sync::Arc;
 use cellar_core::driver::{Connection, ConnectionConfig, Driver, DriverInfo, Engine};
 use cellar_core::error::{CellarError, CellarResult};
 use cellar_core::query::{PlanMode, Query, QueryPlan, QueryResult, TableBrowseRequest};
-use cellar_core::schema::{Database, Schema, Table};
+use cellar_core::schema::{Database, Schema, Table, UsageDefinition, UsageReference};
 use cellar_diff::{TableChangeRequest, TableCommitResult};
 use cellar_driver_firestore::FirestoreDriver;
 use cellar_driver_mysql::MySqlDriver;
@@ -37,6 +37,20 @@ struct RegistryInner {
     open: HashMap<String, OpenConnection>,
     /// Schema-tree cache from the last successful `introspect` call.
     schema_cache: HashMap<String, Vec<Database>>,
+    /// "Find Usages" object definitions, keyed by (connection id, database).
+    /// Populated lazily on the first search and dropped whenever the schema is
+    /// refreshed or the connection is torn down, so it never goes stale.
+    usage_cache: HashMap<(String, String), Vec<UsageDefinition>>,
+}
+
+impl RegistryInner {
+    /// Drop every cached entry tied to a connection: schema tree and the
+    /// per-database usage definitions. Called whenever the connection's schema
+    /// is refreshed or the connection is closed.
+    fn invalidate_connection(&mut self, id: &str) {
+        self.schema_cache.remove(id);
+        self.usage_cache.retain(|(conn, _), _| conn != id);
+    }
 }
 
 pub struct ConnectionRegistry {
@@ -66,6 +80,7 @@ impl ConnectionRegistry {
                 configs: map,
                 open: HashMap::new(),
                 schema_cache: HashMap::new(),
+                usage_cache: HashMap::new(),
             }),
         }
     }
@@ -112,7 +127,7 @@ impl ConnectionRegistry {
             // Persist succeeded — safe to update in-memory state now.
             inner.configs = new_configs;
             let open = inner.open.remove(id);
-            inner.schema_cache.remove(id);
+            inner.invalidate_connection(id);
             open
         };
         if let Some(open) = open_to_close {
@@ -187,7 +202,7 @@ impl ConnectionRegistry {
     pub async fn disconnect(&self, id: &str) -> CellarResult<()> {
         let mut inner = self.inner.write().await;
         let removed = inner.open.remove(id);
-        inner.schema_cache.remove(id);
+        inner.invalidate_connection(id);
         drop(inner);
         if let Some(open) = removed {
             let _ = open.connection.close().await;
@@ -196,7 +211,12 @@ impl ConnectionRegistry {
     }
 
     pub async fn introspect(&self, id: &str, refresh: bool) -> CellarResult<Vec<Database>> {
-        if !refresh {
+        if refresh {
+            // A manual refresh must also drop the cached usage definitions so
+            // "Find Usages" reflects the new schema (SPEC: invalidate on refresh).
+            let mut inner = self.inner.write().await;
+            inner.usage_cache.retain(|(conn, _), _| conn != id);
+        } else {
             let inner = self.inner.read().await;
             if let Some(hit) = inner.schema_cache.get(id) {
                 return Ok(hit.clone());
@@ -310,6 +330,80 @@ impl ConnectionRegistry {
                 other.as_str()
             ))),
         }
+    }
+
+    /// Find views, routines, triggers, and constraints that reference a table
+    /// or column. Catalog definitions are fetched once per connection+database
+    /// and cached (invalidated on schema refresh); the search itself runs over
+    /// the cache and confirms each hit structurally via `cellar-sql`.
+    pub async fn find_usages(
+        &self,
+        id: &str,
+        database: Option<String>,
+        schema: String,
+        object_name: String,
+        column_name: Option<String>,
+        all_schemas: bool,
+    ) -> CellarResult<Vec<UsageReference>> {
+        let (engine, connection, default_db) = {
+            let inner = self.inner.read().await;
+            let open = inner
+                .open
+                .get(id)
+                .ok_or_else(|| CellarError::NotConnected(format!("no open connection for {id}")))?;
+            (
+                open.config.engine,
+                Arc::clone(&open.connection),
+                open.config.database.clone(),
+            )
+        };
+
+        if engine != Engine::Postgres {
+            return Err(CellarError::invalid_config(format!(
+                "find usages is not available for {} yet",
+                engine.as_str()
+            )));
+        }
+
+        let target_db = database
+            .filter(|d| !d.trim().is_empty())
+            .unwrap_or(default_db);
+        let key = (id.to_string(), target_db.clone());
+
+        let cached = {
+            let inner = self.inner.read().await;
+            inner.usage_cache.get(&key).cloned()
+        };
+        let defs = match cached {
+            Some(defs) => defs,
+            None => {
+                let fetched = match cellar_driver_postgres::fetch_usage_definitions(
+                    connection.as_ref(),
+                    &target_db,
+                )
+                .await
+                {
+                    Ok(defs) => defs,
+                    Err(err) => return Err(self.handle_operation_error(id, err).await),
+                };
+                let mut w = self.inner.write().await;
+                w.usage_cache.insert(key, fetched.clone());
+                fetched
+            }
+        };
+
+        let schema_filter = if all_schemas {
+            None
+        } else {
+            Some(schema.as_str())
+        };
+        Ok(cellar_driver_postgres::search_usages(
+            &defs,
+            schema_filter,
+            &schema,
+            &object_name,
+            column_name.as_deref(),
+        ))
     }
 
     pub async fn commit_table_changes(
@@ -476,7 +570,7 @@ impl ConnectionRegistry {
 
     async fn remove_open(&self, id: &str) -> Option<OpenConnection> {
         let mut inner = self.inner.write().await;
-        inner.schema_cache.remove(id);
+        inner.invalidate_connection(id);
         inner.open.remove(id)
     }
 
@@ -494,7 +588,7 @@ impl ConnectionRegistry {
         if !same {
             return None;
         }
-        inner.schema_cache.remove(id);
+        inner.invalidate_connection(id);
         inner.open.remove(id)
     }
 
@@ -523,14 +617,32 @@ fn reconnectable_error(err: CellarError) -> CellarError {
 }
 
 fn find_table(dbs: &[Database], database: &str, schema: &str, table: &str) -> CellarResult<Table> {
-    dbs.iter()
+    let target_schema = dbs
+        .iter()
         .find(|db| db.name == database)
-        .and_then(|db| db.schemas.iter().find(|s| s.name == schema))
-        .and_then(|s| s.tables.iter().find(|t| t.name == table))
-        .cloned()
+        .and_then(|db| db.schemas.iter().find(|s| s.name == schema));
+
+    // Tables first, then fall back to views: a view is selectable just like a
+    // table, so browsing one means synthesizing a Table from it (no primary
+    // key / foreign keys / indexes, so the browse query simply skips ORDER BY).
+    target_schema
+        .and_then(|s| s.tables.iter().find(|t| t.name == table).cloned())
+        .or_else(|| {
+            target_schema
+                .and_then(|s| s.views.iter().find(|v| v.name == table))
+                .map(|v| Table {
+                    name: v.name.clone(),
+                    schema: v.schema.clone(),
+                    row_count: None,
+                    columns: v.columns.clone(),
+                    primary_key: Vec::new(),
+                    foreign_keys: Vec::new(),
+                    indexes: Vec::new(),
+                })
+        })
         .ok_or_else(|| {
             CellarError::invalid_config(format!(
-                "table {database}.{schema}.{table} was not found in schema metadata"
+                "relation {database}.{schema}.{table} was not found in schema metadata"
             ))
         })
 }

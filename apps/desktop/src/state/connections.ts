@@ -6,6 +6,7 @@ import type {
 } from "@cellar/ipc";
 import { create } from "zustand";
 import { useTabs } from "./tabs";
+import { useFindUsages } from "./findUsages";
 
 export type ConnStatus = "connected" | "connecting" | "disconnected" | "error";
 
@@ -162,6 +163,9 @@ export const useConnections = create<ConnectionsStore>((set, get) => ({
           },
         },
       }));
+      // The backend just invalidated this connection's cached usage
+      // definitions; re-run any open Find Usages search so it isn't stale.
+      useFindUsages.getState().onConnectionRefreshed(id);
     } catch (err) {
       if (noteConnectionIssue(id, err)) return;
       const message = err instanceof Error ? err.message : String(err);
