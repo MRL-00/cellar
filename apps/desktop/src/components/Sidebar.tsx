@@ -26,6 +26,7 @@ import {
 } from "../state/sidebarLayout";
 import { useTabs } from "../state/tabs";
 import { useFindUsages } from "../state/findUsages";
+import { useConfirm } from "../state/confirm";
 import { qualifiedName, selectAllStatement } from "../lib/sqlIdent";
 
 type SchemaManagerState = {
@@ -36,6 +37,7 @@ type SchemaManagerState = {
 
 export interface SidebarProps {
   onNewConnection?: () => void;
+  onImportDatagrip?: () => void;
   onEditConnection?: (config: ConnectionConfig) => void;
   onDuplicateConnection?: (config: ConnectionConfig) => void;
   onOpenSettings?: () => void;
@@ -49,6 +51,7 @@ export interface SidebarProps {
 
 export function Sidebar({
   onNewConnection,
+  onImportDatagrip,
   onEditConnection,
   onDuplicateConnection,
   onOpenSettings,
@@ -70,6 +73,7 @@ export function Sidebar({
   const reconnect = useConnections((s) => s.reconnect);
   const disconnect = useConnections((s) => s.disconnect);
   const deleteConnection = useConnections((s) => s.deleteConnection);
+  const askConfirm = useConfirm((s) => s.ask);
   const refreshSchema = useConnections((s) => s.refreshSchema);
   const openTable = useTabs((s) => s.openTable);
   const openErDiagram = useTabs((s) => s.openErDiagram);
@@ -505,13 +509,15 @@ export function Sidebar({
         icon: <Icon.trash size={12} />,
         danger: true,
         onClick: () => {
-          if (
-            window.confirm(
-              `Remove connection "${config.name}"? This deletes its saved password from the keychain.`,
-            )
-          ) {
-            void deleteConnection(config.id);
-          }
+          void (async () => {
+            const ok = await askConfirm({
+              title: "Remove connection",
+              message: `Remove connection "${config.name}"?\n\nThis deletes its saved password from the keychain.`,
+              confirmLabel: "Remove",
+              danger: true,
+            });
+            if (ok) void deleteConnection(config.id);
+          })();
         },
       },
     );
@@ -537,6 +543,11 @@ export function Sidebar({
           label: "New folder",
           icon: <Icon.folderPlus size={12} />,
           onClick: () => startNewFolder(),
+        },
+        {
+          label: "Import from DataGrip",
+          icon: <Icon.database size={12} />,
+          onClick: () => onImportDatagrip?.(),
         },
         {
           label: "Refresh connected schemas",

@@ -222,7 +222,7 @@ export function DataGrid({
   onSortChange,
   columnLayout,
   onColumnLayoutChange,
-  frozenCount = 2,
+  frozenCount = 0,
   totalRows,
   pagination,
   onCommit,

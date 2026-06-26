@@ -10,6 +10,7 @@ import {
 import { useBottomPanel } from "../state/bottomPanel";
 import { noteConnectionIssue, useConnections } from "../state/connections";
 import { useTabs, type QueryTab } from "../state/tabs";
+import { useConfirm } from "../state/confirm";
 import { Icon } from "./icons";
 
 type WorkspaceTab = ReturnType<typeof useTabs.getState>["tabs"][number];
@@ -65,7 +66,7 @@ export function PlanPanel({ activeTab }: { activeTab: WorkspaceTab | null }) {
 
   async function loadPlan(nextMode = mode) {
     if (!queryTab || unavailable) return;
-    if (nextMode === "analyze" && !confirmAnalyze()) return;
+    if (nextMode === "analyze" && !(await confirmAnalyze())) return;
     const token = ++planToken.current;
     setLoading(true);
     setError(null);
@@ -418,11 +419,13 @@ function costHeatColor(heat: number): string {
   return "var(--fg-4)";
 }
 
-function confirmAnalyze(): boolean {
-  if (typeof window === "undefined") return false;
-  return window.confirm(
-    "Run EXPLAIN ANALYZE?\n\nPostgres will execute the SQL. Writes can change data, and long statements can take locks.",
-  );
+function confirmAnalyze(): Promise<boolean> {
+  return useConfirm.getState().ask({
+    title: "Run EXPLAIN ANALYZE?",
+    message:
+      "Postgres will execute the SQL. Writes can change data, and long statements can take locks.",
+    confirmLabel: "Run",
+  });
 }
 
 function clipboardAvailable(): boolean {
