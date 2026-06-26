@@ -4,6 +4,7 @@
 @import "./grid.css";
 @import "./grid-renderers.css";
 @import "./editor.css";
+@import "./date-picker.css";
 
 /* Bridge: expose every design token from tokens.css as a Tailwind v4 theme key
    so utilities like `bg-bg-0`, `text-fg-1`, `border-border-default`, `font-mono`,

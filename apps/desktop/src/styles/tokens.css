@@ -2,6 +2,9 @@
 
 :root,
 [data-theme="dark"] {
+  /* Render native controls (date/time pickers, spinners) in dark mode so they
+     stay legible against the dark surfaces instead of defaulting to light. */
+  color-scheme: dark;
   /* Surfaces — warm dark neutrals */
   --bg-0: #0c0d10;
   --bg-1: #111317;
@@ -96,6 +99,7 @@
 }
 
 [data-theme="light"] {
+  color-scheme: light;
   --bg-0: #f8f7f4;
   --bg-1: #ffffff;
   --bg-2: #f3f1ec;

@@ -159,20 +159,23 @@ function normalizeType(type: string):
   // every type shown as a hex blob is also validated as hex when edited.
   if (isByteaType(t)) return "bytea";
   if (t === "date") return "date";
-  if (["float4", "float8", "real", "double precision"].includes(t)) {
+  if (["float4", "float8", "real", "double precision", "float", "double"].includes(t)) {
     return "float";
   }
   if (
-    ["int2", "int4", "int8", "smallint", "integer", "bigint", "serial", "bigserial", "oid"].includes(
+    // Postgres int2/int4/int8/serial; MSSQL int/tinyint; MySQL mediumint
+    ["int2", "int4", "int8", "smallint", "integer", "int", "tinyint", "mediumint", "bigint", "serial", "bigserial", "oid"].includes(
       t,
     )
   ) {
     return "integer";
   }
   if (["json", "jsonb"].includes(t)) return "json";
-  if (["numeric", "decimal", "money"].includes(t)) return "numeric";
+  if (["numeric", "decimal", "money", "smallmoney"].includes(t)) return "numeric";
   if (
-    ["text", "varchar", "char", "bpchar", "citext", "name", "character varying", "character"].includes(
+    // Postgres text/varchar/...; MSSQL nvarchar/nchar/ntext/sysname/xml; MySQL *text
+    ["text", "varchar", "char", "bpchar", "citext", "name", "character varying", "character",
+     "nvarchar", "nchar", "ntext", "sysname", "xml", "tinytext", "mediumtext", "longtext"].includes(
       t,
     )
   ) {
@@ -182,7 +185,9 @@ function normalizeType(type: string):
     return "time";
   }
   if (
-    ["timestamp", "timestamptz", "timestamp without time zone", "timestamp with time zone"].includes(
+    // Postgres timestamp/timestamptz; MSSQL datetime/datetime2/smalldatetime/datetimeoffset
+    ["timestamp", "timestamptz", "timestamp without time zone", "timestamp with time zone",
+     "datetime", "datetime2", "smalldatetime", "datetimeoffset"].includes(
       t,
     )
   ) {
@@ -190,6 +195,51 @@ function normalizeType(type: string):
   }
   if (["uuid", "guid", "uniqueidentifier"].includes(t)) return "guid";
   return "unknown";
+}
+
+/**
+ * Picks a native HTML input control for the editor so date/time/number columns
+ * get the browser's built-in picker and keypad-level rejection of bad keys.
+ * Returns null to keep the plain text editor — for unknown types, or values the
+ * native control can't represent (those stay freely editable as raw text).
+ *
+ * `numeric`/`decimal` deliberately stay text: their value is a lossless string
+ * and a number input would lose precision on large decimals. The existing
+ * parseCellInput validation already rejects letters in those on commit.
+ */
+export function nativeControl(
+  col: GridColumn,
+  initial: string,
+): { type: string; step?: string; value: string } | null {
+  if (col.enum) return null;
+  const t = normalizeType(col.type);
+  if (t === "integer") return { type: "number", step: "1", value: initial };
+  if (t === "float") return { type: "number", step: "any", value: initial };
+
+  // For date/time/timestamp, an empty cell still gets a picker; a populated one
+  // only does if its stored value parses into the control's required format.
+  if (t === "date") {
+    if (initial === "") return { type: "date", value: "" };
+    return /^\d{4}-\d{2}-\d{2}/.test(initial)
+      ? { type: "date", value: initial.slice(0, 10) }
+      : null;
+  }
+  if (t === "time") {
+    if (initial === "") return { type: "time", step: "1", value: "" };
+    const m = /^(\d{2}:\d{2}(?::\d{2})?)/.exec(initial.trim());
+    return m?.[1] ? { type: "time", step: "1", value: m[1] } : null;
+  }
+  if (t === "timestamp") {
+    if (initial === "") return { type: "datetime-local", step: "1", value: "" };
+    // "2023-04-03T05:00:31.15863" or "2023-04-03 05:00:31" → "...T05:00:31".
+    // Sub-second precision is dropped — a picker can't express it — but only a
+    // user who actually changes the value commits, so stored values are intact.
+    const m = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}(?::\d{2})?)/.exec(initial.trim());
+    return m?.[1] && m[2]
+      ? { type: "datetime-local", step: "1", value: `${m[1]}T${m[2]}` }
+      : null;
+  }
+  return null;
 }
 
 export function CellValue({
@@ -264,7 +314,8 @@ export type CellEditorProps = {
 
 export function CellEditor({ col, value, onCommit, onCancel }: CellEditorProps) {
   const initialValue = value == null ? "" : String(value);
-  const [v, setV] = useState<string>(initialValue);
+  const control = nativeControl(col, initialValue);
+  const [v, setV] = useState<string>(control ? control.value : initialValue);
   const [error, setError] = useState<string | null>(null);
   const ref = useRef<HTMLInputElement | null>(null);
   // Tracks whether Enter or Escape has already been handled so that the
@@ -278,7 +329,13 @@ export function CellEditor({ col, value, onCommit, onCancel }: CellEditorProps) 
 
   useEffect(() => {
     ref.current?.focus();
-    ref.current?.select();
+    // select() throws InvalidStateError on date/time/number inputs; only text
+    // (and the like) supports it, so guard rather than branch on type.
+    try {
+      ref.current?.select();
+    } catch {
+      /* non-text native control — nothing to select */
+    }
   }, []);
 
   const commitRawValue = () => {
@@ -345,6 +402,8 @@ export function CellEditor({ col, value, onCommit, onCancel }: CellEditorProps) 
     <input
       ref={ref}
       className={"cell-edit-input" + (col.mono ? " mono" : "")}
+      type={control?.type ?? "text"}
+      step={control?.step}
       value={v}
       onChange={(e) => {
         dirtyRef.current = true;
