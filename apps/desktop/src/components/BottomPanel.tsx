@@ -43,7 +43,7 @@ import {
 } from "../lib/notices";
 import { useConnections } from "../state/connections";
 import {
-  emptyNoticeEntry,
+  EMPTY_ENTRY,
   noticeScopeKey,
   useNotices,
   type NoticeLogEntry,
@@ -59,6 +59,7 @@ import {
   useTabResults,
   type TabResult,
 } from "../state/tabResults";
+import { formatDuration } from "../lib/queryMessages";
 import { useQueryMessages } from "../state/queryMessages";
 import { PlanPanel } from "./BottomPlanPanel";
 import { MessagesView } from "./BottomMessagesPanel";
@@ -127,7 +128,7 @@ export function BottomPanel({ onClose }: { onClose: () => void }) {
   );
   const scopeKey = noticeScopeKey(noticeScope);
   const noticeEntry =
-    useNotices((s) => s.byScope[scopeKey]) ?? emptyNoticeEntry();
+    useNotices((s) => s.byScope[scopeKey]) ?? structuredClone(EMPTY_ENTRY);
   const clearNotices = useNotices((s) => s.clear);
   const setRetain = useNotices((s) => s.setRetain);
   const exportViewRef: ExportViewRef = useRef(null);
@@ -1071,11 +1072,6 @@ function severityPillClass(tone: NoticeTone) {
     case "muted":
       return "bg-bg-2 text-fg-2";
   }
-}
-
-function formatDuration(ms: number) {
-  if (ms < 1000) return `${ms} ms`;
-  return `${(ms / 1000).toFixed(ms < 10_000 ? 2 : 1)} s`;
 }
 
 function formatRows(record: QueryHistoryRecord) {

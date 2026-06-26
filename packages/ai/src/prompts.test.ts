@@ -14,9 +14,9 @@ describe("topics", () => {
     ]);
   });
 
-  it("every topic has a label and hint", () => {
+  it("every topic has a hint", () => {
+    // ponytail: label was dropped (was identical to key); hint remains
     for (const t of ORDERED_TOPICS) {
-      expect(TOPICS[t].label.length).toBeGreaterThan(0);
       expect(TOPICS[t].hint.length).toBeGreaterThan(0);
     }
   });

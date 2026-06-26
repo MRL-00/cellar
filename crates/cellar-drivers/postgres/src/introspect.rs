@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use cellar_core::error::{CellarError, CellarResult};
 use cellar_core::schema::{Column, Database, ForeignKey, Index, Schema, Table, View};
+use cellar_core::table_browse::{mark_primary_keys, schema_with};
 use futures::future::join_all;
 use sqlx::{PgPool, Row};
 
@@ -115,23 +116,6 @@ async fn introspect_schemas(pool: &PgPool) -> CellarResult<Vec<Schema>> {
     }
 
     Ok(schemas.into_values().collect())
-}
-
-fn schema_with(name: String) -> Schema {
-    Schema {
-        name,
-        tables: Vec::new(),
-        views: Vec::new(),
-    }
-}
-
-fn mark_primary_keys(mut cols: Vec<Column>, pk: &[String]) -> Vec<Column> {
-    for c in cols.iter_mut() {
-        if pk.iter().any(|p| p == &c.name) {
-            c.is_primary_key = true;
-        }
-    }
-    cols
 }
 
 async fn current_database(pool: &PgPool) -> CellarResult<String> {

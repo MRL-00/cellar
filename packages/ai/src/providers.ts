@@ -24,38 +24,11 @@ export const PROVIDERS: ProviderMeta[] = [
     keyPrefix: "AIza",
     endpoint: "https://generativelanguage.googleapis.com/v1beta",
   },
-  {
-    id: "anthropic",
-    label: "Anthropic",
-    sub: "claude-* family",
-    enabled: false,
-    keyPrefix: "sk-ant-",
-    endpoint: "https://api.anthropic.com/v1",
-  },
-  {
-    id: "openai",
-    label: "OpenAI",
-    sub: "gpt-* family",
-    enabled: false,
-    keyPrefix: "sk-",
-    endpoint: "https://api.openai.com/v1",
-  },
-  {
-    id: "local",
-    label: "Local",
-    sub: "Ollama, LM Studio",
-    enabled: false,
-    keyPrefix: "none",
-    endpoint: "http://localhost:11434/v1",
-  },
-  {
-    id: "custom",
-    label: "Custom",
-    sub: "OpenAI-compatible URL",
-    enabled: false,
-    keyPrefix: "key",
-    endpoint: "https://example.invalid/v1",
-  },
+  // ponytail: disabled providers keep full shape (getProvider returns ProviderMeta), just compacted
+  { id: "anthropic", label: "Anthropic", sub: "claude-* family",      enabled: false, keyPrefix: "sk-ant-", endpoint: "https://api.anthropic.com/v1" },
+  { id: "openai",    label: "OpenAI",    sub: "gpt-* family",          enabled: false, keyPrefix: "sk-",     endpoint: "https://api.openai.com/v1" },
+  { id: "local",     label: "Local",     sub: "Ollama, LM Studio",     enabled: false, keyPrefix: "none",    endpoint: "http://localhost:11434/v1" },
+  { id: "custom",    label: "Custom",    sub: "OpenAI-compatible URL", enabled: false, keyPrefix: "key",     endpoint: "https://example.invalid/v1" },
 ];
 
 export function getProvider(id: AiProviderId): ProviderMeta {

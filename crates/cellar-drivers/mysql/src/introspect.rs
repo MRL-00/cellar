@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use cellar_core::error::{CellarError, CellarResult};
 use cellar_core::schema::{Column, Database, ForeignKey, Index, Schema, Table, View};
+use cellar_core::table_browse::mark_primary_keys;
 use sqlx::{MySqlPool, Row};
 
 use crate::connect::MySqlConnection;
@@ -65,15 +66,6 @@ async fn introspect_schemas(pool: &MySqlPool, db_name: &str) -> CellarResult<Vec
     }
 
     Ok(vec![schema])
-}
-
-fn mark_primary_keys(mut cols: Vec<Column>, pk: &[String]) -> Vec<Column> {
-    for c in cols.iter_mut() {
-        if pk.iter().any(|p| p == &c.name) {
-            c.is_primary_key = true;
-        }
-    }
-    cols
 }
 
 async fn current_database(pool: &MySqlPool) -> CellarResult<String> {

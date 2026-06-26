@@ -2,7 +2,7 @@ import type { DatabaseNotice, NoticeSeverity } from "@cellar/ipc";
 
 export type NoticeTone = "danger" | "warning" | "info" | "muted";
 
-export const NOTICE_SEVERITIES: NoticeSeverity[] = [
+const NOTICE_SEVERITIES: NoticeSeverity[] = [
   "panic",
   "fatal",
   "error",

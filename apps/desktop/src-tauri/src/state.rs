@@ -649,9 +649,9 @@ fn find_table(dbs: &[Database], database: &str, schema: &str, table: &str) -> Ce
 
 fn driver_for(engine: Engine) -> CellarResult<Box<dyn Driver>> {
     match engine {
-        Engine::Firestore => Ok(Box::new(FirestoreDriver::new())),
-        Engine::MySql => Ok(Box::new(MySqlDriver::new())),
-        Engine::Postgres => Ok(Box::new(PostgresDriver::new())),
+        Engine::Firestore => Ok(Box::new(FirestoreDriver::default())),
+        Engine::MySql => Ok(Box::new(MySqlDriver::default())),
+        Engine::Postgres => Ok(Box::new(PostgresDriver::default())),
         Engine::Mssql => Ok(Box::new(SqlServerDriver::new())),
         Engine::Azure => Ok(Box::new(SqlServerDriver::azure())),
         other => Err(CellarError::invalid_config(format!(
@@ -661,20 +661,22 @@ fn driver_for(engine: Engine) -> CellarResult<Box<dyn Driver>> {
     }
 }
 
-fn storage_dir() -> Option<PathBuf> {
+/// The `~/.cellar/` application data directory. Shared by the connection
+/// store, query history, snapshots, and templates.
+pub(crate) fn cellar_dir() -> Option<PathBuf> {
     let mut p = dirs::home_dir()?;
     p.push(".cellar");
     Some(p)
 }
 
 fn storage_path() -> Option<PathBuf> {
-    let mut p = storage_dir()?;
+    let mut p = cellar_dir()?;
     p.push(STORAGE_FILENAME);
     Some(p)
 }
 
 async fn persist(configs: &HashMap<String, ConnectionConfig>) -> CellarResult<()> {
-    let dir = storage_dir()
+    let dir = cellar_dir()
         .ok_or_else(|| CellarError::invalid_config("could not resolve home directory"))?;
     persist_to_dir(configs, &dir).await
 }

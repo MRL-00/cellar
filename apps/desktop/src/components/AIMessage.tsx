@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { TOPICS } from "@cellar/ai";
 import { Icon } from "./icons";
 import type { AiChatEntry } from "../state/ai";
 
@@ -70,7 +69,7 @@ export function AIMessage({ entry }: { entry: AiChatEntry }) {
         <div className="max-w-[88%] rounded-[7px] rounded-tr-[2px] border border-accent-line bg-accent-soft px-2.5 py-1.5">
           {entry.topic && entry.topic !== "ask" && (
             <span className="mb-0.5 block font-mono text-[9.5px] uppercase tracking-[0.05em] text-accent opacity-80">
-              {TOPICS[entry.topic].label}
+              {entry.topic}
             </span>
           )}
           <div className="whitespace-pre-wrap text-[12px] leading-[1.5] text-fg-0">

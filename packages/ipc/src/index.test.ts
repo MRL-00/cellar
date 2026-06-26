@@ -33,6 +33,7 @@ describe("@cellar/ipc", () => {
         "disconnect",
         "erGraph",
         "explainQuery",
+        "findUsages",
         "introspect",
         "listQueryHistory",
         "listConnections",

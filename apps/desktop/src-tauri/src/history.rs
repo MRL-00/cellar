@@ -187,8 +187,7 @@ impl HistoryStore {
 }
 
 fn history_path() -> Option<PathBuf> {
-    let mut p = dirs::home_dir()?;
-    p.push(".cellar");
+    let mut p = crate::state::cellar_dir()?;
     p.push(HISTORY_FILENAME);
     Some(p)
 }
@@ -262,11 +261,7 @@ fn record_from_row(row: sqlx::sqlite::SqliteRow) -> CellarResult<QueryHistoryRec
 fn non_empty(value: Option<String>) -> Option<String> {
     value.and_then(|v| {
         let trimmed = v.trim();
-        if trimmed.is_empty() {
-            None
-        } else {
-            Some(trimmed.to_string())
-        }
+        (!trimmed.is_empty()).then(|| trimmed.to_string())
     })
 }
 
@@ -368,7 +363,7 @@ fn redact_keyword_literal(input: &str, keyword: &str) -> String {
     format!("{}'<redacted>'{}", &input[..open], &input[close + 1..])
 }
 
-fn now_ms() -> i64 {
+pub(crate) fn now_ms() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_millis().min(i64::MAX as u128) as i64)

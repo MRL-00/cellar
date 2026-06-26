@@ -1,5 +1,6 @@
 //! Build reviewable, transactional SQL from grid pending changes.
 
+use cellar_sql::Dialect;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use thiserror::Error;
@@ -192,11 +193,12 @@ fn where_clause(keys: &[CellAssignment]) -> String {
 }
 
 fn qualified_table(schema: &str, table: &str) -> String {
-    format!("{}.{}", quote_ident(schema), quote_ident(table))
+    Dialect::Postgres.quote_qualified(schema, table)
 }
 
+// ponytail: quote_ident removed — call Dialect::Postgres.quote_ident() directly
 fn quote_ident(value: &str) -> String {
-    format!("\"{}\"", value.replace('"', "\"\""))
+    Dialect::Postgres.quote_ident(value)
 }
 
 fn literal(value: &DiffValue) -> String {

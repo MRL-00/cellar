@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import { deferredLocalStorage } from "./deferredStorage";
+import { deferredStorage } from "./deferredStorage";
 
 export type Panels = { left: boolean; right: boolean; bottom: boolean };
 export type PanelId = keyof Panels;
@@ -17,7 +17,7 @@ type LayoutStore = {
   setBottomHeight: (height: number) => void;
 };
 
-export const DEFAULT_PANELS: Panels = {
+const DEFAULT_PANELS: Panels = {
   left: true,
   right: false,
   bottom: false,
@@ -40,7 +40,7 @@ export const useLayout = create<LayoutStore>()(
     }),
     {
       name: "cellar.layout.v1",
-      storage: createJSONStorage(deferredLocalStorage),
+      storage: createJSONStorage(() => deferredStorage),
       partialize: (s) => ({
         panels: s.panels,
         leftWidth: s.leftWidth,

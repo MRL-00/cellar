@@ -25,12 +25,6 @@ pub use usages::search_usages;
 #[derive(Debug, Default, Clone, Copy)]
 pub struct PostgresDriver;
 
-impl PostgresDriver {
-    pub fn new() -> Self {
-        Self
-    }
-}
-
 pub async fn commit_table_changes(
     conn: &dyn Connection,
     request: &TableChangeRequest,

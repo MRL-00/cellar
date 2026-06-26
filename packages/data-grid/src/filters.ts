@@ -1,6 +1,5 @@
 import type {
   FilterClause,
-  FilterLogic,
   FilterOperator,
   GridColumn,
   GridRow,
@@ -47,7 +46,7 @@ const DATE_TYPES = ["date", "time", "timestamp", "timestamptz", "timetz"];
 const BOOL_TYPES = ["bool", "boolean"];
 const TEXT_TYPES = ["text", "char", "varchar", "citext", "uuid", "json", "jsonb"];
 
-export function operatorMeta(operator: FilterOperator) {
+function operatorMeta(operator: FilterOperator) {
   return FILTER_OPERATORS.find((op) => op.value === operator) ?? FILTER_OPERATORS[0]!;
 }
 
@@ -121,7 +120,7 @@ export function rowMatchesFilters(
       return;
     }
     matched =
-      normalizedLogic(clause.logic) === "or"
+      clause.logic === "or"
         ? matched || clauseMatched
         : matched && clauseMatched;
   });
@@ -165,10 +164,7 @@ export function filterValuePreview(clause: FilterClause): string {
 }
 
 export function createFilterId(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-  return `filter-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  return crypto.randomUUID(); // ponytail: Tauri target is chrome105+, always has crypto.randomUUID
 }
 
 function displayValue(
@@ -220,6 +216,3 @@ function normalizeString(value: GridRow[string]): string {
   return String(value).toLowerCase();
 }
 
-function normalizedLogic(logic: FilterLogic): FilterLogic {
-  return logic === "or" ? "or" : "and";
-}

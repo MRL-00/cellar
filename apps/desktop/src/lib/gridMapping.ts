@@ -48,19 +48,6 @@ export function gridWidthFor(type: string): number {
   return 180;
 }
 
-/** Hex-preview a `bytea` payload, capped so huge blobs do not bloat the grid. */
-export function bytesToHex(bytes: number[]): string {
-  if (bytes.length === 0) return "\\x";
-  const limit = Math.min(bytes.length, 32);
-  let out = "\\x";
-  for (let i = 0; i < limit; i++) {
-    const b = bytes[i] ?? 0;
-    out += b.toString(16).padStart(2, "0");
-  }
-  if (bytes.length > limit) out += `… (${bytes.length} bytes)`;
-  return out;
-}
-
 /**
  * Full `\x`-prefixed hex for a `bytea` payload. The grid's bytea renderer
  * decodes this back into the exact bytes for hex-dump, magic-byte image

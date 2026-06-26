@@ -20,12 +20,6 @@ pub use connect::{open_pool, MySqlConnection};
 #[derive(Debug, Default, Clone, Copy)]
 pub struct MySqlDriver;
 
-impl MySqlDriver {
-    pub fn new() -> Self {
-        Self
-    }
-}
-
 pub async fn browse_table(
     conn: &dyn Connection,
     request: &TableBrowseRequest,

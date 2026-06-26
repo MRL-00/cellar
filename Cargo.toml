@@ -3,7 +3,6 @@ resolver = "2"
 members = [
     "apps/desktop/src-tauri",
     "crates/cellar-core",
-    "crates/cellar-drivers",
     "crates/cellar-drivers/firestore",
     "crates/cellar-drivers/mysql",
     "crates/cellar-drivers/postgres",
@@ -12,7 +11,6 @@ members = [
     "crates/cellar-diff",
     "crates/cellar-schema-diff",
     "crates/cellar-secrets",
-    "crates/cellar-plugin-host",
 ]
 
 [workspace.package]

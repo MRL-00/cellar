@@ -13,8 +13,7 @@ Rules:
 - Be concise and technical. The user understands SQL.`;
 
 export interface TopicMeta {
-  /** Bottom-bar label. */
-  label: string;
+  // ponytail: label dropped — it was identical to the AiTopic key; callers use the key directly
   /** Hover hint / one-liner. */
   hint: string;
   /** Instruction prepended to the user's text for this preset. */
@@ -23,31 +22,26 @@ export interface TopicMeta {
 
 export const TOPICS: Record<AiTopic, TopicMeta> = {
   generate: {
-    label: "generate",
     hint: "Write SQL from a description",
     instruction:
       "Generate a SQL query for the request below. Return the query in a single ```sql block, then a one-sentence explanation of what it does.",
   },
   explain: {
-    label: "explain",
     hint: "Explain SQL, a table, or a result",
     instruction:
       "Explain the following clearly and concisely. If it is SQL, describe what it returns and any performance characteristics worth noting.",
   },
   optimize: {
-    label: "optimize",
     hint: "Suggest a faster equivalent query",
     instruction:
       "Optimize the SQL below. Return an improved query in a ```sql block, then a short bulleted list of the changes and why they help. Preserve the original result set.",
   },
   migrate: {
-    label: "migrate",
     hint: "Draft a schema migration",
     instruction:
       "Draft the SQL migration described below. Return forward DDL in a ```sql block. Flag any destructive or irreversible step explicitly, and note whether it can run inside a transaction.",
   },
   ask: {
-    label: "ask",
     hint: "Free-form question",
     instruction: "",
   },

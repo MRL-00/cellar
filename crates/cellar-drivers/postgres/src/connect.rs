@@ -9,6 +9,7 @@ use sqlx::postgres::{PgConnectOptions, PgPoolOptions, PgSslMode};
 use sqlx::{Error as SqlxError, PgPool, Row};
 use tokio::sync::Mutex;
 
+// ponytail: duplicated in mysql/connect.rs — sharing requires sqlx in cellar-core, which we deliberately avoid.
 const DEFAULT_POOL_SIZE: u32 = 4;
 
 /// Backend process running a registered query, so a concurrent cancel call
@@ -208,6 +209,7 @@ fn map_sqlx_err_for_connect(err: SqlxError) -> CellarError {
     }
 }
 
+// ponytail: map_sqlx_err_for_runtime is identical in mysql/connect.rs. Sharing requires sqlx in cellar-core (unwanted dep). Leave both copies.
 pub(crate) fn map_sqlx_err_for_runtime(
     err: SqlxError,
     operation: &str,
