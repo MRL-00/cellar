@@ -126,20 +126,37 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
     async (statementSql: string, label: string, errorLine: number | null) => {
       const trimmed = statementSql.trim();
       if (!trimmed) return;
-      let detected: DetectedParameter[] = [];
+
+      const runRaw = () => {
+        closePanel(tab.id);
+        setBottomTab("results");
+        run(trimmed, { label, errorLine });
+      };
+
+      // Parameter binding is only implemented for the Postgres driver today.
+      // For other engines, run the statement as-is rather than opening a panel
+      // that implies binding we cannot perform (the engine reports any error).
+      const bindsParams = engine === undefined || engine === "postgres";
+      if (!bindsParams) {
+        runRaw();
+        return;
+      }
+
+      let detected: DetectedParameter[];
       try {
         detected = await unwrap(
           commands.detectQueryParameters(trimmed, engine ?? "postgres"),
         );
       } catch (err) {
-        // A parser hiccup must never block running — fall back to no params.
+        // Detection only fails on un-tokenizable SQL. Run it raw so the engine
+        // surfaces the real syntax error instead of us swallowing it.
         console.warn("[SqlEditor] parameter detection failed", err);
+        runRaw();
+        return;
       }
 
       if (detected.length === 0) {
-        closePanel(tab.id);
-        setBottomTab("results");
-        run(trimmed, { label, errorLine });
+        runRaw();
         return;
       }
 
@@ -149,7 +166,7 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
         values[param.name] =
           state.panels[tab.id]?.values[param.name] ??
           state.remembered[param.name] ??
-          defaultParamValue(param, databases);
+          defaultParamValue(param, databases, tab.database || null);
       }
       openPanel(tab.id, { sql: trimmed, label, errorLine, params: detected, values });
 
@@ -163,6 +180,7 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
       engine,
       databases,
       tab.id,
+      tab.database,
       closePanel,
       openPanel,
       requestParamFocus,
@@ -201,7 +219,11 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
   const handleEditorChange = useCallback((next: string) => {
     setQuerySql(tab.id, next);
     if (errorLine != null) clearError();
-  }, [clearError, errorLine, setQuerySql, tab.id]);
+    // The open panel captured a snapshot of the SQL and its parameters; once
+    // the buffer changes that snapshot is stale, so close it. Re-running
+    // re-detects against the current statement and restores remembered values.
+    closePanel(tab.id);
+  }, [clearError, closePanel, errorLine, setQuerySql, tab.id]);
 
   // ⌘. / Ctrl+. cancels the in-flight statement, matching the toolbar button.
   // Window-level so it works while focus sits inside the code editor.

@@ -33,41 +33,58 @@ export interface ParamValue {
 export function defaultParamValue(
   param: DetectedParameter,
   databases: readonly Database[],
+  database: string | null = null,
 ): ParamValue {
-  const type = inferParamType(param.column_hint, databases);
+  const type = inferParamType(param.column_hint, databases, database);
   return { type, value: type === "boolean" ? "false" : "" };
 }
 
 /**
- * Best-effort input type from the column a parameter is compared against. Falls
- * back to text when there is no hint or the column is not found in schema.
+ * Best-effort input type from the column a parameter is compared against.
+ *
+ * The hint is only a column *name* (we don't know the table), so this scopes to
+ * the tab's current database and only commits to a type when every matching
+ * column agrees on one. When the name is ambiguous (e.g. `id`/`status` appears
+ * in several tables with different types) or unknown, it falls back to text so
+ * we never bind a confidently-wrong type.
  */
 export function inferParamType(
   columnHint: string | null,
   databases: readonly Database[],
+  database: string | null = null,
 ): ParamInputType {
   if (!columnHint) return "text";
-  const dataType = findColumnType(columnHint, databases);
-  return dataType ? inputTypeForDataType(dataType) : "text";
+  const types = collectColumnInputTypes(columnHint, databases, database);
+  return types.size === 1 ? [...types][0]! : "text";
 }
 
-function findColumnType(
+function collectColumnInputTypes(
   name: string,
   databases: readonly Database[],
-): string | null {
+  database: string | null,
+): Set<ParamInputType> {
   const target = name.toLowerCase();
-  for (const db of databases) {
-    for (const schema of db.schemas) {
-      for (const table of schema.tables) {
-        for (const column of table.columns) {
-          if (column.name.toLowerCase() === target) {
-            return column.data_type;
+  const collect = (dbs: readonly Database[]): Set<ParamInputType> => {
+    const types = new Set<ParamInputType>();
+    for (const db of dbs) {
+      for (const schema of db.schemas) {
+        for (const table of schema.tables) {
+          for (const column of table.columns) {
+            if (column.name.toLowerCase() === target) {
+              types.add(inputTypeForDataType(column.data_type));
+            }
           }
         }
       }
     }
+    return types;
+  };
+  // Prefer the tab's database; only widen to all databases if it has no match.
+  if (database) {
+    const scoped = collect(databases.filter((d) => d.name === database));
+    if (scoped.size > 0) return scoped;
   }
-  return null;
+  return collect(databases);
 }
 
 /** Map an engine-native type name to an input type. */

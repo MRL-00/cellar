@@ -46,12 +46,15 @@ export function ParameterPanel({
   const focusRequest = panel?.focusRequest ?? 0;
   useEffect(() => {
     if (!panel) return;
-    const firstUnfilled = panel.params.find((p) => {
+    // Target the first field that blocks a run: empty, or non-empty but failing
+    // validation (e.g. a bad number/date), so run-blocked focus lands on the
+    // field that actually needs fixing.
+    const firstProblem = panel.params.find((p) => {
       const value = panel.values[p.name];
-      return !value || !isFilled(value);
+      return !value || !isFilled(value) || !toCellValue(value).ok;
     });
-    const target = firstUnfilled
-      ? inputs.current[firstUnfilled.name]
+    const target = firstProblem
+      ? inputs.current[firstProblem.name]
       : inputs.current[panel.params[0]?.name ?? ""];
     target?.focus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
