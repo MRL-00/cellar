@@ -71,7 +71,11 @@ pub async fn execute_query(conn: &MySqlConnection, query: &Query) -> CellarResul
     // Only surface an affected count for statements without a result set
     // (INSERT/UPDATE/DELETE/DDL). For SELECTs the count is just the row count
     // and the UI would mislabel it as "N rows affected".
-    let rows_affected = if columns.is_none() { rows_affected } else { None };
+    let rows_affected = if columns.is_none() {
+        rows_affected
+    } else {
+        None
+    };
 
     Ok(QueryResult {
         columns: columns.unwrap_or_default(),
@@ -88,5 +92,9 @@ pub async fn execute_query(conn: &MySqlConnection, query: &Query) -> CellarResul
 }
 
 fn query_sqlx_err(err: sqlx::Error) -> cellar_core::error::CellarError {
-    crate::connect::map_sqlx_err_for_runtime(err, "query execution", cellar_core::error::CellarError::query)
+    crate::connect::map_sqlx_err_for_runtime(
+        err,
+        "query execution",
+        cellar_core::error::CellarError::query,
+    )
 }

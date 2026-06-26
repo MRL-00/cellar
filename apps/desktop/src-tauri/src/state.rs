@@ -277,8 +277,7 @@ impl ConnectionRegistry {
                     .await
             }
             Engine::MySql => {
-                match cellar_driver_mysql::browse_table(connection.as_ref(), &request, &table)
-                    .await
+                match cellar_driver_mysql::browse_table(connection.as_ref(), &request, &table).await
                 {
                     Ok(result) => Ok(result),
                     Err(err) => Err(self
