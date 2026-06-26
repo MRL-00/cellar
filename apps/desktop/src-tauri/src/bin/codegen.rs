@@ -23,6 +23,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let target = target.canonicalize().unwrap_or(target);
 
     builder.export(exporter, &target)?;
+
+    // tauri-specta rc.21 emits a degenerate `export type TAURI_CHANNEL<TSend> =
+    // null` alongside its `import { Channel as TAURI_CHANNEL }` whenever a
+    // command takes a `Channel` argument — the two collide (TS2440) and the
+    // alias would type channel params as `null` anyway. Strip the bogus alias
+    // so command signatures bind to the real imported `Channel`.
+    let contents = std::fs::read_to_string(&target)?;
+    let cleaned: String = contents
+        .lines()
+        .filter(|line| line.trim() != "export type TAURI_CHANNEL<TSend> = null")
+        .collect::<Vec<_>>()
+        .join("\n");
+    if cleaned.len() != contents.len() {
+        std::fs::write(&target, format!("{cleaned}\n"))?;
+    }
+
     println!("wrote {}", target.display());
     Ok(())
 }

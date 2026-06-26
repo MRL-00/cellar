@@ -228,6 +228,34 @@ async deleteSchemaSnapshot(id: string) : Promise<Result<null, CellarError>> {
     else return { status: "error", error: e  as any };
 }
 },
+async dumpPostgres(connectionId: string, scope: DumpScope, contents: DumpContents, destPath: string, operationId: string, onProgress: TAURI_CHANNEL<TransferProgress>) : Promise<Result<DumpSummary, CellarError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("dump_postgres", { connectionId, scope, contents, destPath, operationId, onProgress }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async restorePostgres(connectionId: string, database: string, sourcePath: string, operationId: string, onProgress: TAURI_CHANNEL<TransferProgress>) : Promise<Result<RestoreSummary, CellarError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("restore_postgres", { connectionId, database, sourcePath, operationId, onProgress }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Cancel an in-flight dump or restore. Returns `true` when a running operation
+ * with that id was signalled, `false` when it had already finished.
+ */
+async cancelDump(operationId: string) : Promise<Result<boolean, CellarError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cancel_dump", { operationId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async listQueryHistory(connectionId: string | null, database: string | null, tabId: string | null, search: string | null, limit: number | null) : Promise<Result<QueryHistoryRecord[], CellarError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("list_query_history", { connectionId, database, tabId, search, limit }) };
@@ -482,6 +510,13 @@ export type DriverInfo = { engine: Engine;
  * x86_64-linux-gnu`.
  */
 version: string }
+export type DumpContents = "schema-only" | "data-only" | "both"
+/**
+ * What to dump. Whole-database dumps are intentionally out of the v1 slice —
+ * scope is a single table or a single schema.
+ */
+export type DumpScope = { kind: "table"; database: string; schema: string; table: string } | { kind: "schema"; database: string; schema: string }
+export type DumpSummary = { path: string; bytes: number }
 /**
  * User-facing identifier for which driver to load. Lives in connection
  * configs and crosses IPC, so it has to be serializable.
@@ -633,6 +668,7 @@ total_rows: number | null }
  * saving a template whose name slugifies to an existing file overwrites it.
  */
 export type QueryTemplate = { name: string; description: string; sql: string }
+export type RestoreSummary = { bytes: number }
 export type RowChange = { kind: "update"; row_id: string; keys: CellAssignment[]; edits: CellAssignment[] } | { kind: "insert"; row_id: string; values: CellAssignment[] } | { kind: "delete"; row_id: string; keys: CellAssignment[] }
 export type Schema = { name: string; tables: Table[]; views: View[] }
 /**
@@ -713,6 +749,11 @@ export type TableFilterClause = { column: string; operator: TableFilterOperator;
 value: string | null }
 export type TableFilterOperator = "equals" | "not_equals" | "contains" | "is_null" | "is_not_null" | "greater_than" | "greater_than_or_equal" | "less_than" | "less_than_or_equal"
 export type TableSortClause = { column: string; direction: SortDirection }
+/**
+ * Pushed over the IPC `Channel` as the transfer makes progress. `bytes` is the
+ * running count written to (dump) or read from (restore) disk.
+ */
+export type TransferProgress = { bytes: number }
 /**
  * What kind of database object references a searched table or column. Returned
  * by the `find_usages` command. See SPEC §6.2 (schema navigation).

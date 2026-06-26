@@ -29,6 +29,8 @@ import type {
   MigrationApplyResult,
   SchemaSnapshotMeta,
   Dialect,
+  DumpSummary,
+  RestoreSummary,
 } from "./generated";
 
 function sourceLabel(source: SchemaSource): string {
@@ -37,6 +39,10 @@ function sourceLabel(source: SchemaSource): string {
 
 function ok<T>(data: T): Result<T, CellarError> {
   return { status: "ok", data };
+}
+
+function err<T>(kind: string, detail: string): Result<T, CellarError> {
+  return { status: "error", error: { kind, detail } as CellarError };
 }
 
 const mockDriverInfo: DriverInfo = {
@@ -305,6 +311,16 @@ export const mockCommands = {
     mockTemplates.delete(name);
     return ok(null);
   },
+
+  // Dump/restore shell out to pg_dump/psql, which don't exist in web mode.
+  // Surface a clear "desktop only" error rather than pretending it worked.
+  dumpPostgres: async (): Promise<Result<DumpSummary, CellarError>> =>
+    err("Io", "dump is only available in the desktop app"),
+
+  restorePostgres: async (): Promise<Result<RestoreSummary, CellarError>> =>
+    err("Io", "restore is only available in the desktop app"),
+
+  cancelDump: async (): Promise<Result<boolean, CellarError>> => ok(false),
 };
 
 const mockAiKeys = new Map<string, string>();
