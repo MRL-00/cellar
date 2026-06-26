@@ -11,8 +11,9 @@ import type {
   GenerateRequest,
   GenerateResult,
 } from "./types";
+import { getProvider } from "./providers";
 
-const BASE = "https://generativelanguage.googleapis.com/v1beta";
+const BASE = getProvider("google").endpoint; // ponytail: single source of truth for the endpoint URL
 
 /** Error carrying the provider's HTTP status and message so the UI can show a
  * useful reason (bad key, quota, model not found) instead of a generic failure. */
@@ -90,12 +91,6 @@ async function errorFrom(
   return new GeminiError(res.status, `${fallback} (HTTP ${res.status})`);
 }
 
-function resolveFetch(custom?: FetchLike): FetchLike {
-  if (custom) return custom;
-  if (typeof fetch === "function") return fetch as unknown as FetchLike;
-  throw new Error("no fetch implementation available");
-}
-
 /** Discover the models this API key can call. Filters to chat-capable Gemini
  * models (those exposing `generateContent`) and surfaces newest first. */
 export async function listGeminiModels(
@@ -103,7 +98,7 @@ export async function listGeminiModels(
   opts: { fetchImpl?: FetchLike; signal?: AbortSignal } = {},
 ): Promise<AiModel[]> {
   if (!apiKey) throw new GeminiError(401, "An API key is required to list models.");
-  const f = resolveFetch(opts.fetchImpl);
+  const f = opts.fetchImpl ?? (fetch as unknown as FetchLike); // ponytail: inlined resolveFetch
   const res = await f(
     `${BASE}/models?pageSize=1000&key=${encodeURIComponent(apiKey)}`,
     { method: "GET", signal: opts.signal },
@@ -136,7 +131,7 @@ export async function generateContent(
 ): Promise<GenerateResult> {
   if (!req.apiKey) throw new GeminiError(401, "An API key is required.");
   if (!req.model) throw new GeminiError(400, "No model selected.");
-  const f = resolveFetch(opts.fetchImpl);
+  const f = opts.fetchImpl ?? (fetch as unknown as FetchLike);
 
   const body: Record<string, unknown> = {
     contents: req.messages.map((m) => ({

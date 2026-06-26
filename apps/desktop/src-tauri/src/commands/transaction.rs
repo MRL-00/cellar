@@ -72,31 +72,26 @@ async fn run_commit(
         .map(|r| r.duration_ms)
         .unwrap_or_else(|_| started.elapsed().as_millis() as u64) as i64;
 
-    let record = match &result {
-        Ok(commit_result) => NewQueryHistoryRecord {
-            connection_id: connection_id.clone(),
-            connection_name: context.name,
-            tab_id,
-            database: history_database.or(context.database),
-            sql: commit_result.sql.clone(),
-            duration_ms,
-            success: true,
-            row_count: Some(commit_result.rows_affected.min(i64::MAX as u64) as i64),
-            truncated: false,
-            error_summary: None,
-        },
-        Err(err) => NewQueryHistoryRecord {
-            connection_id: connection_id.clone(),
-            connection_name: context.name,
-            tab_id,
-            database: history_database.or(context.database),
-            sql: history_sql,
-            duration_ms,
-            success: false,
-            row_count: None,
-            truncated: false,
-            error_summary: Some(err.to_string()),
-        },
+    let (success, sql, row_count, error_summary) = match &result {
+        Ok(commit_result) => (
+            true,
+            commit_result.sql.clone(),
+            Some(commit_result.rows_affected.min(i64::MAX as u64) as i64),
+            None,
+        ),
+        Err(err) => (false, history_sql, None, Some(err.to_string())),
+    };
+    let record = NewQueryHistoryRecord {
+        connection_id: connection_id.clone(),
+        connection_name: context.name,
+        tab_id,
+        database: history_database.or(context.database),
+        sql,
+        duration_ms,
+        success,
+        row_count,
+        truncated: false,
+        error_summary,
     };
     let _ = history.insert(record).await;
 

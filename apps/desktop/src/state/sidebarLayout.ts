@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import { deferredLocalStorage } from "./deferredStorage";
+import { deferredStorage } from "./deferredStorage";
 
 /**
  * Sidebar presentation order for connections: a flat root sequence of
@@ -212,10 +212,7 @@ export function removeFolderItem(
 }
 
 function newFolderId(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return `folder:${crypto.randomUUID()}`;
-  }
-  return `folder:${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
+  return `folder:${crypto.randomUUID()}`; // ponytail: Tauri target is chrome105+
 }
 
 export const useSidebarLayout = create<SidebarLayoutStore>()(
@@ -289,7 +286,7 @@ export const useSidebarLayout = create<SidebarLayoutStore>()(
     }),
     {
       name: "cellar.sidebarLayout.v1",
-      storage: createJSONStorage(deferredLocalStorage),
+      storage: createJSONStorage(() => deferredStorage),
       partialize: (s) => ({ items: s.items }),
     },
   ),

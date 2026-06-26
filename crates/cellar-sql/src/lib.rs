@@ -18,7 +18,7 @@
 pub mod params;
 mod references;
 
-pub use params::{detect_parameters, order_values, prepare, ParamError, PreparedStatement};
+pub use params::{order_values, prepare, ParamError, PreparedStatement};
 pub use references::{find_references, Reference};
 
 use serde::{Deserialize, Serialize};

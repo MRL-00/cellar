@@ -50,34 +50,29 @@ pub async fn run_query(
         .map(|r| r.duration_ms)
         .unwrap_or_else(|_| started.elapsed().as_millis() as u64) as i64;
 
-    let record = match &result {
-        Ok(query_result) => NewQueryHistoryRecord {
-            connection_id: connection_id.clone(),
-            connection_name: context.name,
-            tab_id,
-            database: history_database.or(context.database),
-            sql: history_sql,
-            duration_ms,
-            success: true,
-            row_count: query_result
+    let (success, row_count, truncated, error_summary) = match &result {
+        Ok(query_result) => (
+            true,
+            query_result
                 .rows_affected
                 .map(|n| n.min(i64::MAX as u64) as i64)
                 .or(Some(query_result.rows.len() as i64)),
-            truncated: query_result.truncated,
-            error_summary: None,
-        },
-        Err(err) => NewQueryHistoryRecord {
-            connection_id: connection_id.clone(),
-            connection_name: context.name,
-            tab_id,
-            database: history_database.or(context.database),
-            sql: history_sql,
-            duration_ms,
-            success: false,
-            row_count: None,
-            truncated: false,
-            error_summary: Some(err.to_string()),
-        },
+            query_result.truncated,
+            None,
+        ),
+        Err(err) => (false, None, false, Some(err.to_string())),
+    };
+    let record = NewQueryHistoryRecord {
+        connection_id: connection_id.clone(),
+        connection_name: context.name,
+        tab_id,
+        database: history_database.or(context.database),
+        sql: history_sql,
+        duration_ms,
+        success,
+        row_count,
+        truncated,
+        error_summary,
     };
     // History should be useful, not a new reason for query execution to fail.
     let _ = history.insert(record).await;
@@ -123,7 +118,9 @@ pub async fn detect_query_parameters(
     sql: String,
     engine: Engine,
 ) -> Result<Vec<DetectedParameter>, CellarError> {
-    cellar_sql::detect_parameters(&sql, engine).map_err(|e| CellarError::query(e.to_string()))
+    cellar_sql::prepare(&sql, engine)
+        .map(|prepared| prepared.parameters)
+        .map_err(|e| CellarError::query(e.to_string()))
 }
 
 #[tauri::command]

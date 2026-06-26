@@ -5,9 +5,11 @@ const WRITE_DELAY_MS = 50;
 /**
  * Synchronous reads keep persisted stores available during app startup, while
  * deferred writes avoid blocking UI paint in the click handler that changed
- * the store.
+ * the store. One shared instance services all storage keys: one pending map,
+ * one timer, one beforeunload listener.
+ * ponytail: was a factory called 3× creating 3 separate timers/listeners; collapsed to singleton
  */
-export function deferredLocalStorage(): StateStorage {
+function makeDeferredStorage(): StateStorage {
   // No window means a test (or SSR-like) environment: keep persisted stores
   // functional with in-memory storage instead of warning on every write.
   if (typeof window === "undefined") {
@@ -52,3 +54,6 @@ export function deferredLocalStorage(): StateStorage {
     },
   };
 }
+
+/** Shared deferred-write storage instance. Pass as `() => deferredStorage` to `createJSONStorage`. */
+export const deferredStorage: StateStorage = makeDeferredStorage();

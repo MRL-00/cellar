@@ -24,7 +24,7 @@ interface NoticeStore {
   dropTabs: (tabIds: string[]) => void;
 }
 
-const EMPTY_ENTRY: NoticeLogEntry = {
+export const EMPTY_ENTRY: NoticeLogEntry = {
   notices: [],
   capture: null,
   lastQueryAt: null,
@@ -39,17 +39,14 @@ export function noticeScopeKey(scope: NoticeScope): string {
   return "global";
 }
 
-export function emptyNoticeEntry(): NoticeLogEntry {
-  return { ...EMPTY_ENTRY, notices: [] };
-}
-
+// ponytail: emptyNoticeEntry() factory dropped; use structuredClone(EMPTY_ENTRY) at call sites
 export const useNotices = create<NoticeStore>((set) => ({
   byScope: {},
 
   recordQueryResult(scope, result) {
     const key = noticeScopeKey(scope);
     set((s) => {
-      const previous = s.byScope[key] ?? emptyNoticeEntry();
+      const previous = s.byScope[key] ?? structuredClone(EMPTY_ENTRY);
       const notices = previous.retain
         ? [...previous.notices, ...result.notices]
         : result.notices;
@@ -70,7 +67,7 @@ export const useNotices = create<NoticeStore>((set) => ({
   appendNotice(scope, notice) {
     const key = noticeScopeKey(scope);
     set((s) => {
-      const previous = s.byScope[key] ?? emptyNoticeEntry();
+      const previous = s.byScope[key] ?? structuredClone(EMPTY_ENTRY);
       return {
         byScope: {
           ...s.byScope,
@@ -86,7 +83,7 @@ export const useNotices = create<NoticeStore>((set) => ({
   clear(scope) {
     const key = noticeScopeKey(scope);
     set((s) => {
-      const previous = s.byScope[key] ?? emptyNoticeEntry();
+      const previous = s.byScope[key] ?? structuredClone(EMPTY_ENTRY);
       return {
         byScope: {
           ...s.byScope,
@@ -102,7 +99,7 @@ export const useNotices = create<NoticeStore>((set) => ({
   setRetain(scope, retain) {
     const key = noticeScopeKey(scope);
     set((s) => {
-      const previous = s.byScope[key] ?? emptyNoticeEntry();
+      const previous = s.byScope[key] ?? structuredClone(EMPTY_ENTRY);
       return {
         byScope: {
           ...s.byScope,

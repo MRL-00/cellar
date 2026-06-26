@@ -84,3 +84,47 @@ export function isBooleanElement(elementType: string): boolean {
   const t = baseType(elementType);
   return t === "bool" || t === "boolean";
 }
+
+// ponytail: shared predicates for sort.ts — exact-match classification (not substring like filters.ts)
+export function isBooleanType(type: string): boolean {
+  const t = baseType(type);
+  return t === "bool" || t === "boolean";
+}
+
+export function isNumericType(type: string): boolean {
+  const t = baseType(type);
+  return (
+    t === "int2" ||
+    t === "int4" ||
+    t === "int8" ||
+    t === "integer" ||
+    t === "bigint" ||
+    t === "smallint" ||
+    t === "oid" ||
+    t === "float4" ||
+    t === "float8" ||
+    t === "real" ||
+    t === "double precision" ||
+    t === "numeric" ||
+    t.startsWith("numeric(") ||
+    t.startsWith("decimal(")
+  );
+}
+
+export function isTemporalType(type: string): boolean {
+  const t = baseType(type);
+  return (
+    t === "date" ||
+    t === "time" ||
+    t === "timetz" ||
+    t === "timestamp" ||
+    t === "timestamptz" ||
+    t.startsWith("timestamp(") ||
+    t.startsWith("time(")
+  );
+}
+
+export function isTimeOnlyType(type: string): boolean {
+  const t = baseType(type);
+  return t === "time" || t === "timetz" || t.startsWith("time(");
+}

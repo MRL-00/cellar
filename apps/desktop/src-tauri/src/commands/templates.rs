@@ -21,8 +21,7 @@ pub struct QueryTemplate {
 
 /// Directory holding saved query templates: `~/.cellar/queries/`.
 fn templates_dir() -> Option<PathBuf> {
-    let mut p = dirs::home_dir()?;
-    p.push(".cellar");
+    let mut p = crate::state::cellar_dir()?;
     p.push("queries");
     Some(p)
 }

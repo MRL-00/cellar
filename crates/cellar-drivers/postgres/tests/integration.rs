@@ -63,7 +63,7 @@ async fn boot() -> Live {
         color: None,
     };
 
-    let driver = PostgresDriver::new();
+    let driver = PostgresDriver::default();
     let conn = driver
         .connect(&config, Some("postgres"))
         .await
@@ -85,7 +85,7 @@ async fn boot() -> Live {
 #[tokio::test]
 async fn connects_and_reports_version() {
     let live = boot().await;
-    let driver = PostgresDriver::new();
+    let driver = PostgresDriver::default();
     let conn = driver
         .connect(&live.config, Some(&live.password))
         .await
@@ -98,7 +98,7 @@ async fn connects_and_reports_version() {
 #[tokio::test]
 async fn introspect_returns_seed_tables_with_keys() {
     let live = boot().await;
-    let driver = PostgresDriver::new();
+    let driver = PostgresDriver::default();
     let conn = driver
         .connect(&live.config, Some(&live.password))
         .await
@@ -137,7 +137,7 @@ async fn introspect_returns_seed_tables_with_keys() {
 #[tokio::test]
 async fn introspect_lists_every_database_on_the_server() {
     let live = boot().await;
-    let driver = PostgresDriver::new();
+    let driver = PostgresDriver::default();
     let conn = driver
         .connect(&live.config, Some(&live.password))
         .await
@@ -173,7 +173,7 @@ async fn introspect_lists_every_database_on_the_server() {
 #[tokio::test]
 async fn execute_query_decodes_common_types() {
     let live = boot().await;
-    let driver = PostgresDriver::new();
+    let driver = PostgresDriver::default();
     let conn = driver
         .connect(&live.config, Some(&live.password))
         .await
@@ -231,7 +231,7 @@ async fn execute_query_decodes_user_defined_enums() {
     // (which carry the enum label) as UTF-8. Before the fix this surfaced as
     // `UnsupportedType` and failed the whole table/view load.
     let live = boot().await;
-    let driver = PostgresDriver::new();
+    let driver = PostgresDriver::default();
     let conn = driver
         .connect(&live.config, Some(&live.password))
         .await
@@ -265,7 +265,7 @@ async fn execute_query_decodes_user_defined_enums() {
 #[tokio::test]
 async fn execute_query_caps_to_default_limit() {
     let live = boot().await;
-    let driver = PostgresDriver::new();
+    let driver = PostgresDriver::default();
     let conn = driver
         .connect(&live.config, Some(&live.password))
         .await
@@ -292,7 +292,7 @@ async fn execute_query_caps_to_default_limit() {
 #[tokio::test]
 async fn cancel_query_stops_a_running_statement() {
     let live = boot().await;
-    let driver = PostgresDriver::new();
+    let driver = PostgresDriver::default();
     let conn = driver
         .connect(&live.config, Some(&live.password))
         .await
@@ -308,7 +308,7 @@ async fn cancel_query_stops_a_running_statement() {
     let runner = {
         let conn = std::sync::Arc::clone(&conn);
         tokio::spawn(async move {
-            PostgresDriver::new()
+            PostgresDriver::default()
                 .execute_query(
                     conn.as_ref().as_ref(),
                     &Query::new("SELECT pg_sleep(30)").with_query_id("cancel-me"),
@@ -348,7 +348,7 @@ async fn cancel_query_stops_a_running_statement() {
 #[tokio::test]
 async fn execute_query_reports_rows_affected_for_dml_only() {
     let live = boot().await;
-    let driver = PostgresDriver::new();
+    let driver = PostgresDriver::default();
     let conn = driver
         .connect(&live.config, Some(&live.password))
         .await
@@ -399,7 +399,7 @@ async fn execute_query_reports_rows_affected_for_dml_only() {
 #[tokio::test]
 async fn binds_named_and_positional_parameters() {
     let live = boot().await;
-    let driver = PostgresDriver::new();
+    let driver = PostgresDriver::default();
     let conn = driver
         .connect(&live.config, Some(&live.password))
         .await
@@ -474,7 +474,7 @@ async fn binds_named_and_positional_parameters() {
 #[tokio::test]
 async fn bound_value_is_never_interpreted_as_sql() {
     let live = boot().await;
-    let driver = PostgresDriver::new();
+    let driver = PostgresDriver::default();
     let conn = driver
         .connect(&live.config, Some(&live.password))
         .await

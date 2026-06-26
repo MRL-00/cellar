@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import { deferredLocalStorage } from "./deferredStorage";
+import { deferredStorage } from "./deferredStorage";
 
 export type BottomTabId =
   | "results"
@@ -35,7 +35,7 @@ export const useBottomPanel = create<BottomPanelStore>()(
     }),
     {
       name: "cellar.bottomPanel.v1",
-      storage: createJSONStorage(deferredLocalStorage),
+      storage: createJSONStorage(() => deferredStorage),
       partialize: (s) => ({ active: s.active }),
     },
   ),

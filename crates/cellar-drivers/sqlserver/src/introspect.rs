@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use cellar_core::error::{CellarError, CellarResult};
 use cellar_core::schema::{Column, Database, ForeignKey, Index, Schema, Table, View};
+use cellar_core::table_browse::{mark_primary_keys, schema_with};
 
 use crate::connect::SqlServerConnection;
 
@@ -67,21 +68,6 @@ async fn introspect_schemas(client: &mut crate::connect::TdsClient) -> CellarRes
     }
 
     Ok(schemas.into_values().collect())
-}
-
-fn schema_with(name: String) -> Schema {
-    Schema {
-        name,
-        tables: Vec::new(),
-        views: Vec::new(),
-    }
-}
-
-fn mark_primary_keys(mut cols: Vec<Column>, pk: &[String]) -> Vec<Column> {
-    for col in &mut cols {
-        col.is_primary_key = pk.iter().any(|p| p == &col.name);
-    }
-    cols
 }
 
 async fn list_schemas(client: &mut crate::connect::TdsClient) -> CellarResult<Vec<String>> {

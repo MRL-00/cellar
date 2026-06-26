@@ -16,12 +16,13 @@ function currentTheme(): Theme {
   return root.getAttribute("data-theme") === "light" ? "light" : "dark";
 }
 
-const themeListeners = new Set<(theme: Theme) => void>();
+// ponytail: was a Set with exactly one subscriber; single callback suffices
+let onTheme: ((theme: Theme) => void) | null = null;
 
 function setTheme(next: Theme) {
   root.setAttribute("data-theme", next);
   localStorage.setItem(THEME_KEY, next);
-  for (const fn of themeListeners) fn(next);
+  onTheme?.(next);
 }
 
 const themeBtn = document.getElementById("themeBtn");
@@ -80,7 +81,7 @@ async function initImageSwap() {
   );
 
   applyImageTheme(currentTheme());
-  themeListeners.add(applyImageTheme);
+  onTheme = applyImageTheme;
 }
 
 initImageSwap();

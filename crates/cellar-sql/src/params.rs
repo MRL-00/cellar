@@ -54,12 +54,6 @@ fn dialect_for(engine: Engine) -> Box<dyn Dialect> {
     }
 }
 
-/// Detect the distinct parameters in `sql`, in first-appearance order. Used by
-/// the UI to render an input per parameter. Never interpolates anything.
-pub fn detect_parameters(sql: &str, engine: Engine) -> Result<Vec<DetectedParameter>, ParamError> {
-    Ok(prepare(sql, engine)?.parameters)
-}
-
 /// Tokenize `sql`, rewrite placeholders to `$1..$N` in bind order, and report
 /// the distinct parameters. The rewrite is Postgres-native; other engines bind
 /// with different placeholder syntax, but Postgres is the only driver wired to

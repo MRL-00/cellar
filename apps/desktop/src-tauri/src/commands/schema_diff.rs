@@ -7,7 +7,7 @@
 //! `~/.cellar/snapshots/` for offline comparison.
 
 use std::path::PathBuf;
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use std::time::Instant;
 
 use cellar_core::driver::Engine;
 use cellar_core::error::CellarError;
@@ -146,7 +146,7 @@ pub async fn save_schema_snapshot(
         .to_string();
     let context = registry.history_context(&connection_id).await;
     let connection_name = context.name.unwrap_or_else(|| connection_id.clone());
-    let created_at_ms = now_ms();
+    let created_at_ms = crate::history::now_ms();
     let id = format!(
         "{}-{}",
         sanitize_id(&format!("{connection_name}-{database}")),
@@ -273,13 +273,6 @@ fn dialect_for_str(engine: &str) -> Dialect {
     }
 }
 
-fn now_ms() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis() as i64)
-        .unwrap_or(0)
-}
-
 /// Reduce an arbitrary label to a filesystem-safe slug.
 fn sanitize_id(value: &str) -> String {
     let slug: String = value
@@ -310,8 +303,7 @@ fn validate_id(id: &str) -> Result<(), CellarError> {
 }
 
 fn snapshots_dir() -> Option<PathBuf> {
-    let mut p = dirs::home_dir()?;
-    p.push(".cellar");
+    let mut p = crate::state::cellar_dir()?;
     p.push(SNAPSHOTS_DIRNAME);
     Some(p)
 }

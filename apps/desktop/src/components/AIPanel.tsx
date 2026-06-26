@@ -203,7 +203,7 @@ export function AIPanel({
                 }
               >
                 {t === "generate" && <Icon.sparkles size={10} />}
-                <span>{TOPICS[t].label}</span>
+                <span>{t}</span>
               </button>
             );
           })}
@@ -242,7 +242,7 @@ export function AIPanel({
               <span className="ml-1 inline-flex items-center gap-[3px] text-[10.5px]">
                 {ready ? (
                   <span style={{ color: "var(--fg-3)" }}>
-                    {topic === "ask" ? "ask" : TOPICS[topic].label} · {modelId}
+                    {topic} · {modelId}
                   </span>
                 ) : (
                   <button

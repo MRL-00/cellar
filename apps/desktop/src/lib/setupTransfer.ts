@@ -13,7 +13,7 @@ import type { TableLayouts } from "../state/tabs";
 import { DEFAULTS as SETTINGS_DEFAULTS, sanitize as sanitizeSettings, type Settings } from "./settings";
 
 export const SETUP_FORMAT = "cellar.setup";
-export const SETUP_VERSION = 1;
+const SETUP_VERSION = 1;
 
 export type SetupSectionKey = "settings" | "connections" | "tableLayouts";
 
@@ -383,18 +383,11 @@ export function computeImportPlan(
 // Id allocation
 // ---------------------------------------------------------------------------
 
-export function slugifyId(s: string): string {
-  return (
-    s
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 64) || "connection"
-  );
-}
-
 export function uniqueConnectionId(base: string, taken: Set<string>): string {
-  const slug = slugifyId(base);
+  // ponytail: slugifyId inlined — was only used here
+  const slug =
+    base.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 64) ||
+    "connection";
   if (!taken.has(slug)) return slug;
   let n = 2;
   while (taken.has(`${slug}-${n}`)) n += 1;

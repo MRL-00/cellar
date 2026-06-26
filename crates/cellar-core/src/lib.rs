@@ -7,6 +7,7 @@ pub mod er;
 pub mod error;
 pub mod query;
 pub mod schema;
+pub mod table_browse;
 pub mod value;
 
 pub use driver::{Connection, ConnectionConfig, Driver, DriverInfo, Engine, EnvTag, SslMode};

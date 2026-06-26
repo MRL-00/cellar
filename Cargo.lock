@@ -446,6 +446,7 @@ dependencies = [
 name = "cellar-diff"
 version = "0.2.0"
 dependencies = [
+ "cellar-sql",
  "serde",
  "specta",
  "thiserror 1.0.69",
@@ -512,14 +513,6 @@ dependencies = [
  "tokio",
  "tokio-util",
 ]
-
-[[package]]
-name = "cellar-drivers"
-version = "0.2.0"
-
-[[package]]
-name = "cellar-plugin-host"
-version = "0.2.0"
 
 [[package]]
 name = "cellar-schema-diff"

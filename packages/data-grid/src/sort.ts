@@ -1,3 +1,9 @@
+import {
+  isBooleanType,
+  isNumericType,
+  isTemporalType,
+  isTimeOnlyType,
+} from "./renderers/typeMatch";
 import type {
   GridColumn,
   GridRow,
@@ -152,49 +158,6 @@ function normalizeDateString(value: string): string {
 
 function looksDateLike(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2})?/.test(value);
-}
-
-function isBooleanType(type: string): boolean {
-  const t = type.toLowerCase();
-  return t === "bool" || t === "boolean";
-}
-
-function isNumericType(type: string): boolean {
-  const t = type.toLowerCase();
-  return (
-    t === "int2" ||
-    t === "int4" ||
-    t === "int8" ||
-    t === "integer" ||
-    t === "bigint" ||
-    t === "smallint" ||
-    t === "oid" ||
-    t === "float4" ||
-    t === "float8" ||
-    t === "real" ||
-    t === "double precision" ||
-    t === "numeric" ||
-    t.startsWith("numeric(") ||
-    t.startsWith("decimal(")
-  );
-}
-
-function isTemporalType(type: string): boolean {
-  const t = type.toLowerCase();
-  return (
-    t === "date" ||
-    t === "time" ||
-    t === "timetz" ||
-    t === "timestamp" ||
-    t === "timestamptz" ||
-    t.startsWith("timestamp(") ||
-    t.startsWith("time(")
-  );
-}
-
-function isTimeOnlyType(type: string): boolean {
-  const t = type.toLowerCase();
-  return t === "time" || t === "timetz" || t.startsWith("time(");
 }
 
 function stringCompare(left: string, right: string): number {

@@ -30,12 +30,6 @@ const DATASTORE_SCOPE: &str = "https://www.googleapis.com/auth/datastore";
 #[derive(Debug, Default, Clone, Copy)]
 pub struct FirestoreDriver;
 
-impl FirestoreDriver {
-    pub fn new() -> Self {
-        Self
-    }
-}
-
 pub async fn browse_collection(
     conn: &dyn Connection,
     request: &TableBrowseRequest,

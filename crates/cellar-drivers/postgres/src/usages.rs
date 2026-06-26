@@ -120,29 +120,29 @@ async fn fetch_routines(pool: &PgPool) -> CellarResult<Vec<UsageDefinition>> {
     // which is both what we parse and what the UI opens. It can raise for exotic
     // routines, so on any failure we fall back to the raw `prosrc` body, which
     // never errors. `prokind` 'f' = function, 'p' = procedure.
-    const FULL: &str = "SELECT n.nspname AS schema_name, p.proname AS name, \
+    let full = format!(
+        "SELECT n.nspname AS schema_name, p.proname AS name, \
                 p.prokind::text AS kind, pg_catalog.pg_get_functiondef(p.oid) AS def \
          FROM pg_catalog.pg_proc p \
          JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace \
-         WHERE p.prokind IN ('f', 'p') AND {FILTER} \
-         ORDER BY n.nspname, p.proname";
-    const FALLBACK: &str = "SELECT n.nspname AS schema_name, p.proname AS name, \
+         WHERE p.prokind IN ('f', 'p') AND {SYSTEM_SCHEMA_FILTER} \
+         ORDER BY n.nspname, p.proname"
+    );
+    let fallback = format!(
+        "SELECT n.nspname AS schema_name, p.proname AS name, \
                 p.prokind::text AS kind, p.prosrc AS def \
          FROM pg_catalog.pg_proc p \
          JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace \
-         WHERE p.prokind IN ('f', 'p') AND {FILTER} \
-         ORDER BY n.nspname, p.proname";
+         WHERE p.prokind IN ('f', 'p') AND {SYSTEM_SCHEMA_FILTER} \
+         ORDER BY n.nspname, p.proname"
+    );
 
-    let full = FULL.replace("{FILTER}", SYSTEM_SCHEMA_FILTER);
     let rows = match sqlx::query(&full).fetch_all(pool).await {
         Ok(rows) => rows,
-        Err(_) => {
-            let fallback = FALLBACK.replace("{FILTER}", SYSTEM_SCHEMA_FILTER);
-            sqlx::query(&fallback)
-                .fetch_all(pool)
-                .await
-                .map_err(usage_err)?
-        }
+        Err(_) => sqlx::query(&fallback)
+            .fetch_all(pool)
+            .await
+            .map_err(usage_err)?,
     };
 
     let mut out = Vec::new();
