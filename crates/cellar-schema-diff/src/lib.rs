@@ -193,7 +193,101 @@ mod tests {
             .expect("alter column");
         assert!(alter.destructive, "type change is destructive");
         assert!(alter.sql.contains("ALTER COLUMN \"total\" TYPE bigint"));
+        // Non-implicit casts need an explicit USING expression.
+        assert!(alter.sql.contains("USING \"total\"::bigint"));
         assert!(alter.sql.contains("SET NOT NULL"));
+    }
+
+    #[test]
+    fn primary_key_change_drops_via_catalog_lookup() {
+        let mut src = table("t", vec![col("id", "int4", false)]);
+        src.primary_key = vec!["id".into()];
+        let mut tgt = table(
+            "t",
+            vec![col("id", "int4", false), col("tenant", "int4", false)],
+        );
+        tgt.primary_key = vec!["id".into(), "tenant".into()];
+
+        let diff = diff_schemas(&schema(vec![src]), &schema(vec![tgt]), "s", "t");
+        let statements = build_migration(&diff, "public", Dialect::Postgres);
+        let pk = statements
+            .iter()
+            .find(|s| s.kind == MigrationKind::AlterPrimaryKey)
+            .expect("primary key change");
+        // Drops the real constraint name from the catalog, not a guessed one.
+        assert!(pk.sql.contains("pg_constraint"));
+        assert!(pk.sql.contains("contype = 'p'"));
+        assert!(pk.sql.contains("ADD PRIMARY KEY (\"id\", \"tenant\")"));
+    }
+
+    #[test]
+    fn drops_removed_table_foreign_keys_before_table_drops() {
+        let mut child = table("orders", vec![col("id", "int4", false)]);
+        child.foreign_keys = vec![ForeignKey {
+            name: "orders_customer_fk".into(),
+            columns: vec!["customer_id".into()],
+            referenced_schema: "public".into(),
+            referenced_table: "customers".into(),
+            referenced_columns: vec!["id".into()],
+        }];
+        let parent = table("customers", vec![col("id", "int4", false)]);
+
+        // Both tables removed: the child's FK must come down before any table.
+        let diff = diff_schemas(&schema(vec![child, parent]), &schema(vec![]), "s", "t");
+        let statements = build_migration(&diff, "public", Dialect::Postgres);
+        let drop_fk = statements
+            .iter()
+            .position(|s| s.kind == MigrationKind::DropForeignKey)
+            .expect("drop fk");
+        let first_drop_table = statements
+            .iter()
+            .position(|s| s.kind == MigrationKind::DropTable)
+            .expect("drop table");
+        assert!(drop_fk < first_drop_table);
+    }
+
+    #[test]
+    fn drops_modified_foreign_key_before_column_alter() {
+        let mut src = table(
+            "orders",
+            vec![col("id", "int4", false), col("total", "int4", false)],
+        );
+        src.foreign_keys = vec![ForeignKey {
+            name: "fk1".into(),
+            columns: vec!["id".into()],
+            referenced_schema: "public".into(),
+            referenced_table: "a".into(),
+            referenced_columns: vec!["id".into()],
+        }];
+        let mut tgt = table(
+            "orders",
+            vec![col("id", "int4", false), col("total", "bigint", false)],
+        );
+        // Referenced table changed → FK is Modified, so it is dropped then re-added.
+        tgt.foreign_keys = vec![ForeignKey {
+            name: "fk1".into(),
+            columns: vec!["id".into()],
+            referenced_schema: "public".into(),
+            referenced_table: "b".into(),
+            referenced_columns: vec!["id".into()],
+        }];
+
+        let diff = diff_schemas(&schema(vec![src]), &schema(vec![tgt]), "s", "t");
+        let statements = build_migration(&diff, "public", Dialect::Postgres);
+        let drop_fk = statements
+            .iter()
+            .position(|s| s.kind == MigrationKind::DropForeignKey)
+            .expect("drop fk");
+        let alter = statements
+            .iter()
+            .position(|s| s.kind == MigrationKind::AlterColumn)
+            .expect("alter column");
+        let add_fk = statements
+            .iter()
+            .position(|s| s.kind == MigrationKind::AddForeignKey)
+            .expect("add fk");
+        assert!(drop_fk < alter, "FK dropped before the column alter");
+        assert!(alter < add_fk, "FK re-added after the alter");
     }
 
     #[test]

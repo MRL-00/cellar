@@ -68,12 +68,13 @@ export function SchemaCompareDialog({
 
   function handleCompare() {
     if (!sourceRef || !targetRef) return;
+    // Anchor the tab to the live *source* only. Apply (and so the live
+    // connection it needs) targets the source; a snapshot-source tab must not
+    // be torn down just because the live *target* connection is disconnected.
     const liveAnchor =
       source.mode === "live"
         ? { connectionId: source.connectionId, database: source.database }
-        : target.mode === "live"
-          ? { connectionId: target.connectionId, database: target.database }
-          : { connectionId: "", database: "" };
+        : { connectionId: "", database: "" };
     const title = `${sourceRef.schema} ↔ ${targetRef.schema}`;
     const tabId = openSchemaCompare(title, liveAnchor.connectionId, liveAnchor.database);
     void start(tabId, { source: sourceRef, target: targetRef });

@@ -169,7 +169,7 @@ export const useSchemaCompare = create<SchemaCompareStore>((set, get) => ({
         state.comparison?.dialect ?? "postgres",
         state.wrapInTransaction,
       );
-      patch(set, tabId, { sql, sqlDirty: false });
+      patch(set, tabId, { sql, sqlDirty: false, error: null });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       patch(set, tabId, { error: message });

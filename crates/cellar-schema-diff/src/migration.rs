@@ -63,9 +63,20 @@ pub fn build_migration(
     let mut b = Builder::new(schema, dialect);
 
     // Phase 1 — drops (constraints → views → indexes → columns → tables).
+    //
+    // Foreign keys come down first so nothing they protect blocks a later
+    // drop/alter. For modified tables we drop both removed and *modified* FKs
+    // (modified ones are recreated in phase 3); for removed tables we drop all
+    // of their FKs so the table-drop order below is dependency-independent.
     for table in &diff.tables {
-        if matches!(table.status, ChangeStatus::Modified) {
-            b.drop_removed_foreign_keys(table);
+        match table.status {
+            ChangeStatus::Modified => b.drop_changed_foreign_keys(table),
+            ChangeStatus::Removed => {
+                if let Some(t) = &table.source {
+                    b.drop_all_foreign_keys(t);
+                }
+            }
+            _ => {}
         }
     }
     for view in &diff.views {
@@ -85,6 +96,8 @@ pub fn build_migration(
             b.drop_removed_columns(table);
         }
     }
+    // All FKs touching removed tables were dropped above, so drop order here is
+    // safe regardless of dependency direction.
     for table in &diff.tables {
         if matches!(table.status, ChangeStatus::Removed) {
             if let Some(t) = &table.source {
@@ -317,9 +330,13 @@ impl<'a> Builder<'a> {
             let mut destructive = false;
             if source.data_type != target.data_type {
                 destructive = true;
+                // Postgres requires an explicit cast for any conversion that
+                // is not implicit (e.g. text→int). Default to a USING cast of
+                // the column to the new type so reviewed migrations apply
+                // without a hand-edit; the user can refine the expression.
                 parts.push(format!(
-                    "ALTER TABLE {qualified} ALTER COLUMN {ident} TYPE {};",
-                    target.data_type
+                    "ALTER TABLE {qualified} ALTER COLUMN {ident} TYPE {ty} USING {ident}::{ty};",
+                    ty = target.data_type
                 ));
             }
             if source.nullable != target.nullable {
@@ -364,12 +381,12 @@ impl<'a> Builder<'a> {
             return;
         }
         let qualified = self.qualified(&table.name);
-        // Postgres auto-names a table's primary key `<table>_pkey`. We do not
-        // model constraint names, so target that convention and guard the drop
-        // with IF EXISTS so a differently-named key is left for manual review.
-        let pkey = self.ident(&format!("{}_pkey", table.name));
+        // The actual primary-key constraint name is not modeled (introspection
+        // doesn't capture it) and is not always `<table>_pkey` once a key has
+        // been renamed. Look it up from the catalog and drop it dynamically so
+        // a custom-named primary key is removed correctly.
         let mut parts = vec![format!(
-            "ALTER TABLE {qualified} DROP CONSTRAINT IF EXISTS {pkey};"
+            "DO $$\nDECLARE pk_name text;\nBEGIN\n  SELECT conname INTO pk_name FROM pg_constraint\n    WHERE conrelid = '{qualified}'::regclass AND contype = 'p';\n  IF pk_name IS NOT NULL THEN\n    EXECUTE format('ALTER TABLE {qualified} DROP CONSTRAINT %I', pk_name);\n  END IF;\nEND $$;"
         )];
         if !table.primary_key.target.is_empty() {
             let cols = table
@@ -512,23 +529,39 @@ impl<'a> Builder<'a> {
         );
     }
 
-    fn drop_removed_foreign_keys(&mut self, table: &TableDiff) {
+    /// Drop foreign keys that are removed or redefined, before column alters.
+    /// Postgres blocks type/nullability changes on columns referenced by an
+    /// existing FK; modified FKs are recreated in phase 3 by `add_foreign_keys`.
+    fn drop_changed_foreign_keys(&mut self, table: &TableDiff) {
         let qualified = self.qualified(&table.name);
         for fk in &table.foreign_keys {
-            if !matches!(fk.status, ChangeStatus::Removed) {
+            if !matches!(fk.status, ChangeStatus::Removed | ChangeStatus::Modified) {
                 continue;
             }
-            self.push(
-                MigrationKind::DropForeignKey,
-                format!("{}.{}", self.schema, fk.name),
-                format!("drop foreign key {}", fk.name),
-                true,
-                format!(
-                    "ALTER TABLE {qualified} DROP CONSTRAINT IF EXISTS {};",
-                    self.ident(&fk.name)
-                ),
-            );
+            self.drop_foreign_key(&qualified, &fk.name);
         }
+    }
+
+    /// Drop every foreign key a (removed) table owns, so the table-drop order
+    /// is independent of FK dependencies between removed tables.
+    fn drop_all_foreign_keys(&mut self, table: &Table) {
+        let qualified = self.qualified(&table.name);
+        for fk in &table.foreign_keys {
+            self.drop_foreign_key(&qualified, &fk.name);
+        }
+    }
+
+    fn drop_foreign_key(&mut self, qualified: &str, name: &str) {
+        self.push(
+            MigrationKind::DropForeignKey,
+            format!("{}.{}", self.schema, name),
+            format!("drop foreign key {name}"),
+            true,
+            format!(
+                "ALTER TABLE {qualified} DROP CONSTRAINT IF EXISTS {};",
+                self.ident(name)
+            ),
+        );
     }
 
     fn create_view(&mut self, view: &View, replace: bool) {

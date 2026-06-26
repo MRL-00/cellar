@@ -13,6 +13,24 @@ export interface ApplyTarget {
   envTag: string | null;
 }
 
+/** Statements that drop objects or rows — used to gate the apply confirmation
+ * against the actual SQL buffer, including any manual edits. */
+const SQL_DESTRUCTIVE = /\b(drop|truncate|delete)\b/i;
+
+function confirmMessage(
+  selectedDestructive: number,
+  sqlDestructive: boolean,
+  isProd: boolean,
+): string {
+  const what =
+    selectedDestructive > 0
+      ? `${selectedDestructive} destructive change${selectedDestructive === 1 ? "" : "s"}`
+      : sqlDestructive
+        ? "destructive statements in the edited script"
+        : "this migration";
+  return `apply ${what}${isProd ? " to a PROD connection" : ""}?`;
+}
+
 const ED_BTN =
   "inline-flex h-[26px] items-center gap-[5px] whitespace-nowrap rounded-[4px] border border-border-default bg-bg-2 px-2.5 text-[11.5px] font-medium text-fg-1 transition-colors duration-100 hover:bg-bg-3 hover:text-fg-0 disabled:cursor-not-allowed disabled:opacity-60";
 const ED_DANGER =
@@ -59,12 +77,17 @@ export function MigrationPanel({
   const allIds = statements.map((s) => s.id);
   const changeIds = allIds; // every statement is a change; "select all" === all
   const isProd = applyTarget?.envTag === "prod";
+  // Base the destructive gate on the SQL that actually runs, not only the
+  // checklist — hand-edits to the buffer (e.g. an added DROP) must still
+  // trigger the confirmation rather than slip through.
+  const sqlDestructive = SQL_DESTRUCTIVE.test(state.sql);
+  const requiresConfirm = isProd || selectedDestructive > 0 || sqlDestructive;
   const canApply =
     !!applyTarget && selectedIds.length > 0 && !state.applying && state.sql.trim().length > 0;
 
   async function handleApply() {
     if (!applyTarget) return;
-    if ((selectedDestructive > 0 || isProd) && !confirming) {
+    if (requiresConfirm && !confirming) {
       setConfirming(true);
       return;
     }
@@ -166,21 +189,21 @@ export function MigrationPanel({
         <div className="flex min-w-0 items-center gap-2 text-[10.5px]">
           <Icon.warn
             size={10}
-            stroke={
-              isProd || selectedDestructive > 0 ? "var(--warn)" : "var(--fg-3)"
-            }
+            stroke={requiresConfirm ? "var(--warn)" : "var(--fg-3)"}
           />
           <span className="min-w-0 truncate text-fg-2">
             {state.applyError
               ? state.applyError
-              : !applyTarget
-                ? (unsupportedReason ??
-                  "apply needs a live source connection — snapshot sources are read-only")
-                : confirming
-                  ? `apply ${selectedDestructive} destructive change${selectedDestructive === 1 ? "" : "s"}${isProd ? " to a PROD connection" : ""}?`
-                  : state.appliedAt
-                    ? "migration applied — diff refreshed"
-                    : "review the script above; it runs in a transaction where supported"}
+              : state.error
+                ? state.error
+                : !applyTarget
+                  ? (unsupportedReason ??
+                    "apply needs a live source connection — snapshot sources are read-only")
+                  : confirming
+                    ? confirmMessage(selectedDestructive, sqlDestructive, isProd)
+                    : state.appliedAt
+                      ? "migration applied — diff refreshed"
+                      : "review the script above; it runs in a transaction where supported"}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -197,11 +220,9 @@ export function MigrationPanel({
             type="button"
             disabled={!canApply}
             onClick={() => void handleApply()}
-            className={
-              selectedDestructive > 0 || isProd || confirming ? ED_DANGER : ED_BTN
-            }
+            className={requiresConfirm || confirming ? ED_DANGER : ED_BTN}
             style={
-              selectedDestructive > 0 || isProd || confirming
+              requiresConfirm || confirming
                 ? { borderColor: "color-mix(in oklab, var(--delete) 40%, black)" }
                 : undefined
             }

@@ -30,7 +30,10 @@ export function SchemaComparePane({ tab }: { tab: SchemaCompareTab }) {
       </PaneMessage>
     );
   }
-  if (state.error || !state.comparison) {
+  // Only treat a missing comparison as a failure worth replacing the whole
+  // view: a later script-generation error (with a populated comparison) is
+  // surfaced inside the migration panel instead of hiding the diff.
+  if (!state.comparison) {
     return (
       <PaneMessage>
         <div className="flex flex-col items-center gap-2">
