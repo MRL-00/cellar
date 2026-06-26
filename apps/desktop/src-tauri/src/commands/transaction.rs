@@ -26,6 +26,31 @@ pub async fn commit_table_changes(
     request: TableChangeRequest,
     tab_id: Option<String>,
 ) -> Result<TableCommitResult, CellarError> {
+    run_commit(registry, history, connection_id, request, tab_id, false).await
+}
+
+/// Commit a CSV import. Same transactional + history path as
+/// `commit_table_changes`, but tolerant of idempotent no-op rows.
+#[tauri::command]
+#[specta::specta]
+pub async fn commit_table_import(
+    registry: State<'_, ConnectionRegistry>,
+    history: State<'_, HistoryStore>,
+    connection_id: String,
+    request: TableChangeRequest,
+    tab_id: Option<String>,
+) -> Result<TableCommitResult, CellarError> {
+    run_commit(registry, history, connection_id, request, tab_id, true).await
+}
+
+async fn run_commit(
+    registry: State<'_, ConnectionRegistry>,
+    history: State<'_, HistoryStore>,
+    connection_id: String,
+    request: TableChangeRequest,
+    tab_id: Option<String>,
+    import: bool,
+) -> Result<TableCommitResult, CellarError> {
     let history_database = request.database.clone();
     let history_sql = build_postgres_plan(&request)
         .map(|plan| plan.preview.sql)
@@ -37,7 +62,11 @@ pub async fn commit_table_changes(
         });
     let context = registry.history_context(&connection_id).await;
     let started = Instant::now();
-    let result = registry.commit_table_changes(&connection_id, request).await;
+    let result = if import {
+        registry.commit_table_import(&connection_id, request).await
+    } else {
+        registry.commit_table_changes(&connection_id, request).await
+    };
     let duration_ms = result
         .as_ref()
         .map(|r| r.duration_ms)

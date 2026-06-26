@@ -44,6 +44,7 @@ export interface SidebarProps {
     database: string;
     schema?: string;
   }) => void;
+  onImportData?: () => void;
 }
 
 export function Sidebar({
@@ -52,6 +53,7 @@ export function Sidebar({
   onDuplicateConnection,
   onOpenSettings,
   onCompareSchemas,
+  onImportData,
 }: SidebarProps = {}) {
   const [filter, setFilter] = useState("");
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
@@ -253,6 +255,16 @@ export function Sidebar({
                 node.database,
                 selectAllStatement(node.schema, node.name),
               ),
+          },
+          {
+            label: "Import data…",
+            icon: <Icon.upload size={12} />,
+            // Views aren't directly writable; only offer this on base tables.
+            disabled: node.isView,
+            onClick: () => {
+              openTable(node.connectionId, node.database, node.schema, node.name);
+              onImportData?.();
+            },
           },
           {
             label: "Find Usages",

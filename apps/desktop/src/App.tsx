@@ -18,6 +18,7 @@ import {
 } from "./components/modals/Settings";
 import { ExportSetupModal } from "./components/modals/ExportSetupModal";
 import { ImportSetupModal } from "./components/modals/ImportSetupModal";
+import { ImportDataModal } from "./components/modals/ImportDataModal";
 import {
   SchemaCompareDialog,
   type ComparePreset,
@@ -30,6 +31,7 @@ type ModalId =
   | "settings"
   | "exportSetup"
   | "importSetup"
+  | "importData"
   | "schemaCompare"
   | null;
 type ConnDialog = { mode: "new" | "edit"; initial?: ConnectionConfig } | null;
@@ -199,6 +201,7 @@ export function App() {
                 onDuplicateConnection={duplicateConnection}
                 onOpenSettings={() => openSettings()}
                 onCompareSchemas={openSchemaCompare}
+                onImportData={() => openModal("importData")}
               />
             </div>
             <ResizeHandle
@@ -306,6 +309,7 @@ export function App() {
       )}
       {modal === "exportSetup" && <ExportSetupModal onClose={closeModal} />}
       {modal === "importSetup" && <ImportSetupModal onClose={closeModal} />}
+      {modal === "importData" && <ImportDataModal onClose={closeModal} />}
       {modal === "schemaCompare" && (
         <SchemaCompareDialog onClose={closeModal} preset={comparePreset} />
       )}

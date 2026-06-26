@@ -39,6 +39,14 @@ pub async fn commit_table_changes(
     query::commit_table_changes(pg, request).await
 }
 
+pub async fn commit_table_import(
+    conn: &dyn Connection,
+    request: &TableChangeRequest,
+) -> CellarResult<TableCommitResult> {
+    let pg = connect::as_pg(conn)?;
+    query::commit_table_import(pg, request).await
+}
+
 pub async fn apply_migration(
     conn: &dyn Connection,
     database: &str,

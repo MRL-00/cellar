@@ -39,6 +39,7 @@ pub fn builder() -> Builder<tauri::Wry> {
         query::browse_table,
         transaction::preview_table_changes,
         transaction::commit_table_changes,
+        transaction::commit_table_import,
         schema_diff::compare_schemas,
         schema_diff::build_migration_script,
         schema_diff::apply_migration,

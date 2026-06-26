@@ -164,6 +164,18 @@ async commitTableChanges(connectionId: string, request: TableChangeRequest, tabI
 }
 },
 /**
+ * Commit a CSV import. Same transactional + history path as
+ * `commit_table_changes`, but tolerant of idempotent no-op rows.
+ */
+async commitTableImport(connectionId: string, request: TableChangeRequest, tabId: string | null) : Promise<Result<TableCommitResult, CellarError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("commit_table_import", { connectionId, request, tabId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * Compare `source` against `target`, returning the render-ready diff and the
  * migration statements that transform source into target.
  */
@@ -633,7 +645,16 @@ total_rows: number | null }
  * saving a template whose name slugifies to an existing file overwrites it.
  */
 export type QueryTemplate = { name: string; description: string; sql: string }
-export type RowChange = { kind: "update"; row_id: string; keys: CellAssignment[]; edits: CellAssignment[] } | { kind: "insert"; row_id: string; values: CellAssignment[] } | { kind: "delete"; row_id: string; keys: CellAssignment[] }
+export type RowChange = { kind: "update"; row_id: string; keys: CellAssignment[]; edits: CellAssignment[] } | { kind: "insert"; row_id: string; values: CellAssignment[] } | { kind: "delete"; row_id: string; keys: CellAssignment[] } | 
+/**
+ * Insert a full row, resolving collisions on `conflict_columns` (a unique
+ * or primary key) by updating `update_columns` from the proposed values.
+ * An empty `update_columns` compiles to `ON CONFLICT ... DO NOTHING`
+ * (insert-only / skip duplicates). The DB decides per row whether it is an
+ * insert or an update, so there is no read-then-write race. Used by the
+ * CSV import wizard for its insert-only and upsert modes.
+ */
+{ kind: "upsert"; row_id: string; conflict_columns: string[]; values: CellAssignment[]; update_columns: string[] }
 export type Schema = { name: string; tables: Table[]; views: View[] }
 /**
  * Bundled output of a comparison: the render-ready diff tree, the migration
