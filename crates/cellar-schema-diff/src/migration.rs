@@ -77,7 +77,11 @@ pub fn build_migration(
     }
     for table in &diff.tables {
         if matches!(table.status, ChangeStatus::Modified) {
-            b.drop_removed_indexes(table);
+            // Drop both removed and *modified* indexes here, before any column
+            // ALTERs in phase 2: Postgres rejects `ALTER COLUMN ... TYPE` while
+            // a dependent index still exists. Modified indexes are recreated in
+            // phase 3 once the new column shapes are in place.
+            b.drop_changed_indexes(table);
             b.drop_removed_columns(table);
         }
     }
@@ -398,20 +402,13 @@ impl<'a> Builder<'a> {
             if is_primary {
                 continue;
             }
-            match idx.status {
-                ChangeStatus::Added => {
-                    if let Some(i) = &idx.target {
-                        self.create_index(&table.name, i);
-                    }
+            // Added and Modified both create here; Modified was already
+            // dropped in phase 1 (before column alters), so this just recreates
+            // it with the new definition.
+            if matches!(idx.status, ChangeStatus::Added | ChangeStatus::Modified) {
+                if let Some(i) = &idx.target {
+                    self.create_index(&table.name, i);
                 }
-                ChangeStatus::Modified => {
-                    // Recreate so definition changes (columns, uniqueness) land.
-                    self.drop_index(&idx.name);
-                    if let Some(i) = &idx.target {
-                        self.create_index(&table.name, i);
-                    }
-                }
-                _ => {}
             }
         }
     }
@@ -438,12 +435,20 @@ impl<'a> Builder<'a> {
         );
     }
 
-    fn drop_removed_indexes(&mut self, table: &TableDiff) {
+    /// Drop indexes that are removed outright or being redefined. Runs before
+    /// column alters so type changes on indexed columns are not blocked by a
+    /// dependent index; redefined (Modified) indexes are recreated in phase 3.
+    fn drop_changed_indexes(&mut self, table: &TableDiff) {
         for idx in &table.indexes {
-            if !matches!(idx.status, ChangeStatus::Removed) {
+            if !matches!(idx.status, ChangeStatus::Removed | ChangeStatus::Modified) {
                 continue;
             }
-            let is_primary = idx.source.as_ref().map(|i| i.primary).unwrap_or(false);
+            let is_primary = idx
+                .source
+                .as_ref()
+                .or(idx.target.as_ref())
+                .map(|i| i.primary)
+                .unwrap_or(false);
             if is_primary {
                 continue;
             }

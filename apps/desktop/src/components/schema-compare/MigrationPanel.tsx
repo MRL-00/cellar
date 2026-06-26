@@ -27,9 +27,12 @@ const ED_DANGER =
 export function MigrationPanel({
   tabId,
   applyTarget,
+  unsupportedReason,
 }: {
   tabId: string;
   applyTarget: ApplyTarget | null;
+  /** Why apply is unavailable (snapshot source, non-Postgres engine, …). */
+  unsupportedReason: string | null;
 }) {
   const state = useSchemaCompare((s) => s.byTab[tabId]);
   const toggle = useSchemaCompare((s) => s.toggle);
@@ -171,7 +174,8 @@ export function MigrationPanel({
             {state.applyError
               ? state.applyError
               : !applyTarget
-                ? "apply needs a live source connection — snapshot sources are read-only"
+                ? (unsupportedReason ??
+                  "apply needs a live source connection — snapshot sources are read-only")
                 : confirming
                   ? `apply ${selectedDestructive} destructive change${selectedDestructive === 1 ? "" : "s"}${isProd ? " to a PROD connection" : ""}?`
                   : state.appliedAt

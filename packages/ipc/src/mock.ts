@@ -22,6 +22,7 @@ import type {
   MigrationStatement,
   MigrationApplyResult,
   SchemaSnapshotMeta,
+  Dialect,
 } from "./generated";
 
 function sourceLabel(source: SchemaSource): string {
@@ -197,10 +198,12 @@ export const mockCommands = {
         },
       },
       statements: [],
+      dialect: "postgres",
     }),
 
   buildMigrationScript: async (
     _statements: MigrationStatement[],
+    _dialect: Dialect,
     _wrapInTransaction: boolean,
   ): Promise<string> => "-- Cellar schema migration\n-- No changes selected.\n",
 

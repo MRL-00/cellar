@@ -341,11 +341,11 @@ impl ConnectionRegistry {
         }
     }
 
-    /// Resolve one schema namespace from a connection's introspected tree,
-    /// using the cached schema where available. Used by schema comparison to
-    /// pull a live side without forcing a refresh.
+    /// Resolve one schema namespace from a connection's live tree. Forces a
+    /// fresh introspection so schema comparison (and "Recompare") reflects any
+    /// external DDL since the tree was last cached.
     pub async fn schema_for(&self, id: &str, database: &str, schema: &str) -> CellarResult<Schema> {
-        let dbs = self.introspect(id, false).await?;
+        let dbs = self.introspect(id, true).await?;
         dbs.iter()
             .find(|db| db.name == database)
             .and_then(|db| db.schemas.iter().find(|s| s.name == schema))
@@ -358,8 +358,9 @@ impl ConnectionRegistry {
     }
 
     /// Resolve a whole database tree from a connection, for snapshot capture.
+    /// Forces a fresh introspection so the snapshot records current schema.
     pub async fn database_for(&self, id: &str, database: &str) -> CellarResult<Database> {
-        let dbs = self.introspect(id, false).await?;
+        let dbs = self.introspect(id, true).await?;
         dbs.into_iter()
             .find(|db| db.name == database)
             .ok_or_else(|| {

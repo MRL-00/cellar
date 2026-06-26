@@ -61,6 +61,20 @@ function selectedStatements(state: CompareTabState): MigrationStatement[] {
   return statements.filter((s) => state.selected[s.id]);
 }
 
+/**
+ * Rebuild the migration script after a selection/transaction change — but only
+ * when the user hasn't hand-edited the buffer. This keeps the editable script
+ * (the source of truth for what `apply` runs, and for the destructive-change
+ * count) in sync with the checklist, while preserving manual edits until the
+ * user explicitly regenerates.
+ */
+function regenerateIfClean(get: () => SchemaCompareStore, tabId: string) {
+  const state = get().byTab[tabId];
+  if (state && !state.sqlDirty) {
+    void get().generateScript(tabId);
+  }
+}
+
 function patch(
   set: (fn: (s: SchemaCompareStore) => Partial<SchemaCompareStore>) => void,
   tabId: string,
@@ -127,6 +141,7 @@ export const useSchemaCompare = create<SchemaCompareStore>((set, get) => ({
       const selected = { ...current.selected, [id]: !current.selected[id] };
       return { byTab: { ...s.byTab, [tabId]: { ...current, selected } } };
     });
+    regenerateIfClean(get, tabId);
   },
 
   setMany(tabId, ids, value) {
@@ -137,10 +152,12 @@ export const useSchemaCompare = create<SchemaCompareStore>((set, get) => ({
       for (const id of ids) selected[id] = value;
       return { byTab: { ...s.byTab, [tabId]: { ...current, selected } } };
     });
+    regenerateIfClean(get, tabId);
   },
 
   setWrap(tabId, wrap) {
     patch(set, tabId, { wrapInTransaction: wrap });
+    regenerateIfClean(get, tabId);
   },
 
   async generateScript(tabId) {
@@ -149,6 +166,7 @@ export const useSchemaCompare = create<SchemaCompareStore>((set, get) => ({
     try {
       const sql = await commands.buildMigrationScript(
         selectedStatements(state),
+        state.comparison?.dialect ?? "postgres",
         state.wrapInTransaction,
       );
       patch(set, tabId, { sql, sqlDirty: false });

@@ -29,13 +29,16 @@ pub use diff::{
 pub use migration::{assemble_script, build_migration, MigrationKind, MigrationStatement};
 pub use snapshot::{SchemaSnapshot, SchemaSnapshotMeta};
 
-/// Bundled output of a comparison: the render-ready diff tree plus the
-/// migration statements that transform source into target. Returned by the
-/// `compare_schemas` IPC command so the UI gets both in one round-trip.
+/// Bundled output of a comparison: the render-ready diff tree, the migration
+/// statements that transform source into target, and the dialect the DDL was
+/// generated for. Returned by the `compare_schemas` IPC command so the UI gets
+/// everything (including the dialect to round-trip back into script assembly)
+/// in one call.
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]
 pub struct SchemaComparison {
     pub diff: SchemaDiff,
     pub statements: Vec<MigrationStatement>,
+    pub dialect: Dialect,
 }
 
 /// Compare two schemas and build the migration in one step. `schema` is the
@@ -51,7 +54,11 @@ pub fn compare(
 ) -> SchemaComparison {
     let diff = diff_schemas(source, target, source_label, target_label);
     let statements = build_migration(&diff, schema, dialect);
-    SchemaComparison { diff, statements }
+    SchemaComparison {
+        diff,
+        statements,
+        dialect,
+    }
 }
 
 #[cfg(test)]
@@ -230,6 +237,43 @@ mod tests {
         assert!(fk
             .sql
             .contains("REFERENCES \"public\".\"customers\" (\"id\")"));
+    }
+
+    #[test]
+    fn drops_modified_index_before_altering_its_column() {
+        let mut src = table(
+            "orders",
+            vec![col("id", "int4", false), col("total", "int4", false)],
+        );
+        src.indexes = vec![Index {
+            name: "orders_total_idx".into(),
+            columns: vec!["total".into()],
+            unique: false,
+            primary: false,
+        }];
+        let mut tgt = table(
+            "orders",
+            vec![col("id", "int4", false), col("total", "bigint", false)],
+        );
+        // Same index, now unique → Modified, so it is dropped then recreated.
+        tgt.indexes = vec![Index {
+            name: "orders_total_idx".into(),
+            columns: vec!["total".into()],
+            unique: true,
+            primary: false,
+        }];
+
+        let diff = diff_schemas(&schema(vec![src]), &schema(vec![tgt]), "s", "t");
+        let statements = build_migration(&diff, "public", Dialect::Postgres);
+        let pos = |kind: MigrationKind| statements.iter().position(|s| s.kind == kind);
+        let drop = pos(MigrationKind::DropIndex).expect("drop index");
+        let alter = pos(MigrationKind::AlterColumn).expect("alter column");
+        let create = pos(MigrationKind::CreateIndex).expect("create index");
+        assert!(
+            drop < alter,
+            "index must be dropped before the column alter"
+        );
+        assert!(alter < create, "index must be recreated after the alter");
     }
 
     #[test]

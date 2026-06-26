@@ -49,14 +49,24 @@ export function SchemaComparePane({ tab }: { tab: SchemaCompareTab }) {
   }
 
   const { diff } = state.comparison;
+  const sourceIsLive = state.config.source.kind === "live";
+  // Apply executes DDL against the live source, which only the Postgres driver
+  // supports today. Gate the button (and explain why) instead of letting the
+  // user pass review only to hit a backend error.
+  const applyableEngine = state.comparison.dialect === "postgres";
   const applyTarget: ApplyTarget | null =
-    state.config.source.kind === "live"
+    state.config.source.kind === "live" && applyableEngine
       ? {
           connectionId: state.config.source.connection_id,
           database: state.config.source.database,
           envTag: sourceEnvTag,
         }
       : null;
+  const applyUnsupportedReason = applyTarget
+    ? null
+    : !sourceIsLive
+      ? "apply needs a live source connection — snapshot sources are read-only"
+      : `apply is only supported for Postgres sources right now (source is ${state.comparison.dialect})`;
 
   const s = diff.summary;
   const total =
@@ -94,7 +104,11 @@ export function SchemaComparePane({ tab }: { tab: SchemaCompareTab }) {
         <DiffTree diff={diff} />
       </div>
       <div className="flex min-h-0 flex-[3] flex-col overflow-hidden">
-        <MigrationPanel tabId={tab.id} applyTarget={applyTarget} />
+        <MigrationPanel
+          tabId={tab.id}
+          applyTarget={applyTarget}
+          unsupportedReason={applyUnsupportedReason}
+        />
       </div>
     </div>
   );

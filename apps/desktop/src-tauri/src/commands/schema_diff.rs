@@ -76,14 +76,17 @@ pub async fn compare_schemas(
 
 /// Assemble the user's selected statements into a single runnable script.
 /// Kept in Rust so transaction wrapping stays dialect-aware and the frontend
-/// never hand-builds executable SQL.
+/// never hand-builds executable SQL. The `dialect` comes from the comparison
+/// (the source engine) so the transaction wrap matches that engine's DDL
+/// semantics rather than always assuming Postgres.
 #[tauri::command]
 #[specta::specta]
 pub fn build_migration_script(
     statements: Vec<MigrationStatement>,
+    dialect: Dialect,
     wrap_in_transaction: bool,
 ) -> String {
-    assemble_script(&statements, Dialect::Postgres, wrap_in_transaction)
+    assemble_script(&statements, dialect, wrap_in_transaction)
 }
 
 /// Apply a reviewed (and possibly hand-edited) migration script against
