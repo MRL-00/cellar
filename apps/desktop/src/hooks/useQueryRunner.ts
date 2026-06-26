@@ -80,6 +80,27 @@ export function useQueryRunner(tab: QueryTab): QueryRunner {
     };
   }, []);
 
+  // When the tab is re-pointed at a different database (via the title-bar
+  // breadcrumb), invalidate any in-flight run. Its captured token, `source`,
+  // and target database all describe the *previous* database, so bumping
+  // `runToken` makes its completion fall through the staleness guard rather
+  // than writing rows, messages, or an error squiggle into the switched tab.
+  // The completion would otherwise repopulate the results `setQueryDatabase`
+  // just cleared. We also reset local runner state here, since the dropped
+  // completion never reaches the code that would clear it.
+  const prevDatabase = useRef(tab.database);
+  useEffect(() => {
+    if (prevDatabase.current === tab.database) return;
+    prevDatabase.current = tab.database;
+    runToken.current++;
+    activeRun.current = null;
+    loadMoreRef.current = null;
+    setRunning(false);
+    setCancelRequested(false);
+    setErrorLine(null);
+    setCanLoadMore(false);
+  }, [tab.database]);
+
   const clearError = useCallback(() => setErrorLine(null), []);
 
   const executeQuery = useCallback(
