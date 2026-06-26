@@ -2,6 +2,7 @@ use cellar_core::driver::{ConnectionConfig, DriverInfo};
 use cellar_core::error::CellarError;
 use tauri::State;
 
+use crate::datagrip::{self, DatagripImport};
 use crate::state::ConnectionRegistry;
 
 #[tauri::command]
@@ -70,6 +71,17 @@ pub async fn reconnect(
 ) -> Result<DriverInfo, CellarError> {
     let password = cellar_secrets::load(&id).ok().flatten();
     registry.reconnect(&id, password.as_deref()).await
+}
+
+/// Scan the local machine for DataGrip data sources and return the connections
+/// we can map. Read-only — nothing is saved; the frontend lets the user pick
+/// which to import and supply passwords (DataGrip never exposes those).
+#[tauri::command]
+#[specta::specta]
+pub async fn import_datagrip() -> Result<DatagripImport, CellarError> {
+    tauri::async_runtime::spawn_blocking(datagrip::scan)
+        .await
+        .map_err(|e| CellarError::invalid_config(format!("DataGrip scan failed: {e}")))
 }
 
 #[tauri::command]
