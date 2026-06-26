@@ -299,6 +299,8 @@ function headerItems(
 ): string[] {
   if (!activeTab) return ["no active tab"];
   if (activeTab.kind === "query") return [activeTab.title, "query tab"];
+  if (activeTab.kind === "schema-compare")
+    return [activeTab.title, "schema compare tab"];
   if (activeTab.kind === "er-diagram") return [activeTab.title, "ER diagram"];
   if (!result) return [tableLabel(activeTab), "table rows shown above"];
 
@@ -351,6 +353,14 @@ function ResultsBody({
         <EmptyPanel
           title="Run a query to see results"
           detail={`${activeTab.title} has not produced a result set yet.`}
+        />
+      );
+    }
+    if (activeTab.kind === "schema-compare") {
+      return (
+        <EmptyPanel
+          title="Schema comparison"
+          detail={`${activeTab.title} is a schema-compare tab. Its diff and generated migration are shown in the main pane above.`}
         />
       );
     }

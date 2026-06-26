@@ -37,6 +37,15 @@ pub async fn commit_table_changes(
     query::commit_table_changes(pg, request).await
 }
 
+pub async fn apply_migration(
+    conn: &dyn Connection,
+    database: &str,
+    sql: &str,
+) -> CellarResult<u64> {
+    let pg = connect::as_pg(conn)?;
+    query::apply_migration(pg, database, sql).await
+}
+
 pub async fn browse_table(
     conn: &dyn Connection,
     request: &TableBrowseRequest,

@@ -13,6 +13,7 @@ import {
 } from "react";
 
 import { SqlEditor } from "./SqlEditor";
+import { SchemaComparePane } from "./SchemaComparePane";
 import { ErDiagram } from "./er/ErDiagram";
 import { ContextMenu, type ContextMenuState } from "./ContextMenu";
 import { Icon } from "./icons";
@@ -141,6 +142,9 @@ function renderTab(tab: WorkspaceTab, onCommit?: () => void) {
     // `key` gives each query tab its own caret/wrap state.
     return <SqlEditor key={tab.id} tab={tab} />;
   }
+  if (tab.kind === "schema-compare") {
+    return <SchemaComparePane key={tab.id} tab={tab} />;
+  }
   if (tab.kind === "er-diagram") {
     // `key` resets zoom/pan and node positions per diagram tab.
     return <ErDiagram key={tab.id} tab={tab} />;
@@ -152,6 +156,7 @@ function renderTab(tab: WorkspaceTab, onCommit?: () => void) {
 
 function TabIcon({ tab }: { tab: WorkspaceTab }) {
   if (tab.kind === "query") return <Icon.terminal size={11} />;
+  if (tab.kind === "schema-compare") return <Icon.diff size={11} />;
   if (tab.kind === "er-diagram") return <Icon.diagram size={11} />;
   return <Icon.table size={11} />;
 }

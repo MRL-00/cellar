@@ -37,6 +37,7 @@ type CommandPaletteProps = {
   onTogglePanel: (k: PanelId) => void;
   onExportSetup: () => void;
   onImportSetup: () => void;
+  onCompareSchemas: () => void;
 };
 
 const GROUP_ORDER: Group[] = [
@@ -58,6 +59,7 @@ export function CommandPalette({
   onTogglePanel,
   onExportSetup,
   onImportSetup,
+  onCompareSchemas,
 }: CommandPaletteProps) {
   const [q, setQ] = useState("");
   const [active, setActive] = useState(0);
@@ -144,6 +146,15 @@ export function CommandPalette({
       hint: pending > 0 ? `${pending} pending` : "no pending changes",
       kbd: ["⌘", "S"],
       action: onOpenCommit,
+    });
+
+    add({
+      id: "compare-schemas",
+      grp: "Actions",
+      label: "Compare schemas…",
+      hint: "diff two schemas and generate migration DDL",
+      search: "schema diff migration ddl snapshot compare",
+      action: onCompareSchemas,
     });
 
     add({
@@ -304,6 +315,7 @@ export function CommandPalette({
     connect,
     connections,
     disconnect,
+    onCompareSchemas,
     newQueryTab,
     onExportSetup,
     onImportSetup,

@@ -257,6 +257,22 @@ pub async fn commit_table_changes(
     })
 }
 
+/// Apply a (user-reviewed, possibly edited) schema migration script against
+/// `database`. The script runs through the simple query protocol so multiple
+/// statements — and any `BEGIN;`/`COMMIT;` the generated script wraps them in —
+/// are honored as written. If a statement fails inside the wrapping
+/// transaction, Postgres aborts it and the whole script rolls back. Returns
+/// the elapsed time in milliseconds.
+pub async fn apply_migration(conn: &PgConnection, database: &str, sql: &str) -> CellarResult<u64> {
+    let pool = conn.pool_for_database(database).await?;
+    let started = Instant::now();
+    sqlx::raw_sql(sql)
+        .execute(&pool)
+        .await
+        .map_err(query_sqlx_err)?;
+    Ok(started.elapsed().as_millis() as u64)
+}
+
 pub async fn explain_query(
     conn: &PgConnection,
     query: &Query,

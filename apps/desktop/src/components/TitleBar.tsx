@@ -127,6 +127,8 @@ export function TitleBar({
               <span className="inline-flex items-center gap-[5px] whitespace-nowrap rounded-[4px] px-1.5 py-[3px] text-[11.5px] text-fg-1 max-[1080px]:hidden">
                 {activeTab.kind === "query" ? (
                   <Icon.terminal size={11} />
+                ) : activeTab.kind === "schema-compare" ? (
+                  <Icon.diff size={11} />
                 ) : activeTab.kind === "er-diagram" ? (
                   <Icon.diagram size={11} />
                 ) : (

@@ -423,6 +423,7 @@ dependencies = [
  "cellar-driver-mysql",
  "cellar-driver-postgres",
  "cellar-driver-sqlserver",
+ "cellar-schema-diff",
  "cellar-secrets",
  "cellar-sql",
  "dirs 5.0.1",
@@ -521,6 +522,17 @@ name = "cellar-plugin-host"
 version = "0.2.0"
 
 [[package]]
+name = "cellar-schema-diff"
+version = "0.2.0"
+dependencies = [
+ "cellar-core",
+ "cellar-sql",
+ "serde",
+ "specta",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "cellar-secrets"
 version = "0.2.0"
 dependencies = [
@@ -534,6 +546,8 @@ name = "cellar-sql"
 version = "0.2.0"
 dependencies = [
  "cellar-core",
+ "serde",
+ "specta",
  "sqlparser",
  "thiserror 1.0.69",
 ]

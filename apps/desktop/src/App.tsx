@@ -18,6 +18,10 @@ import {
 } from "./components/modals/Settings";
 import { ExportSetupModal } from "./components/modals/ExportSetupModal";
 import { ImportSetupModal } from "./components/modals/ImportSetupModal";
+import {
+  SchemaCompareDialog,
+  type ComparePreset,
+} from "./components/modals/SchemaCompareDialog";
 import { useLayout } from "./state/layout";
 
 type ModalId =
@@ -26,6 +30,7 @@ type ModalId =
   | "settings"
   | "exportSetup"
   | "importSetup"
+  | "schemaCompare"
   | null;
 type ConnDialog = { mode: "new" | "edit"; initial?: ConnectionConfig } | null;
 
@@ -108,11 +113,16 @@ export function App() {
   const [modal, setModal] = useState<ModalId>(null);
   const [connDialog, setConnDialog] = useState<ConnDialog>(null);
   const [empty, setEmpty] = useState(false);
+  const [comparePreset, setComparePreset] = useState<ComparePreset | null>(null);
   const [settingsInitialCat, setSettingsInitialCat] =
     useState<SettingsCatId>("appearance");
 
   const openModal = useCallback((m: ModalId) => setModal(m), []);
   const closeModal = useCallback(() => setModal(null), []);
+  const openSchemaCompare = useCallback((preset?: ComparePreset) => {
+    setComparePreset(preset ?? null);
+    setModal("schemaCompare");
+  }, []);
   const openSettings = useCallback((initialCat: SettingsCatId = "appearance") => {
     setSettingsInitialCat(initialCat);
     setModal("settings");
@@ -188,6 +198,7 @@ export function App() {
                 onEditConnection={editConnection}
                 onDuplicateConnection={duplicateConnection}
                 onOpenSettings={() => openSettings()}
+                onCompareSchemas={openSchemaCompare}
               />
             </div>
             <ResizeHandle
@@ -282,6 +293,7 @@ export function App() {
           onTogglePanel={togglePanel}
           onExportSetup={() => openModal("exportSetup")}
           onImportSetup={() => openModal("importSetup")}
+          onCompareSchemas={() => openSchemaCompare()}
         />
       )}
       {modal === "settings" && (
@@ -294,6 +306,9 @@ export function App() {
       )}
       {modal === "exportSetup" && <ExportSetupModal onClose={closeModal} />}
       {modal === "importSetup" && <ImportSetupModal onClose={closeModal} />}
+      {modal === "schemaCompare" && (
+        <SchemaCompareDialog onClose={closeModal} preset={comparePreset} />
+      )}
     </div>
   );
 }
