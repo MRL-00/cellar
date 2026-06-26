@@ -117,6 +117,9 @@ pub fn build_migration(
             // a dependent index still exists. Modified indexes are recreated in
             // phase 3 once the new column shapes are in place.
             b.drop_changed_indexes(table);
+            // Drop the old primary key before dropping columns it may still
+            // cover; the new key is added back in phase 2.
+            b.drop_primary_key(table);
             b.drop_removed_columns(table);
         }
     }
@@ -141,7 +144,9 @@ pub fn build_migration(
             ChangeStatus::Modified => {
                 b.add_columns(table);
                 b.alter_columns(table);
-                b.alter_primary_key(table);
+                // PK was dropped in phase 1; add the new one now that columns
+                // are in their final shape.
+                b.add_primary_key(table);
             }
             _ => {}
         }
@@ -372,6 +377,9 @@ impl<'a> Builder<'a> {
                 let clause = if target.nullable {
                     "DROP NOT NULL"
                 } else {
+                    // SET NOT NULL fails (and can reject existing rows) when the
+                    // column holds NULLs, so it gates the destructive confirm.
+                    destructive = true;
                     "SET NOT NULL"
                 };
                 parts.push(format!(
@@ -405,35 +413,51 @@ impl<'a> Builder<'a> {
         }
     }
 
-    fn alter_primary_key(&mut self, table: &TableDiff) {
+    /// Drop the existing primary key. Emitted in phase 1, *before* any column
+    /// drops, because Postgres won't drop a column still covered by the PK.
+    /// The constraint name is not modeled (and may be custom), so it is looked
+    /// up from the catalog and dropped dynamically.
+    fn drop_primary_key(&mut self, table: &TableDiff) {
         if !table.primary_key.status.is_change() {
             return;
         }
         let qualified = self.qualified(&table.name);
-        // The actual primary-key constraint name is not modeled (introspection
-        // doesn't capture it) and is not always `<table>_pkey` once a key has
-        // been renamed. Look it up from the catalog and drop it dynamically so
-        // a custom-named primary key is removed correctly.
-        let mut parts = vec![format!(
+        let sql = format!(
             "DO $$\nDECLARE pk_name text;\nBEGIN\n  SELECT conname INTO pk_name FROM pg_constraint\n    WHERE conrelid = '{qualified}'::regclass AND contype = 'p';\n  IF pk_name IS NOT NULL THEN\n    EXECUTE format('ALTER TABLE {qualified} DROP CONSTRAINT %I', pk_name);\n  END IF;\nEND $$;"
-        )];
-        if !table.primary_key.target.is_empty() {
-            let cols = table
-                .primary_key
-                .target
-                .iter()
-                .map(|c| self.ident(c))
-                .collect::<Vec<_>>()
-                .join(", ");
-            parts.push(format!("ALTER TABLE {qualified} ADD PRIMARY KEY ({cols});"));
-        }
-        self.push(
-            MigrationKind::AlterPrimaryKey,
-            format!("{}.{}", self.schema, table.name),
-            format!("alter primary key on {}", table.name),
-            true,
-            parts.join("\n"),
         );
+        // Distinct id from the add half so the two are independently tracked.
+        self.statements.push(MigrationStatement {
+            id: format!("alter-primary-key:drop:{}.{}", self.schema, table.name),
+            kind: MigrationKind::AlterPrimaryKey,
+            object: format!("{}.{}", self.schema, table.name),
+            description: format!("drop primary key on {}", table.name),
+            destructive: true,
+            sql,
+        });
+    }
+
+    /// Add the new primary key. Emitted in phase 2, *after* columns reach their
+    /// final shape and the old key has been dropped in phase 1.
+    fn add_primary_key(&mut self, table: &TableDiff) {
+        if !table.primary_key.status.is_change() || table.primary_key.target.is_empty() {
+            return;
+        }
+        let qualified = self.qualified(&table.name);
+        let cols = table
+            .primary_key
+            .target
+            .iter()
+            .map(|c| self.ident(c))
+            .collect::<Vec<_>>()
+            .join(", ");
+        self.statements.push(MigrationStatement {
+            id: format!("alter-primary-key:add:{}.{}", self.schema, table.name),
+            kind: MigrationKind::AlterPrimaryKey,
+            object: format!("{}.{}", self.schema, table.name),
+            description: format!("add primary key on {}", table.name),
+            destructive: false,
+            sql: format!("ALTER TABLE {qualified} ADD PRIMARY KEY ({cols});"),
+        });
     }
 
     fn create_indexes(&mut self, table: &TableDiff) {
@@ -600,19 +624,28 @@ impl<'a> Builder<'a> {
 
     fn create_view(&mut self, view: &View, replace: bool) {
         let qualified = self.qualified(&view.name);
+        // Without a stored definition there is no runnable DDL to generate.
+        // Emitting a comment-only statement would let Apply "succeed" without
+        // creating/updating the view while the checklist implies otherwise, so
+        // skip it entirely — the diff tree still shows the view as changed.
+        let Some(def) = view
+            .definition
+            .as_deref()
+            .map(str::trim)
+            .filter(|d| !d.is_empty())
+        else {
+            return;
+        };
         let kind = if replace {
             MigrationKind::ReplaceView
         } else {
             MigrationKind::CreateView
         };
         let verb = if replace { "replace" } else { "create" };
-        let sql = match &view.definition {
-            Some(def) => format!(
-                "CREATE OR REPLACE VIEW {qualified} AS\n{};",
-                def.trim().trim_end_matches(';')
-            ),
-            None => format!("-- view definition unavailable for {qualified}; cannot generate DDL"),
-        };
+        let sql = format!(
+            "CREATE OR REPLACE VIEW {qualified} AS\n{};",
+            def.trim_end_matches(';')
+        );
         self.push(
             kind,
             format!("{}.{}", self.schema, view.name),

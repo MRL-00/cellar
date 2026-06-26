@@ -210,14 +210,91 @@ mod tests {
 
         let diff = diff_schemas(&schema(vec![src]), &schema(vec![tgt]), "s", "t");
         let statements = build_migration(&diff, "public", Dialect::Postgres);
-        let pk = statements
+        let drop_pk = statements
             .iter()
-            .find(|s| s.kind == MigrationKind::AlterPrimaryKey)
-            .expect("primary key change");
+            .find(|s| s.id.starts_with("alter-primary-key:drop"))
+            .expect("drop primary key");
         // Drops the real constraint name from the catalog, not a guessed one.
-        assert!(pk.sql.contains("pg_constraint"));
-        assert!(pk.sql.contains("contype = 'p'"));
-        assert!(pk.sql.contains("ADD PRIMARY KEY (\"id\", \"tenant\")"));
+        assert!(drop_pk.sql.contains("pg_constraint"));
+        assert!(drop_pk.sql.contains("contype = 'p'"));
+        let add_pk = statements
+            .iter()
+            .find(|s| s.id.starts_with("alter-primary-key:add"))
+            .expect("add primary key");
+        assert!(add_pk.sql.contains("ADD PRIMARY KEY (\"id\", \"tenant\")"));
+    }
+
+    #[test]
+    fn drops_primary_key_before_dropping_a_pk_column() {
+        let mut src = table(
+            "t",
+            vec![col("id", "int4", false), col("old", "int4", false)],
+        );
+        src.primary_key = vec!["id".into(), "old".into()];
+        let mut tgt = table("t", vec![col("id", "int4", false)]);
+        tgt.primary_key = vec!["id".into()];
+
+        let diff = diff_schemas(&schema(vec![src]), &schema(vec![tgt]), "s", "t");
+        let statements = build_migration(&diff, "public", Dialect::Postgres);
+        let drop_pk = statements
+            .iter()
+            .position(|s| s.id.starts_with("alter-primary-key:drop"))
+            .expect("drop pk");
+        let drop_col = statements
+            .iter()
+            .position(|s| s.kind == MigrationKind::DropColumn)
+            .expect("drop column");
+        assert!(drop_pk < drop_col, "PK dropped before the column it covers");
+    }
+
+    #[test]
+    fn set_not_null_is_destructive() {
+        let source = schema(vec![table(
+            "t",
+            vec![col("id", "int4", false), col("name", "text", true)],
+        )]);
+        let target = schema(vec![table(
+            "t",
+            vec![col("id", "int4", false), col("name", "text", false)],
+        )]);
+        let diff = diff_schemas(&source, &target, "s", "t");
+        let statements = build_migration(&diff, "public", Dialect::Postgres);
+        let alter = statements
+            .iter()
+            .find(|s| s.kind == MigrationKind::AlterColumn)
+            .expect("alter column");
+        assert!(alter.sql.contains("SET NOT NULL"));
+        assert!(
+            alter.destructive,
+            "SET NOT NULL gates the destructive confirm"
+        );
+    }
+
+    #[test]
+    fn skips_view_without_definition() {
+        let source = Schema {
+            name: "public".into(),
+            tables: vec![],
+            views: vec![],
+        };
+        let target = Schema {
+            name: "public".into(),
+            tables: vec![],
+            views: vec![View {
+                name: "v".into(),
+                schema: "public".into(),
+                columns: vec![],
+                definition: None,
+            }],
+        };
+        let diff = diff_schemas(&source, &target, "s", "t");
+        assert_eq!(diff.views[0].status, ChangeStatus::Added);
+        let statements = build_migration(&diff, "public", Dialect::Postgres);
+        // No runnable DDL → no comment-only statement in the checklist.
+        assert!(!statements.iter().any(|s| matches!(
+            s.kind,
+            MigrationKind::CreateView | MigrationKind::ReplaceView
+        )));
     }
 
     #[test]
