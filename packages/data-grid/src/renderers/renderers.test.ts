@@ -8,7 +8,14 @@ import type { GridColumn } from "../types";
 import { createRendererRegistry, defaultRendererRegistry } from "./registry";
 import { jsonRenderer, jsonKind, jsonSummary, safeParseJson } from "./json";
 import { arrayRenderer, elementOf, parsePgArray } from "./array";
-import { byteaRenderer, formatByteSize, hexDump, parseHexBytes, sniffImageMime } from "./bytes";
+import {
+  byteaInfo,
+  byteaRenderer,
+  formatByteSize,
+  hexDump,
+  parseHexBytes,
+  sniffImageMime,
+} from "./bytes";
 import { geometryRenderer, geometryLabel } from "./geometry";
 import { arrayElementType, isArrayType, isByteaType, isGeometryType, isJsonType } from "./typeMatch";
 
@@ -55,9 +62,26 @@ describe("registry resolution", () => {
     );
   });
 
+  it("routes geometry decoded as raw bytes to the bytea renderer", () => {
+    // MySQL decodes GEOMETRY as bytes → `\x…`; that should get hex/image/save,
+    // not the WKT geometry UI.
+    expect(defaultRendererRegistry.resolve(col("geometry"), "\\x0101000000")?.id).toBe(
+      byteaRenderer.id,
+    );
+    // Textual WKT still goes to the geometry renderer.
+    expect(geometryRenderer.appliesTo(col("geometry"), "POINT(0 0)")).toBe(true);
+    expect(geometryRenderer.appliesTo(col("geometry"), "\\x0101")).toBe(false);
+  });
+
   it("returns null for plain types so the default path renders them", () => {
     expect(defaultRendererRegistry.resolve(col("text"), "hello")).toBeNull();
     expect(defaultRendererRegistry.resolve(col("int4"), 42)).toBeNull();
+  });
+
+  it("does not claim malformed array literals (no closing brace)", () => {
+    expect(arrayRenderer.appliesTo(col("int4[]"), "{1,2")).toBe(false);
+    expect(arrayRenderer.appliesTo(col("int4[]"), "{1,2,3}")).toBe(true);
+    expect(arrayRenderer.appliesTo(col("int4[]"), "{}")).toBe(true);
   });
 
   it("does not claim an array literal that is not an array column", () => {
@@ -124,6 +148,16 @@ describe("bytea helpers", () => {
     expect(sniffImageMime(jpeg)).toBe("image/jpeg");
     expect(sniffImageMime(gif)).toBe("image/gif");
     expect(sniffImageMime(new Uint8Array([0x00, 0x01, 0x02]))).toBeNull();
+  });
+
+  it("recovers true size and flags truncation via byteaInfo", () => {
+    const full = byteaInfo("\\x00ff10");
+    expect(full.truncated).toBe(false);
+    expect(full.total).toBe(3);
+    const partial = byteaInfo("\\xdeadbeef… (1024 bytes)");
+    expect(partial.truncated).toBe(true);
+    expect(partial.total).toBe(1024);
+    expect(partial.bytes.length).toBe(4);
   });
 
   it("formats byte sizes", () => {

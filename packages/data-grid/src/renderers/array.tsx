@@ -99,14 +99,23 @@ export const arrayRenderer: CellRenderer = {
   id: "builtin:array",
   priority: 10,
   appliesTo: (column, value) =>
-    isArrayType(column.type) && typeof value === "string" && value.startsWith("{"),
+    isArrayType(column.type) &&
+    typeof value === "string" &&
+    value.trim().startsWith("{") &&
+    value.trim().endsWith("}"),
   renderInline: ({ text, column }) => {
     const elementType = arrayElementType(column.type);
     const tokens = parsePgArray(text);
     const shown = tokens.slice(0, INLINE_LIMIT);
     const overflow = tokens.length - shown.length;
     if (tokens.length === 0) {
-      return <span className="cell-array-empty">{"{ }"}</span>;
+      // Distinguish a genuinely empty array from a literal we could not parse,
+      // so malformed/truncated data does not masquerade as `{ }`.
+      return text.trim() === "{}" ? (
+        <span className="cell-array-empty">{"{ }"}</span>
+      ) : (
+        <span className="cell-array-empty">{text}</span>
+      );
     }
     return (
       <span className="cell-array-inline">

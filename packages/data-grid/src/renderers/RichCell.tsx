@@ -23,6 +23,18 @@ import type { GridColumn } from "../types";
 const OPEN_DELAY_MS = 90;
 const CLOSE_DELAY_MS = 180;
 
+// Only one rich-cell popover should be open at a time. Opening one closes any
+// other, so moving the pointer (or focus) between cells never stacks panels —
+// even while another cell's close delay is still pending.
+let activeClose: (() => void) | null = null;
+function acquireActive(close: () => void) {
+  if (activeClose && activeClose !== close) activeClose();
+  activeClose = close;
+}
+function releaseActive(close: () => void) {
+  if (activeClose === close) activeClose = null;
+}
+
 export type RichCellProps = {
   renderer: CellRenderer;
   column: GridColumn;
@@ -64,6 +76,16 @@ export function RichCell({
     [clearOpenTimer, clearCloseTimer],
   );
 
+  // While open, claim the single active-popover slot so opening another cell's
+  // popover closes this one; release it when this one closes or unmounts.
+  const closeRef = useRef<() => void>(() => undefined);
+  useEffect(() => {
+    if (!open) return;
+    const close = () => closeRef.current();
+    acquireActive(close);
+    return () => releaseActive(close);
+  }, [open]);
+
   // Hover in → open after a short delay (avoids flicker while scanning rows).
   const scheduleOpen = useCallback(() => {
     clearCloseTimer();
@@ -94,6 +116,7 @@ export function RichCell({
     clearCloseTimer();
     setOpen(false);
   }, [clearOpenTimer, clearCloseTimer]);
+  closeRef.current = close;
 
   const base = useMemo(
     () => ({
@@ -117,6 +140,18 @@ export function RichCell({
       className="cell-rich"
       onMouseEnter={canExpand ? scheduleOpen : undefined}
       onMouseLeave={canExpand ? scheduleClose : undefined}
+      // Keyboard parity with hover: when focus leaves the cell and its panel
+      // entirely (Tab away), close it. Focus moving into the panel — a DOM
+      // descendant of this span — keeps `relatedTarget` inside, so it stays.
+      onBlur={
+        canExpand
+          ? (event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                scheduleClose();
+              }
+            }
+          : undefined
+      }
     >
       <span className="cell-rich-inline">{renderer.renderInline(inlineCtx)}</span>
       {canExpand && (

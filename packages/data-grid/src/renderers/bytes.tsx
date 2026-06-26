@@ -9,7 +9,7 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { Badge } from "./shared";
-import { isByteaType } from "./typeMatch";
+import { isByteaType, isGeometryType } from "./typeMatch";
 import type { CellRenderer } from "./types";
 
 /** Decode a `\x`-prefixed hex string into bytes, tolerating a truncation tail. */
@@ -23,6 +23,28 @@ export function parseHexBytes(text: string): Uint8Array {
     out[i] = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16);
   }
   return out;
+}
+
+export type ByteaInfo = {
+  /** The bytes we were able to decode (the full blob unless truncated). */
+  bytes: Uint8Array;
+  /** True blob size, recovered from a `… (N bytes)` marker when present. */
+  total: number;
+  /** The grid only carried a prefix, so save/image previews are incomplete. */
+  truncated: boolean;
+};
+
+/**
+ * Decode a bytea cell and recover the true size. The app maps bytea as full hex
+ * so `truncated` is normally false, but a legacy/foreign `\x… (N bytes)` cell
+ * only carries a prefix — we surface that rather than silently acting on a
+ * partial buffer (which would mis-size, mis-sniff, and save incomplete data).
+ */
+export function byteaInfo(text: string): ByteaInfo {
+  const bytes = parseHexBytes(text);
+  const marker = /…\s*\((\d+)\s*bytes?\)/i.exec(text);
+  const total = marker ? Number(marker[1]) : bytes.length;
+  return { bytes, total, truncated: total > bytes.length };
 }
 
 /** Identify common image formats from their leading magic bytes. */
@@ -127,23 +149,30 @@ function BytesExpanded({
   // Parse once per distinct value. `renderExpanded` runs on every grid render
   // while the popover is open; without this the bytes ref would change each
   // time and ImagePreview would revoke/recreate its object URL (flicker).
-  const bytes = useMemo(() => parseHexBytes(text), [text]);
-  const mime = useMemo(() => sniffImageMime(bytes), [bytes]);
+  const info = useMemo(() => byteaInfo(text), [text]);
+  const bytes = info.bytes;
+  // Only the complete blob can be sniffed, previewed, or saved truthfully.
+  const mime = useMemo(() => (info.truncated ? null : sniffImageMime(bytes)), [bytes, info.truncated]);
   const [showImage, setShowImage] = useState(false);
   const rows = useMemo(() => hexDump(bytes), [bytes]);
-  const truncated = bytes.length > HEX_DUMP_BYTES;
+  const dumpClipped = bytes.length > HEX_DUMP_BYTES;
   const extension = mime ? EXTENSION[mime] ?? "bin" : "bin";
 
   return (
     <div className="cell-bytes-expanded">
       <div className="cell-rich-toolbar">
-        <Badge>{formatByteSize(bytes.length)}</Badge>
+        <Badge>{formatByteSize(info.total)}{info.truncated ? " (preview)" : ""}</Badge>
         {mime && <Badge>{mime}</Badge>}
         <button
           type="button"
           className="cell-rich-action"
           onClick={() => saveBlob(bytes, `${columnName}.${extension}`, mime ?? "application/octet-stream")}
-          title="Save bytes to a file"
+          disabled={info.truncated}
+          title={
+            info.truncated
+              ? "Only a preview of this blob is loaded; full bytes are not available to save"
+              : "Save bytes to a file"
+          }
         >
           Save to file
         </button>
@@ -167,9 +196,11 @@ function BytesExpanded({
             <span className="cell-bytes-ascii">{row.ascii}</span>
           </div>
         ))}
-        {truncated && (
+        {(dumpClipped || info.truncated) && (
           <div className="cell-bytes-dump-more">
-            … {formatByteSize(bytes.length - HEX_DUMP_BYTES)} more
+            {info.truncated
+              ? `preview only — ${formatByteSize(info.total)} total`
+              : `… ${formatByteSize(bytes.length - HEX_DUMP_BYTES)} more`}
           </div>
         )}
       </pre>
@@ -182,13 +213,19 @@ const INLINE_HEX_BYTES = 8;
 export const byteaRenderer: CellRenderer = {
   id: "builtin:bytea",
   priority: 10,
-  appliesTo: (column, value) => isByteaType(column.type) && typeof value === "string",
+  // Claim known binary column types, plus geometry columns whose value arrived
+  // as raw bytes (`\x…`) — those engines (e.g. MySQL) decode GEOMETRY to bytes,
+  // and the bytea hex/image/save view is the right home for them.
+  appliesTo: (column, value) =>
+    typeof value === "string" &&
+    (isByteaType(column.type) ||
+      (isGeometryType(column.type) && value.startsWith("\\x"))),
   renderInline: ({ text }) => {
-    const bytes = parseHexBytes(text);
+    const { bytes, total, truncated } = byteaInfo(text);
     const head = Array.from(bytes.subarray(0, INLINE_HEX_BYTES))
       .map((b) => b.toString(16).padStart(2, "0"))
       .join("");
-    const mime = sniffImageMime(bytes);
+    const mime = truncated ? null : sniffImageMime(bytes);
     return (
       <span className="cell-bytes-inline">
         {mime && <span className="cell-bytes-imgdot" title={mime} />}
@@ -196,7 +233,7 @@ export const byteaRenderer: CellRenderer = {
           \x{head}
           {bytes.length > INLINE_HEX_BYTES ? "…" : ""}
         </span>
-        <span className="cell-bytes-size">{formatByteSize(bytes.length)}</span>
+        <span className="cell-bytes-size">{formatByteSize(total)}</span>
       </span>
     );
   },

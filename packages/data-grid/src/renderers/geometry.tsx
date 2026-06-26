@@ -22,7 +22,13 @@ export function geometryLabel(text: string): string {
 export const geometryRenderer: CellRenderer = {
   id: "builtin:geometry",
   priority: 5,
-  appliesTo: (column, value) => isGeometryType(column.type) && typeof value === "string",
+  // Only textual geometry (WKT / EWKT / GeoJSON). Engines like MySQL decode
+  // GEOMETRY as raw bytes, which the grid carries as a `\x…` hex string — those
+  // belong to the bytea renderer (hex dump / image sniff / save), not here.
+  appliesTo: (column, value) =>
+    isGeometryType(column.type) &&
+    typeof value === "string" &&
+    !value.startsWith("\\x"),
   renderInline: ({ text }) => (
     <span className="cell-geometry-inline">
       <span className="cell-geometry-glyph" aria-hidden="true">◈</span>

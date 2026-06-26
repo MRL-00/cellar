@@ -103,6 +103,12 @@
   padding: 2px 7px;
 }
 .cell-rich-action:hover { background: var(--bg-3); color: var(--fg-0); }
+.cell-rich-action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: var(--bg-2);
+  color: var(--fg-3);
+}
 .cell-rich-badge {
   display: inline-flex;
   align-items: center;

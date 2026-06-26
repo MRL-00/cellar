@@ -77,7 +77,10 @@ export function Popover({
     targetRef.current = { top, left };
     setSettled(false);
     setPos({ top, left });
-  }, [anchorRef, children]);
+    // Position only when the popover opens against a given anchor — NOT on
+    // `children`, or inner state changes (JSON expand, "Copied", image toggle)
+    // would re-run this, reset `settled`, and flash the panel hidden.
+  }, [anchorRef]);
 
   // Pass 2 — `position: fixed` is resolved against the nearest transformed or
   // `contain`-ed ancestor, which in this app's panel layout is not the viewport.

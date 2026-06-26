@@ -29,9 +29,11 @@ export {
 export {
   byteaRenderer,
   parseHexBytes,
+  byteaInfo,
   sniffImageMime,
   formatByteSize,
   hexDump,
+  type ByteaInfo,
   type HexDumpRow,
 } from "./bytes";
 export { geometryRenderer, geometryLabel } from "./geometry";
