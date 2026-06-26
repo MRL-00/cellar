@@ -24,7 +24,7 @@
   border-bottom: 1px solid var(--border-default);
   flex-shrink: 0;
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: var(--fs-sm);
 }
 .grid-filterbar-label {
   display: inline-flex;
@@ -66,7 +66,7 @@
   background: var(--accent-soft);
   border: 1px solid var(--accent-line);
   border-radius: 4px;
-  font-size: 10.5px;
+  font-size: var(--fs-sm);
   color: var(--fg-0);
   overflow: hidden;
 }
@@ -117,7 +117,7 @@
   padding: 0 6px;
   border: 1px dashed var(--border-default);
   border-radius: 4px;
-  font-size: 10.5px;
+  font-size: var(--fs-sm);
   color: var(--fg-2);
 }
 .grid-filter-add:hover { color: var(--fg-0); border-color: var(--border-strong); }
@@ -147,7 +147,7 @@
   border-radius: 3px;
   background: var(--bg-inset);
   color: var(--fg-0);
-  font-size: 10.5px;
+  font-size: var(--fs-sm);
   outline: none;
 }
 .grid-filter-select {
@@ -176,7 +176,7 @@
   border-radius: 3px;
   background: var(--accent-soft);
   color: var(--accent);
-  font-size: 10.5px;
+  font-size: var(--fs-sm);
   font-weight: 600;
 }
 .grid-filter-apply:hover:not(:disabled) {
@@ -192,7 +192,7 @@
   padding: 0 5px;
   border-radius: 3px;
   color: var(--fg-3);
-  font-size: 10.5px;
+  font-size: var(--fs-sm);
   flex-shrink: 0;
 }
 .grid-filter-clear:hover { background: var(--bg-3); color: var(--fg-1); }
@@ -215,21 +215,21 @@
   border-right: 1px solid var(--border-default);
 }
 .grid-quickfilter-input {
-  height: 18px;
-  width: 160px;
-  padding: 0 6px;
+  height: 22px;
+  width: 180px;
+  padding: 0 7px;
   border: 1px solid var(--border-default);
   border-radius: 3px;
   background: var(--bg-inset);
   color: var(--fg-0);
-  font-size: 10.5px;
+  font-size: var(--fs-sm);
   outline: none;
 }
 .grid-quickfilter-input:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent-line);
 }
-.grid-quickfilter-column { max-width: 120px; }
+.grid-quickfilter-column { height: 22px; max-width: 120px; font-size: var(--fs-sm); }
 .grid-filter-active-count {
   padding: 0 5px;
   border-radius: 8px;

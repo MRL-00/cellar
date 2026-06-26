@@ -406,7 +406,7 @@ export function ConnectionDialog({
               {envTag === "prod" && (
                 <span className="ml-2 inline-flex items-center gap-1 text-[10.5px] text-warn">
                   <Icon.warn size={10} />
-                  <span>prod requires confirmation for DML</span>
+                  <span>prod will ask you to confirm before changing data (insert / update / delete)</span>
                 </span>
               )}
             </FormRow>
