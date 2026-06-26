@@ -16,6 +16,7 @@ import { SqlEditor } from "./SqlEditor";
 import { ContextMenu, type ContextMenuState } from "./ContextMenu";
 import { Icon } from "./icons";
 import { useTabs, type TableTab, type WorkspaceTab } from "../state/tabs";
+import { useFindUsages } from "../state/findUsages";
 import { useTableData } from "../hooks/useTableData";
 import { useSettings } from "../lib/settings";
 import { toCsv, toJson, toSqlInserts, toTsv } from "../lib/export";
@@ -177,6 +178,8 @@ function TableTabPane({
   );
   const grid = useGridState();
   const [rowMenu, setRowMenu] = useState<ContextMenuState | null>(null);
+  const [headerMenu, setHeaderMenu] = useState<ContextMenuState | null>(null);
+  const findUsages = useFindUsages((s) => s.findUsages);
   // The grid hands back the row object on selection, so copy never has to
   // re-derive the grid's filter/sort/insert order.
   const [selectedRowData, setSelectedRowData] = useState<GridRow | null>(null);
@@ -295,6 +298,44 @@ function TableTabPane({
             containerRef.current?.focus({ preventScroll: true });
           }
         }}
+        onHeaderContextMenu={(event, column) => {
+          event.preventDefault();
+          setHeaderMenu({
+            x: event.clientX,
+            y: event.clientY,
+            items: [
+              {
+                label: `Find Usages of ${column.name}`,
+                icon: <Icon.search size={12} />,
+                onClick: () =>
+                  findUsages({
+                    connectionId: tab.connectionId,
+                    database: tab.database,
+                    schema: tab.schema,
+                    table: tab.table,
+                    column: column.key,
+                  }),
+              },
+              {
+                label: `Find Usages of ${tab.table}`,
+                icon: <Icon.search size={12} />,
+                onClick: () =>
+                  findUsages({
+                    connectionId: tab.connectionId,
+                    database: tab.database,
+                    schema: tab.schema,
+                    table: tab.table,
+                    column: null,
+                  }),
+              },
+              {
+                label: "Copy column name",
+                icon: <Icon.copy size={12} />,
+                onClick: () => copyText(column.name),
+              },
+            ],
+          });
+        }}
         onRowContextMenu={(event, row) => {
           event.preventDefault();
           setRowMenu({
@@ -329,6 +370,7 @@ function TableTabPane({
         }}
       />
       <ContextMenu state={rowMenu} onClose={() => setRowMenu(null)} />
+      <ContextMenu state={headerMenu} onClose={() => setHeaderMenu(null)} />
     </div>
   );
 }

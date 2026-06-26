@@ -7,7 +7,8 @@ export type BottomTabId =
   | "messages"
   | "plan"
   | "history"
-  | "notices";
+  | "notices"
+  | "findUsages";
 
 interface BottomPanelStore {
   active: BottomTabId;

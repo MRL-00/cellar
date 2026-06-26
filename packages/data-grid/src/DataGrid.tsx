@@ -162,6 +162,16 @@ export type DataGridProps = {
     row: GridRow,
     rowIndex: number,
   ) => void;
+
+  /**
+   * Right-click on a column header. The host receives the column so it can
+   * offer column-scoped actions (e.g. "Find Usages") without the grid knowing
+   * the source table/schema.
+   */
+  onHeaderContextMenu?: (
+    event: ReactMouseEvent<HTMLDivElement>,
+    column: GridColumn,
+  ) => void;
 };
 
 /**
@@ -198,6 +208,7 @@ export function DataGrid({
   selectedRow = null,
   onRowSelect,
   onRowContextMenu,
+  onHeaderContextMenu,
 }: DataGridProps) {
   const [internalSort, setInternalSort] = useState<SortState>(null);
   const [internalColumnLayout, setInternalColumnLayout] =
@@ -718,6 +729,11 @@ export function DataGrid({
                     setColumnDropTargetKey(null);
                   }}
                   onClick={() => handleSort(c.key)}
+                  onContextMenu={
+                    onHeaderContextMenu
+                      ? (event) => onHeaderContextMenu(event, c)
+                      : undefined
+                  }
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();

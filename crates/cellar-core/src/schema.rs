@@ -67,3 +67,51 @@ pub struct Index {
     pub unique: bool,
     pub primary: bool,
 }
+
+/// What kind of database object references a searched table or column. Returned
+/// by the `find_usages` command. See SPEC §6.2 (schema navigation).
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum UsageKind {
+    View,
+    MaterializedView,
+    Function,
+    Procedure,
+    Trigger,
+    Constraint,
+}
+
+/// A confirmed reference to the searched table/column found inside a view
+/// definition, routine body, trigger definition, or constraint. The reference
+/// is structurally confirmed by `cellar-sql` (real identifier, not a substring
+/// match) before it ever reaches this type.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]
+pub struct UsageReference {
+    pub kind: UsageKind,
+    /// Schema the referencing object lives in.
+    pub schema: String,
+    /// Name of the referencing object (view / function / trigger / constraint).
+    pub name: String,
+    /// For triggers and constraints, the table the object is attached to.
+    pub on_table: Option<String>,
+    /// 1-based line within `definition` where the reference was found.
+    pub line: u32,
+    /// The matching line, trimmed for display.
+    pub snippet: String,
+    /// The column matched, when the search was column-scoped.
+    pub matched_column: Option<String>,
+    /// Full object definition so the UI can open it in an editor tab.
+    pub definition: String,
+}
+
+/// A single object definition pulled from the system catalogs, cached by the
+/// host so repeated `find_usages` searches don't re-query the catalogs. This is
+/// host-internal and never crosses IPC, so it carries no serde/specta derives.
+#[derive(Debug, Clone)]
+pub struct UsageDefinition {
+    pub kind: UsageKind,
+    pub schema: String,
+    pub name: String,
+    pub on_table: Option<String>,
+    pub definition: String,
+}

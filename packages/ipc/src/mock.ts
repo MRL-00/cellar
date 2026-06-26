@@ -17,6 +17,7 @@ import type {
   TableChangeRequest,
   TableCommitPreview,
   TableCommitResult,
+  UsageReference,
 } from "./generated";
 
 function ok<T>(data: T): Result<T, CellarError> {
@@ -53,6 +54,15 @@ export const mockCommands = {
     _connectionId: string,
     _refresh: boolean | null,
   ): Promise<Result<Database[], CellarError>> => ok([]),
+
+  findUsages: async (
+    _connectionId: string,
+    _database: string | null,
+    _schema: string,
+    _objectName: string,
+    _columnName: string | null,
+    _allSchemas: boolean | null,
+  ): Promise<Result<UsageReference[], CellarError>> => ok([]),
 
   runQuery: async (
     _connectionId: string,

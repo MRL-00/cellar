@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use cellar_core::driver::{Connection, ConnectionConfig, Driver, Engine};
 use cellar_core::error::CellarResult;
 use cellar_core::query::{PlanMode, Query, QueryPlan, QueryResult, TableBrowseRequest};
-use cellar_core::schema::{Database, Table};
+use cellar_core::schema::{Database, Table, UsageDefinition};
 use cellar_diff::{TableChangeRequest, TableCommitResult};
 
 mod connect;
@@ -14,8 +14,10 @@ mod decode;
 mod introspect;
 mod query;
 mod table_browse;
+mod usages;
 
 pub use connect::{open_pool, PgConnection};
+pub use usages::search_usages;
 
 /// Zero-sized handle. Construct once per process and reuse — drivers carry no
 /// per-connection state themselves (the pool lives on [`PgConnection`]).
@@ -43,6 +45,17 @@ pub async fn browse_table(
 ) -> CellarResult<QueryResult> {
     let pg = connect::as_pg(conn)?;
     table_browse::browse_table(pg, request, table).await
+}
+
+/// Read every searchable object definition in `database` for "Find Usages".
+/// The host caches the returned definitions per connection+database and runs
+/// [`search_usages`] over them.
+pub async fn fetch_usage_definitions(
+    conn: &dyn Connection,
+    database: &str,
+) -> CellarResult<Vec<UsageDefinition>> {
+    let pg = connect::as_pg(conn)?;
+    usages::fetch_usage_definitions(pg, database).await
 }
 
 #[async_trait]

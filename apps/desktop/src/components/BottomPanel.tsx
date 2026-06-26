@@ -62,6 +62,8 @@ import {
 import { useQueryMessages } from "../state/queryMessages";
 import { PlanPanel } from "./BottomPlanPanel";
 import { MessagesView } from "./BottomMessagesPanel";
+import { FindUsagesPanel } from "./FindUsagesPanel";
+import { useFindUsages } from "../state/findUsages";
 import { Icon } from "./icons";
 
 type BPTab = {
@@ -78,6 +80,7 @@ const BASE_TABS: Omit<BPTab, "count">[] = [
   { id: "plan", label: "Plan", icon: <Icon.tree size={11} />, enabled: true },
   { id: "history", label: "History", icon: <Icon.history size={11} />, enabled: true },
   { id: "notices", label: "Notices", icon: <Icon.warn size={11} />, enabled: true },
+  { id: "findUsages", label: "Find Usages", icon: <Icon.search size={11} />, enabled: true },
 ];
 
 /**
@@ -100,6 +103,9 @@ export function BottomPanel({ onClose }: { onClose: () => void }) {
   const activeMessages = useMemo(
     () => messages.filter((m) => m.tabId === activeTabId),
     [activeTabId, messages],
+  );
+  const usageCount = useFindUsages((s) =>
+    s.status === "ready" ? s.results.length : null,
   );
   const result = useTabResults((s) =>
     activeTabId ? s.byTabId[activeTabId] ?? null : null,
@@ -143,7 +149,9 @@ export function BottomPanel({ onClose }: { onClose: () => void }) {
           ? historyCount
           : tab.id === "results"
             ? resultCount
-            : null,
+            : tab.id === "findUsages"
+              ? usageCount
+              : null,
   }));
 
   return (
@@ -265,6 +273,8 @@ export function BottomPanel({ onClose }: { onClose: () => void }) {
           />
         ) : active === "plan" ? (
           <PlanPanel activeTab={activeTab} />
+        ) : active === "findUsages" ? (
+          <FindUsagesPanel />
         ) : (
           <Placeholder tab={active} />
         )}

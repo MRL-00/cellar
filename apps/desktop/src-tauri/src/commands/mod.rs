@@ -28,6 +28,7 @@ pub fn builder() -> Builder<tauri::Wry> {
         connection::reconnect,
         connection::disconnect,
         schema::introspect,
+        schema::find_usages,
         query::run_query,
         query::cancel_query,
         query::explain_query,
