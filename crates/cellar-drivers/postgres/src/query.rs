@@ -217,9 +217,40 @@ pub async fn execute_query(conn: &PgConnection, query: &Query) -> CellarResult<Q
     })
 }
 
+/// How the committed row count is checked against the plan's expectation.
+#[derive(Clone, Copy)]
+enum RowCountCheck {
+    /// Grid edits target known-present rows: every statement must affect
+    /// exactly one row, so the total must equal the expectation.
+    Exact,
+    /// CSV imports include no-op rows (an `UPDATE` that matches nothing, an
+    /// `ON CONFLICT DO NOTHING` on a duplicate). Those affect zero rows, so the
+    /// expectation is only a ceiling — exceeding it means generated SQL touched
+    /// more rows than submitted, which still aborts.
+    AtMost,
+}
+
 pub async fn commit_table_changes(
     conn: &PgConnection,
     request: &TableChangeRequest,
+) -> CellarResult<TableCommitResult> {
+    commit_plan(conn, request, RowCountCheck::Exact).await
+}
+
+/// Commit a CSV import (`Update`/`Upsert` rows) in one transaction. Unlike
+/// `commit_table_changes` this tolerates no-op rows, so re-running the same
+/// CSV is idempotent rather than a row-count mismatch error.
+pub async fn commit_table_import(
+    conn: &PgConnection,
+    request: &TableChangeRequest,
+) -> CellarResult<TableCommitResult> {
+    commit_plan(conn, request, RowCountCheck::AtMost).await
+}
+
+async fn commit_plan(
+    conn: &PgConnection,
+    request: &TableChangeRequest,
+    check: RowCountCheck,
 ) -> CellarResult<TableCommitResult> {
     let database = request
         .database
@@ -240,7 +271,11 @@ pub async fn commit_table_changes(
         rows_affected += result.rows_affected();
     }
 
-    if rows_affected != plan.preview.expected_rows {
+    let mismatch = match check {
+        RowCountCheck::Exact => rows_affected != plan.preview.expected_rows,
+        RowCountCheck::AtMost => rows_affected > plan.preview.expected_rows,
+    };
+    if mismatch {
         tx.rollback().await.map_err(query_sqlx_err)?;
         return Err(CellarError::query(format!(
             "expected {} affected rows but database reported {}; the table may have changed since it was loaded",

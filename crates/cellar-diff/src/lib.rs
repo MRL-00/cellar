@@ -18,6 +18,8 @@ pub enum DiffError {
     EmptyEdit(String),
     #[error("insert change {0} does not include any values")]
     EmptyInsert(String),
+    #[error("upsert change {0} does not name any conflict-target columns")]
+    MissingConflictTarget(String),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]
@@ -52,6 +54,18 @@ pub enum RowChange {
     Delete {
         row_id: String,
         keys: Vec<CellAssignment>,
+    },
+    /// Insert a full row, resolving collisions on `conflict_columns` (a unique
+    /// or primary key) by updating `update_columns` from the proposed values.
+    /// An empty `update_columns` compiles to `ON CONFLICT ... DO NOTHING`
+    /// (insert-only / skip duplicates). The DB decides per row whether it is an
+    /// insert or an update, so there is no read-then-write race. Used by the
+    /// CSV import wizard for its insert-only and upsert modes.
+    Upsert {
+        row_id: String,
+        conflict_columns: Vec<String>,
+        values: Vec<CellAssignment>,
+        update_columns: Vec<String>,
     },
 }
 
@@ -175,6 +189,48 @@ fn statement_for(change: &RowChange, table: &str) -> Result<String, DiffError> {
                 where_clause(keys)
             ))
         }
+        RowChange::Upsert {
+            row_id,
+            conflict_columns,
+            values,
+            update_columns,
+        } => {
+            if values.is_empty() {
+                return Err(DiffError::EmptyInsert(row_id.clone()));
+            }
+            if conflict_columns.is_empty() {
+                return Err(DiffError::MissingConflictTarget(row_id.clone()));
+            }
+            let cols = values
+                .iter()
+                .map(|v| quote_ident(&v.column))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let vals = values
+                .iter()
+                .map(|v| literal(&v.value))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let target = conflict_columns
+                .iter()
+                .map(|c| quote_ident(c))
+                .collect::<Vec<_>>()
+                .join(", ");
+            // Never overwrite a match-key column, even if the caller listed it.
+            let sets = update_columns
+                .iter()
+                .filter(|c| !conflict_columns.contains(*c))
+                .map(|c| format!("  {0} = EXCLUDED.{0}", quote_ident(c)))
+                .collect::<Vec<_>>();
+            let action = if sets.is_empty() {
+                "DO NOTHING".to_string()
+            } else {
+                format!("DO UPDATE SET\n{}", sets.join(",\n"))
+            };
+            Ok(format!(
+                "INSERT INTO {table} ({cols})\nVALUES ({vals})\nON CONFLICT ({target}) {action};"
+            ))
+        }
     }
 }
 
@@ -251,6 +307,58 @@ mod tests {
         .expect_err("keyless update should fail");
 
         assert_eq!(err, DiffError::MissingPrimaryKey);
+    }
+
+    #[test]
+    fn builds_upsert_with_on_conflict_do_update() {
+        let plan = build_postgres_plan(&TableChangeRequest {
+            database: None,
+            schema: "public".into(),
+            table: "users".into(),
+            primary_key: vec!["id".into()],
+            columns: vec![],
+            changes: vec![RowChange::Upsert {
+                row_id: "csv:1".into(),
+                conflict_columns: vec!["id".into()],
+                values: vec![
+                    assign("id", Some("1")),
+                    assign("name", Some("Ada")),
+                    assign("status", None),
+                ],
+                // "id" is the match key and must never land in the SET list.
+                update_columns: vec!["name".into(), "status".into(), "id".into()],
+            }],
+        })
+        .expect("plan");
+
+        let sql = &plan.preview.sql;
+        assert!(sql.contains("INSERT INTO \"public\".\"users\" (\"id\", \"name\", \"status\")"));
+        assert!(sql.contains("VALUES ('1', 'Ada', NULL)"));
+        assert!(sql.contains("ON CONFLICT (\"id\") DO UPDATE SET"));
+        assert!(sql.contains("\"name\" = EXCLUDED.\"name\""));
+        assert!(sql.contains("\"status\" = EXCLUDED.\"status\""));
+        // match-key column excluded from the SET list
+        assert!(!sql.contains("\"id\" = EXCLUDED.\"id\""));
+    }
+
+    #[test]
+    fn builds_insert_only_upsert_as_do_nothing() {
+        let plan = build_postgres_plan(&TableChangeRequest {
+            database: None,
+            schema: "public".into(),
+            table: "users".into(),
+            primary_key: vec!["id".into()],
+            columns: vec![],
+            changes: vec![RowChange::Upsert {
+                row_id: "csv:1".into(),
+                conflict_columns: vec!["id".into()],
+                values: vec![assign("id", Some("1")), assign("name", Some("Ada"))],
+                update_columns: vec![],
+            }],
+        })
+        .expect("plan");
+
+        assert!(plan.preview.sql.contains("ON CONFLICT (\"id\") DO NOTHING;"));
     }
 
     fn assign(column: &str, value: Option<&str>) -> CellAssignment {

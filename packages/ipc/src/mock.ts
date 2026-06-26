@@ -194,6 +194,17 @@ export const mockCommands = {
       duration_ms: 0,
     }),
 
+  commitTableImport: async (
+    _connectionId: string,
+    _request: TableChangeRequest,
+    _tabId: string | null,
+  ): Promise<Result<TableCommitResult, CellarError>> =>
+    ok({
+      sql: "BEGIN;\n\nCOMMIT;",
+      rows_affected: 0,
+      duration_ms: 0,
+    }),
+
   listQueryHistory: async (
     _connectionId: string | null,
     _database: string | null,

@@ -411,6 +411,23 @@ impl ConnectionRegistry {
         id: &str,
         request: TableChangeRequest,
     ) -> CellarResult<TableCommitResult> {
+        self.run_table_commit(id, request, false).await
+    }
+
+    pub async fn commit_table_import(
+        &self,
+        id: &str,
+        request: TableChangeRequest,
+    ) -> CellarResult<TableCommitResult> {
+        self.run_table_commit(id, request, true).await
+    }
+
+    async fn run_table_commit(
+        &self,
+        id: &str,
+        request: TableChangeRequest,
+        import: bool,
+    ) -> CellarResult<TableCommitResult> {
         let (engine, connection) = {
             let inner = self.inner.read().await;
             let open = inner
@@ -421,9 +438,13 @@ impl ConnectionRegistry {
         };
         match engine {
             Engine::Postgres => {
-                match cellar_driver_postgres::commit_table_changes(connection.as_ref(), &request)
-                    .await
-                {
+                let conn = connection.as_ref();
+                let outcome = if import {
+                    cellar_driver_postgres::commit_table_import(conn, &request).await
+                } else {
+                    cellar_driver_postgres::commit_table_changes(conn, &request).await
+                };
+                match outcome {
                     Ok(result) => Ok(result),
                     Err(err) => Err(self.handle_operation_error(id, err).await),
                 }
