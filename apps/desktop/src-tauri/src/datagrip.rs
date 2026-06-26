@@ -71,7 +71,8 @@ fn recent_projects(config: &std::path::Path) -> Vec<PathBuf> {
     // A small substring scan is more robust here than full XML walking.
     let mut out = Vec::new();
     for chunk in xml.split("$USER_HOME$/").skip(1) {
-        if let Some(rel) = chunk.split('"').next() {
+        // Attribute values may be delimited by either " or '.
+        if let Some(rel) = chunk.split(['"', '\'']).next() {
             out.push(home.join(rel));
         }
     }
@@ -136,8 +137,16 @@ pub fn scan() -> DatagripImport {
             };
             let parsed = parse_data_sources(&xml, &users);
             for c in parsed.connections {
+                // Projects are already de-duplicated across DataGrip versions,
+                // so a clash here means two different connections slugify to the
+                // same id (same name). Report the dropped one instead of hiding it.
                 if seen.insert(c.id.clone()) {
                     connections.push(c);
+                } else {
+                    skipped.push(format!(
+                        "{} — duplicate id '{}' (a connection with the same name was already imported)",
+                        c.name, c.id
+                    ));
                 }
             }
             skipped.extend(parsed.skipped);
@@ -255,7 +264,9 @@ fn attr(e: &quick_xml::events::BytesStart, key: &[u8]) -> Option<String> {
     e.attributes()
         .flatten()
         .find(|a| a.key.as_ref() == key)
-        .map(|a| String::from_utf8_lossy(&a.value).into_owned())
+        // unescape_value() decodes XML entities (e.g. `R&amp;D` -> `R&D`) so
+        // names/uuids with `&`, `'`, `"` aren't corrupted.
+        .and_then(|a| a.unescape_value().ok().map(|v| v.into_owned()))
 }
 
 fn build_config(
@@ -419,6 +430,16 @@ mod tests {
         </data-source></root>"#;
         let r = parse_data_sources(xml, &HashMap::new());
         assert_eq!(r.connections[0].database, "postgres");
+    }
+
+    #[test]
+    fn xml_entities_in_name_are_unescaped() {
+        let xml = r#"<root><data-source name="R&amp;D &quot;Prod&quot;">
+            <jdbc-url>jdbc:postgresql://localhost/rd</jdbc-url>
+        </data-source></root>"#;
+        let r = parse_data_sources(xml, &HashMap::new());
+        assert_eq!(r.connections[0].name, "R&D \"Prod\"");
+        assert_eq!(r.connections[0].id, "r-d-prod");
     }
 
     #[test]

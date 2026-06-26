@@ -24,6 +24,9 @@ export const useConfirm = create<ConfirmStore>((set, get) => ({
   request: null,
   ask: (opts) =>
     new Promise<boolean>((resolve) => {
+      // Resolve any in-flight request as cancelled before replacing it, so a
+      // second ask() never leaves the first promise unsettled.
+      get().request?.resolve(false);
       set({ request: { ...opts, resolve } });
     }),
   resolve: (ok) => {
