@@ -412,7 +412,11 @@ function SchemaRow({
       {open && (
         <>
           {schema.tables.length > 0 && (
-            <GroupFolder label="tables" count={schema.tables.length}>
+            <GroupFolder
+              storageKey={`${connectionId}.${database}.${schema.name}.tables`}
+              label="tables"
+              count={schema.tables.length}
+            >
               {schema.tables.map((t) => (
                 <TableRow
                   key={t.name}
@@ -428,7 +432,11 @@ function SchemaRow({
             </GroupFolder>
           )}
           {schema.views.length > 0 && (
-            <GroupFolder label="views" count={schema.views.length}>
+            <GroupFolder
+              storageKey={`${connectionId}.${database}.${schema.name}.views`}
+              label="views"
+              count={schema.views.length}
+            >
               {schema.views.map((v) => (
                 <div
                   key={v.name}
@@ -465,26 +473,38 @@ function SchemaRow({
 }
 
 function GroupFolder({
+  storageKey,
   label,
   count,
   children,
 }: {
+  storageKey: string;
   label: string;
   count: number;
   children: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(() => readFolderOpen(storageKey, true));
+  const toggle = () =>
+    setOpen((v) => {
+      const next = !v;
+      writeFolderOpen(storageKey, next);
+      return next;
+    });
   return (
     <div>
       <div
         className={ROW_BASE + " cursor-pointer"}
         style={{ paddingLeft: 42 }}
-        onClick={() => setOpen((v) => !v)}
+        onClick={toggle}
       >
         <button
           type="button"
           className={TWISTY}
           aria-label={open ? `Collapse ${label}` : `Expand ${label}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            toggle();
+          }}
         >
           {open ? (
             <Icon.chevronDown size={10} />
@@ -657,6 +677,34 @@ export function saveSchemaVisibility(state: SchemaVisibilityState) {
     SCHEMA_VISIBILITY_STORAGE_KEY,
     JSON.stringify(state),
   );
+}
+
+const FOLDER_OPEN_STORAGE_KEY = "cellar.folderOpen.v1";
+
+function readFolderOpenMap(): Record<string, boolean> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(FOLDER_OPEN_STORAGE_KEY);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : {};
+    return parsed && typeof parsed === "object"
+      ? (parsed as Record<string, boolean>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Persisted open/closed state for a sidebar folder, keyed by a stable id. */
+function readFolderOpen(key: string, fallback: boolean): boolean {
+  const v = readFolderOpenMap()[key];
+  return typeof v === "boolean" ? v : fallback;
+}
+
+function writeFolderOpen(key: string, open: boolean) {
+  if (typeof window === "undefined") return;
+  const map = readFolderOpenMap();
+  map[key] = open;
+  window.localStorage.setItem(FOLDER_OPEN_STORAGE_KEY, JSON.stringify(map));
 }
 
 function engineDefaultColor(engine: Engine): string {
