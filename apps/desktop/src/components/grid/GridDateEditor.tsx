@@ -76,7 +76,7 @@ function GridDateEditor({
 
   return (
     <>
-      <div ref={anchorRef} className="grid-date-anchor mono">
+      <div ref={anchorRef} className="cell-edit-input grid-date-anchor mono">
         {initial || "—"}
       </div>
       <CalendarPopover anchorRef={anchorRef} onOutside={commit} onEscape={onCancel}>
