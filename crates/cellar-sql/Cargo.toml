@@ -7,5 +7,8 @@ description = "Cellar — SQL parsing, formatting, dialect awareness"
 publish = false
 
 [dependencies]
+cellar-core = { path = "../cellar-core" }
 serde = { workspace = true }
 specta = { version = "=2.0.0-rc.22", features = ["derive"] }
+sqlparser = "0.52"
+thiserror = { workspace = true }

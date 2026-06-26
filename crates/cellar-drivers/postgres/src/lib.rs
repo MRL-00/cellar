@@ -9,6 +9,7 @@ use cellar_core::query::{PlanMode, Query, QueryPlan, QueryResult, TableBrowseReq
 use cellar_core::schema::{Database, Table};
 use cellar_diff::{TableChangeRequest, TableCommitResult};
 
+mod bind;
 mod connect;
 mod decode;
 mod introspect;

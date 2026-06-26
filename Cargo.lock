@@ -425,6 +425,7 @@ dependencies = [
  "cellar-driver-sqlserver",
  "cellar-schema-diff",
  "cellar-secrets",
+ "cellar-sql",
  "dirs 5.0.1",
  "serde",
  "serde_json",
@@ -486,6 +487,7 @@ dependencies = [
  "async-trait",
  "cellar-core",
  "cellar-diff",
+ "cellar-sql",
  "chrono",
  "futures",
  "serde",
@@ -543,8 +545,11 @@ dependencies = [
 name = "cellar-sql"
 version = "0.2.0"
 dependencies = [
+ "cellar-core",
  "serde",
  "specta",
+ "sqlparser",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -4287,6 +4292,15 @@ checksum = "d91ed6c858b01f942cd56b37a94b3e0a1798290327d1236e4d9cf4eaca44d29d"
 dependencies = [
  "base64ct",
  "der",
+]
+
+[[package]]
+name = "sqlparser"
+version = "0.52.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a875d8cd437cc8a97e9aeaeea352ec9a19aea99c23e9effb17757291de80b08"
+dependencies = [
+ "log",
 ]
 
 [[package]]

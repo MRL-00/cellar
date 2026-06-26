@@ -1,14 +1,19 @@
-//! SQL formatting and dialect awareness for Cellar.
+//! Cellar SQL support: parsing, formatting, and dialect awareness built on
+//! `sqlparser-rs`.
 //!
-//! This crate is the single place that knows how each engine quotes
-//! identifiers and string literals. DDL/SQL builders (the grid commit path in
-//! `cellar-diff`, the schema migration path in `cellar-schema-diff`) format
-//! through here so escaping rules live in one audited spot rather than being
-//! re-implemented per builder.
+//! Two slices live here today:
 //!
-//! A full `sqlparser-rs`-backed parser still lands here later (autocomplete
-//! context, format-on-save). The formatting primitives below are the first
-//! real slice.
+//! - Parameter handling ([`params`]) — named/positional placeholder detection
+//!   and bind preparation for parameterized query execution.
+//! - Dialect-aware formatting ([`Dialect`]) — the single place that knows how
+//!   each engine quotes identifiers and string literals. DDL/SQL builders (the
+//!   grid commit path in `cellar-diff`, the schema migration path in
+//!   `cellar-schema-diff`) format through here so escaping rules live in one
+//!   audited spot rather than being re-implemented per builder.
+
+pub mod params;
+
+pub use params::{detect_parameters, order_values, prepare, ParamError, PreparedStatement};
 
 use serde::{Deserialize, Serialize};
 use specta::Type;

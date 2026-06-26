@@ -46,6 +46,7 @@ cellar-driver-sqlserver = { path = "../../../crates/cellar-drivers/sqlserver" }
 cellar-diff = { path = "../../../crates/cellar-diff" }
 cellar-schema-diff = { path = "../../../crates/cellar-schema-diff" }
 cellar-secrets = { path = "../../../crates/cellar-secrets" }
+cellar-sql = { path = "../../../crates/cellar-sql" }
 
 [dev-dependencies]
 tempfile = "3"
