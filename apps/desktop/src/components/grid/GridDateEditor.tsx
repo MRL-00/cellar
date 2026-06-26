@@ -33,11 +33,12 @@ export function parseTime(raw: string): string {
   return hms.length === 5 ? `${hms}:00` : hms;
 }
 
-type Kind = "date" | "datetime";
+type Kind = "date" | "datetime" | "time";
 
 /**
- * Returns the editor element when this column is a date/datetime, else null so
- * the grid uses its built-in editor. Wire as `<DataGrid renderEditor={renderGridEditor} />`.
+ * Returns the editor element when this column is a date/datetime/time, else
+ * null so the grid uses its built-in editor. Wire as
+ * `<DataGrid renderEditor={renderGridEditor} />`.
  */
 export function renderGridEditor(props: CellEditorProps) {
   const initial = props.value == null ? "" : String(props.value);
@@ -45,6 +46,7 @@ export function renderGridEditor(props: CellEditorProps) {
   if (control?.type === "date") return <GridDateEditor {...props} kind="date" />;
   if (control?.type === "datetime-local")
     return <GridDateEditor {...props} kind="datetime" />;
+  if (control?.type === "time") return <GridDateEditor {...props} kind="time" />;
   return null;
 }
 
@@ -60,6 +62,10 @@ function GridDateEditor({
   const anchorRef = useRef<HTMLDivElement | null>(null);
 
   const commit = () => {
+    if (kind === "time") {
+      onCommit(time);
+      return;
+    }
     if (!date) {
       // Nothing chosen — leave the cell unchanged.
       onCancel();
@@ -74,21 +80,24 @@ function GridDateEditor({
         {initial || "—"}
       </div>
       <CalendarPopover anchorRef={anchorRef} onOutside={commit} onEscape={onCancel}>
-        <DayPicker
-          mode="single"
-          selected={date}
-          onSelect={setDate}
-          defaultMonth={date}
-          showOutsideDays
-          autoFocus
-        />
-        {kind === "datetime" && (
+        {kind !== "time" && (
+          <DayPicker
+            mode="single"
+            selected={date}
+            onSelect={setDate}
+            defaultMonth={date}
+            showOutsideDays
+            autoFocus
+          />
+        )}
+        {kind !== "date" && (
           <label className="grid-date-popover-time">
             Time
             <input
               type="time"
               step={1}
               value={time}
+              autoFocus={kind === "time"}
               onChange={(e) => setTime(e.target.value || "00:00:00")}
             />
           </label>
