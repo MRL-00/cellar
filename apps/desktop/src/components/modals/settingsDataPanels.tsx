@@ -130,12 +130,26 @@ export function SettingsBackups({
           </button>
         </Row>
       </Section>
-      <Section title="Backups">
+      <Section
+        title="Dump & restore"
+        sub="Right-click a table or schema in the sidebar to dump it to a .sql file, or right-click a database / connection to restore one. Postgres only for now; uses your installed pg_dump / psql."
+      >
+        <Row
+          label="Requirements"
+          hint="Install the PostgreSQL client tools (pg_dump, psql) and keep them on your PATH."
+        >
+          <span className="text-[11px] text-fg-2">pg_dump · psql</span>
+        </Row>
+      </Section>
+      <Section
+        title="Backups"
+        sub="Planned — these controls are not wired up yet."
+      >
         <Row
           label="Auto-snapshot before commits"
           hint="pg_dump --schema-only + affected rows"
         >
-          <Toggle on={true} ariaLabel="Auto-snapshot before commits" />
+          <Toggle on={false} ariaLabel="Auto-snapshot before commits" />
         </Row>
         <Row label="Snapshot location">
           <input
@@ -164,7 +178,10 @@ export function SettingsBackups({
           <span className="text-[11px] text-fg-2">days</span>
         </Row>
       </Section>
-      <Section title="Export defaults">
+      <Section
+        title="Export defaults"
+        sub="Planned — result-export defaults are not wired up yet."
+      >
         <Row label="Format">
           <StaticSegment
             values={["CSV", "JSON", "Parquet", "SQL INSERT"]}

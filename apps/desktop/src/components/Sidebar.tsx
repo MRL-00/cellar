@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { ConnectionConfig, Schema } from "@cellar/ipc";
+import type { ConnectionConfig, DumpScope, Schema } from "@cellar/ipc";
 
 import { Icon } from "./icons";
 import {
@@ -44,6 +44,8 @@ export interface SidebarProps {
     database: string;
     schema?: string;
   }) => void;
+  onDump?: (preset: { connectionId: string; scope: DumpScope }) => void;
+  onRestore?: (preset: { connectionId: string; database: string }) => void;
 }
 
 export function Sidebar({
@@ -52,6 +54,8 @@ export function Sidebar({
   onDuplicateConnection,
   onOpenSettings,
   onCompareSchemas,
+  onDump,
+  onRestore,
 }: SidebarProps = {}) {
   const [filter, setFilter] = useState("");
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
@@ -115,6 +119,10 @@ export function Sidebar({
     if (navigator.clipboard) void navigator.clipboard.writeText(text);
   };
 
+  // Dump/restore shells out to pg_dump/psql — Postgres only in this slice.
+  const isPostgres = (connectionId: string) =>
+    configById.get(connectionId)?.engine === "postgres";
+
   const queryFor = (connectionId: string, database: string, sql?: string) => {
     const id = newQueryTab(connectionId, database);
     if (sql) setQuerySql(id, sql);
@@ -159,6 +167,19 @@ export function Sidebar({
                 schemas: node.schemas,
               }),
           },
+          ...(onRestore && isPostgres(node.connectionId)
+            ? [
+                {
+                  label: "Restore from file…",
+                  icon: <Icon.upload size={12} />,
+                  onClick: () =>
+                    onRestore({
+                      connectionId: node.connectionId,
+                      database: node.database,
+                    }),
+                },
+              ]
+            : []),
           {
             label: node.showHiddenSchemas
               ? "Hide empty schemas"
@@ -204,6 +225,23 @@ export function Sidebar({
             onClick: () =>
               openErDiagram(node.connectionId, node.database, [node.schema]),
           },
+          ...(onDump && isPostgres(node.connectionId)
+            ? [
+                {
+                  label: "Dump schema…",
+                  icon: <Icon.download size={12} />,
+                  onClick: () =>
+                    onDump({
+                      connectionId: node.connectionId,
+                      scope: {
+                        kind: "schema" as const,
+                        database: node.database,
+                        schema: node.schema,
+                      },
+                    }),
+                },
+              ]
+            : []),
           {
             label: node.hidden ? "Show in sidebar" : "Hide from sidebar",
             icon: node.hidden ? (
@@ -227,8 +265,8 @@ export function Sidebar({
             onClick: () => copyText(node.schema),
           },
         ];
-      case "relation":
-        return [
+      case "relation": {
+        const items: MenuItem[] = [
           {
             label: "Open",
             icon: node.isView ? (
@@ -266,6 +304,24 @@ export function Sidebar({
                 column: null,
               }),
           },
+        ];
+        if (onDump && !node.isView && isPostgres(node.connectionId)) {
+          items.push({
+            label: "Dump…",
+            icon: <Icon.download size={12} />,
+            onClick: () =>
+              onDump({
+                connectionId: node.connectionId,
+                scope: {
+                  kind: "table",
+                  database: node.database,
+                  schema: node.schema,
+                  table: node.name,
+                },
+              }),
+          });
+        }
+        items.push(
           {
             label: "Copy qualified name",
             icon: <Icon.copy size={12} />,
@@ -276,7 +332,9 @@ export function Sidebar({
             icon: <Icon.copy size={12} />,
             onClick: () => copyText(node.name),
           },
-        ];
+        );
+        return items;
+      }
     }
   };
 
@@ -437,6 +495,16 @@ export function Sidebar({
         onClick: () => onDuplicateConnection?.(config),
       },
     ];
+    if (onRestore && isPostgres(config.id)) {
+      const dbs = byId[config.id]?.databases ?? [];
+      const database =
+        dbs.find((d) => d.is_default)?.name ?? dbs[0]?.name ?? config.database;
+      items.push({
+        label: "Restore from file…",
+        icon: <Icon.upload size={12} />,
+        onClick: () => onRestore({ connectionId: config.id, database }),
+      });
+    }
     const folders = layoutItems.filter(
       (it): it is SidebarFolderItem => it.kind === "folder",
     );

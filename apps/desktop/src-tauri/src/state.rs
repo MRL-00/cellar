@@ -464,6 +464,19 @@ impl ConnectionRegistry {
             })
     }
 
+    /// Resolve the saved config for a connection (falling back to the open
+    /// connection's config). Used by dump/restore to build the pg_dump/psql
+    /// connection arguments.
+    pub async fn connection_config(&self, id: &str) -> CellarResult<ConnectionConfig> {
+        let inner = self.inner.read().await;
+        inner
+            .configs
+            .get(id)
+            .or_else(|| inner.open.get(id).map(|o| &o.config))
+            .cloned()
+            .ok_or_else(|| CellarError::invalid_config(format!("unknown connection {id}")))
+    }
+
     /// The engine for a saved or open connection, if Cellar knows about it.
     pub async fn engine_for(&self, id: &str) -> Option<Engine> {
         let inner = self.inner.read().await;

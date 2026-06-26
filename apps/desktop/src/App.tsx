@@ -22,6 +22,12 @@ import {
   SchemaCompareDialog,
   type ComparePreset,
 } from "./components/modals/SchemaCompareDialog";
+import {
+  DumpModal,
+  RestoreModal,
+  type DumpPreset,
+  type RestorePreset,
+} from "./components/modals/DumpRestoreModals";
 import { useLayout } from "./state/layout";
 
 type ModalId =
@@ -31,6 +37,8 @@ type ModalId =
   | "exportSetup"
   | "importSetup"
   | "schemaCompare"
+  | "dump"
+  | "restore"
   | null;
 type ConnDialog = { mode: "new" | "edit"; initial?: ConnectionConfig } | null;
 
@@ -114,6 +122,8 @@ export function App() {
   const [connDialog, setConnDialog] = useState<ConnDialog>(null);
   const [empty, setEmpty] = useState(false);
   const [comparePreset, setComparePreset] = useState<ComparePreset | null>(null);
+  const [dumpPreset, setDumpPreset] = useState<DumpPreset | null>(null);
+  const [restorePreset, setRestorePreset] = useState<RestorePreset | null>(null);
   const [settingsInitialCat, setSettingsInitialCat] =
     useState<SettingsCatId>("appearance");
 
@@ -122,6 +132,14 @@ export function App() {
   const openSchemaCompare = useCallback((preset?: ComparePreset) => {
     setComparePreset(preset ?? null);
     setModal("schemaCompare");
+  }, []);
+  const openDump = useCallback((preset: DumpPreset) => {
+    setDumpPreset(preset);
+    setModal("dump");
+  }, []);
+  const openRestore = useCallback((preset: RestorePreset) => {
+    setRestorePreset(preset);
+    setModal("restore");
   }, []);
   const openSettings = useCallback((initialCat: SettingsCatId = "appearance") => {
     setSettingsInitialCat(initialCat);
@@ -199,6 +217,8 @@ export function App() {
                 onDuplicateConnection={duplicateConnection}
                 onOpenSettings={() => openSettings()}
                 onCompareSchemas={openSchemaCompare}
+                onDump={openDump}
+                onRestore={openRestore}
               />
             </div>
             <ResizeHandle
@@ -308,6 +328,12 @@ export function App() {
       {modal === "importSetup" && <ImportSetupModal onClose={closeModal} />}
       {modal === "schemaCompare" && (
         <SchemaCompareDialog onClose={closeModal} preset={comparePreset} />
+      )}
+      {modal === "dump" && dumpPreset && (
+        <DumpModal onClose={closeModal} preset={dumpPreset} />
+      )}
+      {modal === "restore" && restorePreset && (
+        <RestoreModal onClose={closeModal} preset={restorePreset} />
       )}
     </div>
   );

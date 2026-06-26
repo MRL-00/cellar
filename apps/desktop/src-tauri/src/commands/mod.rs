@@ -7,6 +7,7 @@
 
 pub mod ai;
 pub mod connection;
+pub mod dump;
 pub mod history;
 pub mod query;
 pub mod schema;
@@ -45,6 +46,9 @@ pub fn builder() -> Builder<tauri::Wry> {
         schema_diff::save_schema_snapshot,
         schema_diff::list_schema_snapshots,
         schema_diff::delete_schema_snapshot,
+        dump::dump_postgres,
+        dump::restore_postgres,
+        dump::cancel_dump,
         history::list_query_history,
         templates::list_query_templates,
         templates::save_query_template,
