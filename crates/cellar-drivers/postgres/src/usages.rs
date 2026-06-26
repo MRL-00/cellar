@@ -35,13 +35,16 @@ pub async fn fetch_usage_definitions(
     Ok(defs)
 }
 
-/// Structurally confirm references to `object` (optionally narrowed to
-/// `column`) across the cached definitions. `schema_filter`, when set, limits
-/// results to referencing objects in that schema (the default "current schema"
-/// scope); `None` searches every schema in the database.
+/// Structurally confirm references to `target_schema`.`object` (optionally
+/// narrowed to `column`) across the cached definitions. `schema_filter`, when
+/// set, limits results to referencing objects in that schema (the default
+/// "current schema" scope); `None` searches every schema in the database.
+/// `target_schema` is the schema of the searched table — it disambiguates
+/// schema-qualified references so `other.users` isn't a usage of `public.users`.
 pub fn search_usages(
     defs: &[UsageDefinition],
     schema_filter: Option<&str>,
+    target_schema: &str,
     object: &str,
     column: Option<&str>,
 ) -> Vec<UsageReference> {
@@ -52,7 +55,7 @@ pub fn search_usages(
                 continue;
             }
         }
-        let refs = cellar_sql::find_references(&def.definition, object, column);
+        let refs = cellar_sql::find_references(&def.definition, target_schema, object, column);
         // One result per object, anchored at its first confirmed reference, so
         // the panel stays readable for definitions that mention the name often.
         if let Some(first) = refs.first() {
@@ -269,7 +272,7 @@ mod tests {
                 "SELECT * FROM user_identities",
             ),
         ];
-        let hits = search_usages(&defs, None, "users", None);
+        let hits = search_usages(&defs, None, "public", "users", None);
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].name, "active_users");
     }
@@ -280,11 +283,11 @@ mod tests {
             def(UsageKind::View, "public", "v1", "SELECT * FROM users"),
             def(UsageKind::View, "analytics", "v2", "SELECT * FROM users"),
         ];
-        let scoped = search_usages(&defs, Some("public"), "users", None);
+        let scoped = search_usages(&defs, Some("public"), "public", "users", None);
         assert_eq!(scoped.len(), 1);
         assert_eq!(scoped[0].schema, "public");
 
-        let all = search_usages(&defs, None, "users", None);
+        let all = search_usages(&defs, None, "public", "users", None);
         assert_eq!(all.len(), 2);
     }
 
@@ -299,7 +302,7 @@ mod tests {
             ),
             def(UsageKind::View, "public", "ids", "SELECT id FROM users"),
         ];
-        let hits = search_usages(&defs, None, "users", Some("email"));
+        let hits = search_usages(&defs, None, "public", "users", Some("email"));
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].name, "emails");
         assert_eq!(hits[0].matched_column.as_deref(), Some("email"));

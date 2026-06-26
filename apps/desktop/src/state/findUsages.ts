@@ -31,6 +31,12 @@ interface FindUsagesStore {
   setAllSchemas: (all: boolean) => void;
   /** Re-run the current target's search (e.g. after a schema refresh). */
   refresh: () => void;
+  /**
+   * React to a connection's schema being refreshed: the backend has just
+   * dropped its cached usage definitions, so re-run the current search to
+   * avoid showing stale results for that connection.
+   */
+  onConnectionRefreshed: (connectionId: string) => void;
   clear: () => void;
 }
 
@@ -85,6 +91,13 @@ export const useFindUsages = create<FindUsagesStore>((set, get) => {
     refresh() {
       const { target, allSchemas } = get();
       if (target) run(target, allSchemas);
+    },
+
+    onConnectionRefreshed(connectionId) {
+      const { target, allSchemas, status } = get();
+      if (target?.connectionId === connectionId && status !== "idle") {
+        run(target, allSchemas);
+      }
     },
 
     clear() {

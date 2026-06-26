@@ -1,7 +1,7 @@
 //! Structural reference detection.
 //!
 //! We tokenize SQL with `sqlparser`'s Postgres tokenizer and look for the
-//! target name as a whole *identifier* token. That gets us three things naive
+//! target name as a whole *identifier* token. That gets us four things naive
 //! `LIKE '%name%'` matching can't:
 //!
 //! - **No substring hits.** `user_identities` is one word token, so a search
@@ -11,9 +11,13 @@
 //!   can masquerade as a reference.
 //! - **Quoting-aware case folding.** Unquoted Postgres identifiers fold to
 //!   lowercase; quoted ones are case-sensitive. We match the same way.
+//! - **Schema-aware qualification.** A reference written `other.users` is only
+//!   a usage of `target_schema.users` when `other` equals the target schema.
+//!   Unqualified references (`users`) still match, since their schema resolves
+//!   through `search_path` and we conservatively include them.
 
 use sqlparser::dialect::PostgreSqlDialect;
-use sqlparser::tokenizer::{Token, Tokenizer, Word};
+use sqlparser::tokenizer::{Token, TokenWithLocation, Tokenizer, Word};
 
 /// One confirmed occurrence of the searched name inside a definition.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -30,16 +34,26 @@ pub struct Reference {
 
 const MAX_SNIPPET_CHARS: usize = 200;
 
-/// Find structurally-confirmed references to `object` (a table/view name) in
-/// `sql`. When `column` is given, the result is narrowed to column references:
-/// a hit is reported only when the table identifier *and* the column identifier
-/// both appear in the definition (so a same-named column on an unrelated table
-/// that the definition never mentions is not a false positive), and the
-/// returned references point at the column occurrences.
+/// Find structurally-confirmed references to `schema`.`object` (a table/view) in
+/// `sql`. A schema-qualified reference (`other.object`) only counts when its
+/// qualifier equals `schema`; an unqualified reference (`object`) always counts,
+/// since its schema is resolved via `search_path` at runtime and we can't know
+/// it statically.
+///
+/// When `column` is given, the result is narrowed to column references: a hit is
+/// reported only when the table identifier *and* the column identifier both
+/// appear in the definition (so a same-named column on an unrelated table that
+/// the definition never mentions is not a false positive), and the returned
+/// references point at the column occurrences.
 ///
 /// Returns an empty vector when the SQL cannot be tokenized — a malformed
 /// definition simply yields no confirmed references rather than an error.
-pub fn find_references(sql: &str, object: &str, column: Option<&str>) -> Vec<Reference> {
+pub fn find_references(
+    sql: &str,
+    schema: &str,
+    object: &str,
+    column: Option<&str>,
+) -> Vec<Reference> {
     let dialect = PostgreSqlDialect {};
     let tokens = match Tokenizer::new(&dialect, sql).tokenize_with_location() {
         Ok(tokens) => tokens,
@@ -48,10 +62,10 @@ pub fn find_references(sql: &str, object: &str, column: Option<&str>) -> Vec<Ref
 
     let mut table_hits: Vec<(u32, u32)> = Vec::new();
     let mut column_hits: Vec<(u32, u32)> = Vec::new();
-    for tok in &tokens {
+    for (i, tok) in tokens.iter().enumerate() {
         if let Token::Word(word) = &tok.token {
             let at = (tok.location.line as u32, tok.location.column as u32);
-            if ident_eq(word, object) {
+            if ident_eq(word, object) && qualifier_matches(&tokens, i, schema) {
                 table_hits.push(at);
             }
             if let Some(col) = column {
@@ -81,6 +95,35 @@ pub fn find_references(sql: &str, object: &str, column: Option<&str>) -> Vec<Ref
                 .collect()
         }
     }
+}
+
+/// Decide whether the identifier at `index` belongs to `schema`. Walks back over
+/// whitespace looking for a `.`; if one is found, the identifier before it is the
+/// schema qualifier and must equal `schema`. No qualifier means an unqualified
+/// reference, which we accept (its schema resolves via `search_path`).
+fn qualifier_matches(tokens: &[TokenWithLocation], index: usize, schema: &str) -> bool {
+    let Some(dot) = prev_significant(tokens, index) else {
+        return true;
+    };
+    if !matches!(tokens[dot].token, Token::Period) {
+        return true;
+    }
+    match prev_significant(tokens, dot) {
+        Some(q) => match &tokens[q].token {
+            Token::Word(word) => ident_eq(word, schema),
+            // A `.` not preceded by an identifier (e.g. a quoted-string edge
+            // case) isn't a schema qualifier we can reason about — don't reject.
+            _ => true,
+        },
+        None => true,
+    }
+}
+
+/// Index of the nearest non-whitespace token before `index`, if any.
+fn prev_significant(tokens: &[TokenWithLocation], index: usize) -> Option<usize> {
+    (0..index)
+        .rev()
+        .find(|&j| !matches!(tokens[j].token, Token::Whitespace(_)))
 }
 
 /// Compare a tokenized identifier to a target name using Postgres' own folding
@@ -119,7 +162,7 @@ mod tests {
 
     #[test]
     fn matches_a_real_table_reference() {
-        let refs = find_references("SELECT * FROM users WHERE active", "users", None);
+        let refs = find_references("SELECT * FROM users WHERE active", "public", "users", None);
         assert_eq!(refs.len(), 1);
         assert_eq!(refs[0].line, 1);
         assert!(refs[0].snippet.contains("users"));
@@ -128,13 +171,18 @@ mod tests {
     #[test]
     fn does_not_match_a_substring() {
         // `user_identities` must not match a search for `user`.
-        let refs = find_references("SELECT id FROM user_identities", "user", None);
+        let refs = find_references("SELECT id FROM user_identities", "public", "user", None);
         assert!(refs.is_empty());
     }
 
     #[test]
     fn does_not_match_inside_a_string_literal() {
-        let refs = find_references("SELECT 'users' AS label FROM accounts", "users", None);
+        let refs = find_references(
+            "SELECT 'users' AS label FROM accounts",
+            "public",
+            "users",
+            None,
+        );
         assert!(refs.is_empty());
     }
 
@@ -142,6 +190,7 @@ mod tests {
     fn does_not_match_inside_a_comment() {
         let refs = find_references(
             "-- references users here\nSELECT 1 FROM accounts",
+            "public",
             "users",
             None,
         );
@@ -150,22 +199,22 @@ mod tests {
 
     #[test]
     fn matches_unquoted_case_insensitively() {
-        let refs = find_references("SELECT * FROM USERS", "users", None);
+        let refs = find_references("SELECT * FROM USERS", "public", "users", None);
         assert_eq!(refs.len(), 1);
     }
 
     #[test]
     fn quoted_identifier_is_case_sensitive() {
-        let hit = find_references("SELECT * FROM \"Users\"", "Users", None);
+        let hit = find_references("SELECT * FROM \"Users\"", "public", "Users", None);
         assert_eq!(hit.len(), 1);
-        let miss = find_references("SELECT * FROM \"Users\"", "users", None);
+        let miss = find_references("SELECT * FROM \"Users\"", "public", "users", None);
         assert!(miss.is_empty());
     }
 
     #[test]
     fn reports_line_for_multiline_definition() {
         let sql = "SELECT u.id\nFROM accounts a\nJOIN users u ON u.id = a.user_id";
-        let refs = find_references(sql, "users", None);
+        let refs = find_references(sql, "public", "users", None);
         assert_eq!(refs.len(), 1);
         assert_eq!(refs[0].line, 3);
     }
@@ -173,7 +222,7 @@ mod tests {
     #[test]
     fn column_scope_requires_both_table_and_column() {
         let sql = "SELECT email FROM users";
-        let refs = find_references(sql, "users", Some("email"));
+        let refs = find_references(sql, "public", "users", Some("email"));
         assert_eq!(refs.len(), 1);
         assert_eq!(refs[0].matched_column.as_deref(), Some("email"));
     }
@@ -182,14 +231,41 @@ mod tests {
     fn column_scope_misses_when_table_absent() {
         // `email` exists, but the definition never mentions `users`.
         let sql = "SELECT email FROM contacts";
-        let refs = find_references(sql, "users", Some("email"));
+        let refs = find_references(sql, "public", "users", Some("email"));
         assert!(refs.is_empty());
     }
 
     #[test]
     fn matches_constraint_definition() {
         let def = "FOREIGN KEY (user_id) REFERENCES users(id)";
-        assert_eq!(find_references(def, "users", None).len(), 1);
-        assert_eq!(find_references(def, "users", Some("id")).len(), 1);
+        assert_eq!(find_references(def, "public", "users", None).len(), 1);
+        assert_eq!(find_references(def, "public", "users", Some("id")).len(), 1);
+    }
+
+    #[test]
+    fn matches_schema_qualified_reference_in_same_schema() {
+        let refs = find_references("SELECT * FROM public.users", "public", "users", None);
+        assert_eq!(refs.len(), 1);
+    }
+
+    #[test]
+    fn rejects_schema_qualified_reference_in_another_schema() {
+        // `analytics.users` is a different table than `public.users`.
+        let refs = find_references("SELECT * FROM analytics.users", "public", "users", None);
+        assert!(refs.is_empty());
+    }
+
+    #[test]
+    fn still_matches_unqualified_reference_for_any_schema() {
+        // Bare `users` resolves via search_path, so we conservatively match it.
+        let refs = find_references("SELECT * FROM users", "analytics", "users", None);
+        assert_eq!(refs.len(), 1);
+    }
+
+    #[test]
+    fn qualified_column_access_does_not_confuse_table_match() {
+        // `users.id`: `users` is unqualified (the table), `id` is qualified by it.
+        let refs = find_references("SELECT users.id FROM users", "public", "users", None);
+        assert_eq!(refs.len(), 2);
     }
 }

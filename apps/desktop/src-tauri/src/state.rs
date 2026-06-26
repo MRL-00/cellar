@@ -400,6 +400,7 @@ impl ConnectionRegistry {
         Ok(cellar_driver_postgres::search_usages(
             &defs,
             schema_filter,
+            &schema,
             &object_name,
             column_name.as_deref(),
         ))
