@@ -217,6 +217,17 @@ describe("parseCellInput", () => {
     });
   });
 
+  it("validates extended blob types as hex, matching the bytea renderer", () => {
+    expect(parseCellInput(column("thumb", "longblob"), "\\xdeadbeef")).toEqual({
+      ok: true,
+      value: "\\xdeadbeef",
+    });
+    expect(parseCellInput(column("thumb", "image"), "not hex")).toEqual({
+      ok: false,
+      message: "Use hex bytea format, e.g. \\x0a2b",
+    });
+  });
+
   it("maps blank nullable non-text values to NULL", () => {
     expect(parseCellInput(column("due_at", "timestamptz", true), "")).toEqual({
       ok: true,

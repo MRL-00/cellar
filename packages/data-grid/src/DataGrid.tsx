@@ -22,6 +22,8 @@ import { FilterBar } from "./FilterBar";
 import { filterRows } from "./filters";
 import { GridIcon } from "./icons";
 import { PendingBar } from "./PendingBar";
+import { defaultRendererRegistry } from "./renderers/registry";
+import type { RendererRegistry, SaveBlob } from "./renderers/types";
 import { cycleSortState, sortGridRows } from "./sort";
 import { TypeIcon } from "./TypeIcon";
 import type {
@@ -133,6 +135,16 @@ export type DataGridProps = {
   /** Text to display for NULL cell values. Defaults to "NULL". */
   nullDisplay?: string;
 
+  /**
+   * Pluggable rich-type cell renderers. Defaults to the built-in set (JSON,
+   * arrays, bytea, geometry). Pass `null` to disable rich rendering entirely
+   * and fall back to plain stringified display.
+   */
+  renderers?: RendererRegistry | null;
+
+  /** Override how a renderer persists binary payloads (e.g. a native dialog). */
+  saveBlob?: SaveBlob;
+
   /** Stripe alternating data rows. Defaults to false. */
   stripeRows?: boolean;
 
@@ -193,6 +205,8 @@ export function DataGrid({
   onRevert,
   readOnly = false,
   nullDisplay = "NULL",
+  renderers = defaultRendererRegistry,
+  saveBlob,
   stripeRows = false,
   onCellContextMenu,
   selectedRow = null,
@@ -785,6 +799,8 @@ export function DataGrid({
                   frozenCount={frozenCount}
                   readOnly={readOnly}
                   nullDisplay={nullDisplay}
+                  renderers={renderers}
+                  saveBlob={saveBlob}
                   stripeRows={stripeRows}
                   top={
                     virtualRows.totalHeight === undefined
@@ -849,6 +865,8 @@ type GridRowViewProps = {
   frozenCount: number;
   readOnly: boolean;
   nullDisplay: string;
+  renderers: RendererRegistry | null;
+  saveBlob: SaveBlob | undefined;
   stripeRows: boolean;
   top: number | undefined;
   onSelect: (next: CellAddress | null) => void;
@@ -876,6 +894,8 @@ const GridRowView = memo(function GridRowView({
   frozenCount,
   readOnly,
   nullDisplay,
+  renderers,
+  saveBlob,
   stripeRows,
   top,
   onSelect,
@@ -1029,7 +1049,13 @@ const GridRowView = memo(function GridRowView({
                 onCancel={() => onEdit(null)}
               />
             ) : (
-              <CellValue col={c} value={displayed} nullDisplay={nullDisplay} />
+              <CellValue
+                col={c}
+                value={displayed}
+                nullDisplay={nullDisplay}
+                renderers={renderers}
+                saveBlob={saveBlob}
+              />
             )}
             {cellChange && !isEdit && (
               <span

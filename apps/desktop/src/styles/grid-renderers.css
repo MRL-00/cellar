@@ -1,0 +1,227 @@
+/* Rich cell renderers for the data grid: JSON tree, array chips, bytea/blob
+   preview, geometry stub, and the shared inline + popover chrome. Inline views
+   stay single-line so the virtualized row height never changes. */
+
+/* ── inline wrapper + expand affordance ───────────────────── */
+.cell-rich {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+}
+.cell-rich-inline {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.cell-rich-expand {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg-3);
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.1s, color 0.1s, background 0.1s;
+}
+.grid-cell:hover .cell-rich-expand,
+.grid-cell.is-selected .cell-rich-expand {
+  opacity: 1;
+}
+.cell-rich-expand:hover {
+  color: var(--fg-0);
+  background: var(--bg-3);
+}
+
+/* ── popover shell ────────────────────────────────────────── */
+.cell-popover {
+  position: fixed;
+  z-index: 1000;
+  max-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-1);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  font-size: 11px;
+  color: var(--fg-1);
+  overflow: hidden;
+}
+.cell-popover-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border-divider);
+  background: var(--bg-2);
+  color: var(--fg-2);
+  font-size: 10px;
+  text-transform: lowercase;
+}
+.cell-popover-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cell-popover-close {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--fg-3);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0 2px;
+}
+.cell-popover-close:hover { color: var(--fg-0); }
+.cell-popover-body { overflow: auto; padding: 8px; }
+
+.cell-rich-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.cell-rich-action {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-2);
+  color: var(--fg-1);
+  cursor: pointer;
+  font-size: 10px;
+  padding: 2px 7px;
+}
+.cell-rich-action:hover { background: var(--bg-3); color: var(--fg-0); }
+.cell-rich-action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: var(--bg-2);
+  color: var(--fg-3);
+}
+.cell-rich-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-sm);
+  background: var(--bg-3);
+  color: var(--fg-2);
+  font-size: 10px;
+  padding: 2px 6px;
+}
+.cell-rich-pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: var(--font-mono);
+  color: var(--fg-1);
+}
+.cell-rich-error { color: var(--warn); font-size: 11px; }
+
+/* ── JSON ─────────────────────────────────────────────────── */
+.cell-json-inline { color: var(--fg-2); font-style: italic; }
+.cell-json-tree {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.55;
+  white-space: nowrap;
+}
+.cell-json-row { display: block; }
+.cell-json-toggle {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+}
+.cell-json-toggle:hover { background: var(--bg-2); }
+.cell-json-caret { color: var(--fg-3); display: inline-block; width: 12px; }
+.cell-json-collapsed { color: var(--fg-3); }
+.cell-json-key { color: var(--accent); }
+.cell-json-punct { color: var(--fg-3); }
+.cell-json-string { color: var(--insert); }
+.cell-json-number { color: var(--info); }
+.cell-json-boolean { color: var(--update); }
+.cell-json-null { color: var(--fg-3); font-style: italic; }
+
+/* ── arrays ───────────────────────────────────────────────── */
+.cell-array-inline { display: inline-flex; align-items: center; gap: 3px; min-width: 0; }
+.cell-array-empty { color: var(--fg-3); }
+.cell-array-more { color: var(--fg-3); font-size: 10px; flex-shrink: 0; }
+.cell-array-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-sm);
+  background: var(--bg-3);
+  border: 1px solid var(--border-subtle);
+  padding: 0 5px;
+  font-size: 10px;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cell-array-chip.kind-number { color: var(--info); }
+.cell-array-chip.kind-boolean { color: var(--update); }
+.cell-array-chip.kind-null { color: var(--fg-3); font-style: italic; }
+.cell-array-chip.kind-string { color: var(--fg-1); }
+.cell-array-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.cell-array-list li { display: flex; align-items: center; gap: 6px; }
+.cell-array-index { color: var(--fg-4); font-size: 10px; min-width: 24px; text-align: right; }
+
+/* ── bytea / blob ─────────────────────────────────────────── */
+.cell-bytes-inline { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
+.cell-bytes-imgdot { width: 6px; height: 6px; border-radius: 50%; background: var(--info); flex-shrink: 0; }
+.cell-bytes-hexpeek { color: var(--fg-2); overflow: hidden; text-overflow: ellipsis; }
+.cell-bytes-size { color: var(--fg-3); font-size: 10px; flex-shrink: 0; }
+.cell-bytes-dump {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--fg-1);
+  white-space: pre;
+}
+.cell-bytes-dump-row { display: flex; gap: 10px; }
+.cell-bytes-offset { color: var(--fg-4); }
+.cell-bytes-hex { color: var(--fg-1); }
+.cell-bytes-ascii { color: var(--fg-3); }
+.cell-bytes-dump-more { color: var(--fg-3); margin-top: 4px; }
+.cell-bytes-image { margin-bottom: 8px; }
+.cell-bytes-image img {
+  max-width: 100%;
+  max-height: 220px;
+  display: block;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+}
+
+/* ── geometry (stub) ──────────────────────────────────────── */
+.cell-geometry-inline { display: inline-flex; align-items: center; gap: 5px; }
+.cell-geometry-glyph { color: var(--info); }
+.cell-geometry-kind { color: var(--fg-2); font-size: 10px; text-transform: uppercase; }
+.cell-geometry-map {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 96px;
+  margin-bottom: 8px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  color: var(--fg-3);
+  font-size: 10px;
+}
