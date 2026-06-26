@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { GridIcon } from "./icons";
+import { defaultRendererRegistry } from "./renderers/registry";
+import { RichCell } from "./renderers/RichCell";
+import type { RendererRegistry, SaveBlob } from "./renderers/types";
 import { statusDotColor, statusTextColor } from "./status";
 import type { GridColumn, GridValue } from "./types";
 
@@ -190,13 +193,35 @@ export function CellValue({
   col,
   value,
   nullDisplay = "NULL",
+  renderers = defaultRendererRegistry,
+  saveBlob,
 }: {
   col: GridColumn;
   value: Value;
   nullDisplay?: string;
+  /** Rich-type renderer registry. Defaults to the built-in renderers. */
+  renderers?: RendererRegistry | null;
+  saveBlob?: SaveBlob;
 }) {
   if (value === null || value === undefined) {
     return <span className="cell-null mono">{nullDisplay}</span>;
+  }
+  // Rich renderers take over the *display* of complex types (JSON, arrays,
+  // bytea, geometry). Editing is unaffected — double-click still opens the
+  // existing inline editor for these cells.
+  if (renderers) {
+    const renderer = renderers.resolve(col, value);
+    if (renderer) {
+      return (
+        <RichCell
+          renderer={renderer}
+          column={col}
+          value={value}
+          nullDisplay={nullDisplay}
+          saveBlob={saveBlob}
+        />
+      );
+    }
   }
   if (col.enum && col.key === "status") {
     const v = String(value);

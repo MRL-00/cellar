@@ -2,6 +2,7 @@
 @import "./tokens.css";
 @import "./base.css";
 @import "./grid.css";
+@import "./grid-renderers.css";
 @import "./editor.css";
 
 /* Bridge: expose every design token from tokens.css as a Tailwind v4 theme key
