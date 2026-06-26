@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { GridIcon } from "./icons";
 import { defaultRendererRegistry } from "./renderers/registry";
 import { RichCell } from "./renderers/RichCell";
+import { isByteaType } from "./renderers/typeMatch";
 import type { RendererRegistry, SaveBlob } from "./renderers/types";
 import { statusDotColor, statusTextColor } from "./status";
 import type { GridColumn, GridValue } from "./types";
@@ -154,7 +155,9 @@ function normalizeType(type: string):
   | "unknown" {
   const t = type.toLowerCase().replace(/\(.+\)$/, "").trim();
   if (["bool", "boolean"].includes(t)) return "bool";
-  if (["bytea", "binary", "varbinary", "blob"].includes(t)) return "bytea";
+  // Keep the hex-editing set in lockstep with the bytea renderer's detection so
+  // every type shown as a hex blob is also validated as hex when edited.
+  if (isByteaType(t)) return "bytea";
   if (t === "date") return "date";
   if (["float4", "float8", "real", "double precision"].includes(t)) {
     return "float";

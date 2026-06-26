@@ -116,14 +116,18 @@ function ImagePreview({ bytes, mime }: { bytes: Uint8Array; mime: string }) {
 }
 
 function BytesExpanded({
-  bytes,
+  text,
   saveBlob,
   columnName,
 }: {
-  bytes: Uint8Array;
+  text: string;
   saveBlob: (data: Uint8Array, filename: string, mime: string) => void;
   columnName: string;
 }) {
+  // Parse once per distinct value. `renderExpanded` runs on every grid render
+  // while the popover is open; without this the bytes ref would change each
+  // time and ImagePreview would revoke/recreate its object URL (flicker).
+  const bytes = useMemo(() => parseHexBytes(text), [text]);
   const mime = useMemo(() => sniffImageMime(bytes), [bytes]);
   const [showImage, setShowImage] = useState(false);
   const rows = useMemo(() => hexDump(bytes), [bytes]);
@@ -197,7 +201,7 @@ export const byteaRenderer: CellRenderer = {
     );
   },
   renderExpanded: ({ text, column, saveBlob }) => (
-    <BytesExpanded bytes={parseHexBytes(text)} saveBlob={saveBlob} columnName={column.name} />
+    <BytesExpanded text={text} saveBlob={saveBlob} columnName={column.name} />
   ),
   title: ({ column }) => `${column.name} · ${column.type}`,
 };

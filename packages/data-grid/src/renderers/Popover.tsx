@@ -109,16 +109,24 @@ export function Popover({
     const onPointerDown = (event: MouseEvent) => {
       if (!panelRef.current?.contains(event.target as Node | null)) onClose();
     };
-    const onScroll = () => onClose();
+    // Capture phase catches scrolls on the grid's inner `.grid-scroll` (which
+    // never reach `window` via bubbling) so the panel doesn't float away from
+    // its anchor. But scrolling *inside* the panel (long JSON tree, hex dump)
+    // must not dismiss it, so ignore scrolls originating within it.
+    const onScroll = (event: Event) => {
+      if (panelRef.current?.contains(event.target as Node | null)) return;
+      onClose();
+    };
+    const onResize = () => onClose();
     window.addEventListener("keydown", onKey, true);
     window.addEventListener("mousedown", onPointerDown, true);
     window.addEventListener("scroll", onScroll, true);
-    window.addEventListener("resize", onScroll);
+    window.addEventListener("resize", onResize);
     return () => {
       window.removeEventListener("keydown", onKey, true);
       window.removeEventListener("mousedown", onPointerDown, true);
       window.removeEventListener("scroll", onScroll, true);
-      window.removeEventListener("resize", onScroll);
+      window.removeEventListener("resize", onResize);
     };
   }, [onClose]);
 

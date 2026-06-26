@@ -37,6 +37,8 @@ describe("type predicates", () => {
   it("detects bytea and geometry types", () => {
     expect(isByteaType("bytea")).toBe(true);
     expect(isByteaType("BLOB")).toBe(true);
+    expect(isByteaType("longblob")).toBe(true);
+    expect(isByteaType("image")).toBe(true);
     expect(isGeometryType("geometry")).toBe(true);
     expect(isGeometryType("geography(Point,4326)")).toBe(true);
     expect(isGeometryType("text")).toBe(false);
