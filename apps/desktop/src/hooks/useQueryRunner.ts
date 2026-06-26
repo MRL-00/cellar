@@ -1,5 +1,5 @@
 import { commands, unwrap } from "@cellar/ipc";
-import type { QueryResult } from "@cellar/ipc";
+import type { QueryParam, QueryResult } from "@cellar/ipc";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { queryResultToGrid } from "../lib/gridMapping";
@@ -38,7 +38,11 @@ export interface QueryRunner {
   errorLine: number | null;
   /** Whether more rows can be fetched (driver truncated the last result). */
   canLoadMore: boolean;
-  run: (sql: string, opts: RunOptions) => void;
+  /**
+   * Execute `sql`. When `params` is supplied the backend binds them through the
+   * native protocol; the same values are reused for "Load more" pages.
+   */
+  run: (sql: string, opts: RunOptions, params?: QueryParam[]) => void;
   /** Fetch the next page and append it to the current result grid. */
   loadMore: () => void;
   /**
@@ -63,8 +67,12 @@ export function useQueryRunner(tab: QueryTab): QueryRunner {
   const [canLoadMore, setCanLoadMore] = useState(false);
   const runToken = useRef(0);
   const mounted = useRef(true);
-  // Track the current SQL and next offset for "Load more" appends.
-  const loadMoreRef = useRef<{ sql: string; offset: number } | null>(null);
+  // Track the current SQL, bound params, and next offset for "Load more".
+  const loadMoreRef = useRef<{
+    sql: string;
+    offset: number;
+    params: QueryParam[];
+  } | null>(null);
   // Cancellation handle for the in-flight run, passed to the backend so a
   // cancel call can find the statement's connection.
   const activeRun = useRef<{
@@ -80,6 +88,27 @@ export function useQueryRunner(tab: QueryTab): QueryRunner {
     };
   }, []);
 
+  // When the tab is re-pointed at a different database (via the title-bar
+  // breadcrumb), invalidate any in-flight run. Its captured token, `source`,
+  // and target database all describe the *previous* database, so bumping
+  // `runToken` makes its completion fall through the staleness guard rather
+  // than writing rows, messages, or an error squiggle into the switched tab.
+  // The completion would otherwise repopulate the results `setQueryDatabase`
+  // just cleared. We also reset local runner state here, since the dropped
+  // completion never reaches the code that would clear it.
+  const prevDatabase = useRef(tab.database);
+  useEffect(() => {
+    if (prevDatabase.current === tab.database) return;
+    prevDatabase.current = tab.database;
+    runToken.current++;
+    activeRun.current = null;
+    loadMoreRef.current = null;
+    setRunning(false);
+    setCancelRequested(false);
+    setErrorLine(null);
+    setCanLoadMore(false);
+  }, [tab.database]);
+
   const clearError = useCallback(() => setErrorLine(null), []);
 
   const executeQuery = useCallback(
@@ -88,6 +117,7 @@ export function useQueryRunner(tab: QueryTab): QueryRunner {
       opts: RunOptions,
       offset: number,
       append: boolean,
+      params: QueryParam[],
     ) => {
       const trimmed = sql.trim();
       if (!trimmed) return;
@@ -135,6 +165,7 @@ export function useQueryRunner(tab: QueryTab): QueryRunner {
               database,
               tab.id,
               queryId,
+              params.length > 0 ? params : null,
             ),
           );
           if (!mounted.current || token !== runToken.current) return;
@@ -189,6 +220,7 @@ export function useQueryRunner(tab: QueryTab): QueryRunner {
             loadMoreRef.current = {
               sql: trimmed,
               offset: offset + rows.length,
+              params,
             };
             setCanLoadMore(true);
           } else {
@@ -251,19 +283,19 @@ export function useQueryRunner(tab: QueryTab): QueryRunner {
   );
 
   const run = useCallback(
-    (sql: string, opts: RunOptions) => {
+    (sql: string, opts: RunOptions, params: QueryParam[] = []) => {
       if (running) return;
       loadMoreRef.current = null;
       setCanLoadMore(false);
-      void executeQuery(sql, opts, 0, false);
+      void executeQuery(sql, opts, 0, false, params);
     },
     [running, executeQuery],
   );
 
   const loadMore = useCallback(() => {
     if (running || !loadMoreRef.current) return;
-    const { sql, offset } = loadMoreRef.current;
-    void executeQuery(sql, { label: "Load more" }, offset, true);
+    const { sql, offset, params } = loadMoreRef.current;
+    void executeQuery(sql, { label: "Load more" }, offset, true, params);
   }, [running, executeQuery]);
 
   const cancel = useCallback(() => {

@@ -8,7 +8,7 @@ import {
 import { Icon } from "./icons";
 import { qualifiedName, selectAllStatement } from "../lib/sqlIdent";
 import { useConnections } from "../state/connections";
-import { useTabs, type WorkspaceTab } from "../state/tabs";
+import { useTabs, tabLabel, type WorkspaceTab } from "../state/tabs";
 
 /**
  * Pick the connection + database a new query tab should bind to: the active
@@ -65,6 +65,9 @@ export function TabBar() {
   };
 
   const queryFor = (tab: WorkspaceTab, sql?: string) => {
+    // Snapshot-only schema-compare tabs carry no connection; a query tab bound
+    // to nothing would be useless and error on run.
+    if (!tab.connectionId) return;
     const id = newQueryTab(tab.connectionId, tab.database);
     if (sql) {
       setQuerySql(id, sql);
@@ -75,12 +78,13 @@ export function TabBar() {
     const index = tabs.findIndex((t) => t.id === tab.id);
     const hasRightTabs = index >= 0 && index < tabs.length - 1;
     const name =
-      tab.kind === "query" ? tab.title : qualifiedName(tab.schema, tab.table);
+      tab.kind === "table" ? qualifiedName(tab.schema, tab.table) : tab.title;
 
     return [
       {
         label: "New SQL query",
         icon: <Icon.terminal size={12} />,
+        disabled: !tab.connectionId,
         onClick: () => queryFor(tab),
       },
       ...(tab.kind === "table"
@@ -99,7 +103,7 @@ export function TabBar() {
           ]
         : []),
       {
-        label: tab.kind === "query" ? "Copy title" : "Copy qualified name",
+        label: tab.kind === "table" ? "Copy qualified name" : "Copy title",
         icon: <Icon.copy size={12} />,
         onClick: () => copyText(name),
       },
@@ -192,12 +196,16 @@ export function TabBar() {
               <span className="inline-flex" style={{ color: "var(--fg-1)" }}>
                 {t.kind === "query" ? (
                   <Icon.terminal size={11} />
+                ) : t.kind === "schema-compare" ? (
+                  <Icon.diff size={11} />
+                ) : t.kind === "er-diagram" ? (
+                  <Icon.diagram size={11} />
                 ) : (
                   <Icon.table size={11} />
                 )}
               </span>
               <span className="overflow-hidden text-ellipsis whitespace-nowrap font-mono">
-                {t.kind === "query" ? t.title : `${t.schema}.${t.table}`}
+                {tabLabel(t)}
               </span>
               {t.kind === "query" && t.dirty && (
                 <span

@@ -10,6 +10,8 @@ pub mod connection;
 pub mod history;
 pub mod query;
 pub mod schema;
+pub mod schema_diff;
+pub mod templates;
 pub mod transaction;
 
 use specta_typescript::{BigIntExportBehavior, Typescript};
@@ -29,13 +31,24 @@ pub fn builder() -> Builder<tauri::Wry> {
         connection::disconnect,
         schema::introspect,
         schema::find_usages,
+        schema::er_graph,
         query::run_query,
         query::cancel_query,
         query::explain_query,
+        query::detect_query_parameters,
         query::browse_table,
         transaction::preview_table_changes,
         transaction::commit_table_changes,
+        schema_diff::compare_schemas,
+        schema_diff::build_migration_script,
+        schema_diff::apply_migration,
+        schema_diff::save_schema_snapshot,
+        schema_diff::list_schema_snapshots,
+        schema_diff::delete_schema_snapshot,
         history::list_query_history,
+        templates::list_query_templates,
+        templates::save_query_template,
+        templates::delete_query_template,
         ai::ai_store_key,
         ai::ai_load_key,
         ai::ai_delete_key,

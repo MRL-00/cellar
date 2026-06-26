@@ -39,6 +39,11 @@ export interface SidebarProps {
   onEditConnection?: (config: ConnectionConfig) => void;
   onDuplicateConnection?: (config: ConnectionConfig) => void;
   onOpenSettings?: () => void;
+  onCompareSchemas?: (preset?: {
+    connectionId: string;
+    database: string;
+    schema?: string;
+  }) => void;
 }
 
 export function Sidebar({
@@ -46,6 +51,7 @@ export function Sidebar({
   onEditConnection,
   onDuplicateConnection,
   onOpenSettings,
+  onCompareSchemas,
 }: SidebarProps = {}) {
   const [filter, setFilter] = useState("");
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
@@ -64,6 +70,7 @@ export function Sidebar({
   const deleteConnection = useConnections((s) => s.deleteConnection);
   const refreshSchema = useConnections((s) => s.refreshSchema);
   const openTable = useTabs((s) => s.openTable);
+  const openErDiagram = useTabs((s) => s.openErDiagram);
   const newQueryTab = useTabs((s) => s.newQueryTab);
   const setQuerySql = useTabs((s) => s.setQuerySql);
   const findUsages = useFindUsages((s) => s.findUsages);
@@ -123,9 +130,24 @@ export function Sidebar({
             onClick: () => queryFor(node.connectionId, node.database),
           },
           {
+            label: "Open ER diagram",
+            icon: <Icon.diagram size={12} />,
+            onClick: () => openErDiagram(node.connectionId, node.database, null),
+          },
+          {
             label: "Refresh schemas",
             icon: <Icon.history size={12} />,
             onClick: () => void refreshSchema(node.connectionId),
+          },
+          {
+            label: "Compare schema…",
+            icon: <Icon.diff size={12} />,
+            onClick: () =>
+              onCompareSchemas?.({
+                connectionId: node.connectionId,
+                database: node.database,
+                schema: node.schemas[0]?.name,
+              }),
           },
           {
             label: "Choose visible schemas…",
@@ -165,6 +187,22 @@ export function Sidebar({
             label: "New SQL query",
             icon: <Icon.terminal size={12} />,
             onClick: () => queryFor(node.connectionId, node.database),
+          },
+          {
+            label: "Compare schema…",
+            icon: <Icon.diff size={12} />,
+            onClick: () =>
+              onCompareSchemas?.({
+                connectionId: node.connectionId,
+                database: node.database,
+                schema: node.schema,
+              }),
+          },
+          {
+            label: "Open ER diagram",
+            icon: <Icon.diagram size={12} />,
+            onClick: () =>
+              openErDiagram(node.connectionId, node.database, [node.schema]),
           },
           {
             label: node.hidden ? "Show in sidebar" : "Hide from sidebar",

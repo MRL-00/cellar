@@ -62,6 +62,21 @@ export function bytesToHex(bytes: number[]): string {
 }
 
 /**
+ * Full `\x`-prefixed hex for a `bytea` payload. The grid's bytea renderer
+ * decodes this back into the exact bytes for hex-dump, magic-byte image
+ * detection, and save-to-file — all without a re-fetch. The bytes are already
+ * resident from the bounded result page, so this only doubles that cell's
+ * string size; the renderer caps what it actually paints.
+ */
+export function bytesToHexFull(bytes: number[]): string {
+  let out = "\\x";
+  for (let i = 0; i < bytes.length; i++) {
+    out += (bytes[i] ?? 0).toString(16).padStart(2, "0");
+  }
+  return out;
+}
+
+/**
  * Convert one typed cell into the grid's value space. Lossless types (numeric,
  * uuid, temporals) survive as strings; SQL NULL maps to JS `null` so the grid
  * renders the italic NULL marker.
@@ -80,7 +95,7 @@ export function cellValueToGrid(value: CellValue): GridValue {
     case "Text":
       return value.value;
     case "Bytes":
-      return bytesToHex(value.value);
+      return bytesToHexFull(value.value);
     case "Json":
       return JSON.stringify(value.value);
     case "Uuid":

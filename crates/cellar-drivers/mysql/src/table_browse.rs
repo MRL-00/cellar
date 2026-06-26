@@ -326,10 +326,7 @@ impl ColumnKind {
     /// attributes.
     fn from_mysql_type(type_name: &str) -> Self {
         let lowered = type_name.to_ascii_lowercase();
-        let base = lowered
-            .split(['(', ' '])
-            .next()
-            .unwrap_or(lowered.as_str());
+        let base = lowered.split(['(', ' ']).next().unwrap_or(lowered.as_str());
         match base {
             "tinyint" | "smallint" | "mediumint" | "int" | "integer" | "bigint" | "float"
             | "double" | "real" | "decimal" | "numeric" | "dec" | "fixed" | "bit" | "year" => {
@@ -352,10 +349,13 @@ fn column_for<'a>(table: &'a Table, column_name: &str) -> Result<&'a Column, Tab
 }
 
 fn require_value(filter: &TableFilterClause) -> Result<&str, TableBrowseError> {
-    filter.value.as_deref().ok_or_else(|| TableBrowseError::MissingValue {
-        column: filter.column.clone(),
-        operator: filter.operator,
-    })
+    filter
+        .value
+        .as_deref()
+        .ok_or_else(|| TableBrowseError::MissingValue {
+            column: filter.column.clone(),
+            operator: filter.operator,
+        })
 }
 
 fn reject_value(filter: &TableFilterClause) -> Result<(), TableBrowseError> {
@@ -543,10 +543,7 @@ mod tests {
             Err(e) => e,
             Ok(_) => panic!("expected the comparison to be rejected"),
         };
-        assert!(matches!(
-            err,
-            TableBrowseError::UnsupportedOperator { .. }
-        ));
+        assert!(matches!(err, TableBrowseError::UnsupportedOperator { .. }));
     }
 
     #[test]
@@ -576,17 +573,17 @@ mod tests {
             .expect("sql")
             .sql()
             .to_string();
-        assert_eq!(
-            sql,
-            "SELECT count(*) FROM `app`.`users` WHERE `age` = ?"
-        );
+        assert_eq!(sql, "SELECT count(*) FROM `app`.`users` WHERE `age` = ?");
         assert!(!sql.contains("LIMIT"));
         assert!(!sql.contains("ORDER BY"));
     }
 
     #[test]
     fn column_kind_parses_column_type_modifiers() {
-        assert_eq!(ColumnKind::from_mysql_type("varchar(255)"), ColumnKind::Text);
+        assert_eq!(
+            ColumnKind::from_mysql_type("varchar(255)"),
+            ColumnKind::Text
+        );
         assert_eq!(
             ColumnKind::from_mysql_type("int(10) unsigned"),
             ColumnKind::Numeric
@@ -599,6 +596,9 @@ mod tests {
             ColumnKind::from_mysql_type("enum('a','b')"),
             ColumnKind::Text
         );
-        assert_eq!(ColumnKind::from_mysql_type("datetime"), ColumnKind::Temporal);
+        assert_eq!(
+            ColumnKind::from_mysql_type("datetime"),
+            ColumnKind::Temporal
+        );
     }
 }

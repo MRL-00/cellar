@@ -163,10 +163,12 @@ pub(crate) fn map_sqlx_err_for_runtime(
 }
 
 pub(crate) fn as_mysql(conn: &dyn Connection) -> CellarResult<&MySqlConnection> {
-    conn.as_any().downcast_ref::<MySqlConnection>().ok_or_else(|| {
-        CellarError::NotConnected(format!(
-            "expected mysql connection, got {}",
-            conn.info().engine.as_str()
-        ))
-    })
+    conn.as_any()
+        .downcast_ref::<MySqlConnection>()
+        .ok_or_else(|| {
+            CellarError::NotConnected(format!(
+                "expected mysql connection, got {}",
+                conn.info().engine.as_str()
+            ))
+        })
 }

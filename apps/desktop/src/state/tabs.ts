@@ -3,6 +3,7 @@ import type { GridColumnLayout, PendingChanges } from "@cellar/data-grid";
 import { useNotices } from "./notices";
 import { useQueryMessages } from "./queryMessages";
 import { useTabResults } from "./tabResults";
+import { useSchemaCompare, type CompareConfig } from "./schemaCompare";
 
 const TABLE_LAYOUTS_STORAGE_KEY = "cellar.tableLayouts.v1";
 
@@ -28,8 +29,43 @@ export interface QueryTab {
   dirty: boolean;
 }
 
-export type WorkspaceTab = TableTab | QueryTab;
+/**
+ * A schema comparison view. The live working state (diff, selection, script)
+ * lives in `useSchemaCompare`, keyed by this tab's id, but the immutable
+ * `config` is carried on the tab itself so the comparison can be re-derived
+ * after the tab is closed and reopened (the store entry is disposed on close).
+ * `connectionId`/`database` track a live source so connection teardown closes it.
+ */
+export interface SchemaCompareTab {
+  id: string;
+  kind: "schema-compare";
+  connectionId: string;
+  database: string;
+  title: string;
+  config: CompareConfig;
+}
+
+export interface ErDiagramTab {
+  id: string;
+  kind: "er-diagram";
+  connectionId: string;
+  database: string;
+  title: string;
+  /** Schema scope the graph was opened for; `null` means every schema. */
+  schemas: string[] | null;
+}
+
+export type WorkspaceTab =
+  | TableTab
+  | QueryTab
+  | SchemaCompareTab
+  | ErDiagramTab;
 export type SplitOrientation = "horizontal" | "vertical";
+
+/** Short label for a tab — title for query/ER tabs, `schema.table` for tables. */
+export function tabLabel(tab: WorkspaceTab): string {
+  return tab.kind === "table" ? `${tab.schema}.${tab.table}` : tab.title;
+}
 
 export interface WorkspaceSplit {
   orientation: SplitOrientation;
@@ -40,6 +76,7 @@ export interface WorkspaceSplit {
 export type TableLayouts = Record<string, GridColumnLayout>;
 
 let queryTabSeq = 0;
+let schemaCompareSeq = 0;
 
 interface TabsStore {
   tabs: WorkspaceTab[];
@@ -56,7 +93,25 @@ interface TabsStore {
     table: string,
   ) => void;
   newQueryTab: (connectionId: string, database: string) => string;
+  /**
+   * Open a schema-comparison tab. `connectionId`/`database` scope the tab for
+   * teardown; `config` is carried on the tab so the comparison can be
+   * re-initialized on reopen. Returns the new tab id.
+   */
+  openSchemaCompare: (
+    title: string,
+    connectionId: string,
+    database: string,
+    config: CompareConfig,
+  ) => string;
+  openErDiagram: (
+    connectionId: string,
+    database: string,
+    schemas: string[] | null,
+  ) => void;
   setQuerySql: (id: string, sql: string) => void;
+  /** Re-point a query tab at a different database on the same connection. */
+  setQueryDatabase: (id: string, database: string) => void;
   markQueryRun: (id: string) => void;
   closeTab: (id: string) => void;
   reopenClosedTab: () => void;
@@ -146,9 +201,11 @@ function dropTabScopedState(
 function clearTabResults(ids: string[]) {
   const results = useTabResults.getState();
   const messages = useQueryMessages.getState();
+  const schemaCompare = useSchemaCompare.getState();
   ids.forEach((id) => {
     results.clearTab(id);
     messages.clearForTab(id);
+    schemaCompare.dispose(id);
   });
   useNotices.getState().dropTabs(ids);
 }
@@ -196,6 +253,28 @@ export const useTabs = create<TabsStore>((set, get) => ({
     }));
   },
 
+  openErDiagram(connectionId, database, schemas) {
+    const scope =
+      schemas && schemas.length > 0 ? [...schemas].sort() : null;
+    const id = `er:${connectionId}::${database}::${scope?.join(",") ?? "all"}`;
+    const existing = get().tabs.find((t) => t.id === id);
+    if (existing) {
+      set({ activeId: id });
+      return;
+    }
+    const title =
+      scope && scope.length === 1
+        ? `ER: ${scope[0]}`
+        : `ER: ${database}`;
+    set((s) => ({
+      tabs: [
+        ...s.tabs,
+        { id, kind: "er-diagram", connectionId, database, title, schemas: scope },
+      ],
+      activeId: id,
+    }));
+  },
+
   newQueryTab(connectionId, database) {
     const id = `query:${++queryTabSeq}:${connectionId}`;
     const title = `untitled-${queryTabSeq}.sql`;
@@ -218,6 +297,18 @@ export const useTabs = create<TabsStore>((set, get) => ({
     return id;
   },
 
+  openSchemaCompare(title, connectionId, database, config) {
+    const id = `schema-compare:${++schemaCompareSeq}`;
+    set((s) => ({
+      tabs: [
+        ...s.tabs,
+        { id, kind: "schema-compare", connectionId, database, title, config },
+      ],
+      activeId: id,
+    }));
+    return id;
+  },
+
   setQuerySql(id, sql) {
     set((s) => ({
       tabs: s.tabs.map((t) =>
@@ -226,6 +317,20 @@ export const useTabs = create<TabsStore>((set, get) => ({
           : t,
       ),
     }));
+  },
+
+  setQueryDatabase(id, database) {
+    const tab = get().tabs.find((t) => t.id === id);
+    if (!tab || tab.kind !== "query" || tab.database === database) return;
+    set((s) => ({
+      tabs: s.tabs.map((t) =>
+        t.id === id && t.kind === "query" ? { ...t, database } : t,
+      ),
+    }));
+    // The grid, its `result.source` header, the "Load more" callback, and any
+    // messages/notices still describe the previous database — drop them so the
+    // user isn't shown stale data until they re-run.
+    clearTabResults([id]);
   },
 
   markQueryRun(id) {

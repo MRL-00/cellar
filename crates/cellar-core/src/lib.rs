@@ -3,16 +3,18 @@
 //! and exported via specta in `apps/desktop/src-tauri`.
 
 pub mod driver;
+pub mod er;
 pub mod error;
 pub mod query;
 pub mod schema;
 pub mod value;
 
 pub use driver::{Connection, ConnectionConfig, Driver, DriverInfo, Engine, EnvTag, SslMode};
+pub use er::{ErColumn, ErEdge, ErGraph, ErNode};
 pub use error::{CellarError, CellarResult};
 pub use query::{
-    DatabaseNotice, NoticeCapture, NoticeSeverity, PlanDetail, PlanMode, PlanNode, Query,
-    QueryPlan, QueryResult,
+    DatabaseNotice, DetectedParameter, NoticeCapture, NoticeSeverity, ParameterStyle, PlanDetail,
+    PlanMode, PlanNode, Query, QueryParam, QueryPlan, QueryResult,
 };
 pub use schema::{
     Column, Database, ForeignKey, Index, Schema, Table, UsageDefinition, UsageKind, UsageReference,

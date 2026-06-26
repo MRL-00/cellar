@@ -83,9 +83,23 @@ async findUsages(connectionId: string, database: string | null, schema: string, 
     else return { status: "error", error: e  as any };
 }
 },
-async runQuery(connectionId: string, sql: string, maxRows: number | null, offset: number | null, database: string | null, tabId: string | null, queryId: string | null) : Promise<Result<QueryResult, CellarError>> {
+/**
+ * Build the foreign-key graph for the ER diagram view. Reuses the cached
+ * introspection tree (so it never re-hits the server when the schema is warm)
+ * and derives the graph in [`cellar_core::er`]. `schemas` scopes the graph to
+ * a subset of schemas; `None` includes them all.
+ */
+async erGraph(connectionId: string, database: string, schemas: string[] | null) : Promise<Result<ErGraph, CellarError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("run_query", { connectionId, sql, maxRows, offset, database, tabId, queryId }) };
+    return { status: "ok", data: await TAURI_INVOKE("er_graph", { connectionId, database, schemas }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async runQuery(connectionId: string, sql: string, maxRows: number | null, offset: number | null, database: string | null, tabId: string | null, queryId: string | null, params: QueryParam[] | null) : Promise<Result<QueryResult, CellarError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("run_query", { connectionId, sql, maxRows, offset, database, tabId, queryId, params }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -107,6 +121,19 @@ async cancelQuery(connectionId: string, queryId: string) : Promise<Result<boolea
 async explainQuery(connectionId: string, sql: string, mode: PlanMode, database: string | null) : Promise<Result<QueryPlan, CellarError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("explain_query", { connectionId, sql, mode, database }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Detect named (`:name`) and positional (`$N`) parameter placeholders in a
+ * statement so the editor can collect values before running it. Pure parsing
+ * via `cellar-sql`; no connection is required.
+ */
+async detectQueryParameters(sql: string, engine: Engine) : Promise<Result<DetectedParameter[], CellarError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("detect_query_parameters", { sql, engine }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -136,9 +163,107 @@ async commitTableChanges(connectionId: string, request: TableChangeRequest, tabI
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Compare `source` against `target`, returning the render-ready diff and the
+ * migration statements that transform source into target.
+ */
+async compareSchemas(source: SchemaSource, target: SchemaSource) : Promise<Result<SchemaComparison, CellarError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("compare_schemas", { source, target }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Assemble the user's selected statements into a single runnable script.
+ * Kept in Rust so transaction wrapping stays dialect-aware and the frontend
+ * never hand-builds executable SQL. The `dialect` comes from the comparison
+ * (the source engine) so the transaction wrap matches that engine's DDL
+ * semantics rather than always assuming Postgres.
+ */
+async buildMigrationScript(statements: MigrationStatement[], dialect: Dialect, wrapInTransaction: boolean) : Promise<string> {
+    return await TAURI_INVOKE("build_migration_script", { statements, dialect, wrapInTransaction });
+},
+/**
+ * Apply a reviewed (and possibly hand-edited) migration script against
+ * `database` on the open connection. Logged to query history like any other
+ * executed statement.
+ */
+async applyMigration(connectionId: string, database: string, sql: string, tabId: string | null) : Promise<Result<MigrationApplyResult, CellarError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("apply_migration", { connectionId, database, sql, tabId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Capture a live database's schema tree to `~/.cellar/snapshots/`.
+ */
+async saveSchemaSnapshot(connectionId: string, database: string) : Promise<Result<SchemaSnapshotMeta, CellarError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("save_schema_snapshot", { connectionId, database }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * List saved snapshots, newest first.
+ */
+async listSchemaSnapshots() : Promise<Result<SchemaSnapshotMeta[], CellarError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("list_schema_snapshots") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async deleteSchemaSnapshot(id: string) : Promise<Result<null, CellarError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_schema_snapshot", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async listQueryHistory(connectionId: string | null, database: string | null, tabId: string | null, search: string | null, limit: number | null) : Promise<Result<QueryHistoryRecord[], CellarError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("list_query_history", { connectionId, database, tabId, search, limit }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * List every saved template, sorted by name. Missing directory ⇒ empty list.
+ */
+async listQueryTemplates() : Promise<Result<QueryTemplate[], CellarError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("list_query_templates") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Save (create or overwrite) a template. Returns the stored template.
+ */
+async saveQueryTemplate(template: QueryTemplate) : Promise<Result<QueryTemplate, CellarError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("save_query_template", { template }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Delete the template whose name slugifies to `name`'s file.
+ */
+async deleteQueryTemplate(name: string) : Promise<Result<null, CellarError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_query_template", { name }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -241,6 +366,26 @@ export type CellValue = { type: "Null" } | { type: "Bool"; value: boolean } | { 
  * of these variants and stash the original message in `detail`.
  */
 export type CellarError = { kind: "Connection"; detail: string } | { kind: "Authentication"; detail: string } | { kind: "Tls"; detail: string } | { kind: "Query"; detail: string } | { kind: "Introspection"; detail: string } | { kind: "UnsupportedType"; detail: string } | { kind: "Decode"; detail: string } | { kind: "Timeout"; detail: string } | { kind: "NotConnected"; detail: string } | { kind: "InvalidConfig"; detail: string } | { kind: "Io"; detail: string } | { kind: "Internal"; detail: string }
+/**
+ * Per-object classification in a schema comparison.
+ */
+export type ChangeStatus = 
+/**
+ * Present in target but not source — a `CREATE`/`ADD` candidate.
+ */
+"added" | 
+/**
+ * Present in source but not target — a `DROP` candidate.
+ */
+"removed" | 
+/**
+ * Present in both, but the definitions differ.
+ */
+"modified" | 
+/**
+ * Present in both and identical.
+ */
+"unchanged"
 export type Column = { name: string; 
 /**
  * The engine-native type name as reported by the catalog (e.g. `int4`,
@@ -248,6 +393,12 @@ export type Column = { name: string;
  * raw type to render badges and pick the right editor.
  */
 data_type: string; nullable: boolean; default: string | null; is_primary_key: boolean; ordinal: number; comment: string | null }
+export type ColumnDiff = { name: string; status: ChangeStatus; source: Column | null; target: Column | null; 
+/**
+ * Human-readable field-level changes when `status == Modified`
+ * (e.g. `type int4 → bigint`, `set NOT NULL`).
+ */
+changes: string[] }
 /**
  * Lightweight column descriptor for a query result. The full structural
  * schema lives in [`crate::schema::Column`]; this only carries what the grid
@@ -287,7 +438,43 @@ code: string | null; message: string; detail: string | null; hint: string | null
  * RFC 3339 timestamp generated by the host when it observes the notice.
  */
 timestamp: string; connection_id: string | null; database: string | null; query_id: string | null }
+/**
+ * A placeholder detected in a SQL statement. The frontend uses this to render
+ * a labeled input before running the query.
+ */
+export type DetectedParameter = { 
+/**
+ * Parameter name without its sigil (`user_id` for `:user_id`, `1` for
+ * `$1`). Distinct names appear once; a name reused in the statement is
+ * reported a single time.
+ */
+name: string; 
+/**
+ * The placeholder exactly as it appears in the SQL (`:user_id`, `$1`).
+ */
+placeholder: string; style: ParameterStyle; 
+/**
+ * 1-based bind position in the order the distinct names first appear.
+ */
+ordinal: number; 
+/**
+ * Best-effort column the placeholder is compared against (`id` for
+ * `WHERE id = :id`), so the UI can infer an input type from schema.
+ * `None` when no simple comparison was detected.
+ */
+column_hint: string | null }
+/**
+ * SQL dialect a statement is being generated for. Identifier quoting and a
+ * handful of DDL spellings differ per engine; everything that varies routes
+ * through [`Dialect`] so callers stay engine-agnostic.
+ */
+export type Dialect = "postgres" | "mysql" | "sqlite" | "mssql"
 export type DiffColumn = { name: string; data_type: string; nullable: boolean }
+/**
+ * Aggregate counts, used for the comparison header without re-walking the
+ * tree on the frontend.
+ */
+export type DiffSummary = { tables_added: number; tables_removed: number; tables_modified: number; tables_unchanged: number; views_added: number; views_removed: number; views_modified: number; views_unchanged: number }
 export type DiffValue = { value: string | null }
 export type DriverInfo = { engine: Engine; 
 /**
@@ -305,11 +492,82 @@ export type Engine = "postgres" | "mysql" | "sqlite" | "mssql" | "azure" | "fire
  * styling and confirmation guardrails — this PR wires the data, not the UX.
  */
 export type EnvTag = "local" | "dev" | "staging" | "prod"
+/**
+ * A column rendered inside an ER node. Carries just enough for the diagram:
+ * name, type, and key-role badges.
+ */
+export type ErColumn = { name: string; data_type: string; nullable: boolean; is_primary_key: boolean; 
+/**
+ * `true` when the column participates in at least one outgoing foreign key.
+ */
+is_foreign_key: boolean }
+/**
+ * A foreign-key relationship, drawn as an edge from the referencing table to
+ * the referenced table.
+ */
+export type ErEdge = { 
+/**
+ * Stable id derived from the endpoints and constraint name.
+ */
+id: string; constraint_name: string; 
+/**
+ * `"schema.table"` of the table that holds the FK columns.
+ */
+source: string; 
+/**
+ * `"schema.table"` of the referenced table.
+ */
+target: string; source_columns: string[]; target_columns: string[] }
+/**
+ * The full graph for one database, scoped to a selection of schemas.
+ */
+export type ErGraph = { database: string; 
+/**
+ * Schema names present in this graph, sorted — drives the show/hide UI.
+ */
+schemas: string[]; nodes: ErNode[]; edges: ErEdge[] }
+/**
+ * One table in the diagram. `id` is `"schema.table"`; edges reference nodes by
+ * this id.
+ */
+export type ErNode = { id: string; schema: string; name: string; columns: ErColumn[]; primary_key: string[]; row_count: number | null }
 export type ForeignKey = { name: string; columns: string[]; referenced_schema: string; referenced_table: string; referenced_columns: string[] }
+export type ForeignKeyDiff = { name: string; status: ChangeStatus; source: ForeignKey | null; target: ForeignKey | null }
 export type Index = { name: string; columns: string[]; unique: boolean; primary: boolean }
+export type IndexDiff = { name: string; status: ChangeStatus; source: Index | null; target: Index | null }
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
+export type MigrationApplyResult = { duration_ms: number }
+/**
+ * What a single migration statement does. Drives grouping/iconography in the
+ * UI and the destructive-confirmation gate.
+ */
+export type MigrationKind = "create-table" | "drop-table" | "add-column" | "drop-column" | "alter-column" | "alter-primary-key" | "create-index" | "drop-index" | "add-foreign-key" | "drop-foreign-key" | "create-view" | "replace-view" | "drop-view"
+/**
+ * One reviewable, individually selectable unit of the migration. `sql` may
+ * span multiple physical statements (e.g. drop-then-add a constraint) but is
+ * one logical change the user toggles together.
+ */
+export type MigrationStatement = { 
+/**
+ * Stable id (`kind:object`) the frontend uses for selection state.
+ */
+id: string; kind: MigrationKind; 
+/**
+ * Qualified object the statement targets, for display.
+ */
+object: string; description: string; 
+/**
+ * `true` for statements that drop objects or can lose data — gated behind
+ * explicit confirmation in the UI.
+ */
+destructive: boolean; sql: string }
 export type NoticeCapture = { supported: boolean; reason: string | null }
 export type NoticeSeverity = "panic" | "fatal" | "error" | "warning" | "notice" | "info" | "log" | "debug" | "unknown"
+/**
+ * Whether a detected placeholder was written as a named (`:name`) or
+ * positional (`$N`) parameter.
+ */
+export type ParameterStyle = "named" | "positional"
 export type PlanDetail = { label: string; value: string }
 /**
  * Whether an execution plan should only estimate the plan or run the
@@ -318,7 +576,19 @@ export type PlanDetail = { label: string; value: string }
  */
 export type PlanMode = "estimate" | "analyze"
 export type PlanNode = { node_type: string; relation_name: string | null; schema_name: string | null; alias: string | null; index_name: string | null; join_type: string | null; startup_cost: number | null; total_cost: number | null; plan_rows: number | null; plan_width: number | null; actual_startup_time_ms: number | null; actual_total_time_ms: number | null; actual_rows: number | null; actual_loops: number | null; details: PlanDetail[]; children: PlanNode[] }
+export type PrimaryKeyDiff = { status: ChangeStatus; source: string[]; target: string[] }
 export type QueryHistoryRecord = { id: number; connection_id: string; connection_name: string | null; tab_id: string | null; database: string | null; sql: string; executed_at_ms: number; duration_ms: number; success: boolean; row_count: number | null; truncated: boolean; error_summary: string | null }
+/**
+ * One bound parameter value supplied by the caller. Carries a typed
+ * [`CellValue`] so the driver can bind it through the native protocol with the
+ * right wire type instead of stringifying it.
+ */
+export type QueryParam = { 
+/**
+ * Parameter name without its sigil. For `:user_id` this is `user_id`; for
+ * `$1` this is `1`.
+ */
+name: string; value: CellValue }
 export type QueryPlan = { mode: PlanMode; engine: string; database: string | null; sql: string; root: PlanNode; planning_time_ms: number | null; execution_time_ms: number | null; duration_ms: number; 
 /**
  * Original engine plan payload for advanced inspection and future richer
@@ -358,8 +628,43 @@ truncated: boolean;
  * Free-form queries always return `None`.
  */
 total_rows: number | null }
+/**
+ * A saved (optionally parameterized) query. `name` is the stable identifier;
+ * saving a template whose name slugifies to an existing file overwrites it.
+ */
+export type QueryTemplate = { name: string; description: string; sql: string }
 export type RowChange = { kind: "update"; row_id: string; keys: CellAssignment[]; edits: CellAssignment[] } | { kind: "insert"; row_id: string; values: CellAssignment[] } | { kind: "delete"; row_id: string; keys: CellAssignment[] }
 export type Schema = { name: string; tables: Table[]; views: View[] }
+/**
+ * Bundled output of a comparison: the render-ready diff tree, the migration
+ * statements that transform source into target, and the dialect the DDL was
+ * generated for. Returned by the `compare_schemas` IPC command so the UI gets
+ * everything (including the dialect to round-trip back into script assembly)
+ * in one call.
+ */
+export type SchemaComparison = { diff: SchemaDiff; statements: MigrationStatement[]; dialect: Dialect }
+/**
+ * Top-level result of comparing a `source` schema against a `target` schema.
+ */
+export type SchemaDiff = { source_label: string; target_label: string; source_schema: string; target_schema: string; tables: TableDiff[]; views: ViewDiff[]; summary: DiffSummary }
+/**
+ * Lightweight descriptor listed in the snapshot picker without loading the
+ * full schema tree from disk.
+ */
+export type SchemaSnapshotMeta = { id: string; label: string; engine: string; connection_id: string; connection_name: string; database: string; 
+/**
+ * Schema names captured, so the picker can offer a namespace to compare.
+ */
+schemas: string[]; table_count: number; 
+/**
+ * Unix epoch milliseconds when the snapshot was saved.
+ */
+created_at_ms: number }
+/**
+ * One side of a comparison. A schema either comes from a live connection
+ * (introspected fresh) or from a saved snapshot on disk.
+ */
+export type SchemaSource = { kind: "live"; connection_id: string; database: string; schema: string; label: string | null } | { kind: "snapshot"; id: string; schema: string; label: string | null }
 export type SortDirection = "asc" | "desc"
 export type SslMode = "disable" | "prefer" | "require" | "verify-ca" | "verify-full"
 export type Table = { name: string; schema: string; 
@@ -395,6 +700,11 @@ include_total?: boolean }
 export type TableChangeRequest = { database: string | null; schema: string; table: string; primary_key: string[]; columns: DiffColumn[]; changes: RowChange[] }
 export type TableCommitPreview = { sql: string; expected_rows: number; statement_count: number }
 export type TableCommitResult = { sql: string; rows_affected: number; duration_ms: number }
+export type TableDiff = { name: string; status: ChangeStatus; columns: ColumnDiff[]; indexes: IndexDiff[]; foreign_keys: ForeignKeyDiff[]; primary_key: PrimaryKeyDiff; 
+/**
+ * Full source/target objects so the UI can render either side verbatim.
+ */
+source: Table | null; target: Table | null }
 export type TableFilterClause = { column: string; operator: TableFilterOperator; 
 /**
  * User-entered scalar value. Null checks intentionally use operators
@@ -444,6 +754,7 @@ matched_column: string | null;
  */
 definition: string }
 export type View = { name: string; schema: string; columns: Column[]; definition: string | null }
+export type ViewDiff = { name: string; status: ChangeStatus; source: View | null; target: View | null }
 
 /** tauri-specta globals **/
 

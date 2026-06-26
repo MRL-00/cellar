@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-use crate::value::{ColumnMeta, Row};
+use crate::value::{CellValue, ColumnMeta, Row};
 
 /// SQL statement plus execution hints. Drivers may layer their own dialect
 /// rewriting, but the host always hands them a query in this shape.
@@ -32,6 +32,53 @@ pub struct Query {
     /// it. `None` opts out of cancellation bookkeeping.
     #[serde(default)]
     pub query_id: Option<String>,
+    /// Values for named (`:name`) or positional (`$N`) placeholders in `sql`.
+    /// When non-empty the driver MUST bind these through the engine's native
+    /// parameter protocol — never by interpolating them into the SQL text.
+    /// Keyed by parameter name (the identifier after `:` for named params, the
+    /// number for `$N`); the driver re-derives bind order from the SQL so it
+    /// does not trust caller-supplied ordering.
+    #[serde(default)]
+    pub params: Vec<QueryParam>,
+}
+
+/// One bound parameter value supplied by the caller. Carries a typed
+/// [`CellValue`] so the driver can bind it through the native protocol with the
+/// right wire type instead of stringifying it.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq)]
+pub struct QueryParam {
+    /// Parameter name without its sigil. For `:user_id` this is `user_id`; for
+    /// `$1` this is `1`.
+    pub name: String,
+    pub value: CellValue,
+}
+
+/// Whether a detected placeholder was written as a named (`:name`) or
+/// positional (`$N`) parameter.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ParameterStyle {
+    Named,
+    Positional,
+}
+
+/// A placeholder detected in a SQL statement. The frontend uses this to render
+/// a labeled input before running the query.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]
+pub struct DetectedParameter {
+    /// Parameter name without its sigil (`user_id` for `:user_id`, `1` for
+    /// `$1`). Distinct names appear once; a name reused in the statement is
+    /// reported a single time.
+    pub name: String,
+    /// The placeholder exactly as it appears in the SQL (`:user_id`, `$1`).
+    pub placeholder: String,
+    pub style: ParameterStyle,
+    /// 1-based bind position in the order the distinct names first appear.
+    pub ordinal: u32,
+    /// Best-effort column the placeholder is compared against (`id` for
+    /// `WHERE id = :id`), so the UI can infer an input type from schema.
+    /// `None` when no simple comparison was detected.
+    pub column_hint: Option<String>,
 }
 
 impl Query {
@@ -42,6 +89,7 @@ impl Query {
             offset: None,
             database: None,
             query_id: None,
+            params: Vec::new(),
         }
     }
 
@@ -62,6 +110,11 @@ impl Query {
 
     pub fn with_query_id(mut self, query_id: impl Into<String>) -> Self {
         self.query_id = Some(query_id.into());
+        self
+    }
+
+    pub fn with_params(mut self, params: Vec<QueryParam>) -> Self {
+        self.params = params;
         self
     }
 }

@@ -1,0 +1,14 @@
+[package]
+name = "cellar-schema-diff"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Cellar — schema comparison and DDL migration generation"
+publish = false
+
+[dependencies]
+cellar-core = { path = "../cellar-core" }
+cellar-sql = { path = "../cellar-sql" }
+serde = { workspace = true }
+specta = { version = "=2.0.0-rc.22", features = ["derive"] }
+thiserror = { workspace = true }

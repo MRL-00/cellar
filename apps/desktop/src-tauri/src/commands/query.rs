@@ -1,7 +1,10 @@
 use std::time::Instant;
 
+use cellar_core::driver::Engine;
 use cellar_core::error::CellarError;
-use cellar_core::query::{PlanMode, Query, QueryPlan, QueryResult, TableBrowseRequest};
+use cellar_core::query::{
+    DetectedParameter, PlanMode, Query, QueryParam, QueryPlan, QueryResult, TableBrowseRequest,
+};
 use tauri::State;
 
 use crate::history::{HistoryStore, NewQueryHistoryRecord};
@@ -19,6 +22,7 @@ pub async fn run_query(
     database: Option<String>,
     tab_id: Option<String>,
     query_id: Option<String>,
+    params: Option<Vec<QueryParam>>,
 ) -> Result<QueryResult, CellarError> {
     let mut query = Query::new(sql);
     if let Some(n) = max_rows {
@@ -32,6 +36,9 @@ pub async fn run_query(
     }
     if let Some(qid) = query_id {
         query = query.with_query_id(qid);
+    }
+    if let Some(params) = params {
+        query = query.with_params(params);
     }
     let history_sql = query.sql.clone();
     let history_database = query.database.clone();
@@ -105,6 +112,18 @@ pub async fn explain_query(
         query = query.with_database(db);
     }
     registry.explain_query(&connection_id, query, mode).await
+}
+
+/// Detect named (`:name`) and positional (`$N`) parameter placeholders in a
+/// statement so the editor can collect values before running it. Pure parsing
+/// via `cellar-sql`; no connection is required.
+#[tauri::command]
+#[specta::specta]
+pub async fn detect_query_parameters(
+    sql: String,
+    engine: Engine,
+) -> Result<Vec<DetectedParameter>, CellarError> {
+    cellar_sql::detect_parameters(&sql, engine).map_err(|e| CellarError::query(e.to_string()))
 }
 
 #[tauri::command]

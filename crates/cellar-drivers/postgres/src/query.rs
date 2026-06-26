@@ -1,10 +1,13 @@
+use std::borrow::Cow;
+use std::collections::HashMap;
 use std::time::Instant;
 
+use cellar_core::driver::Engine;
 use cellar_core::error::{CellarError, CellarResult};
 use cellar_core::query::{
     NoticeCapture, PlanDetail, PlanMode, PlanNode, Query, QueryPlan, QueryResult,
 };
-use cellar_core::value::{ColumnMeta, Row};
+use cellar_core::value::{CellValue, ColumnMeta, Row};
 use cellar_diff::{build_postgres_plan, TableChangeRequest, TableCommitResult};
 use futures::TryStreamExt;
 use serde_json::{Map, Value};
@@ -68,6 +71,33 @@ pub async fn execute_query(conn: &PgConnection, query: &Query) -> CellarResult<Q
     let skip_rows = query.offset.unwrap_or(0) as usize;
     let capacity = max_rows.min(10_000) as usize;
 
+    // Resolve parameters before building the statement. With no params the SQL
+    // passes through verbatim (the existing fast path); otherwise cellar-sql
+    // rewrites named/positional placeholders to `$1..$N` and reports them in
+    // bind order, and we bind the typed values through sqlx — never by
+    // interpolating them into the SQL text.
+    let prepared_sql: Cow<str>;
+    let bind_values: Vec<&CellValue>;
+    if query.params.is_empty() {
+        prepared_sql = Cow::Borrowed(query.sql.as_str());
+        bind_values = Vec::new();
+    } else {
+        let prepared = cellar_sql::prepare(&query.sql, Engine::Postgres)
+            .map_err(|e| CellarError::query(e.to_string()))?;
+        let by_name: HashMap<&str, &CellValue> = query
+            .params
+            .iter()
+            .map(|p| (p.name.as_str(), &p.value))
+            .collect();
+        bind_values = cellar_sql::order_values(&prepared.parameters, &by_name)
+            .map_err(|e| CellarError::query(e.to_string()))?
+            .into_iter()
+            .copied()
+            .collect();
+        prepared_sql = Cow::Owned(prepared.sql);
+    }
+    let exec_sql: &str = prepared_sql.as_ref();
+
     // SQL passes through verbatim. Driving LIMIT into user-supplied SQL would
     // need a parser; we cap while reading the stream instead of materializing
     // the full server result first.
@@ -98,10 +128,14 @@ pub async fn execute_query(conn: &PgConnection, query: &Query) -> CellarResult<Q
     // multi-statement semantics that don't apply to a single Postgres
     // statement; the replacement (raw_sql) would switch results to the
     // text protocol and change every decode path.
+    let mut statement = sqlx::query(exec_sql);
+    for &value in &bind_values {
+        statement = crate::bind::bind_value(statement, value)?;
+    }
     #[allow(deprecated)]
     let mut stream = match pinned.as_mut() {
-        Some(acquired) => sqlx::query(&query.sql).fetch_many(&mut **acquired),
-        None => sqlx::query(&query.sql).fetch_many(pool),
+        Some(acquired) => statement.fetch_many(&mut **acquired),
+        None => statement.fetch_many(pool),
     };
     let mut columns: Option<Vec<ColumnMeta>> = None;
     let mut materialized: Vec<Row> = Vec::with_capacity(capacity);
@@ -221,6 +255,22 @@ pub async fn commit_table_changes(
         rows_affected,
         duration_ms: started.elapsed().as_millis() as u64,
     })
+}
+
+/// Apply a (user-reviewed, possibly edited) schema migration script against
+/// `database`. The script runs through the simple query protocol so multiple
+/// statements — and any `BEGIN;`/`COMMIT;` the generated script wraps them in —
+/// are honored as written. If a statement fails inside the wrapping
+/// transaction, Postgres aborts it and the whole script rolls back. Returns
+/// the elapsed time in milliseconds.
+pub async fn apply_migration(conn: &PgConnection, database: &str, sql: &str) -> CellarResult<u64> {
+    let pool = conn.pool_for_database(database).await?;
+    let started = Instant::now();
+    sqlx::raw_sql(sql)
+        .execute(&pool)
+        .await
+        .map_err(query_sqlx_err)?;
+    Ok(started.elapsed().as_millis() as u64)
 }
 
 pub async fn explain_query(

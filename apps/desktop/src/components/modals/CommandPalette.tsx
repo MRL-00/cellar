@@ -1,4 +1,6 @@
 import { countChanges } from "@cellar/data-grid";
+import { commands, unwrap } from "@cellar/ipc";
+import type { QueryTemplate } from "@cellar/ipc";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { useBottomPanel, type BottomTabId } from "../../state/bottomPanel";
@@ -7,7 +9,14 @@ import type { PanelId, Panels } from "../../state/layout";
 import { useTabs, type WorkspaceTab } from "../../state/tabs";
 import { Icon } from "../icons";
 
-type Group = "Actions" | "Tabs" | "Connections" | "Catalog" | "Columns" | "View";
+type Group =
+  | "Actions"
+  | "Templates"
+  | "Tabs"
+  | "Connections"
+  | "Catalog"
+  | "Columns"
+  | "View";
 
 type Entry = {
   id: string;
@@ -28,10 +37,12 @@ type CommandPaletteProps = {
   onTogglePanel: (k: PanelId) => void;
   onExportSetup: () => void;
   onImportSetup: () => void;
+  onCompareSchemas: () => void;
 };
 
 const GROUP_ORDER: Group[] = [
   "Actions",
+  "Templates",
   "Tabs",
   "Connections",
   "Catalog",
@@ -48,6 +59,7 @@ export function CommandPalette({
   onTogglePanel,
   onExportSetup,
   onImportSetup,
+  onCompareSchemas,
 }: CommandPaletteProps) {
   const [q, setQ] = useState("");
   const [active, setActive] = useState(0);
@@ -63,14 +75,31 @@ export function CommandPalette({
   const tableChanges = useTabs((s) => s.tableChanges);
   const openTable = useTabs((s) => s.openTable);
   const newQueryTab = useTabs((s) => s.newQueryTab);
+  const setQuerySql = useTabs((s) => s.setQuerySql);
   const setActiveTab = useTabs((s) => s.setActive);
   const clearTableChanges = useTabs((s) => s.clearTableChanges);
   const bottomTab = useBottomPanel((s) => s.active);
   const setBottomTab = useBottomPanel((s) => s.setActive);
+  const [templates, setTemplates] = useState<QueryTemplate[]>([]);
 
   useEffect(() => {
     if (!loaded) void load();
   }, [loaded, load]);
+
+  // Load the local query-template library when the palette opens.
+  useEffect(() => {
+    let cancelled = false;
+    void unwrap(commands.listQueryTemplates())
+      .then((list) => {
+        if (!cancelled) setTemplates(list);
+      })
+      .catch(() => {
+        if (!cancelled) setTemplates([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const pending = useMemo(() => {
     let total = 0;
@@ -120,6 +149,15 @@ export function CommandPalette({
     });
 
     add({
+      id: "compare-schemas",
+      grp: "Actions",
+      label: "Compare schemas…",
+      hint: "diff two schemas and generate migration DDL",
+      search: "schema diff migration ddl snapshot compare",
+      action: onCompareSchemas,
+    });
+
+    add({
       id: "export-setup",
       grp: "Actions",
       label: "Export setup…",
@@ -136,6 +174,22 @@ export function CommandPalette({
       search: "restore transfer upload merge",
       action: onImportSetup,
     });
+
+    if (target) {
+      for (const template of templates) {
+        add({
+          id: `template:${template.name}`,
+          grp: "Templates",
+          label: template.name,
+          hint: template.description || "open in a new query tab",
+          search: `${template.sql} saved query`,
+          action: () => {
+            const id = newQueryTab(target.connectionId, target.database);
+            setQuerySql(id, template.sql);
+          },
+        });
+      }
+    }
 
     if (pending > 0) {
       add({
@@ -261,6 +315,7 @@ export function CommandPalette({
     connect,
     connections,
     disconnect,
+    onCompareSchemas,
     newQueryTab,
     onExportSetup,
     onImportSetup,
@@ -274,7 +329,9 @@ export function CommandPalette({
     refreshSchema,
     setActiveTab,
     setBottomTab,
+    setQuerySql,
     tabs,
+    templates,
   ]);
 
   const filtered = useMemo(() => {
@@ -421,6 +478,8 @@ function groupIcon(grp: Group): ReactNode {
   switch (grp) {
     case "Actions":
       return <Icon.bolt size={11} stroke="var(--update)" />;
+    case "Templates":
+      return <Icon.star size={11} stroke="var(--fg-2)" />;
     case "Catalog":
       return <Icon.table size={11} stroke="var(--fg-2)" />;
     case "Columns":
@@ -468,7 +527,7 @@ function pickQueryTarget(
 }
 
 function tabLabel(tab: WorkspaceTab): string {
-  return tab.kind === "query" ? tab.title : `${tab.schema}.${tab.table}`;
+  return tab.kind === "table" ? `${tab.schema}.${tab.table}` : tab.title;
 }
 
 function titleCase(value: string): string {
