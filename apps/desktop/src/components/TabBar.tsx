@@ -8,7 +8,12 @@ import {
 import { Icon } from "./icons";
 import { qualifiedName, selectAllStatement } from "../lib/sqlIdent";
 import { useConnections } from "../state/connections";
-import { useTabs, tabLabel, type WorkspaceTab } from "../state/tabs";
+import {
+  useTabs,
+  tabLabel,
+  type PaneIndex,
+  type WorkspaceTab,
+} from "../state/tabs";
 
 /**
  * Pick the connection + database a new query tab should bind to: the active
@@ -34,15 +39,27 @@ function pickQueryTarget(): { connectionId: string; database: string } | null {
   return { connectionId: targetId, database };
 }
 
-export function TabBar() {
+/**
+ * The workspace tab strip. With no `pane`, it shows every open tab and is used
+ * as the single bar above an unsplit workspace (it renders nothing while a
+ * split is active — each pane draws its own strip then). With a `pane`, it
+ * shows only that pane's tabs and lands new tabs in it.
+ */
+export function TabBar({ pane }: { pane?: PaneIndex } = {}) {
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
   const [draggedTabId, setDraggedTabId] = useState<string | null>(null);
   const [tabDropTargetId, setTabDropTargetId] = useState<string | null>(null);
-  const tabs = useTabs((s) => s.tabs);
+  const allTabs = useTabs((s) => s.tabs);
+  const tabPane = useTabs((s) => s.tabPane);
+  const paneActive = useTabs((s) => s.paneActive);
   const activeId = useTabs((s) => s.activeId);
+  const focusedPane = useTabs((s) => s.focusedPane);
   const split = useTabs((s) => s.split);
   const closedCount = useTabs((s) => s.closedTabs.length);
   const setActive = useTabs((s) => s.setActive);
+  const focusPane = useTabs((s) => s.focusPane);
+  const setDraggingTab = useTabs((s) => s.setDraggingTab);
+  const moveTabToPane = useTabs((s) => s.moveTabToPane);
   const closeTab = useTabs((s) => s.closeTab);
   const splitActiveTab = useTabs((s) => s.splitActiveTab);
   const reopenClosedTab = useTabs((s) => s.reopenClosedTab);
@@ -53,9 +70,21 @@ export function TabBar() {
   const setQuerySql = useTabs((s) => s.setQuerySql);
   const refreshTable = useTabs((s) => s.refreshTable);
   const hasConnections = useConnections((s) => s.connections.length > 0);
-  const canSplit = tabs.length > 1 && activeId != null;
+
+  // The single top bar disappears once split — the panes own their strips then.
+  if (pane == null && split) return null;
+
+  const tabs =
+    pane == null
+      ? allTabs
+      : allTabs.filter((t) => (tabPane[t.id] ?? 0) === pane);
+  // Highlight this strip's active tab; the unsplit bar tracks the global one.
+  const stripActiveId = pane == null ? activeId : paneActive[pane];
+  const isStripFocused = pane == null || pane === focusedPane;
+  const canSplit = split != null || (tabs.length > 1 && activeId != null);
 
   const onNewQuery = () => {
+    if (pane != null) focusPane(pane);
     const target = pickQueryTarget();
     if (target) newQueryTab(target.connectionId, target.database);
   };
@@ -136,14 +165,32 @@ export function TabBar() {
 
   return (
     <div className="flex h-[30px] items-stretch shrink-0 border-b border-border-default bg-bg-1">
-      <div className="flex flex-1 min-w-0 overflow-x-auto">
+      <div
+        className="flex flex-1 min-w-0 overflow-x-auto"
+        // Dropping a tab onto blank strip space moves it into this pane.
+        onDragOver={(e) => {
+          if (pane == null || !useTabs.getState().draggingTabId) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+        }}
+        onDrop={(e) => {
+          if (pane == null) return;
+          const sourceId =
+            e.dataTransfer.getData("text/plain") ||
+            useTabs.getState().draggingTabId;
+          if (sourceId) moveTabToPane(sourceId, pane);
+          setDraggingTab(null);
+          setDraggedTabId(null);
+          setTabDropTargetId(null);
+        }}
+      >
         {tabs.length === 0 && (
           <div className="inline-flex items-center px-3 text-[11px] text-fg-3">
             no tabs — double-click a table in the sidebar
           </div>
         )}
         {tabs.map((t) => {
-          const isActive = t.id === activeId;
+          const isActive = t.id === stripActiveId;
           return (
             <div
               key={t.id}
@@ -151,10 +198,12 @@ export function TabBar() {
               onDragStart={(e) => {
                 e.dataTransfer.effectAllowed = "move";
                 e.dataTransfer.setData("text/plain", t.id);
+                setDraggingTab(t.id);
                 setDraggedTabId(t.id);
               }}
               onDragOver={(e) => {
-                if (!draggedTabId || draggedTabId === t.id) return;
+                const dragging = useTabs.getState().draggingTabId;
+                if (!dragging || dragging === t.id) return;
                 e.preventDefault();
                 e.dataTransfer.dropEffect = "move";
                 setTabDropTargetId(t.id);
@@ -164,14 +213,18 @@ export function TabBar() {
               }}
               onDrop={(e) => {
                 e.preventDefault();
+                e.stopPropagation();
                 const sourceId =
-                  e.dataTransfer.getData("text/plain") || draggedTabId;
+                  e.dataTransfer.getData("text/plain") ||
+                  useTabs.getState().draggingTabId;
                 if (sourceId) reorderTab(sourceId, t.id);
                 if (sourceId) setActive(sourceId);
+                setDraggingTab(null);
                 setDraggedTabId(null);
                 setTabDropTargetId(null);
               }}
               onDragEnd={() => {
+                setDraggingTab(null);
                 setDraggedTabId(null);
                 setTabDropTargetId(null);
               }}
@@ -189,7 +242,7 @@ export function TabBar() {
               <span
                 className={
                   "absolute left-0 top-0 h-full w-0.5 transition-opacity duration-150 " +
-                  (isActive ? "opacity-100" : "opacity-0")
+                  (isActive && isStripFocused ? "opacity-100" : "opacity-0")
                 }
                 style={{ background: "var(--eng-postgres)" }}
               />
@@ -248,13 +301,13 @@ export function TabBar() {
       <div className="flex items-center gap-px border-l border-border-default px-1.5">
         <button
           type="button"
-          className={"icon-btn" + (split?.orientation === "horizontal" ? " active" : "")}
+          className={"icon-btn" + (split === "horizontal" ? " active" : "")}
           onClick={() => splitActiveTab("horizontal")}
           disabled={!canSplit}
-          aria-pressed={split?.orientation === "horizontal"}
+          aria-pressed={split === "horizontal"}
           title={
             canSplit
-              ? split?.orientation === "horizontal"
+              ? split === "horizontal"
                 ? "Close horizontal split"
                 : "Split active tab horizontally"
               : "Open another tab to split the workspace"
@@ -264,13 +317,13 @@ export function TabBar() {
         </button>
         <button
           type="button"
-          className={"icon-btn" + (split?.orientation === "vertical" ? " active" : "")}
+          className={"icon-btn" + (split === "vertical" ? " active" : "")}
           onClick={() => splitActiveTab("vertical")}
           disabled={!canSplit}
-          aria-pressed={split?.orientation === "vertical"}
+          aria-pressed={split === "vertical"}
           title={
             canSplit
-              ? split?.orientation === "vertical"
+              ? split === "vertical"
                 ? "Close vertical split"
                 : "Split active tab vertically"
               : "Open another tab to split the workspace"

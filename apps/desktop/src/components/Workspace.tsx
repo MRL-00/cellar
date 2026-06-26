@@ -17,8 +17,15 @@ import { SqlEditor } from "./SqlEditor";
 import { SchemaComparePane } from "./SchemaComparePane";
 import { ErDiagram } from "./er/ErDiagram";
 import { ContextMenu, type ContextMenuState } from "./ContextMenu";
+import { TabBar } from "./TabBar";
 import { Icon } from "./icons";
-import { useTabs, tabLabel, type TableTab, type WorkspaceTab } from "../state/tabs";
+import {
+  useTabs,
+  type PaneIndex,
+  type SplitEdge,
+  type TableTab,
+  type WorkspaceTab,
+} from "../state/tabs";
 import { useFindUsages } from "../state/findUsages";
 import { useTableData } from "../hooks/useTableData";
 import { useSettings } from "../lib/settings";
@@ -31,111 +38,183 @@ export function Workspace({ onCommit }: { onCommit?: () => void } = {}) {
   const tabs = useTabs((s) => s.tabs);
   const activeId = useTabs((s) => s.activeId);
   const split = useTabs((s) => s.split);
-  const setActive = useTabs((s) => s.setActive);
-  const clearSplit = useTabs((s) => s.clearSplit);
+  const paneActive = useTabs((s) => s.paneActive);
+  const focusedPane = useTabs((s) => s.focusedPane);
   const active = tabs.find((t) => t.id === activeId) ?? null;
+  // Fraction of the split given to the primary pane; dragging the divider moves it.
+  const [ratio, setRatio] = useState(0.5);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  const startDividerDrag = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const el = containerRef.current;
+    if (!el) return;
+    const sideBySide = split === "vertical";
+    const onMove = (ev: MouseEvent) => {
+      const rect = el.getBoundingClientRect();
+      const r = sideBySide
+        ? (ev.clientX - rect.left) / rect.width
+        : (ev.clientY - rect.top) / rect.height;
+      setRatio(Math.min(0.85, Math.max(0.15, r)));
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    document.body.style.cursor = sideBySide ? "col-resize" : "row-resize";
+    document.body.style.userSelect = "none";
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
 
   if (!active) {
     return <EmptyWorkspace />;
   }
 
-  if (split) {
-    const primary = tabs.find((t) => t.id === split.primaryId) ?? active;
-    const secondary = tabs.find((t) => t.id === split.secondaryId) ?? null;
-    if (primary && secondary && primary.id !== secondary.id) {
-      return (
+  const primary =
+    split && (tabs.find((t) => t.id === paneActive[0]) ?? null);
+  const secondary =
+    split && (tabs.find((t) => t.id === paneActive[1]) ?? null);
+
+  const content =
+    primary && secondary && primary.id !== secondary.id ? (
+      <div
+        ref={containerRef}
+        className={
+          "flex min-h-0 flex-1 overflow-hidden bg-bg-inset " +
+          (split === "horizontal" ? "flex-col" : "flex-row")
+        }
+      >
+        <SplitPane
+          pane={0}
+          tab={primary}
+          focused={focusedPane === 0}
+          grow={ratio}
+          onCommit={onCommit}
+        />
         <div
+          role="separator"
+          onMouseDown={startDividerDrag}
           className={
-            "flex min-h-0 flex-1 overflow-hidden bg-bg-inset " +
-            (split.orientation === "horizontal" ? "flex-col" : "flex-row")
+            "group relative z-10 shrink-0 " +
+            (split === "vertical"
+              ? "w-[7px] -mx-[3px] cursor-col-resize"
+              : "h-[7px] -my-[3px] cursor-row-resize")
           }
         >
-          <SplitPane
-            tab={primary}
-            active={primary.id === activeId}
-            onActivate={() => setActive(primary.id)}
-            onCloseSplit={clearSplit}
-            onCommit={onCommit}
-          />
           <div
             className={
-              "shrink-0 bg-border-default " +
-              (split.orientation === "horizontal" ? "h-px" : "w-px")
+              "absolute bg-border-default transition-colors duration-100 group-hover:bg-accent-line group-active:bg-accent " +
+              (split === "vertical"
+                ? "inset-y-0 left-1/2 w-px -translate-x-1/2"
+                : "inset-x-0 top-1/2 h-px -translate-y-1/2")
             }
           />
-          <SplitPane
-            tab={secondary}
-            active={secondary.id === activeId}
-            onActivate={() => setActive(secondary.id)}
-            onCloseSplit={clearSplit}
-            onCommit={onCommit}
-          />
         </div>
-      );
-    }
-  }
+        <SplitPane
+          pane={1}
+          tab={secondary}
+          focused={focusedPane === 1}
+          grow={1 - ratio}
+          onCommit={onCommit}
+        />
+      </div>
+    ) : (
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        {renderTab(active, onCommit)}
+      </div>
+    );
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      {renderTab(active, onCommit)}
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+      {content}
+      <SplitDropZones />
     </div>
   );
 }
 
 function SplitPane({
+  pane,
   tab,
-  active,
-  onActivate,
-  onCloseSplit,
+  focused,
+  grow,
   onCommit,
 }: {
+  pane: PaneIndex;
   tab: WorkspaceTab;
-  active: boolean;
-  onActivate: () => void;
-  onCloseSplit: () => void;
+  focused: boolean;
+  grow: number;
   onCommit?: () => void;
 }) {
+  const focusPane = useTabs((s) => s.focusPane);
   return (
     <section
+      style={{ flexGrow: grow }}
       className={
         "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden " +
-        (active ? "bg-bg-0" : "bg-bg-inset")
+        (focused ? "bg-bg-0" : "bg-bg-inset")
       }
-      onMouseDown={onActivate}
+      onMouseDown={() => focusPane(pane)}
     >
-      <div
-        className={
-          "flex h-6 shrink-0 items-center justify-between border-b border-border-default px-2 text-[10.5px] " +
-          (active ? "bg-bg-1 text-fg-1" : "bg-bg-inset text-fg-3")
-        }
-      >
-        <button
-          type="button"
-          className="flex min-w-0 items-center gap-1.5 text-left"
-          onClick={onActivate}
-          title={tabTitle(tab)}
-        >
-          <span className="inline-flex shrink-0 text-fg-3">
-            <TabIcon tab={tab} />
-          </span>
-          <span className="truncate font-mono">{tabTitle(tab)}</span>
-        </button>
-        <button
-          type="button"
-          className="icon-btn h-[18px] w-[18px]"
-          onClick={(event) => {
-            event.stopPropagation();
-            onCloseSplit();
-          }}
-          title="Close split"
-        >
-          <Icon.close size={10} />
-        </button>
-      </div>
+      <TabBar pane={pane} />
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {renderTab(tab, onCommit)}
       </div>
     </section>
+  );
+}
+
+/** Edge bands that turn a dropped tab into a split. Shown only during a drag. */
+function SplitDropZones() {
+  const draggingTabId = useTabs((s) => s.draggingTabId);
+  const tabCount = useTabs((s) => s.tabs.length);
+  const dropTabToSplit = useTabs((s) => s.dropTabToSplit);
+  const [edge, setEdge] = useState<SplitEdge | null>(null);
+
+  // Need at least two tabs to leave both panes non-empty.
+  if (!draggingTabId || tabCount < 2) return null;
+
+  const zone = (e: SplitEdge, className: string) => (
+    <div
+      className={"pointer-events-auto absolute " + className}
+      onDragOver={(ev) => {
+        ev.preventDefault();
+        ev.dataTransfer.dropEffect = "move";
+        setEdge(e);
+      }}
+      onDragLeave={() => setEdge((cur) => (cur === e ? null : cur))}
+      onDrop={(ev) => {
+        ev.preventDefault();
+        const id = ev.dataTransfer.getData("text/plain") || draggingTabId;
+        if (id) dropTabToSplit(id, e);
+        setEdge(null);
+      }}
+    />
+  );
+
+  const previewClass: Record<SplitEdge, string> = {
+    left: "inset-y-0 left-0 w-1/2",
+    right: "inset-y-0 right-0 w-1/2",
+    top: "inset-x-0 top-0 h-1/2",
+    bottom: "inset-x-0 bottom-0 h-1/2",
+  };
+
+  return (
+    <div className="pointer-events-none absolute inset-0 z-20">
+      {edge && (
+        <div
+          className={
+            "absolute border-2 border-accent bg-accent-soft transition-all " +
+            previewClass[edge]
+          }
+        />
+      )}
+      {zone("left", "inset-y-0 left-0 w-[14%]")}
+      {zone("right", "inset-y-0 right-0 w-[14%]")}
+      {zone("bottom", "inset-x-0 bottom-0 h-[18%]")}
+    </div>
   );
 }
 
@@ -154,17 +233,6 @@ function renderTab(tab: WorkspaceTab, onCommit?: () => void) {
   // `key` resets the grid's local state (filters/selection) when the user
   // switches to a different table tab.
   return <TableTabPane key={tab.id} tab={tab} onCommit={onCommit} />;
-}
-
-function TabIcon({ tab }: { tab: WorkspaceTab }) {
-  if (tab.kind === "query") return <Icon.terminal size={11} />;
-  if (tab.kind === "schema-compare") return <Icon.diff size={11} />;
-  if (tab.kind === "er-diagram") return <Icon.diagram size={11} />;
-  return <Icon.table size={11} />;
-}
-
-function tabTitle(tab: WorkspaceTab): string {
-  return tabLabel(tab);
 }
 
 function TableTabPane({

@@ -26,6 +26,9 @@ describe("tab workspace state", () => {
       activeId: null,
       closedTabs: [],
       split: null,
+      tabPane: {},
+      paneActive: [null, null],
+      focusedPane: 0,
       tableChanges: {},
       tableLayouts: {},
       refreshKeys: {},
@@ -36,18 +39,19 @@ describe("tab workspace state", () => {
     useNotices.setState({ byScope: {} });
   });
 
-  it("splits the active tab against a neighboring tab", () => {
+  it("moves the active tab into the secondary pane when splitting", () => {
     const store = useTabs.getState();
     const first = store.newQueryTab("conn-1", "app");
     const second = useTabs.getState().newQueryTab("conn-1", "app");
 
     useTabs.getState().splitActiveTab("vertical");
 
-    expect(useTabs.getState().split).toEqual({
-      orientation: "vertical",
-      primaryId: second,
-      secondaryId: first,
-    });
+    const s = useTabs.getState();
+    expect(s.split).toBe("vertical");
+    expect(s.tabPane[second]).toBe(1);
+    expect(s.paneActive).toEqual([first, second]);
+    expect(s.focusedPane).toBe(1);
+    expect(s.activeId).toBe(second);
   });
 
   it("toggles a split off when the active split button is clicked again", () => {
@@ -56,25 +60,94 @@ describe("tab workspace state", () => {
     useTabs.getState().newQueryTab("conn-1", "app");
 
     useTabs.getState().splitActiveTab("horizontal");
-    expect(useTabs.getState().split?.orientation).toBe("horizontal");
+    expect(useTabs.getState().split).toBe("horizontal");
 
     useTabs.getState().splitActiveTab("horizontal");
     expect(useTabs.getState().split).toBeNull();
+    expect(useTabs.getState().tabPane).toEqual({});
   });
 
-  it("keeps a split useful when a different tab is selected", () => {
+  it("focuses the primary pane when selecting one of its tabs", () => {
     const store = useTabs.getState();
     const first = store.newQueryTab("conn-1", "app");
-    const second = useTabs.getState().newQueryTab("conn-1", "app");
     useTabs.getState().newQueryTab("conn-1", "app");
+    const third = useTabs.getState().newQueryTab("conn-1", "app");
 
+    // `third` is active, so it moves to the secondary pane; the rest stay.
     useTabs.getState().splitActiveTab("vertical");
     useTabs.getState().setActive(first);
 
-    expect(useTabs.getState().split).toMatchObject({
-      primaryId: first,
-      secondaryId: second,
-    });
+    const s = useTabs.getState();
+    expect(s.split).toBe("vertical");
+    expect(s.focusedPane).toBe(0);
+    expect(s.activeId).toBe(first);
+    expect(s.paneActive).toEqual([first, third]);
+  });
+
+  it("collapses the split when a pane is left empty", () => {
+    const store = useTabs.getState();
+    const first = store.newQueryTab("conn-1", "app");
+    const second = useTabs.getState().newQueryTab("conn-1", "app");
+
+    useTabs.getState().splitActiveTab("vertical");
+    // `second` is the only tab in the secondary pane — closing it collapses.
+    useTabs.getState().closeTab(second);
+
+    const s = useTabs.getState();
+    expect(s.split).toBeNull();
+    expect(s.activeId).toBe(first);
+    expect(s.tabPane).toEqual({});
+  });
+
+  it("creates a split by dropping a tab on the right edge", () => {
+    const store = useTabs.getState();
+    const first = store.newQueryTab("conn-1", "app");
+    const second = useTabs.getState().newQueryTab("conn-1", "app");
+    const third = useTabs.getState().newQueryTab("conn-1", "app");
+
+    // Drop `first` on the right → vertical split, `first` alone on the right,
+    // everything else on the left.
+    useTabs.getState().dropTabToSplit(first, "right");
+
+    const s = useTabs.getState();
+    expect(s.split).toBe("vertical");
+    expect(s.tabPane[first]).toBe(1);
+    expect(s.tabPane[second] ?? 0).toBe(0);
+    expect(s.tabPane[third] ?? 0).toBe(0);
+    expect(s.focusedPane).toBe(1);
+    expect(s.activeId).toBe(first);
+    expect(s.draggingTabId).toBeNull();
+  });
+
+  it("splits below the rest when dropping on the bottom edge", () => {
+    const store = useTabs.getState();
+    const first = store.newQueryTab("conn-1", "app");
+    const second = useTabs.getState().newQueryTab("conn-1", "app");
+
+    useTabs.getState().dropTabToSplit(second, "bottom");
+
+    const s = useTabs.getState();
+    expect(s.split).toBe("horizontal");
+    expect(s.tabPane[second]).toBe(1);
+    expect(s.tabPane[first] ?? 0).toBe(0);
+  });
+
+  it("moves a tab across panes", () => {
+    const store = useTabs.getState();
+    const first = store.newQueryTab("conn-1", "app");
+    const second = useTabs.getState().newQueryTab("conn-1", "app");
+    const third = useTabs.getState().newQueryTab("conn-1", "app");
+
+    // third → secondary pane; first & second stay in primary.
+    useTabs.getState().splitActiveTab("vertical");
+    useTabs.getState().moveTabToPane(first, 1);
+
+    const s = useTabs.getState();
+    expect(s.tabPane[first]).toBe(1);
+    expect(s.tabPane[third]).toBe(1);
+    expect(s.tabPane[second] ?? 0).toBe(0);
+    expect(s.focusedPane).toBe(1);
+    expect(s.activeId).toBe(first);
   });
 
   it("reopens the most recently closed tab with its query buffer intact", () => {
