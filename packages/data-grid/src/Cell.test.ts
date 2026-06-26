@@ -8,7 +8,12 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { parseCellInput, resolveBlurAction, resolveEnterAction } from "./Cell";
+import {
+  nativeControl,
+  parseCellInput,
+  resolveBlurAction,
+  resolveEnterAction,
+} from "./Cell";
 
 // ---------------------------------------------------------------------------
 // resolveEnterAction — used by the Enter key handler (text editor)
@@ -249,6 +254,29 @@ describe("parseCellInput", () => {
     });
   });
 
+  it("validates MSSQL/MySQL type aliases instead of accepting any text", () => {
+    // The bug: `datetime2` fell through to "unknown" and accepted "aaa".
+    expect(parseCellInput(column("CreationTime", "datetime2(7)"), "aaa")).toEqual({
+      ok: false,
+      message: "Enter a valid timestamp",
+    });
+    expect(
+      parseCellInput(column("CreationTime", "datetime2(7)"), "2023-04-03T05:00:31"),
+    ).toEqual({ ok: true, value: "2023-04-03T05:00:31" });
+    expect(parseCellInput(column("count", "int"), "abc")).toEqual({
+      ok: false,
+      message: "Enter a whole number",
+    });
+    expect(parseCellInput(column("flag", "tinyint"), "3")).toEqual({
+      ok: true,
+      value: 3,
+    });
+    expect(parseCellInput(column("note", "nvarchar(100)"), "hello")).toEqual({
+      ok: true,
+      value: "hello",
+    });
+  });
+
   it("requires enum values to match the column options", () => {
     expect(
       parseCellInput(
@@ -265,6 +293,48 @@ describe("parseCellInput", () => {
       ok: false,
       message: "Choose one of: new, done",
     });
+  });
+});
+
+describe("nativeControl", () => {
+  it("offers a datetime-local picker for timestamp columns, dropping sub-second precision", () => {
+    expect(
+      nativeControl(column("CreationTime", "datetime2(7)"), "2023-04-03T05:00:31.15863"),
+    ).toEqual({ type: "datetime-local", step: "1", value: "2023-04-03T05:00:31" });
+  });
+
+  it("offers a date picker for date columns", () => {
+    expect(nativeControl(column("d", "date"), "2023-04-03")).toEqual({
+      type: "date",
+      value: "2023-04-03",
+    });
+  });
+
+  it("offers a number input for integer and float columns", () => {
+    expect(nativeControl(column("n", "int"), "42")).toEqual({
+      type: "number",
+      step: "1",
+      value: "42",
+    });
+    expect(nativeControl(column("f", "float8"), "4.2")).toEqual({
+      type: "number",
+      step: "any",
+      value: "4.2",
+    });
+  });
+
+  it("still offers a picker for an empty/NULL date cell", () => {
+    expect(nativeControl(column("d", "datetime2"), "")).toEqual({
+      type: "datetime-local",
+      step: "1",
+      value: "",
+    });
+  });
+
+  it("falls back to text for non-native and unparseable values", () => {
+    expect(nativeControl(column("note", "nvarchar(100)"), "hi")).toBeNull();
+    // A legacy/garbage timestamp that can't be coerced stays editable as text.
+    expect(nativeControl(column("CreationTime", "datetime2"), "aaa")).toBeNull();
   });
 });
 
