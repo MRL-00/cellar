@@ -602,14 +602,16 @@ export function Sidebar({
       </div>
 
       <div className="flex flex-1 flex-col overflow-y-auto pb-3">
-        <button
-          type="button"
-          onClick={onNewConnection}
-          className="mx-2 mt-1 mb-3 flex w-[calc(100%-16px)] items-center gap-1.5 rounded-[4px] border border-dashed border-border-default px-2 py-1.5 text-[11.5px] text-fg-2 transition-[border-color,color,background] duration-150 hover:border-solid hover:border-accent-line hover:bg-accent-soft hover:text-accent"
-        >
-          <Icon.plus size={11} />
-          <span>New connection</span>
-        </button>
+        {connections.length === 0 && (
+          <button
+            type="button"
+            onClick={onNewConnection}
+            className="mx-2 mt-1 mb-3 flex w-[calc(100%-16px)] items-center gap-1.5 rounded-[4px] border border-dashed border-border-default px-2 py-1.5 text-[11.5px] text-fg-2 transition-[border-color,color,background] duration-150 hover:border-solid hover:border-accent-line hover:bg-accent-soft hover:text-accent"
+          >
+            <Icon.plus size={11} />
+            <span>New connection</span>
+          </button>
+        )}
 
         {matchCount === 0 && (
           <div className="px-3 py-5 text-center text-[11px] text-fg-3">
