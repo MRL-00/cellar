@@ -24,9 +24,38 @@ pub async fn browse_table(
 ) -> CellarResult<QueryResult> {
     let max_rows = normalized_limit(request).map_err(to_query_err)?;
     let sql = build_table_browse_query(request, table).map_err(to_query_err)?;
+    let count_sql = if request.include_total {
+        Some(build_table_count_query(request, table).map_err(to_query_err)?)
+    } else {
+        None
+    };
     let started = Instant::now();
 
     conn.with_client(async |client| {
+        // Run the count first (same WHERE clause, no paging) so the total
+        // arrives with the page. SQL Server browse builds inline SQL, so the
+        // same string-building path works for count(*) — no parameterization
+        // needed.
+        let total_rows: Option<u64> = if let Some(count_sql) = &count_sql {
+            let mut stream = client
+                .simple_query(count_sql.as_str())
+                .await
+                .map_err(|e| map_tiberius_runtime_err(e, "table count"))?;
+            let mut count: Option<i64> = None;
+            while let Some(item) = stream
+                .try_next()
+                .await
+                .map_err(|e| map_tiberius_runtime_err(e, "table count"))?
+            {
+                if let QueryItem::Row(row) = item {
+                    count = row.get::<i64, _>(0);
+                }
+            }
+            count.map(|c| c.max(0) as u64)
+        } else {
+            None
+        };
+
         let mut stream = client
             .simple_query(sql)
             .await
@@ -79,10 +108,7 @@ pub async fn browse_table(
             rows_affected: None,
             duration_ms: started.elapsed().as_millis() as u64,
             truncated,
-            // TODO: add include_total support for SQL Server once the shared
-            // filter-building code is refactored to support parameterized
-            // count queries (tiberius does not use sqlx QueryBuilder).
-            total_rows: None,
+            total_rows,
         })
     })
     .await
@@ -142,6 +168,39 @@ fn build_table_browse_query(
     sql.push_str(&format!(
         " OFFSET {offset} ROWS FETCH NEXT {fetch_limit} ROWS ONLY"
     ));
+    Ok(sql)
+}
+
+/// Build a `SELECT count(*) FROM … WHERE …` using the same filter clauses as
+/// the browse query. ORDER BY / OFFSET / FETCH are omitted — we want the total
+/// across all pages.
+fn build_table_count_query(
+    request: &TableBrowseRequest,
+    table: &Table,
+) -> Result<String, TableBrowseError> {
+    // Validate columns/filters so callers see meaningful errors.
+    for filter in &request.filters {
+        column_for(table, &filter.column)?;
+    }
+
+    // count_big(*) returns bigint; plain count(*) is int and overflows past
+    // ~2.1B rows.
+    let mut sql = format!(
+        "SELECT count_big(*) FROM {}.{}",
+        quote_ident(&request.schema),
+        quote_ident(&request.table)
+    );
+
+    if !request.filters.is_empty() {
+        sql.push_str(" WHERE ");
+        let filters = request
+            .filters
+            .iter()
+            .map(|filter| filter_sql(filter, table))
+            .collect::<Result<Vec<_>, _>>()?;
+        sql.push_str(&filters.join(" AND "));
+    }
+
     Ok(sql)
 }
 
@@ -287,6 +346,37 @@ mod tests {
         assert_eq!(
             sql,
             "SELECT * FROM [dbo].[orders]]archive] WHERE [name] LIKE N'%O''Hara%' ORDER BY [name] DESC OFFSET 10 ROWS FETCH NEXT 26 ROWS ONLY"
+        );
+    }
+
+    #[test]
+    fn count_query_reuses_filters_without_paging() {
+        let table = table();
+        let request = TableBrowseRequest {
+            connection_id: "conn".into(),
+            database: Some("main".into()),
+            schema: "dbo".into(),
+            table: "orders]archive".into(),
+            limit: Some(25),
+            offset: Some(10),
+            sorts: vec![TableSortClause {
+                column: "name".into(),
+                direction: SortDirection::Desc,
+            }],
+            filters: vec![TableFilterClause {
+                column: "name".into(),
+                operator: TableFilterOperator::Contains,
+                value: Some("O'Hara".into()),
+            }],
+            primary_key_fallback_ordering: true,
+            include_total: true,
+        };
+
+        let sql = build_table_count_query(&request, &table).unwrap();
+
+        assert_eq!(
+            sql,
+            "SELECT count_big(*) FROM [dbo].[orders]]archive] WHERE [name] LIKE N'%O''Hara%'"
         );
     }
 
