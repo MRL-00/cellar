@@ -207,7 +207,10 @@ export function FilterBar({
           {quickActive && (
             <button
               className="grid-filter-remove"
-              onClick={() => setQuickDraft("")}
+              onClick={() => {
+                setQuickDraft("");
+                onQuickFilterChange?.("");
+              }}
               aria-label="Clear quick filter"
             >
               <GridIcon.close size={9} />
