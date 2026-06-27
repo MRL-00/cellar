@@ -2,6 +2,7 @@ import { Icon } from "../icons";
 import { Row, Section, StaticSegment, Toggle } from "./settingsPrimitives";
 import { useConnections } from "../../state/connections";
 import { useUpdater } from "../../lib/updater";
+import { openExternal } from "../../lib/openExternal";
 
 export function SettingsPrivacy() {
   const connectionCount = useConnections((s) => s.connections.length);
@@ -186,30 +187,40 @@ export function SettingsAbout() {
               <span className="text-fg-3">·</span>
               <span>commit unavailable</span>
             </div>
+            <div className="mb-2.5 text-[11px] text-fg-2">
+              built by{" "}
+              <button
+                type="button"
+                onClick={() => openExternal("https://x.com/codermatt")}
+                className="text-fg-1 underline underline-offset-2 hover:text-fg-0"
+              >
+                Matt List
+              </button>
+            </div>
             <div className="flex gap-1.5 text-[11px]">
               <button
                 type="button"
                 disabled
                 className="cursor-not-allowed text-fg-3 underline underline-offset-2 opacity-70"
-                title="Documentation links are not wired in the desktop shell yet"
+                title="Documentation is coming soon"
               >
                 docs
               </button>
               <span className="text-fg-3">·</span>
               <button
                 type="button"
-                disabled
-                className="cursor-not-allowed text-fg-3 underline underline-offset-2 opacity-70"
-                title="External links are not wired in the desktop shell yet"
+                onClick={() => openExternal("https://github.com/MRL-00/cellar")}
+                className="text-fg-2 underline underline-offset-2 hover:text-fg-0"
               >
                 github
               </button>
               <span className="text-fg-3">·</span>
               <button
                 type="button"
-                disabled
-                className="cursor-not-allowed text-fg-3 underline underline-offset-2 opacity-70"
-                title="Changelog links are not wired in the desktop shell yet"
+                onClick={() =>
+                  openExternal("https://github.com/MRL-00/cellar/releases")
+                }
+                className="text-fg-2 underline underline-offset-2 hover:text-fg-0"
               >
                 changelog
               </button>
@@ -218,7 +229,7 @@ export function SettingsAbout() {
                 type="button"
                 disabled
                 className="cursor-not-allowed text-fg-3 underline underline-offset-2 opacity-70"
-                title="Acknowledgements links are not wired in the desktop shell yet"
+                title="Acknowledgements are coming soon"
               >
                 acknowledgements
               </button>
