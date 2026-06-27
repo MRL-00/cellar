@@ -409,7 +409,7 @@ function ConfigureView({
               type="button"
               onClick={() => setMode(m.value)}
               className={
-                "flex items-start gap-2.5 rounded-[5px] border px-3 py-1.5 text-left " +
+                "flex items-center gap-2.5 rounded-[5px] border px-3 py-1.5 text-left " +
                 (mode === m.value
                   ? "border-accent-line bg-accent-soft"
                   : "border-border-default bg-bg-2 hover:border-border-strong")
@@ -417,7 +417,7 @@ function ConfigureView({
             >
               <span
                 className={
-                  "mt-[3px] inline-flex h-[13px] w-[13px] shrink-0 items-center justify-center rounded-full border " +
+                  "inline-flex h-[13px] w-[13px] shrink-0 items-center justify-center rounded-full border " +
                   (mode === m.value
                     ? "border-accent bg-accent text-accent-fg"
                     : "border-border-strong bg-bg-inset")
