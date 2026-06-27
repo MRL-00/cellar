@@ -17,6 +17,56 @@ import {
   Toggle,
 } from "./settingsPrimitives";
 
+// Curated, broadly-available fonts. Picking one not installed locally falls
+// through the stack in applySettingsSideEffects, so it stays safe.
+const SANS_FONTS = [
+  "Geist",
+  "Inter",
+  "SF Pro Text",
+  "Helvetica Neue",
+  "Arial",
+  "Roboto",
+  "Segoe UI",
+];
+const MONO_FONTS = [
+  "JetBrains Mono",
+  "Geist Mono",
+  "SF Mono",
+  "Menlo",
+  "Monaco",
+  "Fira Code",
+  "Cascadia Code",
+  "Source Code Pro",
+  "Consolas",
+];
+
+function FontSelect({
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: string[];
+}) {
+  // Keep any legacy/custom value selectable so it isn't silently dropped.
+  const list = options.includes(value) ? options : [value, ...options];
+  return (
+    <select
+      className={CD_INPUT}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      style={{ flex: 1, fontFamily: `"${value}"` }}
+    >
+      {list.map((f) => (
+        <option key={f} value={f} style={{ fontFamily: `"${f}"` }}>
+          {f}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 export function SettingsAppearance() {
   const { settings, set } = useSettings();
 
@@ -70,19 +120,17 @@ export function SettingsAppearance() {
 
       <Section title="Type">
         <Row label="Interface font">
-          <input
-            className={CD_INPUT + " font-sans"}
+          <FontSelect
             value={settings.interfaceFont}
-            onChange={(e) => set("interfaceFont", e.target.value)}
-            style={{ flex: 1 }}
+            onChange={(v) => set("interfaceFont", v)}
+            options={SANS_FONTS}
           />
         </Row>
         <Row label="Editor / mono font">
-          <input
-            className={CD_INPUT + " font-mono"}
+          <FontSelect
             value={settings.monoFont}
-            onChange={(e) => set("monoFont", e.target.value)}
-            style={{ flex: 1 }}
+            onChange={(v) => set("monoFont", v)}
+            options={MONO_FONTS}
           />
         </Row>
         <Row
