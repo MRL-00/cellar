@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { getVersion } from "@tauri-apps/api/app";
 import { Icon, type IconName } from "../icons";
 import { Modal } from "./Modal";
 import { SettingsAI } from "./settingsAIPanel";
@@ -232,6 +233,12 @@ function SettingsNav({
   q: string;
   searchResults: SettingsSearchResult[];
 }) {
+  const [appVersion, setAppVersion] = useState<string>("");
+  useEffect(() => {
+    getVersion()
+      .then(setAppVersion)
+      .catch(() => setAppVersion(""));
+  }, []);
   const filter = q.toLowerCase().trim();
   const matchingCats = new Set(searchResults.map((result) => result.cat));
   const counts = searchResults.reduce<Partial<Record<SettingsCatId, number>>>(
@@ -312,7 +319,7 @@ function SettingsNav({
         );
       })}
       <div className="mt-auto flex items-center gap-1.5 border-t border-border-divider px-[14px] py-2.5 text-[10px]">
-        <span className="font-mono text-fg-3">v0.1.0-alpha</span>
+        <span className="font-mono text-fg-3">{appVersion ? `v${appVersion}` : ""}</span>
         <span className="text-fg-3">·</span>
         <button
           type="button"

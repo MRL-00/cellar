@@ -145,7 +145,7 @@ export function SettingsGeneral() {
   return (
     <div className="flex-1 overflow-y-auto pb-6 pt-1">
       <p className="px-5 pt-4 text-[11.5px] text-fg-3">
-        General settings will appear here as features are built.
+        General settings and more config coming soon.
       </p>
     </div>
   );
