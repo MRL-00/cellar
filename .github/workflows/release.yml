@@ -131,6 +131,16 @@ jobs:
           echo "$APP_STORE_CONNECT_API_KEY_BASE64" | base64 -D > "$api_key_path"
           chmod 600 "$api_key_path"
 
+      - name: Stamp release version into tauri.conf.json
+        shell: bash
+        run: |
+          set -euo pipefail
+          conf="apps/desktop/src-tauri/tauri.conf.json"
+          tmp="$(mktemp)"
+          jq --arg v "${{ steps.release.outputs.version }}" '.version = $v' "$conf" > "$tmp"
+          mv "$tmp" "$conf"
+          echo "tauri.conf.json version set to ${{ steps.release.outputs.version }}"
+
       - name: Build and upload installers
         uses: tauri-apps/tauri-action@v0
         env:
