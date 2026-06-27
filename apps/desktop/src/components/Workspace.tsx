@@ -254,15 +254,11 @@ function TableTabPane({
   const [pageSize, setPageSize] = useState(500);
   const grid = useGridState();
   // Quick filter is kept separate from the advanced chips (`grid.filters`) so
-  // clearing one never disturbs the other. `quickInput` is the immediate text
-  // box value; `quickFilter` is its debounced form that drives the server query.
-  const [quickInput, setQuickInput] = useState("");
+  // clearing one never disturbs the other. FilterBar owns the typed text and
+  // debounces it, so `quickFilter` only updates (and re-queries) once the user
+  // pauses — keystrokes never re-render the grid.
   const [quickFilter, setQuickFilter] = useState("");
   const [quickColumn, setQuickColumn] = useState<string | null>(null);
-  useEffect(() => {
-    const handle = setTimeout(() => setQuickFilter(quickInput.trim()), 250);
-    return () => clearTimeout(handle);
-  }, [quickInput]);
   const data = useTableData(
     tab.connectionId,
     tab.database,
@@ -422,8 +418,8 @@ function TableTabPane({
         renderEditor={renderGridEditor}
         filters={grid.filters}
         onFiltersChange={grid.setFilters}
-        quickFilter={quickInput}
-        onQuickFilterChange={setQuickInput}
+        quickFilter={quickFilter}
+        onQuickFilterChange={setQuickFilter}
         quickFilterColumn={quickColumn}
         onQuickFilterColumnChange={setQuickColumn}
         sort={grid.sort}

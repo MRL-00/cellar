@@ -167,7 +167,10 @@ export function useTableData(
           hasNextPage: result.truncated,
         }));
         useNotices.getState().recordQueryResult(
-          { tabId: tableTabId(connectionId, database, schema, table), connectionId, database },
+          // Scope to the live tab id (same key the bottom panel reads and that
+          // tab close drops) — not the table path, which leaked entries nothing
+          // ever cleared.
+          { tabId: messageTabId, connectionId, database },
           result,
         );
         useQueryMessages
