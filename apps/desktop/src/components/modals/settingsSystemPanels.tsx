@@ -147,6 +147,8 @@ export function SettingsUpdates() {
 }
 
 export function SettingsAbout() {
+  const { appVersion } = useUpdater();
+  const versionLabel = appVersion ? `v${appVersion}` : "v0.0.0";
   return (
     <div className="flex-1 overflow-y-auto pb-6 pt-1">
       <Section title="About">
@@ -175,7 +177,10 @@ export function SettingsAbout() {
               A fast, native database client with AI built in.
             </div>
             <div className="mb-2.5 flex gap-1.5 font-mono text-[10.5px] text-fg-2">
-              <span>v0.1.0-alpha · development build</span>
+              <span>
+                {versionLabel}
+                {import.meta.env.DEV ? " · development build" : ""}
+              </span>
               <span className="text-fg-3">·</span>
               <span>MIT licensed</span>
               <span className="text-fg-3">·</span>
