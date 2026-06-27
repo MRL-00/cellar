@@ -131,6 +131,17 @@ export function applySettingsSideEffects(s: Settings) {
   html.setAttribute("data-theme", resolvedTheme);
   html.setAttribute("data-density", s.density);
 
+  // User-selected fonts override the leading family; the rest of the stack in
+  // tokens.css remains as graceful fallback for anything not installed.
+  html.style.setProperty(
+    "--font-sans",
+    `"${s.interfaceFont}", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif`,
+  );
+  html.style.setProperty(
+    "--font-mono",
+    `"${s.monoFont}", "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace`,
+  );
+
   html.style.setProperty("--accent", s.accent);
   html.style.setProperty(
     "--accent-soft",
