@@ -157,7 +157,22 @@ export function FilterBar({
     [columns],
   );
   const showQuickFilter = !!onQuickFilterChange;
-  const quickValue = quickFilter ?? "";
+  // Keep the typed text local so each keystroke only re-renders this toolbar,
+  // not the whole grid (which can hold 100k+ rows). The trimmed value is pushed
+  // to the parent — and the server query — only after the user pauses.
+  const [quickDraft, setQuickDraft] = useState(quickFilter ?? "");
+  // Adopt external changes (tab switch, programmatic clear) but ignore the
+  // parent echoing back our own trimmed value, so a trailing space isn't eaten.
+  useEffect(() => {
+    setQuickDraft((prev) => (prev.trim() === (quickFilter ?? "") ? prev : quickFilter ?? ""));
+  }, [quickFilter]);
+  const onQuickRef = useRef(onQuickFilterChange);
+  onQuickRef.current = onQuickFilterChange;
+  useEffect(() => {
+    const handle = setTimeout(() => onQuickRef.current?.(quickDraft.trim()), 250);
+    return () => clearTimeout(handle);
+  }, [quickDraft]);
+  const quickValue = quickDraft;
   const quickColumnValue = quickFilterColumn ?? textColumns[0]?.key ?? "";
   const quickActive = quickValue.trim().length > 0;
   const activeCount = filters.length + (quickActive ? 1 : 0);
@@ -170,7 +185,7 @@ export function FilterBar({
           <input
             className="grid-quickfilter-input mono"
             value={quickValue}
-            onChange={(e) => onQuickFilterChange?.(e.target.value)}
+            onChange={(e) => setQuickDraft(e.target.value)}
             placeholder="Quick filter (id or text)…"
             aria-label="Quick filter"
           />
@@ -192,7 +207,7 @@ export function FilterBar({
           {quickActive && (
             <button
               className="grid-filter-remove"
-              onClick={() => onQuickFilterChange?.("")}
+              onClick={() => setQuickDraft("")}
               aria-label="Clear quick filter"
             >
               <GridIcon.close size={9} />

@@ -53,7 +53,11 @@ const HEADER_HEIGHT = 26;
 const DEFAULT_ROW_HEIGHT = 22;
 const MIN_ROW_OVERSCAN = 24;
 const OVERSCAN_VIEWPORTS = 3;
-const VIRTUAL_ROW_THRESHOLD = 1_000;
+// Below this, full row flow is cheap enough; above it we window the rows so a
+// wide table never puts thousands of cells in the DOM (which makes every
+// interaction — typing in the filter included — janky). The default page size
+// is 500, so this must sit under it or ordinary pages never virtualize.
+const VIRTUAL_ROW_THRESHOLD = 100;
 
 export function calculateVirtualRows({
   rowCount,

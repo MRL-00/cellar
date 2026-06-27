@@ -2,13 +2,13 @@ import { describe, expect, it } from "vitest";
 import { calculateVirtualRows, shouldVirtualizeRows } from "./DataGrid";
 
 describe("shouldVirtualizeRows", () => {
-  it("keeps ordinary 500-row pages in normal row flow", () => {
-    expect(shouldVirtualizeRows(500)).toBe(false);
+  it("keeps small pages in normal row flow", () => {
+    expect(shouldVirtualizeRows(100)).toBe(false);
   });
 
-  it("only virtualizes larger result sets", () => {
-    expect(shouldVirtualizeRows(1_000)).toBe(false);
-    expect(shouldVirtualizeRows(1_001)).toBe(true);
+  it("virtualizes ordinary 500-row pages so the DOM stays small", () => {
+    expect(shouldVirtualizeRows(101)).toBe(true);
+    expect(shouldVirtualizeRows(500)).toBe(true);
   });
 });
 

@@ -31,6 +31,16 @@ export const EMPTY_ENTRY: NoticeLogEntry = {
   retain: true,
 };
 
+// Cap retained notices so a long-lived tab that keeps querying (e.g. typing in
+// the quick filter, one query per keystroke) can't grow this array without
+// bound. Mirrors trimMessages() in queryMessages.ts.
+const MAX_NOTICES = 200;
+
+function trimNotices(notices: DatabaseNotice[]): DatabaseNotice[] {
+  if (notices.length <= MAX_NOTICES) return notices;
+  return notices.slice(notices.length - MAX_NOTICES);
+}
+
 export function noticeScopeKey(scope: NoticeScope): string {
   if (scope.tabId) return `tab:${scope.tabId}`;
   if (scope.connectionId) {
@@ -48,7 +58,7 @@ export const useNotices = create<NoticeStore>((set) => ({
     set((s) => {
       const previous = s.byScope[key] ?? structuredClone(EMPTY_ENTRY);
       const notices = previous.retain
-        ? [...previous.notices, ...result.notices]
+        ? trimNotices([...previous.notices, ...result.notices])
         : result.notices;
       return {
         byScope: {
@@ -73,7 +83,7 @@ export const useNotices = create<NoticeStore>((set) => ({
           ...s.byScope,
           [key]: {
             ...previous,
-            notices: [...previous.notices, notice],
+            notices: trimNotices([...previous.notices, notice]),
           },
         },
       };
