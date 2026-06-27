@@ -19,6 +19,7 @@
     "@cellar/ipc": "workspace:*",
     "@cellar/sql-editor": "workspace:*",
     "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/plugin-opener": "^2.0.0",
     "@tauri-apps/plugin-process": "^2.0.0",
     "@tauri-apps/plugin-updater": "^2.0.0",
     "react": "^18.3.1",
