@@ -319,8 +319,8 @@ function SettingsNav({
         );
       })}
       <div className="mt-auto flex items-center gap-1.5 border-t border-border-divider px-[14px] py-2.5 text-[10px]">
-        <span className="font-mono text-fg-3">{appVersion ? `v${appVersion}` : ""}</span>
-        <span className="text-fg-3">·</span>
+        {appVersion && <span className="font-mono text-fg-3">{`v${appVersion}`}</span>}
+        {appVersion && <span className="text-fg-3">·</span>}
         <button
           type="button"
           disabled
