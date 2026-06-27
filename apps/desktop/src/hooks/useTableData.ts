@@ -267,6 +267,9 @@ function loadTableQuery(
     request.offset ?? "",
     JSON.stringify(request.sorts),
     JSON.stringify(request.filters),
+    // A page query (include_total:false) and the count query must never share a
+    // promise — otherwise the count effect reuses a result with total_rows:null.
+    request.include_total ? "total" : "",
   ].join("\u001f");
   const existing = inflightTableLoads.get(key);
   if (existing) return existing;
