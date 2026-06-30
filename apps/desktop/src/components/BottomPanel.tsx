@@ -172,7 +172,7 @@ export function BottomPanel({ onClose }: { onClose: () => void }) {
                 className={
                   "mt-[3px] inline-flex h-[22px] items-center gap-1.5 rounded-[4px] px-2 text-[11px] disabled:cursor-default disabled:opacity-45 " +
                   (isActive
-                    ? "bg-accent-soft text-accent"
+                    ? "bg-bg-3 text-fg-0"
                     : "text-fg-2 hover:bg-bg-2 hover:text-fg-0 disabled:hover:bg-transparent disabled:hover:text-fg-2")
                 }
               >
@@ -184,7 +184,7 @@ export function BottomPanel({ onClose }: { onClose: () => void }) {
                   <span
                     className={
                       "rounded-[8px] px-1 py-px font-mono text-[9.5px] " +
-                      (isActive ? "bg-bg-1 text-accent" : "bg-bg-2 text-fg-2")
+                      (isActive ? "bg-bg-1 text-fg-0" : "bg-bg-2 text-fg-2")
                     }
                   >
                     {t.count}

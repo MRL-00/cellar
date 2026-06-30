@@ -9,7 +9,9 @@
      `min-width: 0` a flex item's min-width defaults to its intrinsic content
      width (~1850px here), so `.grid-scroll` never sees overflow to scroll. */
   min-width: 0;
-  font-size: var(--fs-md);
+  /* Match the 13px base used by the body / sidebar so grid data and the rest of
+     the UI read at the same size. */
+  font-size: var(--fs-sm);
   background: var(--bg-inset);
 }
 
