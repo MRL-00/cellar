@@ -65,8 +65,7 @@ export function EmptyState({ onNew }: { onNew: () => void }) {
             onClick={onNew}
             className="flex h-8 items-center justify-center gap-2 whitespace-nowrap rounded-[6px] border px-3 text-xs font-medium text-accent-fg transition-[filter] duration-[120ms] hover:brightness-[1.07]"
             style={{
-              background:
-                "linear-gradient(135deg, #c4b5fd 0%, var(--accent) 55%, #6d4ed1 100%)",
+              background: "var(--accent)",
               borderColor: "color-mix(in oklab, var(--accent) 40%, black)",
             }}
           >

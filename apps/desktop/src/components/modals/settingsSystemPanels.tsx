@@ -158,8 +158,8 @@ export function SettingsAbout() {
             className="relative h-12 w-12 shrink-0 rounded-[10px]"
             style={{
               background:
-                "linear-gradient(135deg, var(--accent), color-mix(in oklab, var(--accent) 50%, var(--syn-kw)))",
-              boxShadow: "0 0 24px var(--accent-soft)",
+                "linear-gradient(135deg, #c4b5fd 0%, #a78bfa 55%, #6d4ed1 100%)",
+              boxShadow: "0 0 24px rgba(167, 139, 250, 0.14)",
             }}
           >
             <span

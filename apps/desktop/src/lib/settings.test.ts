@@ -64,6 +64,17 @@ describe("applySettingsSideEffects", () => {
     // Light accent keeps dark text.
     expect(fg("#fbbf24")).toBe("#0a0b0e");
   });
+
+  it("nudges an invisible accent into a visible range", () => {
+    const accentVar = (accent: string) => {
+      applySettingsSideEffects({ ...DEFAULTS, accent });
+      return document.documentElement.style.getPropertyValue("--accent");
+    };
+    // Black has no contrast against the dark theme bg → brightened to a gray.
+    expect(accentVar("#000000")).not.toBe("#000000");
+    // A vivid accent already clears the threshold → left untouched.
+    expect(accentVar("#a78bfa")).toBe("#a78bfa");
+  });
 });
 
 function fakeElement() {

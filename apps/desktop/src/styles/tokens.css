@@ -19,7 +19,7 @@
   /* Borders — default is pure white at 4% per design */
   --border-subtle: rgba(255, 255, 255, 0.03);
   --border-default: rgba(255, 255, 255, 0.04);
-  --border-strong: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.13);
   --border-divider: rgba(255, 255, 255, 0.05);
   /* Vertical separator between grid columns: stronger than the row divider so
      columns read as distinct. */
@@ -66,7 +66,7 @@
   --syn-fn: #60a5fa;
   --syn-str: #86efac;
   --syn-num: #fbbf24;
-  --syn-ident: #ecedef;
+  --syn-ident: #eeeeee;
   --syn-comment: #5e6068;
   --syn-op: #c2c4c9;
   --syn-tbl: #f59e9e;
