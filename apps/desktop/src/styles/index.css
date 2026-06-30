@@ -27,6 +27,7 @@
   --color-border-default: var(--border-default);
   --color-border-strong: var(--border-strong);
   --color-border-divider: var(--border-divider);
+  --color-border-separator: var(--border-separator);
 
   /* Text */
   --color-fg-strong: var(--fg-strong);
