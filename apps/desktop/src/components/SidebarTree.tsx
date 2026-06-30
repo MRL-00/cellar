@@ -42,9 +42,10 @@ export type SchemaVisibilityState = Record<string, SchemaVisibilityPrefs>;
 const SCHEMA_VISIBILITY_STORAGE_KEY = "cellar.schemaVisibility.v1";
 
 export const ROW_BASE =
-  "group relative flex h-[22px] select-none items-center gap-1 pr-1.5 text-fg-1 cursor-default hover:bg-bg-2";
+  "group relative flex h-[22px] select-none items-center gap-1 rounded-[3px] pr-1.5 text-fg-1 cursor-default transition-[background,color] duration-100 hover:bg-bg-2";
 
-const ROW_ACTIVE = "bg-accent-soft text-accent [&_.sb-icon-slot]:!text-accent";
+const ROW_ACTIVE =
+  "bg-accent-soft font-medium text-accent [&_.sb-icon-slot]:!text-accent";
 
 export const ICON_SLOT =
   "sb-icon-slot inline-flex h-[14px] w-[14px] shrink-0 items-center justify-center";
@@ -53,10 +54,13 @@ export const TWISTY =
   "inline-flex h-[14px] w-[14px] shrink-0 items-center justify-center text-fg-3 hover:text-fg-1";
 
 export const META =
-  "ml-auto pr-1 whitespace-nowrap text-[10px] text-fg-3 shrink-0";
+  "ml-auto shrink-0 whitespace-nowrap pr-1 text-[10px] font-medium tabular-nums text-fg-3";
+
+export const NODE_LABEL =
+  "min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[13px] leading-[18px]";
 
 const PILL =
-  "ml-1 rounded-[3px] bg-bg-2 px-1 py-px font-mono text-[9px] text-fg-3";
+  "ml-1 rounded-[3px] bg-bg-2 px-1 py-px text-[9px] font-medium tabular-nums text-fg-3";
 
 /** Drag/drop wiring the sidebar list attaches to a connection header row. */
 export interface ConnectionDragHandles {
@@ -148,12 +152,12 @@ export function ConnectionRow({
           )}
         </button>
         <EngineBadge engine={config.engine as Engine} size={12} color={accent} />
-        <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[12px] font-medium">
+        <span className={NODE_LABEL + " font-medium"}>
           {config.name}
         </span>
         {config.env_tag === "prod" && (
           <span
-            className="rounded-[3px] px-1 py-px font-mono text-[8.5px] uppercase"
+            className="rounded-[3px] px-1 py-px text-[8.5px] font-semibold uppercase tracking-[0.04em]"
             style={{
               color: "var(--warn)",
               background: "color-mix(in oklab, var(--warn) 16%, transparent)",
@@ -305,15 +309,10 @@ function DatabaseRow({
         <span className={ICON_SLOT}>
           <Icon.database size={12} />
         </span>
-        <span
-          className={
-            "flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[12px] font-medium " +
-            (visibleEmpty ? "text-fg-3" : "")
-          }
-        >
+        <span className={NODE_LABEL + (visibleEmpty ? " text-fg-3" : "")}>
           {dbName}
         </span>
-        <span className={META + " font-mono"}>
+        <span className={META}>
           {empty
             ? "—"
             : visibility.hiddenCount > 0
@@ -399,15 +398,10 @@ function SchemaRow({
         <span className={ICON_SLOT}>
           <Icon.schema size={12} />
         </span>
-        <span
-          className={
-            "flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[12px] font-medium " +
-            (hidden ? "text-fg-3" : "")
-          }
-        >
+        <span className={NODE_LABEL + (hidden ? " text-fg-3" : "")}>
           {schema.name}
         </span>
-        <span className={META + " font-mono"}>{schema.tables.length}</span>
+        <span className={META}>{schema.tables.length}</span>
       </div>
       {open && (
         <>
@@ -459,7 +453,7 @@ function SchemaRow({
                   <span className={ICON_SLOT}>
                     <Icon.tree size={11} />
                   </span>
-                  <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[12px] font-medium">
+                  <span className={NODE_LABEL}>
                     {v.name}
                   </span>
                 </div>
@@ -515,10 +509,10 @@ function GroupFolder({
         <span className={ICON_SLOT}>
           {open ? <Icon.folderOpen size={12} /> : <Icon.folder size={12} />}
         </span>
-        <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[12px] font-medium">
+        <span className={NODE_LABEL}>
           {label}
         </span>
-        <span className={META + " font-mono"}>{count}</span>
+        <span className={META}>{count}</span>
       </div>
       {open && children}
     </div>
@@ -566,11 +560,11 @@ function TableRow({
       <span className={ICON_SLOT} style={{ color: "var(--fg-1)" }}>
         <Icon.table size={11} />
       </span>
-      <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[12px] font-medium">
+      <span className={NODE_LABEL}>
         {table.name}
       </span>
       {table.row_count != null && (
-        <span className={META + " font-mono"}>
+        <span className={META}>
           {formatRowCount(table.row_count)}
         </span>
       )}

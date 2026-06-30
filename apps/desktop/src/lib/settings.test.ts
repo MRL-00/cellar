@@ -52,6 +52,27 @@ describe("applySettingsSideEffects", () => {
     );
   });
 
+  it("applies interface and mono font selections to CSS variables", () => {
+    applySettingsSideEffects({
+      ...DEFAULTS,
+      interfaceFont: "Geist",
+      monoFont: "JetBrains Mono",
+    });
+
+    expect(document.documentElement.style.getPropertyValue("--font-sans")).toContain(
+      '"Geist"',
+    );
+    expect(
+      document.documentElement.style.getPropertyValue("--font-interface"),
+    ).toContain('"Geist"');
+    expect(document.documentElement.style.getPropertyValue("--font-mono")).toContain(
+      '"JetBrains Mono"',
+    );
+    expect(document.documentElement.style.getPropertyValue("--font-data")).toContain(
+      '"JetBrains Mono"',
+    );
+  });
+
   it("picks a legible --accent-fg by contrast, not brightness", () => {
     const fg = (accent: string) => {
       applySettingsSideEffects({ ...DEFAULTS, accent });

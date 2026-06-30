@@ -98,6 +98,8 @@
   /* Type */
   --font-sans: "SF Pro Text", "SF Pro Display", -apple-system, "BlinkMacSystemFont", "Inter", "Segoe UI", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", "Geist Mono", ui-monospace, "SF Mono", "Menlo", "Consolas", monospace;
+  --font-interface: var(--font-sans);
+  --font-data: var(--font-mono);
   /* Size scale: 12, 13 (base), 14, 16, 18, 24. Base lives on --fs-sm, which the
      body uses (see base.css). */
   --fs-xs: 12px;

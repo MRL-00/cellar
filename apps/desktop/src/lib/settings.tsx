@@ -137,14 +137,12 @@ export function applySettingsSideEffects(s: Settings) {
   // tokens.css remains as graceful fallback for anything not installed.
   // The user-selected family leads; the rest is a graceful fallback only used
   // when that font isn't installed.
-  html.style.setProperty(
-    "--font-sans",
-    `"${s.interfaceFont}", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif`,
-  );
-  html.style.setProperty(
-    "--font-mono",
-    `"${s.monoFont}", "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace`,
-  );
+  const interfaceStack = `"${s.interfaceFont}", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif`;
+  const monoStack = `"${s.monoFont}", "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace`;
+  html.style.setProperty("--font-sans", interfaceStack);
+  html.style.setProperty("--font-interface", interfaceStack);
+  html.style.setProperty("--font-mono", monoStack);
+  html.style.setProperty("--font-data", monoStack);
 
   // Use an accent that's guaranteed visible against the theme background, so a
   // dark/neutral pick doesn't render accent-colored UI (tabs, selection, icons)

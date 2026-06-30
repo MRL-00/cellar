@@ -427,11 +427,11 @@ function FolderRow({
           onCancel={onCancelRename}
         />
       ) : (
-        <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[12px] font-medium">
+        <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[12px] font-medium leading-[18px]">
           {folder.name}
         </span>
       )}
-      <span className={META + " font-mono"}>{count}</span>
+      <span className={META}>{count}</span>
       <button
         type="button"
         className="icon-btn ml-1 opacity-0 transition-opacity duration-100 group-hover:opacity-100"
