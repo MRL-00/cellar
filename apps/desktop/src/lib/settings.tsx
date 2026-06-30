@@ -85,6 +85,9 @@ function load(): Settings {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULTS;
     const parsed = JSON.parse(raw) as Partial<Settings>;
+    // Migrate the pre-SF-Pro default interface font so existing installs pick up
+    // the new neutral default instead of being stuck on the old "Geist" default.
+    if (parsed.interfaceFont === "Geist") parsed.interfaceFont = DEFAULTS.interfaceFont;
     // Deep-merge nested sub-objects so new fields added to DEFAULTS are
     // forward-compatible with older persisted values that lack them.
     return sanitize({
@@ -135,9 +138,12 @@ export function applySettingsSideEffects(s: Settings) {
 
   // User-selected fonts override the leading family; the rest of the stack in
   // tokens.css remains as graceful fallback for anything not installed.
+  // -apple-system / SF Pro come right after the chosen family so that if it
+  // isn't installed we fall back to the system font (SF on macOS) rather than
+  // to Inter.
   html.style.setProperty(
     "--font-sans",
-    `"${s.interfaceFont}", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif`,
+    `"${s.interfaceFont}", -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", "Segoe UI", system-ui, sans-serif`,
   );
   html.style.setProperty(
     "--font-mono",
