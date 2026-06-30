@@ -27,6 +27,7 @@ export const ACCENT_SWATCHES = [
   "#c9a86a",
   "#a8475c",
   "#ffd60a",
+  "#8a8a8a",
 ] as const;
 
 export type EditorSettings = {
@@ -57,7 +58,7 @@ export const DEFAULTS: Settings = {
   density: "compact",
   accent: "#a78bfa",
   fontSizePx: 13.5,
-  interfaceFont: "Geist",
+  interfaceFont: "SF Pro Text",
   monoFont: "JetBrains Mono",
   editor: {
     tabSize: 4,
@@ -72,8 +73,9 @@ export const DEFAULTS: Settings = {
 };
 
 const STORAGE_KEY = "cellar.settings.v1";
-// Most compact UI labels are authored around 10-12px. Treat the user's setting
-// as the target readable size, so the default 13.5px setting is not a no-op.
+// The interface is authored compact and zoomed up for comfort: the font-size
+// setting divided by this baseline gives the global UI scale, so the default
+// 13.5px setting renders at ~1.125× rather than being a no-op.
 const FONT_SIZE_BASELINE = 12;
 export const FONT_SIZE_MIN = 10;
 export const FONT_SIZE_MAX = 22;
@@ -133,6 +135,8 @@ export function applySettingsSideEffects(s: Settings) {
 
   // User-selected fonts override the leading family; the rest of the stack in
   // tokens.css remains as graceful fallback for anything not installed.
+  // The user-selected family leads; the rest is a graceful fallback only used
+  // when that font isn't installed.
   html.style.setProperty(
     "--font-sans",
     `"${s.interfaceFont}", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif`,
@@ -142,15 +146,22 @@ export function applySettingsSideEffects(s: Settings) {
     `"${s.monoFont}", "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace`,
   );
 
-  html.style.setProperty("--accent", s.accent);
+  // Use an accent that's guaranteed visible against the theme background, so a
+  // dark/neutral pick doesn't render accent-colored UI (tabs, selection, icons)
+  // invisible. The raw value stays in settings (and drives the swatch picker).
+  const accent = visibleAccent(s.accent, resolvedTheme !== "light");
+  html.style.setProperty("--accent", accent);
   html.style.setProperty(
     "--accent-soft",
-    hexToRgba(s.accent, resolvedTheme === "light" ? 0.1 : 0.14),
+    hexToRgba(accent, resolvedTheme === "light" ? 0.1 : 0.14),
   );
   html.style.setProperty(
     "--accent-line",
-    hexToRgba(s.accent, resolvedTheme === "light" ? 0.28 : 0.32),
+    hexToRgba(accent, resolvedTheme === "light" ? 0.28 : 0.32),
   );
+  html.style.setProperty("--accent-fg", readableOn(accent));
+  // Editor ghost/inline-suggestion text tracks the accent too.
+  html.style.setProperty("--syn-ghost", hexToRgba(accent, 0.55));
 
   const scale = clamp(s.fontSizePx, FONT_SIZE_MIN, FONT_SIZE_MAX) / FONT_SIZE_BASELINE;
   // Compensate body's layout box for zoom so the App, which fills body, still
@@ -166,13 +177,65 @@ function clamp(n: number, min: number, max: number) {
   return Math.min(Math.max(n, min), max);
 }
 
-function hexToRgba(hex: string, alpha: number) {
+function parseHex(hex: string): [number, number, number] | null {
   const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  if (!m || !m[1] || !m[2] || !m[3]) return hex;
-  const r = parseInt(m[1], 16);
-  const g = parseInt(m[2], 16);
-  const b = parseInt(m[3], 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  if (!m || !m[1] || !m[2] || !m[3]) return null;
+  return [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)];
+}
+
+function hexToRgba(hex: string, alpha: number) {
+  const rgb = parseHex(hex);
+  if (!rgb) return hex;
+  return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${alpha})`;
+}
+
+function toHex([r, g, b]: [number, number, number]): string {
+  const byte = (n: number) => clamp(Math.round(n), 0, 255).toString(16).padStart(2, "0");
+  return `#${byte(r)}${byte(g)}${byte(b)}`;
+}
+
+// WCAG relative luminance (0 = black, 1 = white) for an sRGB 0-255 triple.
+function relLuminance([r, g, b]: [number, number, number]): number {
+  const lin = (c: number) => {
+    const v = c / 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+}
+
+function contrastRatio(l1: number, l2: number): number {
+  return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+}
+
+// Text/icon color to sit on top of the accent (e.g. the primary button fill).
+// Picks dark or white by whichever has the higher WCAG contrast ratio against
+// the accent, so dark accents (black) and mid neutrals (#8a8a8a) both stay
+// legible — a fixed brightness cutoff mis-picks white on mid grays.
+function readableOn(hex: string): string {
+  const rgb = parseHex(hex);
+  if (!rgb) return "#ffffff";
+  const lum = relLuminance(rgb);
+  return contrastRatio(lum, 0) >= contrastRatio(lum, 1) ? "#0a0b0e" : "#ffffff";
+}
+
+// The accent is used directly as a foreground/border/indicator color in dozens
+// of places, so an accent too close to the theme background (e.g. black on the
+// dark theme) renders those elements invisible. Nudge such accents toward the
+// opposite end until they clear a minimum contrast against bg-0, keeping the
+// user's hue while guaranteeing it shows up. Vivid accents are left untouched.
+function visibleAccent(hex: string, dark: boolean): string {
+  let rgb = parseHex(hex);
+  if (!rgb) return hex;
+  const bgLum = dark ? 0.006 : 0.92; // ≈ luminance of --bg-0 per theme
+  const target = dark ? 255 : 0; // blend toward white on dark, black on light
+  for (let i = 0; i < 12 && contrastRatio(relLuminance(rgb), bgLum) < 2.2; i++) {
+    rgb = [
+      rgb[0] + (target - rgb[0]) * 0.12,
+      rgb[1] + (target - rgb[1]) * 0.12,
+      rgb[2] + (target - rgb[2]) * 0.12,
+    ];
+  }
+  return toHex(rgb);
 }
 
 type Ctx = {

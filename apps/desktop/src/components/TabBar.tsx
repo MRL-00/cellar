@@ -244,7 +244,7 @@ export function TabBar({ pane }: { pane?: PaneIndex } = {}) {
                   "absolute left-0 top-0 h-full w-0.5 transition-opacity duration-150 " +
                   (isActive && isStripFocused ? "opacity-100" : "opacity-0")
                 }
-                style={{ background: "var(--eng-postgres)" }}
+                style={{ background: "var(--accent)" }}
               />
               <span className="inline-flex" style={{ color: "var(--fg-1)" }}>
                 {t.kind === "query" ? (

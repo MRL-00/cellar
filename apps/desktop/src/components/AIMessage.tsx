@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { Icon } from "./icons";
 import type { AiChatEntry } from "../state/ai";
+import { tokenizeSql, tokensToLines, renderTokens } from "../lib/sqlTokens";
+
+const SQL_LANGS = /^(sql|postgres|postgresql|pgsql|mysql|sqlite|tsql|mssql)$/i;
 
 /** A run of message content: either prose or a fenced code block. */
 type Segment =
@@ -56,7 +59,15 @@ function CodeBlock({ lang, code }: { lang: string; code: string }) {
         </button>
       </div>
       <pre className="overflow-x-auto px-2.5 py-2 font-mono text-[11.5px] leading-[1.5] text-fg-0">
-        <code>{code}</code>
+        {SQL_LANGS.test(lang.trim()) ? (
+          tokensToLines(tokenizeSql(code)).map((toks, i) => (
+            <div key={i} className="whitespace-pre">
+              {toks.length ? renderTokens(toks) : " "}
+            </div>
+          ))
+        ) : (
+          <code>{code}</code>
+        )}
       </pre>
     </div>
   );

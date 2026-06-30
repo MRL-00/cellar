@@ -24,9 +24,9 @@ export function StatusBar() {
           <span
             className="inline-block h-1.5 w-1.5 rounded-full"
             style={{
-              background: connected ? "var(--accent)" : "var(--fg-4)",
+              background: connected ? "var(--insert)" : "var(--fg-4)",
               boxShadow: connected
-                ? "0 0 0 2px var(--accent-soft)"
+                ? "0 0 0 2px var(--insert-bg)"
                 : undefined,
             }}
           />

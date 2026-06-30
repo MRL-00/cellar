@@ -37,8 +37,8 @@ export function EmptyState({ onNew }: { onNew: () => void }) {
             className="relative h-9 w-9 rounded-lg"
             style={{
               background:
-                "linear-gradient(135deg, #c4b5fd 0%, var(--accent) 55%, #6d4ed1 100%)",
-              boxShadow: "0 0 24px var(--accent-soft)",
+                "linear-gradient(135deg, #c4b5fd 0%, #a78bfa 55%, #6d4ed1 100%)",
+              boxShadow: "0 0 24px rgba(167, 139, 250, 0.14)",
             }}
           >
             <span
@@ -65,8 +65,7 @@ export function EmptyState({ onNew }: { onNew: () => void }) {
             onClick={onNew}
             className="flex h-8 items-center justify-center gap-2 whitespace-nowrap rounded-[6px] border px-3 text-xs font-medium text-accent-fg transition-[filter] duration-[120ms] hover:brightness-[1.07]"
             style={{
-              background:
-                "linear-gradient(135deg, #c4b5fd 0%, var(--accent) 55%, #6d4ed1 100%)",
+              background: "var(--accent)",
               borderColor: "color-mix(in oklab, var(--accent) 40%, black)",
             }}
           >
