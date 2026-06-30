@@ -122,7 +122,6 @@ function renderEngineChips(el: HTMLElement | null) {
 }
 
 renderEngineChips(document.getElementById("engRow"));
-renderEngineChips(document.getElementById("engRow2"));
 
 /* ───────────── download menu ───────────── */
 
@@ -377,3 +376,144 @@ function renderFaq(el: HTMLElement | null) {
 }
 
 renderFaq(document.getElementById("faqList"));
+
+/* ───────────── scroll reveal ─────────────
+   Fade + lift elements as they enter the viewport. Elements only
+   start hidden when `.js` is on <html> (set in the head), so a
+   no-JS page shows everything. Siblings stagger; reduced-motion
+   skips the animation entirely. */
+
+const revealables = Array.from(document.querySelectorAll<HTMLElement>(".reveal"));
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* Enable the hide-then-reveal CSS only now that the reveal logic is running.
+   If anything above threw, `.reveal-ready` is never set and content stays
+   visible rather than stuck hidden. */
+document.documentElement.classList.add("reveal-ready");
+
+if (reduceMotion || !("IntersectionObserver" in window)) {
+  for (const el of revealables) el.classList.add("in");
+} else {
+  // Stagger each element against its reveal siblings under the same parent.
+  const indexInParent = new Map<HTMLElement, number>();
+  for (const el of revealables) {
+    const siblings = el.parentElement
+      ? Array.from(el.parentElement.children).filter((c) => c.classList.contains("reveal"))
+      : [el];
+    indexInParent.set(el, siblings.indexOf(el));
+  }
+
+  const observer = new IntersectionObserver(
+    (entries, obs) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        const el = entry.target as HTMLElement;
+        el.style.transitionDelay = `${Math.min(indexInParent.get(el) ?? 0, 5) * 70}ms`;
+        el.classList.add("in");
+        obs.unobserve(el);
+      }
+    },
+    { rootMargin: "0px 0px -10% 0px", threshold: 0.1 },
+  );
+
+  for (const el of revealables) observer.observe(el);
+}
+
+/* ───────────── header ─────────────
+   Transparent over the hero, solid once scrolled; scroll-spy marks the
+   active section in the nav; an accessible disclosure drives the mobile
+   menu (Escape, click-outside, link-tap, and resize all close it). */
+
+const nav = document.getElementById("siteNav");
+
+if (nav) {
+  const setScrolled = () => nav.classList.toggle("scrolled", window.scrollY > 8);
+  setScrolled();
+  window.addEventListener("scroll", setScrolled, { passive: true });
+
+  // Scroll-spy: light up the nav link for whichever section crosses mid-viewport.
+  const linkBySection = new Map<string, HTMLAnchorElement[]>();
+  const spyLinks = nav.querySelectorAll<HTMLAnchorElement>(
+    '.nav-links a[href^="#"], .nav-mobile a[href^="#"]:not(.btn)',
+  );
+  for (const link of spyLinks) {
+    const id = link.getAttribute("href")?.slice(1);
+    if (!id) continue;
+    const links = linkBySection.get(id) ?? [];
+    links.push(link);
+    linkBySection.set(id, links);
+  }
+  const sections = [...linkBySection.keys()]
+    .map((id) => document.getElementById(id))
+    .filter((el): el is HTMLElement => el !== null);
+
+  if ("IntersectionObserver" in window && sections.length) {
+    const spy = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          for (const links of linkBySection.values())
+            for (const l of links) l.classList.remove("active");
+          for (const l of linkBySection.get(entry.target.id) ?? []) l.classList.add("active");
+        }
+      },
+      { rootMargin: "-50% 0px -50% 0px", threshold: 0 },
+    );
+    for (const section of sections) spy.observe(section);
+  }
+
+  // Mobile menu disclosure.
+  const toggle = document.getElementById("navToggle");
+  const menu = document.getElementById("navMobile");
+  if (toggle && menu) {
+    const setMenu = (open: boolean) => {
+      toggle.setAttribute("aria-expanded", String(open));
+      toggle.setAttribute("aria-label", open ? "Close menu" : "Open menu");
+      menu.hidden = !open;
+    };
+    toggle.addEventListener("click", () => {
+      setMenu(toggle.getAttribute("aria-expanded") !== "true");
+    });
+    menu.addEventListener("click", (event) => {
+      if (event.target instanceof Element && event.target.closest("a")) setMenu(false);
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && toggle.getAttribute("aria-expanded") === "true") {
+        setMenu(false);
+        toggle.focus();
+      }
+    });
+    document.addEventListener("click", (event) => {
+      if (event.target instanceof Node && !nav.contains(event.target)) setMenu(false);
+    });
+    window.addEventListener("resize", () => {
+      if (window.innerWidth > 880) setMenu(false);
+    });
+  }
+}
+
+/* ───────────── hero scene playback ─────────────
+   The hero backdrop video has no autoplay attribute, so it stays on
+   its poster frame until we opt in: only when motion is allowed, and
+   only while the hero is on screen (pause when scrolled away to save
+   battery/CPU). Reduced-motion users keep the still poster. */
+
+const heroVideo = document.getElementById("heroVideo") as HTMLVideoElement | null;
+
+if (heroVideo && !reduceMotion) {
+  const playSafe = () => heroVideo.play().catch(() => {});
+  if ("IntersectionObserver" in window) {
+    const videoObserver = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) playSafe();
+          else heroVideo.pause();
+        }
+      },
+      { threshold: 0.05 },
+    );
+    videoObserver.observe(heroVideo);
+  } else {
+    playSafe();
+  }
+}

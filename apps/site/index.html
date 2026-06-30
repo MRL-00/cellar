@@ -43,7 +43,7 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
 
   <link rel="preload" as="image" href="/assets/cellar-main.png" fetchpriority="high" />
 
@@ -59,17 +59,20 @@
 </head>
 <body>
 
+<a class="skip-link" href="#top">Skip to content</a>
+
 <!-- ───────────── NAV ───────────── -->
-<nav class="nav" aria-label="Primary">
+<header>
+<nav class="nav" id="siteNav" aria-label="Primary">
   <div class="wrap nav-inner">
     <a class="brand" href="#top" aria-label="Cellar home">
-      <img src="/assets/cellar-mark.svg" width="24" height="24" alt="" />
+      <img src="/assets/cellar-mark.svg" width="22" height="22" alt="" />
       Cellar
     </a>
     <div class="nav-links">
       <a href="#features">Features</a>
-      <a href="#databases">Databases</a>
       <a href="#keyboard">Keyboard</a>
+      <a href="#privacy">Privacy</a>
       <a href="#open-source">Open source</a>
       <a href="#faq">FAQ</a>
     </div>
@@ -78,25 +81,45 @@
         <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
         <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
       </button>
-      <a class="ghost-link" href="https://github.com/MRL-00/cellar" rel="noopener">
+      <a class="ghost-link nav-desktop" href="https://github.com/MRL-00/cellar" rel="noopener">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
         <span>GitHub</span>
       </a>
-      <a class="btn btn-primary" href="#download">Download</a>
+      <a class="btn btn-primary nav-desktop" href="#download">Download</a>
+      <button class="nav-toggle" id="navToggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="navMobile">
+        <svg class="ic-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+        <svg class="ic-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M6 18L18 6"/></svg>
+      </button>
     </div>
   </div>
+  <div class="nav-mobile" id="navMobile" hidden>
+    <a href="#features">Features</a>
+    <a href="#keyboard">Keyboard</a>
+    <a href="#privacy">Privacy</a>
+    <a href="#open-source">Open source</a>
+    <a href="#faq">FAQ</a>
+    <a class="nav-mobile-gh" href="https://github.com/MRL-00/cellar" rel="noopener">GitHub</a>
+    <a class="btn btn-primary" href="#download">Download for Mac</a>
+  </div>
 </nav>
+</header>
 
-<span id="top"></span>
+<main id="top" tabindex="-1">
 
 <!-- ───────────── HERO ───────────── -->
-<header class="hero" id="download">
-  <div class="hero-grid" aria-hidden="true"></div>
+<section class="hero" id="download">
+  <div class="hero-bg" aria-hidden="true">
+    <video class="hero-video" id="heroVideo" muted loop playsinline preload="none" poster="/assets/hero-scene-poster.jpg">
+      <source src="/assets/hero-scene.webm" type="video/webm" />
+      <source src="/assets/hero-scene.mp4" type="video/mp4" />
+    </video>
+    <div class="hero-scrim"></div>
+  </div>
   <div class="wrap hero-inner">
     <span class="eyebrow"><span class="tick"></span>Open-source desktop database client</span>
-    <h1>Cellar is the database client for <span class="accent">fast SQL work</span>.</h1>
+    <h1>The database client built for <span class="accent">fast SQL work</span>.</h1>
     <p class="lede">
-      Browse schemas, run queries, and review data changes in a local-first desktop app.
+      Browse schemas, run queries, and review every data change before it commits. A virtualized grid handles millions of rows, in a local-first desktop app.
     </p>
     <div class="cta-row">
       <div class="download-picker">
@@ -132,150 +155,140 @@
       <span><b>macOS</b> · Apple Silicon or Intel</span>
       <span class="sep">·</span>
       <span><b data-release-size>GitHub Releases</b></span>
-      <span class="sep">·</span>
-      <span>Intel build also available</span>
       <span class="sep" data-download-count-sep hidden>·</span>
       <span data-download-count hidden></span>
     </div>
 
     <div class="shot-wrap">
-      <div class="window float">
+      <div class="window">
         <img src="/assets/cellar-main.png" alt="Cellar main window: table editing with the AI Assistant mid-conversation" width="1920" height="1080" fetchpriority="high" decoding="async" data-theme-swap />
       </div>
-    </div>
-
-    <div class="trust">
-      <div class="lbl">Supported today, with more engines coming soon</div>
-      <div class="trust-row" id="engRow"></div>
-    </div>
-  </div>
-</header>
-
-<!-- ───────────── FEATURES ───────────── -->
-<section class="section" id="features">
-  <div class="wrap">
-    <div class="section-head center">
-      <span class="eyebrow"><span class="tick"></span>Why Cellar</span>
-      <h2>A modern client, without the bloat.</h2>
-      <p>A focused workspace for the loop database users repeat all day: connect, query, inspect, edit, review.</p>
-    </div>
-    <div class="feat-grid">
-      <article class="feat">
-        <div class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5z"/></svg></div>
-        <h3>SQL-aware assistance, coming soon</h3>
-        <p>AI work is coming soon, built around inspectable SQL, explicit schema context, and bring-your-own provider keys. Nothing should route through a hosted Cellar service.</p>
-      </article>
-      <article class="feat">
-        <div class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M3 14h18M9 4v16"/></svg></div>
-        <h3>Maximum density grid</h3>
-        <p>A virtualized grid tuned to 22px rows renders millions of cells without breaking a sweat. Edits stage as a reviewable diff before they ever touch the database.</p>
-      </article>
-      <article class="feat">
-        <div class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.66 3.58 3 8 3s8-1.34 8-3V5M4 11v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6"/></svg></div>
-        <h3>Postgres, SQL Server, Azure SQL, and Firestore</h3>
-        <p>Those engines are supported today. MySQL and SQLite are coming soon, shaped behind the same connection and query workflow.</p>
-      </article>
     </div>
   </div>
 </section>
 
-<!-- ───────────── SHOWCASE ───────────── -->
-<section class="section" id="showcase" style="padding-top:0;">
+<!-- ───────────── STAT BAND ───────────── -->
+<section class="stats">
   <div class="wrap">
-
-    <div class="split">
-      <div class="split-copy">
-        <span class="eyebrow"><span class="tick"></span>AI assistance · coming soon</span>
-        <h3>Ask in English. Review the SQL.</h3>
-        <p>Cellar’s coming-soon AI work is being built around visible schema context, BYO provider keys, and generated SQL you can inspect before it runs. The goal is assistance inside the database workflow, not a black box beside it.</p>
-        <ul class="mini-list">
-          <li><span class="ck" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>Coming soon: schema-aware generation and explanation</li>
-          <li><span class="ck" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>Coming soon: review gates before generated SQL runs</li>
-          <li><span class="ck" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>Coming soon: provider keys used directly from your machine</li>
-        </ul>
+    <div class="stat-grid">
+      <div class="stat reveal">
+        <div class="num tnum">$0</div>
+        <div class="lab">Free and open source, forever</div>
       </div>
-      <div class="window">
-        <img src="/assets/main.png" alt="Planned AI assistant drafting SQL with pinned schema context" width="924" height="540" loading="lazy" decoding="async" data-theme-swap />
+      <div class="stat reveal">
+        <div class="num tnum">5</div>
+        <div class="lab">Database engines supported today</div>
+      </div>
+      <div class="stat reveal">
+        <div class="num tnum">0</div>
+        <div class="lab">Telemetry, accounts, or cloud sync</div>
       </div>
     </div>
+  </div>
+</section>
 
-    <div class="split rev">
-      <div class="split-copy">
-        <span class="eyebrow"><span class="tick"></span>Connections</span>
-        <h3>Connect in seconds, safely.</h3>
-        <p>Engine-specific setup with SSH tunnels and SSL/TLS built in. Credentials live in your OS keychain. Never in a config file, never synced anywhere.</p>
-        <ul class="mini-list">
-          <li><span class="ck" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>Test connection with live latency and server version</li>
-          <li><span class="ck" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>Password or Kerberos auth, per connection</li>
-          <li><span class="ck" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>Color-coded prod connections so you never slip</li>
-        </ul>
-      </div>
-      <div class="window">
-        <img src="/assets/connection.png" alt="New connection dialog with engine picker, host, auth and test connection" width="924" height="540" loading="lazy" decoding="async" data-theme-swap />
-      </div>
+<!-- ───────────── ENGINES STRIP ───────────── -->
+<section class="engines" id="databases">
+  <div class="wrap">
+    <div class="lbl">Supported today, with more engines coming soon</div>
+    <div class="trust-row reveal" id="engRow"></div>
+  </div>
+</section>
+
+<!-- ───────────── FEATURES (bento) ───────────── -->
+<section class="section" id="features">
+  <div class="wrap">
+    <div class="section-head center">
+      <span class="eyebrow"><span class="tick"></span>Why Cellar</span>
+      <h2>A focused workspace for the loop you repeat all day.</h2>
+      <p>Connect, query, inspect, edit, review — every step tuned for speed and built to keep you in control.</p>
     </div>
 
+    <div class="bento">
+      <article class="cell span2 reveal">
+        <div class="cell-body">
+          <span class="soon-pill">Coming soon</span>
+          <h3 style="margin-top:14px;">Ask in English. Review the SQL.</h3>
+          <p>Cellar's coming-soon AI is built around visible schema context, bring-your-own provider keys, and generated SQL you inspect before it runs — assistance inside the workflow, not a black box beside it.</p>
+        </div>
+        <div class="cell-shot cover">
+          <img src="/assets/main.png" alt="Planned AI assistant drafting SQL with pinned schema context" width="924" height="540" loading="lazy" decoding="async" data-theme-swap />
+        </div>
+      </article>
+
+      <article class="cell reveal">
+        <div class="cell-body">
+          <span class="eyebrow"><span class="tick"></span>Connections</span>
+          <h3>Connect in seconds, safely.</h3>
+          <p>SSH tunnels and SSL/TLS built in. Credentials live in your OS keychain — never a config file, never synced.</p>
+        </div>
+        <div class="cell-shot cover">
+          <img src="/assets/connection.png" alt="New connection dialog with engine picker, host, auth and test connection" width="924" height="540" loading="lazy" decoding="async" data-theme-swap />
+        </div>
+      </article>
+
+      <article class="cell metric reveal">
+        <span class="eyebrow"><span class="tick"></span>The grid</span>
+        <div>
+          <div class="big tnum">22<span class="unit">px</span> rows</div>
+          <p>A virtualized grid renders millions of cells without breaking a sweat. Edits stage as a reviewable diff before they ever touch the database.</p>
+        </div>
+      </article>
+
+      <article class="cell reveal">
+        <div class="cell-body">
+          <span class="eyebrow"><span class="tick"></span>Command palette</span>
+          <h3>⌘K to anything.</h3>
+          <p>Tables, columns, commands, and workspace actions — one fuzzy search away.</p>
+        </div>
+        <div class="cell-shot cover">
+          <img src="/assets/cmd.png" alt="Command palette searching tables, actions and navigation" width="924" height="540" loading="lazy" decoding="async" data-theme-swap />
+        </div>
+      </article>
+
+      <article class="cell metric reveal">
+        <span class="eyebrow"><span class="tick"></span>Review before commit</span>
+        <div>
+          <div class="big">Stage <span class="unit">→</span> review <span class="unit">→</span> commit</div>
+          <p>Pending changes show as a diff you approve or revert. Production connections are color-coded so you never slip.</p>
+        </div>
+      </article>
+    </div>
   </div>
 </section>
 
 <!-- ───────────── KEYBOARD ───────────── -->
 <section class="section kbd-band" id="keyboard">
   <div class="wrap">
-    <div class="split">
-      <div class="split-copy">
-        <span class="eyebrow"><span class="tick"></span>Built for the keyboard</span>
-        <h3>Your hands never leave home row.</h3>
-        <p>Everything is one fuzzy <span class="kbd">⌘</span> <span class="kbd">K</span> away: tables, columns, commands, and workspace actions. Rebind anything; ship with Cellar, VS Code, or DataGrip keymaps out of the box.</p>
-        <div class="kb-grid">
-          <div class="kb-row"><span class="lab">Command palette</span><span class="keys"><span class="kbd">⌘</span><span class="kbd">K</span></span></div>
-          <div class="kb-row"><span class="lab">Run statement</span><span class="keys"><span class="kbd">⌘</span><span class="kbd">↵</span></span></div>
-          <div class="kb-row"><span class="lab">Commit changes</span><span class="keys"><span class="kbd">⌘</span><span class="kbd">S</span></span></div>
-          <div class="kb-row"><span class="lab">Revert staged</span><span class="keys"><span class="kbd">⌘</span><span class="kbd">Z</span></span></div>
-          <div class="kb-row"><span class="lab">Focus editor</span><span class="keys"><span class="kbd">⌘</span><span class="kbd">L</span></span></div>
-          <div class="kb-row"><span class="lab">Switch connection</span><span class="keys"><span class="kbd">⌘</span><span class="kbd">K</span><span class="kbd">C</span></span></div>
-        </div>
-      </div>
-      <div class="window">
-        <img src="/assets/cmd.png" alt="Command palette searching tables, actions and navigation" width="924" height="540" loading="lazy" decoding="async" data-theme-swap />
-      </div>
+    <div class="section-head reveal">
+      <span class="eyebrow"><span class="tick"></span>Built for the keyboard</span>
+      <h2>Your hands never leave home row.</h2>
+      <p>Everything is one fuzzy <span class="kbd">⌘</span><span class="kbd">K</span> away: tables, columns, commands, and workspace actions. Rebind anything, or ship with Cellar, VS Code, or DataGrip keymaps out of the box.</p>
+    </div>
+    <div class="kb-grid reveal">
+      <div class="kb-row"><span class="lab">Command palette</span><span class="keys"><span class="kbd">⌘</span><span class="kbd">K</span></span></div>
+      <div class="kb-row"><span class="lab">Run statement</span><span class="keys"><span class="kbd">⌘</span><span class="kbd">↵</span></span></div>
+      <div class="kb-row"><span class="lab">Commit changes</span><span class="keys"><span class="kbd">⌘</span><span class="kbd">S</span></span></div>
+      <div class="kb-row"><span class="lab">Revert staged</span><span class="keys"><span class="kbd">⌘</span><span class="kbd">Z</span></span></div>
+      <div class="kb-row"><span class="lab">Focus editor</span><span class="keys"><span class="kbd">⌘</span><span class="kbd">L</span></span></div>
+      <div class="kb-row"><span class="lab">Switch connection</span><span class="keys"><span class="kbd">⌘</span><span class="kbd">K</span><span class="kbd">C</span></span></div>
     </div>
   </div>
 </section>
 
-<!-- ───────────── DATABASES ───────────── -->
-<section class="section" id="databases">
+<!-- ───────────── PRIVACY ───────────── -->
+<section class="section" id="privacy">
   <div class="wrap">
-    <div class="section-head center">
-      <span class="eyebrow"><span class="tick"></span>Supported engines</span>
-      <h2>One client shape for every database.</h2>
-      <p>PostgreSQL, SQL Server, Azure SQL, and Firestore are supported today. MySQL and SQLite are coming soon.</p>
-    </div>
-    <div class="trust-row" id="engRow2" style="margin-top:48px;"></div>
-  </div>
-</section>
-
-<!-- ───────────── PRIVACY / BYO ───────────── -->
-<section class="section" id="privacy" style="padding-top:0;">
-  <div class="wrap">
-    <div class="band">
+    <div class="band reveal">
       <div>
         <span class="eyebrow"><span class="tick"></span>Privacy by default</span>
         <h2>Your data stays on your machine.</h2>
         <p>Cellar is a local-first desktop app. No account, no cloud sync, no phone-home. The only network calls are to your databases and, if you opt in, your own AI provider.</p>
       </div>
       <ul class="priv-list">
-        <li>
-          <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span>
-          <span><b>BYO key, coming soon.</b> AI provider keys are designed to be stored in the OS keychain and used directly. Cellar must not proxy your prompts through a hosted service.</span>
-        </li>
-        <li>
-          <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6l8-4z"/></svg></span>
-          <span><b>Inspectable context, coming soon.</b> AI context should be visible and controllable before it leaves your machine.</span>
-        </li>
-        <li>
-          <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></span>
-          <span><b>Telemetry off.</b> Analytics are opt-in and disabled by default. Inspect exactly what’s stored locally.</span>
-        </li>
+        <li><b>BYO key, coming soon.</b> AI provider keys are designed to be stored in the OS keychain and used directly. Cellar must not proxy your prompts through a hosted service.</li>
+        <li><b>Inspectable context, coming soon.</b> AI context should be visible and controllable before it ever leaves your machine.</li>
+        <li><b>Telemetry off.</b> Analytics are opt-in and disabled by default. Inspect exactly what's stored locally.</li>
       </ul>
     </div>
   </div>
@@ -284,15 +297,15 @@
 <!-- ───────────── OPEN SOURCE ───────────── -->
 <section class="section" id="open-source" style="padding-top:0;">
   <div class="wrap">
-    <div class="oss">
+    <div class="oss reveal">
       <div class="oss-copy">
         <span class="eyebrow"><span class="tick"></span>Open source · MIT</span>
         <h2>Built in the open. Yours to audit.</h2>
-        <p>Read every line, file an issue, or ship a PR. No telemetry to trust, just the source.</p>
-        <div class="oss-facts" style="margin-top:18px;">
+        <p>Read every line, file an issue, or ship a PR. No telemetry to trust — just the source.</p>
+        <div class="oss-facts">
           <span class="fact"><span class="dot"></span>MIT licensed</span>
-          <span class="fact"><span class="dot" style="background:var(--eng-postgres);"></span>early access</span>
-          <span class="fact"><span class="dot" style="background:var(--eng-mysql);"></span>macOS first</span>
+          <span class="fact"><span class="dot"></span>Early access</span>
+          <span class="fact"><span class="dot"></span>macOS first</span>
         </div>
       </div>
       <a class="btn btn-ghost btn-lg" href="https://github.com/MRL-00/cellar" rel="noopener">
@@ -306,18 +319,18 @@
 <!-- ───────────── FAQ ───────────── -->
 <section class="section" id="faq" style="padding-top:0;">
   <div class="wrap">
-    <div class="section-head center">
+    <div class="section-head center reveal">
       <span class="eyebrow"><span class="tick"></span>FAQ</span>
       <h2>Good questions.</h2>
     </div>
-    <div class="faq" id="faqList"></div>
+    <div class="faq reveal" id="faqList"></div>
   </div>
 </section>
 
 <!-- ───────────── FINAL CTA ───────────── -->
 <section class="final">
-  <div class="wrap hero-inner">
-    <img class="mark" src="/assets/cellar-mark.svg" width="56" height="56" alt="" />
+  <div class="wrap hero-inner reveal">
+    <img class="mark" src="/assets/cellar-mark.svg" width="48" height="48" alt="" />
     <h2>Browse schemas, run SQL, review changes.</h2>
     <p class="lede">Free, open source, and distributed from GitHub Releases.</p>
     <div class="cta-row">
@@ -355,13 +368,15 @@
   </div>
 </section>
 
+</main>
+
 <!-- ───────────── FOOTER ───────────── -->
 <footer>
   <div class="wrap">
     <div class="foot-grid">
       <div class="foot-brand">
-        <a class="brand" href="#top"><img src="/assets/cellar-mark.svg" width="24" height="24" alt="" /> Cellar</a>
-        <p>Cellar is a local-first desktop database client for browsing schemas, running SQL, and reviewing data changes.</p>
+        <a class="brand" href="#top"><img src="/assets/cellar-mark.svg" width="22" height="22" alt="" /> Cellar</a>
+        <p>A local-first desktop database client for browsing schemas, running SQL, and reviewing data changes.</p>
       </div>
       <div class="foot-col">
         <h4>Product</h4>
