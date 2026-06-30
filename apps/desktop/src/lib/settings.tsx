@@ -27,6 +27,7 @@ export const ACCENT_SWATCHES = [
   "#c9a86a",
   "#a8475c",
   "#ffd60a",
+  "#8a8a8a",
 ] as const;
 
 export type EditorSettings = {
@@ -56,8 +57,8 @@ export const DEFAULTS: Settings = {
   theme: "dark",
   density: "compact",
   accent: "#a78bfa",
-  fontSizePx: 13.5,
-  interfaceFont: "Geist",
+  fontSizePx: 13,
+  interfaceFont: "SF Pro Text",
   monoFont: "JetBrains Mono",
   editor: {
     tabSize: 4,
@@ -151,6 +152,7 @@ export function applySettingsSideEffects(s: Settings) {
     "--accent-line",
     hexToRgba(s.accent, resolvedTheme === "light" ? 0.28 : 0.32),
   );
+  html.style.setProperty("--accent-fg", readableOn(s.accent));
 
   const scale = clamp(s.fontSizePx, FONT_SIZE_MIN, FONT_SIZE_MAX) / FONT_SIZE_BASELINE;
   // Compensate body's layout box for zoom so the App, which fills body, still
@@ -173,6 +175,21 @@ function hexToRgba(hex: string, alpha: number) {
   const g = parseInt(m[2], 16);
   const b = parseInt(m[3], 16);
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+// Text/icon color to sit on top of the accent (e.g. the primary button fill).
+// Picks black or white by the accent's perceived brightness so a dark accent
+// (like black) doesn't render black-on-black. ponytail: simple luma threshold,
+// not full WCAG — good enough for a single fg pick.
+function readableOn(hex: string): string {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (!m || !m[1] || !m[2] || !m[3]) return "#ffffff";
+  const luma =
+    (0.299 * parseInt(m[1], 16) +
+      0.587 * parseInt(m[2], 16) +
+      0.114 * parseInt(m[3], 16)) /
+    255;
+  return luma > 0.6 ? "#0a0b0e" : "#ffffff";
 }
 
 type Ctx = {

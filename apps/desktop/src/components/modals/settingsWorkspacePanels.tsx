@@ -68,7 +68,7 @@ function FontSelect({
 }
 
 export function SettingsAppearance() {
-  const { settings, set } = useSettings();
+  const { settings, set, reset } = useSettings();
 
   return (
     <div className="flex-1 overflow-y-auto pb-6 pt-1">
@@ -135,7 +135,7 @@ export function SettingsAppearance() {
         </Row>
         <Row
           label="Font size"
-          hint="Scales the entire interface. Default is 13.5 px."
+          hint="Scales the entire interface. Default is 13 px."
         >
           <input
             className={CD_INPUT + " font-mono"}
@@ -158,7 +158,7 @@ export function SettingsAppearance() {
               {FONT_SIZE_MIN}
             </span>
             <span className="absolute top-0 left-1/2 -translate-x-1/2 whitespace-nowrap text-[9.5px] text-fg-3">
-              13.5
+              13
             </span>
             <span className="absolute top-0 right-0 translate-x-1/2 whitespace-nowrap text-[9.5px] text-fg-3">
               {FONT_SIZE_MAX}
@@ -183,6 +183,18 @@ export function SettingsAppearance() {
         </Row>
         <Row label="Native window controls">
           <Toggle on={false} ariaLabel="Native window controls" />
+        </Row>
+      </Section>
+
+      <Section title="Reset">
+        <Row label="Appearance" hint="Restore theme, accent, density, fonts and size to defaults.">
+          <button
+            type="button"
+            onClick={reset}
+            className="rounded-[4px] border border-border-strong bg-bg-2 px-2 py-1 text-fg-1 transition-colors hover:bg-bg-3 hover:text-fg-0"
+          >
+            Reset to defaults
+          </button>
         </Row>
       </Section>
     </div>

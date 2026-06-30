@@ -39,16 +39,16 @@ describe("applySettingsSideEffects", () => {
     vi.restoreAllMocks();
   });
 
-  it("maps the default 13.5px font setting to a visible startup scale", () => {
+  it("maps the default 13px font setting to a visible startup scale", () => {
     applySettingsSideEffects(DEFAULTS);
 
     expect(document.documentElement.style.getPropertyValue("--ui-scale")).toBe(
-      "1.125",
+      "1.0833333333333333",
     );
-    expect(document.body.style.width).toBe("88.88888888888889vw");
-    expect(document.body.style.height).toBe("88.88888888888889vh");
+    expect(document.body.style.width).toBe("92.30769230769232vw");
+    expect(document.body.style.height).toBe("92.30769230769232vh");
     expect((document.body.style as CSSStyleDeclaration & { zoom?: string }).zoom).toBe(
-      "1.125",
+      "1.0833333333333333",
     );
   });
 });

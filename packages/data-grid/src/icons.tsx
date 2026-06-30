@@ -15,7 +15,7 @@ type IconProps = SVGProps<SVGSVGElement> & {
 const I = ({
   d,
   size = 14,
-  sw = 1.5,
+  sw = 1,
   fill = "none",
   stroke = "currentColor",
   children,

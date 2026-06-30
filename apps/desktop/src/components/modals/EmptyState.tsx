@@ -37,8 +37,8 @@ export function EmptyState({ onNew }: { onNew: () => void }) {
             className="relative h-9 w-9 rounded-lg"
             style={{
               background:
-                "linear-gradient(135deg, #c4b5fd 0%, var(--accent) 55%, #6d4ed1 100%)",
-              boxShadow: "0 0 24px var(--accent-soft)",
+                "linear-gradient(135deg, #c4b5fd 0%, #a78bfa 55%, #6d4ed1 100%)",
+              boxShadow: "0 0 24px rgba(167, 139, 250, 0.14)",
             }}
           >
             <span

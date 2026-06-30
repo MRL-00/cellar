@@ -20,6 +20,7 @@
   --color-bg-4: var(--bg-4);
   --color-bg-inset: var(--bg-inset);
   --color-bg-overlay: var(--bg-overlay);
+  --color-bg-selected: var(--bg-selected);
 
   /* Borders */
   --color-border-subtle: var(--border-subtle);
@@ -28,6 +29,7 @@
   --color-border-divider: var(--border-divider);
 
   /* Text */
+  --color-fg-strong: var(--fg-strong);
   --color-fg-0: var(--fg-0);
   --color-fg-1: var(--fg-1);
   --color-fg-2: var(--fg-2);
@@ -83,6 +85,7 @@
   --text-md: var(--fs-md);
   --text-lg: var(--fs-lg);
   --text-xl: var(--fs-xl);
+  --text-2xl: var(--fs-2xl);
 
   /* Shadows */
   --shadow-sm: var(--shadow-sm);
