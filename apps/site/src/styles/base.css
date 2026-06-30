@@ -1,0 +1,184 @@
+/* ──────────────────────────────────────────────────────────────
+   Base — design tokens (both themes), resets, shared primitives.
+   Monochrome: white-on-black (dark) / black-on-white (light), no
+   chromatic accent. Contrast and type carry the hierarchy.
+   ────────────────────────────────────────────────────────────── */
+
+:root,
+[data-theme="dark"] {
+  --bg-0: #0a0a0d;
+  --bg-1: #121217;
+  --bg-2: #16161c;
+  --bg-3: #1d1d25;
+  --bg-inset: #08080a;
+
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-default: rgba(255, 255, 255, 0.10);
+  --border-strong: rgba(255, 255, 255, 0.16);
+
+  --fg-0: #f4f4f6;
+  --fg-1: #c7c9cf;
+  --fg-2: #9a9ca3;
+  --fg-3: #71747c;
+  --fg-4: #44464d;
+
+  --accent: #f4f4f6;
+  --accent-2: #ffffff;
+  --accent-deep: #c7c9cf;
+  --accent-soft: rgba(255, 255, 255, 0.10);
+  --accent-line: rgba(255, 255, 255, 0.22);
+  --accent-fg: #0a0a0d;
+  --accent-grad: linear-gradient(135deg, #ffffff 0%, #d6d7dd 100%);
+  --glow: rgba(255, 255, 255, 0.16);
+
+  --eng-postgres: #4f8ff7;
+  --eng-mysql: #f6a44a;
+  --eng-mssql: #d97a5a;
+  --eng-azure: #5bb8e0;
+  --eng-sqlite: #8a9bb5;
+  --eng-firestore: #f4c542;
+
+  --shadow-lg: 0 2px 6px rgba(0, 0, 0, 0.5), 0 30px 80px rgba(0, 0, 0, 0.55);
+}
+
+[data-theme="light"] {
+  --bg-0: #ffffff;
+  --bg-1: #ffffff;
+  --bg-2: #faf9fc;
+  --bg-3: #f2f0f9;
+  --bg-inset: #f7f6fb;
+
+  --border-subtle: #f0eff4;
+  --border-default: #e6e4ee;
+  --border-strong: #d5d2e1;
+
+  --fg-0: #16161d;
+  --fg-1: #3d3d47;
+  --fg-2: #57565f;
+  --fg-3: #767581;
+  --fg-4: #b4b3bd;
+
+  --accent: #16161d;
+  --accent-2: #2a2a35;
+  --accent-deep: #000000;
+  --accent-soft: rgba(20, 20, 29, 0.06);
+  --accent-line: rgba(20, 20, 29, 0.18);
+  --accent-fg: #ffffff;
+  --accent-grad: linear-gradient(135deg, #34343f 0%, #16161d 100%);
+  --glow: rgba(20, 20, 29, 0.16);
+
+  --eng-postgres: #4f8ff7;
+  --eng-mysql: #d98a2b;
+  --eng-mssql: #c25f3e;
+  --eng-azure: #3b9fd1;
+  --eng-sqlite: #6a7d99;
+  --eng-firestore: #d4a017;
+
+  --shadow-lg: 0 2px 6px rgba(40, 36, 60, 0.06), 0 30px 70px rgba(40, 36, 60, 0.14);
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+:root, [data-theme="dark"] { color-scheme: dark; }
+[data-theme="light"] { color-scheme: light; }
+
+body {
+  margin: 0;
+  background: var(--bg-0);
+  color: var(--fg-0);
+  font-family: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  font-feature-settings: "cv11", "ss01";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.5;
+  overflow-x: hidden;
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
+a { color: inherit; text-decoration: none; }
+img, svg { display: block; max-width: 100%; }
+::selection { background: var(--accent-soft); color: var(--fg-0); }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 32px; position: relative; }
+.tnum { font-variant-numeric: tabular-nums; }
+
+.skip-link {
+  position: absolute;
+  left: 16px;
+  top: -48px;
+  z-index: 100;
+  padding: 9px 16px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-size: 14px;
+  font-weight: 500;
+  transition: top 0.13s ease;
+}
+.skip-link:focus-visible { top: 12px; outline-offset: 2px; }
+
+/* scroll reveal — only hides when JS is present (.js on <html>) */
+.js .reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.6s ease, transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.js .reveal.in { opacity: 1; transform: none; }
+
+/* Editorial category label — sanctioned uppercase exception. */
+.eyebrow {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--fg-2);
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+.eyebrow .tick {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* ───────────── buttons ───────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  padding: 10px 17px;
+  border-radius: 10px;
+  transition: transform 0.14s ease, box-shadow 0.2s ease, background 0.14s ease, border-color 0.14s ease, filter 0.14s ease;
+}
+.btn-primary {
+  background: var(--accent-grad);
+  color: var(--accent-fg);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.22) inset, 0 8px 28px var(--glow);
+}
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.22) inset, 0 14px 40px var(--glow); filter: brightness(1.05); }
+.btn-primary:active { transform: translateY(0); }
+.btn-primary[aria-expanded="true"] .chevron { transform: rotate(180deg); }
+.btn-ghost {
+  background: color-mix(in srgb, var(--bg-2) 60%, transparent);
+  color: var(--fg-0);
+  border-color: var(--border-strong);
+}
+.btn-ghost:hover { border-color: var(--accent-line); background: var(--bg-2); transform: translateY(-1px); }
+.btn svg { width: 16px; height: 16px; }
+.btn .chevron { width: 14px; height: 14px; transition: transform 0.16s ease; }
+.btn-lg { padding: 13px 22px; font-size: 15px; border-radius: 12px; }

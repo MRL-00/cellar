@@ -1,0 +1,42 @@
+/* ──────────────────────────────────────────────────────────────
+   Responsive + reduced-motion overrides. Loaded last so its
+   media-query rules win on ties.
+   ────────────────────────────────────────────────────────────── */
+
+@media (min-width: 881px) {
+  .nav-mobile { display: none !important; }
+  .nav-toggle { display: none !important; }
+}
+@media (max-width: 880px) {
+  .nav-links { display: none; }
+  .nav-desktop { display: none; }
+  .nav-toggle { display: grid; }
+  .stat-grid { grid-template-columns: 1fr; }
+  .stat { border-left: none; border-top: 1px solid var(--border-subtle); }
+  .stat:first-child { border-top: none; }
+  .bento { grid-template-columns: 1fr; }
+  .cell.span2 { grid-column: span 1; }
+  .cell.span2 .cell-shot { aspect-ratio: 16 / 9; }
+  .band { grid-template-columns: 1fr; gap: 32px; padding: 36px; }
+  .kb-grid { grid-template-columns: 1fr; }
+  .foot-grid { grid-template-columns: 1fr 1fr; }
+  .oss { flex-direction: column; align-items: flex-start; }
+}
+@media (max-width: 560px) {
+  .wrap { padding: 0 20px; }
+  .foot-grid { grid-template-columns: 1fr; }
+  .dl-meta { flex-direction: column; gap: 6px; }
+  .download-picker, .download-picker .btn { width: 100%; justify-content: center; }
+  .section { padding: 84px 0; }
+  .final { padding: 100px 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+  html { scroll-behavior: auto; }
+  .js .reveal { opacity: 1; transform: none; }
+  .btn-primary:hover, .btn-ghost:hover, .cell:hover, .eng-chip:hover { transform: none; }
+}
