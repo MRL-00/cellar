@@ -39,17 +39,30 @@ describe("applySettingsSideEffects", () => {
     vi.restoreAllMocks();
   });
 
-  it("maps the default 13px font setting to a visible startup scale", () => {
+  it("maps the default 13px font setting to a 1.0 startup scale", () => {
     applySettingsSideEffects(DEFAULTS);
 
     expect(document.documentElement.style.getPropertyValue("--ui-scale")).toBe(
-      "1.0833333333333333",
+      "1",
     );
-    expect(document.body.style.width).toBe("92.30769230769232vw");
-    expect(document.body.style.height).toBe("92.30769230769232vh");
+    expect(document.body.style.width).toBe("100vw");
+    expect(document.body.style.height).toBe("100vh");
     expect((document.body.style as CSSStyleDeclaration & { zoom?: string }).zoom).toBe(
-      "1.0833333333333333",
+      "1",
     );
+  });
+
+  it("picks a legible --accent-fg by contrast, not brightness", () => {
+    const fg = (accent: string) => {
+      applySettingsSideEffects({ ...DEFAULTS, accent });
+      return document.documentElement.style.getPropertyValue("--accent-fg");
+    };
+    // Mid neutral gray: dark text (~6:1) beats white (~3.5:1).
+    expect(fg("#8a8a8a")).toBe("#0a0b0e");
+    // Very dark accent needs white text.
+    expect(fg("#000000")).toBe("#ffffff");
+    // Light accent keeps dark text.
+    expect(fg("#fbbf24")).toBe("#0a0b0e");
   });
 });
 

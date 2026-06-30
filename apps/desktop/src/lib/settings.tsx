@@ -73,9 +73,10 @@ export const DEFAULTS: Settings = {
 };
 
 const STORAGE_KEY = "cellar.settings.v1";
-// Most compact UI labels are authored around 10-12px. Treat the user's setting
-// as the target readable size, so the default 13.5px setting is not a no-op.
-const FONT_SIZE_BASELINE = 12;
+// The type scale (tokens.css) is authored at real readable px with a 13px base,
+// so the default setting maps to a 1.0 scale (no zoom) and larger/smaller values
+// scale the whole interface from there.
+const FONT_SIZE_BASELINE = 13;
 export const FONT_SIZE_MIN = 10;
 export const FONT_SIZE_MAX = 22;
 
@@ -178,18 +179,22 @@ function hexToRgba(hex: string, alpha: number) {
 }
 
 // Text/icon color to sit on top of the accent (e.g. the primary button fill).
-// Picks black or white by the accent's perceived brightness so a dark accent
-// (like black) doesn't render black-on-black. ponytail: simple luma threshold,
-// not full WCAG — good enough for a single fg pick.
+// Picks dark or white by whichever has the higher WCAG contrast ratio against
+// the accent, so dark accents (black) and mid neutrals (#8a8a8a) both stay
+// legible — a fixed brightness cutoff mis-picks white on mid grays.
 function readableOn(hex: string): string {
   const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   if (!m || !m[1] || !m[2] || !m[3]) return "#ffffff";
-  const luma =
-    (0.299 * parseInt(m[1], 16) +
-      0.587 * parseInt(m[2], 16) +
-      0.114 * parseInt(m[3], 16)) /
-    255;
-  return luma > 0.6 ? "#0a0b0e" : "#ffffff";
+  const toLinear = (c: string) => {
+    const v = parseInt(c, 16) / 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  };
+  const lum =
+    0.2126 * toLinear(m[1]) + 0.7152 * toLinear(m[2]) + 0.0722 * toLinear(m[3]);
+  // Contrast vs black (L≈0) and white (L≈1); dark text wins on light accents.
+  const darkContrast = (lum + 0.05) / 0.05;
+  const lightContrast = 1.05 / (lum + 0.05);
+  return darkContrast >= lightContrast ? "#0a0b0e" : "#ffffff";
 }
 
 type Ctx = {
