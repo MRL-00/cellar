@@ -57,7 +57,7 @@ export const DEFAULTS: Settings = {
   theme: "dark",
   density: "compact",
   accent: "#a78bfa",
-  fontSizePx: 13,
+  fontSizePx: 13.5,
   interfaceFont: "SF Pro Text",
   monoFont: "JetBrains Mono",
   editor: {
@@ -73,10 +73,10 @@ export const DEFAULTS: Settings = {
 };
 
 const STORAGE_KEY = "cellar.settings.v1";
-// The type scale (tokens.css) is authored at real readable px with a 13px base,
-// so the default setting maps to a 1.0 scale (no zoom) and larger/smaller values
-// scale the whole interface from there.
-const FONT_SIZE_BASELINE = 13;
+// The interface is authored compact and zoomed up for comfort: the font-size
+// setting divided by this baseline gives the global UI scale, so the default
+// 13.5px setting renders at ~1.125× rather than being a no-op.
+const FONT_SIZE_BASELINE = 12;
 export const FONT_SIZE_MIN = 10;
 export const FONT_SIZE_MAX = 22;
 
