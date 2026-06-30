@@ -22,8 +22,6 @@
   <link rel="preload" as="image" href="/assets/cellar-main.png" fetchpriority="high" />
 
   <script>
-    /* Flag JS so reveal styles only hide content when they can be revealed. */
-    document.documentElement.classList.add("js");
     /* Apply persisted theme before paint to avoid a flash. */
     try {
       var t = localStorage.getItem("cellar-theme");
@@ -80,7 +78,7 @@
 </nav>
 </header>
 
-<main id="top">
+<main id="top" tabindex="-1">
 
 <!-- ───────────── HERO ───────────── -->
 <section class="hero" id="download">

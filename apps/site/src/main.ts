@@ -122,7 +122,6 @@ function renderEngineChips(el: HTMLElement | null) {
 }
 
 renderEngineChips(document.getElementById("engRow"));
-renderEngineChips(document.getElementById("engRow2"));
 
 /* ───────────── download menu ───────────── */
 
@@ -386,6 +385,11 @@ renderFaq(document.getElementById("faqList"));
 
 const revealables = Array.from(document.querySelectorAll<HTMLElement>(".reveal"));
 const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* Enable the hide-then-reveal CSS only now that the reveal logic is running.
+   If anything above threw, `.reveal-ready` is never set and content stays
+   visible rather than stuck hidden. */
+document.documentElement.classList.add("reveal-ready");
 
 if (reduceMotion || !("IntersectionObserver" in window)) {
   for (const el of revealables) el.classList.add("in");

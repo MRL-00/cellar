@@ -37,6 +37,6 @@
     transition-duration: 0.01ms !important;
   }
   html { scroll-behavior: auto; }
-  .js .reveal { opacity: 1; transform: none; }
+  .reveal-ready .reveal { opacity: 1; transform: none; }
   .btn-primary:hover, .btn-ghost:hover, .cell:hover, .eng-chip:hover { transform: none; }
 }
