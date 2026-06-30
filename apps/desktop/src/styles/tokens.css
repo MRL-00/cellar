@@ -21,6 +21,9 @@
   --border-default: rgba(255, 255, 255, 0.04);
   --border-strong: rgba(255, 255, 255, 0.13);
   --border-divider: rgba(255, 255, 255, 0.05);
+  /* Resizable pane separators: a dark seam (darker than the surfaces) rather
+     than a light hairline, so the divider reads clearly on the dark theme. */
+  --border-separator: rgba(0, 0, 0, 0.32);
   /* Vertical separator between grid columns: stronger than the row divider so
      columns read as distinct. */
   --grid-column-line: rgba(255, 255, 255, 0.08);
@@ -120,6 +123,7 @@
   --border-default: rgba(0, 0, 0, 0.08);
   --border-strong: rgba(0, 0, 0, 0.16);
   --border-divider: rgba(0, 0, 0, 0.06);
+  --border-separator: rgba(0, 0, 0, 0.16);
   --grid-column-line: rgba(0, 0, 0, 0.12);
 
   --fg-strong: #000000;

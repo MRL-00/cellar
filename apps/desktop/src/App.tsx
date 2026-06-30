@@ -95,7 +95,7 @@ function ResizeHandle({
     >
       <div
         className={
-          "absolute bg-border-default transition-colors duration-100 group-hover:bg-accent-line group-active:bg-accent " +
+          "absolute bg-border-separator transition-colors duration-100 group-hover:bg-accent-line group-active:bg-accent " +
           (vertical
             ? "inset-y-0 left-1/2 w-px -translate-x-1/2"
             : "inset-x-0 top-1/2 h-px -translate-y-1/2")
