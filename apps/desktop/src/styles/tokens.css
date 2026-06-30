@@ -23,7 +23,7 @@
   --border-divider: rgba(255, 255, 255, 0.05);
   /* Resizable pane separators: a dark seam (darker than the surfaces) rather
      than a light hairline, so the divider reads clearly on the dark theme. */
-  --border-separator: rgba(0, 0, 0, 0.18);
+  --border-separator: rgba(0, 0, 0, 0.32);
   /* Vertical separator between grid columns: stronger than the row divider so
      columns read as distinct. */
   --grid-column-line: rgba(255, 255, 255, 0.08);
