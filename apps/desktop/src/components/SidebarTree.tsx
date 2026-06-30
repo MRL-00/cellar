@@ -148,7 +148,7 @@ export function ConnectionRow({
           )}
         </button>
         <EngineBadge engine={config.engine as Engine} size={12} color={accent} />
-        <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[13px] font-medium">
+        <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[12px] font-medium">
           {config.name}
         </span>
         {config.env_tag === "prod" && (
@@ -307,7 +307,7 @@ function DatabaseRow({
         </span>
         <span
           className={
-            "flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[13px] " +
+            "flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[12px] font-medium " +
             (visibleEmpty ? "text-fg-3" : "")
           }
         >
@@ -401,7 +401,7 @@ function SchemaRow({
         </span>
         <span
           className={
-            "flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[13px] " +
+            "flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[12px] font-medium " +
             (hidden ? "text-fg-3" : "")
           }
         >
@@ -459,7 +459,7 @@ function SchemaRow({
                   <span className={ICON_SLOT}>
                     <Icon.tree size={11} />
                   </span>
-                  <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[13px]">
+                  <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[12px] font-medium">
                     {v.name}
                   </span>
                 </div>
@@ -515,7 +515,7 @@ function GroupFolder({
         <span className={ICON_SLOT}>
           {open ? <Icon.folderOpen size={12} /> : <Icon.folder size={12} />}
         </span>
-        <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[13px]">
+        <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[12px] font-medium">
           {label}
         </span>
         <span className={META + " font-mono"}>{count}</span>
@@ -566,7 +566,7 @@ function TableRow({
       <span className={ICON_SLOT} style={{ color: "var(--fg-1)" }}>
         <Icon.table size={11} />
       </span>
-      <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[13px]">
+      <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[12px] font-medium">
         {table.name}
       </span>
       {table.row_count != null && (
