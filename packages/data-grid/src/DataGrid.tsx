@@ -688,7 +688,7 @@ export function DataGrid({
   return (
     <div
       className={
-        "grid-root mono" +
+        "grid-root" +
         (virtualized ? "" : " grid-stable-scroll") +
         (stripeRows ? " grid-stripe-rows" : "")
       }

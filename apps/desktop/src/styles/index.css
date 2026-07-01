@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./fonts.css";
 @import "./tokens.css";
 @import "./base.css";
 @import "./grid.css";
@@ -77,8 +78,8 @@
   --color-syn-error: var(--syn-error);
 
   /* Type */
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-mono);
+  --font-sans: var(--font-interface);
+  --font-mono: var(--font-data);
 
   /* Font sizes (matches Cellar's compact density scale) */
   --text-xs: var(--fs-xs);

@@ -562,11 +562,14 @@ export function Sidebar({
   };
 
   return (
-    <div className="flex h-full flex-col text-[11.5px]">
+    <div
+      className="flex h-full flex-col text-[11.5px]"
+      style={{ fontFamily: "var(--font-sans)" }}
+    >
       <div className="flex shrink-0 items-center justify-between pt-[7px] pb-[5px] pl-2.5 pr-2">
         <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-fg-2">
           <span>Connections</span>
-          <span className="rounded-[8px] bg-bg-2 px-1.5 py-px font-mono text-[10px] text-fg-3">
+          <span className="rounded-[8px] bg-bg-2 px-1.5 py-px text-[10px] tabular-nums text-fg-3">
             {connections.length}
           </span>
         </div>
@@ -741,7 +744,7 @@ function SchemaVisibilityManager({
             <div className="text-[12.5px] font-semibold text-fg-0">
               Visible schemas
             </div>
-            <div className="truncate font-mono text-[10.5px] text-fg-3">
+            <div className="truncate text-[10.5px] text-fg-3">
               {state.database}
             </div>
           </div>
@@ -811,10 +814,10 @@ function SchemaVisibilityManager({
                   className="h-3.5 w-3.5 accent-[var(--accent)]"
                 />
                 <Icon.schema size={12} />
-                <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-mono">
+                <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
                   {schema.name}
                 </span>
-                <span className="font-mono text-[10px] text-fg-3">
+                <span className="text-[10px] tabular-nums text-fg-3">
                   {count}
                 </span>
               </label>
@@ -823,7 +826,7 @@ function SchemaVisibilityManager({
         </div>
 
         <div className="flex h-9 shrink-0 items-center justify-between border-t border-border-default px-3">
-          <span className="font-mono text-[10.5px] text-fg-3">
+          <span className="text-[10.5px] tabular-nums text-fg-3">
             {visible.size}/{state.schemas.length} visible
           </span>
           <button
