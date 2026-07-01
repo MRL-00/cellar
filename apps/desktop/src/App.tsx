@@ -124,7 +124,9 @@ export function App() {
   const [settingsInitialCat, setSettingsInitialCat] =
     useState<SettingsCatId>("appearance");
   const updateStatus = useUpdater((s) => s.status);
-  const [updateToastDismissed, setUpdateToastDismissed] = useState(false);
+  const [dismissedUpdateVersion, setDismissedUpdateVersion] = useState<
+    string | null
+  >(null);
 
   const openModal = useCallback((m: ModalId) => setModal(m), []);
   const closeModal = useCallback(() => setModal(null), []);
@@ -294,15 +296,15 @@ export function App() {
       <StatusBar />
 
       {updateStatus.kind === "available" &&
-        !updateToastDismissed &&
-        modal !== "settings" && (
+        dismissedUpdateVersion !== updateStatus.version &&
+        modal === null && (
           <UpdateToast
             version={updateStatus.version}
             onUpdate={() => {
-              setUpdateToastDismissed(true);
+              setDismissedUpdateVersion(updateStatus.version);
               openSettings("updates");
             }}
-            onDismiss={() => setUpdateToastDismissed(true)}
+            onDismiss={() => setDismissedUpdateVersion(updateStatus.version)}
           />
         )}
 

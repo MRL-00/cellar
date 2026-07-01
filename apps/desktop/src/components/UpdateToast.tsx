@@ -10,7 +10,12 @@ export function UpdateToast({
   onDismiss: () => void;
 }) {
   return (
-    <div className="fixed bottom-4 right-4 z-[90] w-[280px] rounded-[7px] border border-border-default bg-bg-1 p-3 shadow-lg">
+    <div
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+      className="fixed bottom-4 right-4 z-[90] w-[280px] rounded-[7px] border border-border-default bg-bg-1 p-3 shadow-lg"
+    >
       <div className="mb-2 flex items-start gap-2">
         <Icon.sparkles size={14} stroke="var(--accent)" />
         <div className="min-w-0 flex-1">

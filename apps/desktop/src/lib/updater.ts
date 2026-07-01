@@ -49,11 +49,9 @@ export const useUpdater = create<UpdaterState>((set, get) => ({
 
   checkForUpdate: async () => {
     set({ status: { kind: "checking" } });
+    const now = new Date().toISOString();
     try {
       const update = await check();
-      const now = new Date().toISOString();
-      writeLastChecked(now);
-      set({ lastChecked: now });
       if (update?.available) {
         set({ status: { kind: "available", version: update.version, update } });
       } else {
@@ -66,6 +64,10 @@ export const useUpdater = create<UpdaterState>((set, get) => ({
           message: err instanceof Error ? err.message : String(err),
         },
       });
+    } finally {
+      // Record every attempt, so a failed check still refreshes "last checked".
+      writeLastChecked(now);
+      set({ lastChecked: now });
     }
   },
 
