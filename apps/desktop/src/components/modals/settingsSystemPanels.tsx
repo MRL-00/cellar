@@ -3,6 +3,59 @@ import { Row, Section, StaticSegment, Toggle } from "./settingsPrimitives";
 import { useConnections } from "../../state/connections";
 import { useUpdater } from "../../lib/updater";
 import { openExternal } from "../../lib/openExternal";
+import changelogMd from "../../../../../CHANGELOG.md?raw";
+
+// Minimal markdown renderer for release notes / changelog: headings, bullets,
+// and **bold**. GitHub release bodies and our CHANGELOG only use this subset,
+// so a dependency-free pass is enough. ponytail: extend if notes get richer.
+function renderInline(text: string, keyBase: string) {
+  return text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
+    part.startsWith("**") && part.endsWith("**") ? (
+      <strong key={`${keyBase}-${i}`} className="font-semibold text-fg-0">
+        {part.slice(2, -2)}
+      </strong>
+    ) : (
+      part
+    ),
+  );
+}
+
+function Changelog({ source }: { source: string }) {
+  const lines = source.replace(/\r\n/g, "\n").split("\n");
+  return (
+    <div className="max-h-[260px] overflow-y-auto rounded-[5px] border border-border-default bg-bg-inset px-3 py-2.5 text-[11.5px] leading-[1.55] text-fg-2">
+      {lines.map((raw, i) => {
+        const line = raw.trimEnd();
+        if (!line.trim()) return <div key={i} className="h-1.5" />;
+        const h = /^(#{1,6})\s+(.*)$/.exec(line);
+        if (h) {
+          const top = h[1]!.length <= 2;
+          return (
+            <div
+              key={i}
+              className={
+                "mt-2 mb-1 font-semibold text-fg-0 " +
+                (top ? "text-[13px]" : "text-[12px]")
+              }
+            >
+              {renderInline(h[2]!, `h${i}`)}
+            </div>
+          );
+        }
+        const bullet = /^[-*]\s+(.*)$/.exec(line);
+        if (bullet) {
+          return (
+            <div key={i} className="flex gap-1.5 pl-1">
+              <span className="text-fg-3">•</span>
+              <span>{renderInline(bullet[1]!, `b${i}`)}</span>
+            </div>
+          );
+        }
+        return <div key={i}>{renderInline(line, `p${i}`)}</div>;
+      })}
+    </div>
+  );
+}
 
 export function SettingsPrivacy() {
   const connectionCount = useConnections((s) => s.connections.length);
@@ -142,6 +195,20 @@ export function SettingsUpdates() {
         <Row label="Auto-install on quit">
           <Toggle on={false} ariaLabel="Auto-install on quit" />
         </Row>
+      </Section>
+      <Section
+        title="What's new"
+        sub={
+          status.kind === "available"
+            ? `Release notes for v${status.version}`
+            : `Recent changes in ${versionLabel}`
+        }
+      >
+        <Changelog
+          source={
+            (status.kind === "available" && status.update.body) || changelogMd
+          }
+        />
       </Section>
     </div>
   );
