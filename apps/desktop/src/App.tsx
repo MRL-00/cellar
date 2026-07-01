@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { isTauri, type ConnectionConfig } from "@cellar/ipc";
 import { TitleBar } from "./components/TitleBar";
 import { StatusBar } from "./components/StatusBar";
+import { UpdateToast } from "./components/UpdateToast";
 import { Sidebar } from "./components/Sidebar";
 import { TabBar } from "./components/TabBar";
 import { Workspace } from "./components/Workspace";
@@ -26,6 +27,7 @@ import {
   type ComparePreset,
 } from "./components/modals/SchemaCompareDialog";
 import { useLayout } from "./state/layout";
+import { useUpdater } from "./lib/updater";
 
 type ModalId =
   | "commit"
@@ -121,6 +123,10 @@ export function App() {
   const [comparePreset, setComparePreset] = useState<ComparePreset | null>(null);
   const [settingsInitialCat, setSettingsInitialCat] =
     useState<SettingsCatId>("appearance");
+  const updateStatus = useUpdater((s) => s.status);
+  const [dismissedUpdateVersion, setDismissedUpdateVersion] = useState<
+    string | null
+  >(null);
 
   const openModal = useCallback((m: ModalId) => setModal(m), []);
   const closeModal = useCallback(() => setModal(null), []);
@@ -171,6 +177,13 @@ export function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // Check for updates once on startup so the bottom-right toast can surface a
+  // new version without the user opening Settings. No-op outside Tauri.
+  useEffect(() => {
+    if (!isTauri) return;
+    void useUpdater.getState().checkForUpdate();
   }, []);
 
   // The native macOS app menu's "Settings…" item (see src-tauri/src/menu.rs)
@@ -281,6 +294,19 @@ export function App() {
       </div>
 
       <StatusBar />
+
+      {updateStatus.kind === "available" &&
+        dismissedUpdateVersion !== updateStatus.version &&
+        modal === null && (
+          <UpdateToast
+            version={updateStatus.version}
+            onUpdate={() => {
+              setDismissedUpdateVersion(updateStatus.version);
+              openSettings("updates");
+            }}
+            onDismiss={() => setDismissedUpdateVersion(updateStatus.version)}
+          />
+        )}
 
       {connDialog && (
         <ConnectionDialog

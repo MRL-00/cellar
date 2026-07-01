@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { create } from "zustand";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { getVersion } from "@tauri-apps/api/app";
@@ -30,42 +30,53 @@ function writeLastChecked(value: string) {
   }
 }
 
-export function useUpdater() {
-  const [appVersion, setAppVersion] = useState<string>("");
-  const [status, setStatus] = useState<UpdaterStatus>({ kind: "idle" });
-  const [lastChecked, setLastChecked] = useState<string | null>(() => readLastChecked());
+interface UpdaterState {
+  appVersion: string;
+  status: UpdaterStatus;
+  lastChecked: string | null;
+  checkForUpdate: () => Promise<void>;
+  downloadAndInstall: () => Promise<void>;
+}
 
-  useEffect(() => {
-    getVersion()
-      .then(setAppVersion)
-      .catch(() => setAppVersion(""));
-  }, []);
+// Shared store rather than per-component state: the startup check (App.tsx),
+// the update toast, and the Settings > Updates panel all read the same status,
+// so clicking "Update" in the toast lands on a panel that already knows an
+// update is available and holds the Update object ready to install.
+export const useUpdater = create<UpdaterState>((set, get) => ({
+  appVersion: "",
+  status: { kind: "idle" },
+  lastChecked: readLastChecked(),
 
-  const checkForUpdate = useCallback(async () => {
-    setStatus({ kind: "checking" });
+  checkForUpdate: async () => {
+    set({ status: { kind: "checking" } });
+    const now = new Date().toISOString();
     try {
       const update = await check();
-      const now = new Date().toISOString();
-      writeLastChecked(now);
-      setLastChecked(now);
       if (update?.available) {
-        setStatus({ kind: "available", version: update.version, update });
+        set({ status: { kind: "available", version: update.version, update } });
       } else {
-        setStatus({ kind: "up-to-date" });
+        set({ status: { kind: "up-to-date" } });
       }
     } catch (err) {
-      setStatus({
-        kind: "error",
-        message: err instanceof Error ? err.message : String(err),
+      set({
+        status: {
+          kind: "error",
+          message: err instanceof Error ? err.message : String(err),
+        },
       });
+    } finally {
+      // Record every attempt, so a failed check still refreshes "last checked".
+      writeLastChecked(now);
+      set({ lastChecked: now });
     }
-  }, []);
+  },
 
-  const downloadAndInstall = useCallback(async () => {
+  downloadAndInstall: async () => {
+    const { status } = get();
     if (status.kind !== "available") return;
     const { update } = status;
     try {
-      setStatus({ kind: "downloading", fraction: 0 });
+      set({ status: { kind: "downloading", fraction: 0 } });
       let total = 0;
       let downloaded = 0;
       await update.downloadAndInstall((event) => {
@@ -76,28 +87,27 @@ export function useUpdater() {
           case "Progress":
             downloaded += event.data.chunkLength;
             if (total > 0) {
-              setStatus({ kind: "downloading", fraction: downloaded / total });
+              set({ status: { kind: "downloading", fraction: downloaded / total } });
             }
             break;
           case "Finished":
-            setStatus({ kind: "installing" });
+            set({ status: { kind: "installing" } });
             break;
         }
       });
       await relaunch();
     } catch (err) {
-      setStatus({
-        kind: "error",
-        message: err instanceof Error ? err.message : String(err),
+      set({
+        status: {
+          kind: "error",
+          message: err instanceof Error ? err.message : String(err),
+        },
       });
     }
-  }, [status]);
+  },
+}));
 
-  return {
-    appVersion,
-    status,
-    lastChecked,
-    checkForUpdate,
-    downloadAndInstall,
-  };
-}
+// Fetch the running version once; harmless no-op outside Tauri (web dev).
+getVersion()
+  .then((v) => useUpdater.setState({ appVersion: v }))
+  .catch(() => {});
