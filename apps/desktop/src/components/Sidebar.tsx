@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ConnectionConfig, Schema } from "@cellar/ipc";
 
 import { Icon } from "./icons";
@@ -56,6 +56,18 @@ export function Sidebar({
   onImportData,
 }: SidebarProps = {}) {
   const [filter, setFilter] = useState("");
+  const filterRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "f") {
+        e.preventDefault();
+        filterRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
   const [schemaManager, setSchemaManager] =
     useState<SchemaManagerState | null>(null);
@@ -606,6 +618,7 @@ export function Sidebar({
       <div className="mx-2 mb-1.5 flex min-h-7 shrink-0 items-center gap-1.5 rounded-[4px] border border-border-default bg-bg-inset px-2 py-1 focus-within:border-accent-line">
         <Icon.search size={11} style={{ color: "var(--fg-3)" }} />
         <input
+          ref={filterRef}
           placeholder="Filter…"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
