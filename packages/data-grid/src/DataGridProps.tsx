@@ -3,6 +3,7 @@ import type {
   ReactNode,
 } from "react";
 import type { CellEditorProps } from "./Cell";
+import type { SavedFilterControls } from "./FilterBar";
 import type { RendererRegistry, SaveBlob } from "./renderers/types";
 import type {
   CellAddress,
@@ -50,6 +51,9 @@ export type DataGridProps = {
 
   sort?: SortState;
   onSortChange?: (next: SortState) => void;
+
+  /** Saved filter presets shown in the toolbar. Hidden when omitted. */
+  savedFilters?: SavedFilterControls;
 
   columnLayout?: GridColumnLayout;
   onColumnLayoutChange?: (next: GridColumnLayout) => void;

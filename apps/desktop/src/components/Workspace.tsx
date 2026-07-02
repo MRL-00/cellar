@@ -28,6 +28,7 @@ import {
   type WorkspaceTab,
 } from "../state/tabs";
 import { useFindUsages } from "../state/findUsages";
+import { useFilterPresets } from "../state/filterPresets";
 import { useTableData } from "../hooks/useTableData";
 import { useSettings } from "../lib/settings";
 import { toCsv, toJson, toSqlInserts, toTsv } from "../lib/export";
@@ -259,6 +260,64 @@ function TableTabPane({
   // pauses — keystrokes never re-render the grid.
   const [quickFilter, setQuickFilter] = useState("");
   const [quickColumn, setQuickColumn] = useState<string | null>(null);
+  // Saved presets snapshot the whole toolbar (quick filter, chips, order by)
+  // per table, persisted to localStorage so they survive restarts.
+  const presets = useFilterPresets((s) => s.presets[tab.id]);
+  const savePreset = useFilterPresets((s) => s.savePreset);
+  const deletePreset = useFilterPresets((s) => s.deletePreset);
+  const savedFilters = useMemo(
+    () => ({
+      names: (presets ?? []).map((preset) => preset.name),
+      // Derived, not tracked: the dropdown names whichever preset the toolbar
+      // currently matches, and clears itself the moment anything is edited.
+      activeName:
+        (presets ?? []).find(
+          (preset) =>
+            JSON.stringify([
+              preset.filters,
+              preset.sort,
+              preset.quickFilter,
+              preset.quickColumn,
+            ]) ===
+            JSON.stringify([grid.filters, grid.sort, quickFilter, quickColumn]),
+        )?.name ?? null,
+      onSave: (name: string) =>
+        savePreset(tab.id, {
+          name,
+          filters: grid.filters,
+          sort: grid.sort,
+          quickFilter,
+          quickColumn,
+        }),
+      onApply: (name: string) => {
+        const preset = (presets ?? []).find((item) => item.name === name);
+        if (!preset) return;
+        grid.setFilters(preset.filters);
+        grid.setSort(preset.sort);
+        setQuickFilter(preset.quickFilter);
+        setQuickColumn(preset.quickColumn);
+      },
+      onDelete: (name: string) => deletePreset(tab.id, name),
+      onClear: () => {
+        grid.setFilters([]);
+        grid.setSort(null);
+        setQuickFilter("");
+        setQuickColumn(null);
+      },
+    }),
+    [
+      presets,
+      savePreset,
+      deletePreset,
+      tab.id,
+      grid.filters,
+      grid.sort,
+      grid.setFilters,
+      grid.setSort,
+      quickFilter,
+      quickColumn,
+    ],
+  );
   const data = useTableData(
     tab.connectionId,
     tab.database,
@@ -421,6 +480,7 @@ function TableTabPane({
         onQuickFilterColumnChange={setQuickColumn}
         sort={grid.sort}
         onSortChange={grid.setSort}
+        savedFilters={savedFilters}
         columnLayout={columnLayout}
         onColumnLayoutChange={(next) => setTableLayout(tab.id, next)}
         onCommit={onCommit}

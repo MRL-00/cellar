@@ -56,6 +56,8 @@ export const GridIcon = {
     </I>
   ),
   filter: (p: IconProps) => <I {...p} d="M3 5h18l-7 9v6l-4-2v-4z" />,
+  bookmark: (p: IconProps) => <I {...p} d="M6 3h12v18l-6-4.5L6 21z" />,
+  check: (p: IconProps) => <I {...p} d="M4 12l5 5L20 6" />,
   search: (p: IconProps) => (
     <I {...p}>
       <circle cx="11" cy="11" r="7" />
