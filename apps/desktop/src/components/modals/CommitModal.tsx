@@ -24,7 +24,7 @@ type PreviewState =
 const EMPTY_CHANGES: PendingChanges = {};
 
 const ED_RUN_BASE =
-  "inline-flex h-[26px] items-center gap-[5px] whitespace-nowrap rounded-[4px] border border-transparent px-2.5 text-[11.5px] font-medium text-fg-1 transition-[background,color,border-color,filter] duration-[120ms]";
+  "inline-flex h-[26px] items-center gap-[5px] whitespace-nowrap rounded-[4px] border border-transparent px-2.5 text-[12.5px] font-medium text-fg-1 transition-[background,color,border-color,filter] duration-[120ms]";
 
 const ED_RUN_SUBTLE =
   ED_RUN_BASE +
@@ -154,10 +154,10 @@ export function CommitModal({ onClose }: { onClose: () => void }) {
           <span className="inline-flex text-accent">
             <Icon.commit size={14} />
           </span>
-          <span className="whitespace-nowrap text-[12.5px] font-semibold text-fg-0">
+          <span className="whitespace-nowrap text-sm font-semibold text-fg-0">
             Review &amp; commit
           </span>
-          <span className="ml-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap border-l border-border-divider pl-1.5 font-mono text-[11px] text-fg-2">
+          <span className="ml-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap border-l border-border-divider pl-1.5 font-mono text-[12px] text-fg-2">
             {activeTable ? `${activeTable.schema}.${activeTable.table}` : "no table"}{" "}
             <span style={{ color: "var(--fg-3)" }}>·</span>{" "}
             {activeConn?.name ?? "no connection"}
@@ -174,7 +174,7 @@ export function CommitModal({ onClose }: { onClose: () => void }) {
         <SummaryItem icon={<Icon.diff size={11} />} bg="var(--update-bg)" color="var(--update)" n={updates.length} label={`update${updates.length === 1 ? "" : "s"}`} />
         <SummaryItem icon={<Icon.close size={11} />} bg="var(--delete-bg)" color="var(--delete)" n={deletes.length} label={`delete${deletes.length === 1 ? "" : "s"}`} />
         <div className="flex-1" />
-        <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-[4px] bg-bg-inset px-2 py-1 font-mono text-[10.5px] text-fg-2">
+        <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-[4px] bg-bg-inset px-2 py-1 font-mono text-[11.5px] text-fg-2">
           <Icon.bracket size={10} />
           <span>BEGIN ... COMMIT - atomic</span>
         </span>
@@ -182,15 +182,15 @@ export function CommitModal({ onClose }: { onClose: () => void }) {
 
       <div className="grid min-h-0 flex-1 overflow-hidden grid-cols-[320px_1fr]">
         <div className="flex min-h-0 flex-col border-r border-border-default">
-          <div className="flex h-[26px] shrink-0 items-center gap-1.5 border-b border-border-divider px-3 text-[10px] font-semibold uppercase tracking-[0.05em] text-fg-3">
+          <div className="flex h-[26px] shrink-0 items-center gap-1.5 border-b border-border-divider px-3 text-[11px] font-semibold uppercase tracking-[0.05em] text-fg-3">
             <span>Changes</span>
-            <span className="rounded-[8px] bg-bg-2 px-1.5 py-px font-mono text-[10px] text-fg-2">
+            <span className="rounded-[8px] bg-bg-2 px-1.5 py-px font-mono text-[11px] text-fg-2">
               {entries.length}
             </span>
           </div>
           <div className="flex-1 overflow-y-auto py-1.5">
             {entries.length === 0 ? (
-              <div className="px-3 py-3 text-[11px] text-fg-3">
+              <div className="px-3 py-3 text-[12px] text-fg-3">
                 No pending changes on the active table.
               </div>
             ) : (
@@ -202,29 +202,29 @@ export function CommitModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="flex min-h-0 flex-col bg-bg-inset">
-          <div className="flex h-[26px] shrink-0 items-center justify-between border-b border-border-divider bg-bg-1 px-3 text-[10px] font-semibold uppercase tracking-[0.05em] text-fg-3">
+          <div className="flex h-[26px] shrink-0 items-center justify-between border-b border-border-divider bg-bg-1 px-3 text-[11px] font-semibold uppercase tracking-[0.05em] text-fg-3">
             <span>Generated SQL</span>
             <button
               type="button"
               disabled={!preview}
               onClick={() => void navigator.clipboard?.writeText(sqlText)}
-              className="inline-flex h-[26px] items-center gap-1 rounded-[4px] border border-border-default bg-bg-2 px-2 text-[11px] text-fg-1 hover:bg-bg-3 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex h-[26px] items-center gap-1 rounded-[4px] border border-border-default bg-bg-2 px-2 text-[12px] text-fg-1 hover:bg-bg-3 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Icon.copy size={11} />
               <span>Copy</span>
             </button>
           </div>
-          <div className="flex-1 overflow-auto py-2 font-mono text-[11.5px] leading-[1.55]">
+          <div className="flex-1 overflow-auto py-2 font-mono text-sm leading-[1.55]">
             {blockers.length > 0 ? (
               <MessageList messages={blockers} tone="warn" />
             ) : previewState.kind === "loading" ? (
-              <div className="px-3 text-[11px] text-fg-3">Generating preview...</div>
+              <div className="px-3 text-[12px] text-fg-3">Generating preview...</div>
             ) : previewState.kind === "error" ? (
               <MessageList messages={[previewState.error]} tone="warn" />
             ) : (
               lines.map((toks, i) => (
                 <div key={i} className="flex px-3">
-                  <span className="inline-flex w-7 shrink-0 select-none items-center justify-end pr-2.5 font-variant-numeric-tabular text-[10px] text-fg-3 font-mono">
+                  <span className="inline-flex w-7 shrink-0 select-none items-center justify-end pr-2.5 font-variant-numeric-tabular text-[11px] text-fg-3 font-mono">
                     {i + 1}
                   </span>
                   <span className="whitespace-pre font-mono">
@@ -238,7 +238,7 @@ export function CommitModal({ onClose }: { onClose: () => void }) {
       </div>
 
       <div className="flex min-h-11 shrink-0 items-center justify-between gap-3 border-t border-border-default bg-bg-2 px-3 py-2">
-        <div className="flex min-w-0 items-center gap-2 text-[10.5px]">
+        <div className="flex min-w-0 items-center gap-2 text-[11.5px]">
           <Icon.warn size={10} stroke={activeConn?.env_tag === "prod" ? "var(--warn)" : "var(--fg-3)"} />
           <span className={activeConn?.env_tag === "prod" ? "text-warn" : "text-fg-2"}>
             {activeConn?.env_tag === "prod" ? "prod" : "transaction"}
@@ -313,13 +313,13 @@ function ChangePreview({
 
   return (
     <ChangeRow tag={tag} tagBg={tagBg} tagColor={tagColor}>
-      <div className="flex items-center gap-1.5 text-[11px]">
+      <div className="flex items-center gap-1.5 text-sm">
         <span className="font-mono font-medium text-fg-0">{label}</span>
       </div>
       {Object.entries(change.edits).map(([col, e]) => (
         <div
           key={col}
-          className="grid items-center gap-[5px] pl-1 font-mono text-[10.5px] grid-cols-[90px_auto_auto_auto]"
+          className="grid items-center gap-[5px] pl-1 font-mono text-sm grid-cols-[90px_auto_auto_auto]"
         >
           <span className="overflow-hidden text-ellipsis text-fg-2">{col}</span>
           <span
@@ -458,7 +458,7 @@ function MessageList({
   tone: "warn" | "muted";
 }) {
   return (
-    <div className={tone === "warn" ? "px-3 text-[11px] text-warn" : "px-3 text-[11px] text-fg-3"}>
+    <div className={tone === "warn" ? "px-3 text-[12px] text-warn" : "px-3 text-[12px] text-fg-3"}>
       {messages.map((message) => (
         <div key={message}>{message}</div>
       ))}
@@ -487,10 +487,10 @@ function SummaryItem({
       >
         {icon}
       </span>
-      <span className="font-mono text-[14px] font-semibold text-fg-0 tabular-nums">
+      <span className="font-mono text-[15px] font-semibold text-fg-0 tabular-nums">
         {n}
       </span>
-      <span className="text-[11px] text-fg-2">{label}</span>
+      <span className="text-sm text-fg-2">{label}</span>
     </div>
   );
 }
@@ -509,7 +509,7 @@ function ChangeRow({
   return (
     <div className="flex gap-2 border-b border-dashed border-border-divider px-3 py-1.5">
       <span
-        className="mt-px inline-flex h-[14px] items-center self-start rounded-[3px] px-1 py-px font-mono text-[9.5px] font-semibold tracking-[0.04em]"
+        className="mt-px inline-flex h-[14px] items-center self-start rounded-[3px] px-1 py-px font-mono text-[10.5px] font-semibold tracking-[0.04em]"
         style={{ background: tagBg, color: tagColor }}
       >
         {tag}

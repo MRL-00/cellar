@@ -16,16 +16,16 @@ const chipMeta: Record<AiContextChip["kind"], { icon: ReactNode; color: string }
 function ContextChip({ chip }: { chip: AiContextChip }) {
   const m = chipMeta[chip.kind];
   return (
-    <span className="inline-flex h-5 items-center gap-1 whitespace-nowrap rounded-[4px] border border-border-default bg-bg-1 px-1.5 pl-[5px] text-[10.5px] text-fg-1">
+    <span className="inline-flex h-5 items-center gap-1 whitespace-nowrap rounded-[4px] border border-border-default bg-bg-1 px-1.5 pl-[5px] text-[11.5px] text-fg-1">
       <span
-        className="inline-flex items-center gap-[3px] text-[9.5px] lowercase opacity-85"
+        className="inline-flex items-center gap-[3px] text-[10.5px] lowercase opacity-85"
         style={{ color: m.color }}
       >
         {m.icon}
         <span>{chip.kind}</span>
       </span>
       <span className="text-fg-3">:</span>
-      <span className="font-mono text-[10.5px] text-fg-0">{chip.value}</span>
+      <span className="font-mono text-[11.5px] text-fg-0">{chip.value}</span>
     </span>
   );
 }
@@ -90,16 +90,16 @@ export function AIPanel({
   };
 
   return (
-    <div className="flex h-full flex-col bg-bg-1 text-[12.5px]">
+    <div className="flex h-full flex-col bg-bg-1 text-[13.5px]">
       <div className="flex h-8 shrink-0 items-center justify-between border-b border-border-default pl-2.5 pr-2">
-        <div className="flex min-w-0 flex-1 items-center gap-1.5 text-[11.5px]">
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 text-[12.5px]">
           <span className="inline-flex text-accent">
             <Icon.sparkles size={12} />
           </span>
           <span className="whitespace-nowrap font-semibold text-fg-0">
             AI Assistant
           </span>
-          <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[10.5px] text-fg-2">
+          <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[11.5px] text-fg-2">
             {modelId ? `· ${modelId}` : "· not configured"}
           </span>
         </div>
@@ -135,7 +135,7 @@ export function AIPanel({
       </div>
 
       <div className="flex shrink-0 flex-wrap items-start gap-1.5 border-b border-border-default bg-bg-2 px-2 pt-1.5 pb-[7px]">
-        <div className="inline-flex h-[18px] shrink-0 items-center gap-1 pt-0.5 text-[10px] font-semibold uppercase tracking-[0.05em] text-fg-3">
+        <div className="inline-flex h-[18px] shrink-0 items-center gap-1 pt-0.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-fg-3">
           <Icon.context size={10} />
           <span>context</span>
         </div>
@@ -145,7 +145,7 @@ export function AIPanel({
               <ContextChip key={`${chip.kind}-${i}`} chip={chip} />
             ))
           ) : (
-            <span className="inline-flex h-5 items-center text-[10.5px] text-fg-3">
+            <span className="inline-flex h-5 items-center text-[11.5px] text-fg-3">
               no active connection
             </span>
           )}
@@ -154,19 +154,19 @@ export function AIPanel({
 
       <div className="flex flex-1 flex-col gap-3 overflow-y-auto px-2.5 pt-3 pb-4">
         {messages.length === 0 ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-1.5 p-6 text-center text-[11.5px] text-fg-3">
+          <div className="flex flex-1 flex-col items-center justify-center gap-1.5 p-6 text-center text-[12.5px] text-fg-3">
             <span className="mb-1 text-accent">
               <Icon.sparkles size={22} />
             </span>
-            <div className="text-[12px] font-medium text-fg-1">Ask Cellar AI</div>
-            <div className="max-w-[280px] text-[10.5px] leading-[1.5] text-fg-3">
+            <div className="text-sm font-medium text-fg-1">Ask Cellar AI</div>
+            <div className="max-w-[280px] text-[11.5px] leading-[1.5] text-fg-3">
               Generate SQL with full schema context, explain a result, or have it
               review a slow query. Bring your own API key; Cellar never proxies.
             </div>
             {!ready && (
               <button
                 onClick={onOpenSettings}
-                className="mt-2 inline-flex h-[24px] items-center gap-1.5 rounded-[5px] border border-accent-line bg-accent-soft px-2.5 text-[11px] font-medium text-accent hover:brightness-110"
+                className="mt-2 inline-flex h-[24px] items-center gap-1.5 rounded-[5px] border border-accent-line bg-accent-soft px-2.5 text-[12px] font-medium text-accent hover:brightness-110"
               >
                 <Icon.settings size={11} />
                 <span>
@@ -179,7 +179,7 @@ export function AIPanel({
           messages.map((m) => <AIMessage key={m.id} entry={m} />)
         )}
         {sending && (
-          <div className="flex items-center gap-2 px-1 text-[11px] text-fg-3">
+          <div className="flex items-center gap-2 px-1 text-[12px] text-fg-3">
             <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
             <span>thinking…</span>
           </div>
@@ -196,7 +196,7 @@ export function AIPanel({
                 onClick={() => pickTopic(t)}
                 title={TOPICS[t].hint}
                 className={
-                  "inline-flex h-[22px] items-center gap-1 rounded-[4px] px-2 text-[11px] transition-colors " +
+                  "inline-flex h-[22px] items-center gap-1 rounded-[4px] px-2 text-[12px] transition-colors " +
                   (active
                     ? "bg-accent-soft text-accent"
                     : "text-fg-2 hover:bg-bg-2 hover:text-fg-1")
@@ -208,7 +208,7 @@ export function AIPanel({
             );
           })}
           <div className="flex-1" />
-          <span className="inline-flex h-[22px] items-center gap-1 rounded-[4px] px-2 text-[10.5px] text-fg-3">
+          <span className="inline-flex h-[22px] items-center gap-1 rounded-[4px] px-2 text-[11.5px] text-fg-3">
             <span style={{ color: topic === "ask" ? "var(--accent)" : "var(--fg-2)" }}>
               ask
             </span>
@@ -228,7 +228,7 @@ export function AIPanel({
             onKeyDown={onKeyDown}
             rows={2}
             disabled={!ready}
-            className="w-full resize-none rounded-[5px] border border-border-default bg-bg-inset px-2 py-[7px] text-[12px] leading-[1.45] text-fg-0 outline-none placeholder:text-fg-3 focus:border-accent-line font-sans min-h-[50px] disabled:opacity-60"
+            className="w-full resize-none rounded-[5px] border border-border-default bg-bg-inset px-2 py-[7px] text-sm leading-[1.45] text-fg-0 outline-none placeholder:text-fg-3 focus:border-accent-line font-sans min-h-[50px] disabled:opacity-60"
           />
           <div className="mt-1.5 flex items-center justify-between">
             <div className="flex items-center gap-1">
@@ -239,7 +239,7 @@ export function AIPanel({
               >
                 <Icon.paperclip size={11} />
               </button>
-              <span className="ml-1 inline-flex items-center gap-[3px] text-[10.5px]">
+              <span className="ml-1 inline-flex items-center gap-[3px] text-[11.5px]">
                 {ready ? (
                   <span style={{ color: "var(--fg-3)" }}>
                     {topic} · {modelId}
@@ -257,7 +257,7 @@ export function AIPanel({
             <button
               onClick={submit}
               disabled={!canSend}
-              className="inline-flex h-[22px] items-center gap-1.5 rounded-[4px] bg-accent px-2 text-[11px] font-medium text-accent-fg hover:brightness-[1.07] disabled:opacity-40 disabled:hover:brightness-100"
+              className="inline-flex h-[22px] items-center gap-1.5 rounded-[4px] bg-accent px-2 text-[12px] font-medium text-accent-fg hover:brightness-[1.07] disabled:opacity-40 disabled:hover:brightness-100"
             >
               <span>Send</span>
               <Icon.send size={11} />

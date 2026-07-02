@@ -39,7 +39,7 @@ export function DiffTree({ diff }: { diff: SchemaDiff }) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex h-[26px] shrink-0 items-center gap-2 border-b border-border-divider bg-bg-1 px-3 text-[10px] font-semibold uppercase tracking-[0.05em] text-fg-3">
+      <div className="flex h-[26px] shrink-0 items-center gap-2 border-b border-border-divider bg-bg-1 px-3 text-[11px] font-semibold uppercase tracking-[0.05em] text-fg-3">
         <span className="flex-1 truncate" title={diff.source_label}>
           source · {diff.source_label}
         </span>
@@ -60,7 +60,7 @@ export function DiffTree({ diff }: { diff: SchemaDiff }) {
 
       <div className="flex-1 overflow-auto py-1">
         {tables.length === 0 && views.length === 0 ? (
-          <div className="px-3 py-3 text-[11px] text-fg-3">
+          <div className="px-3 py-3 text-[12px] text-fg-3">
             No differences between these schemas.
           </div>
         ) : (
@@ -101,14 +101,14 @@ function TableRow({ table }: { table: TableDiff }) {
         </span>
         <StatusBadge status={table.status} />
         <Icon.table size={11} stroke="var(--fg-3)" />
-        <span className="font-mono text-[11.5px] text-fg-1">{table.name}</span>
+        <span className="font-mono text-sm text-fg-1">{table.name}</span>
         {table.status === "modified" && changedCols.length > 0 && (
-          <span className="ml-1 text-[10px] text-fg-3">
+          <span className="ml-1 text-[11px] text-fg-3">
             {changedCols.length} column{changedCols.length === 1 ? "" : "s"}
           </span>
         )}
         {table.primary_key.status !== "unchanged" && (
-          <span className="ml-1 rounded-[3px] bg-bg-2 px-1 text-[9.5px] text-fg-3">
+          <span className="ml-1 rounded-[3px] bg-bg-2 px-1 text-[10.5px] text-fg-3">
             pk changed
           </span>
         )}
@@ -126,7 +126,7 @@ function TableRow({ table }: { table: TableDiff }) {
 
 function ColumnRow({ col }: { col: ColumnDiff }) {
   return (
-    <div className="grid grid-cols-2 gap-2 px-2 pl-7 text-[10.5px]">
+    <div className="grid grid-cols-2 gap-2 px-2 pl-7 text-[11.5px]">
       <ColumnCell side="source" status={col.status} column={col.source} />
       <ColumnCell
         side="target"
@@ -168,7 +168,7 @@ function ColumnCell({
       <span className="truncate text-fg-3">{column.data_type}</span>
       {!column.nullable && <span className="text-fg-4">NOT NULL</span>}
       {side === "target" && changes && changes.length > 0 && (
-        <span className="truncate text-[10px]" style={{ color: "var(--update)" }}>
+        <span className="truncate text-[11px]" style={{ color: "var(--update)" }}>
           {changes.join(", ")}
         </span>
       )}
@@ -181,8 +181,8 @@ function ViewRow({ view }: { view: ViewDiff }) {
     <div className="flex items-center gap-1.5 border-b border-dashed border-border-divider px-2 py-1 pl-5">
       <StatusBadge status={view.status} />
       <Icon.tree size={11} stroke="var(--fg-3)" />
-      <span className="font-mono text-[11.5px] text-fg-1">{view.name}</span>
-      <span className="text-[10px] text-fg-3">view</span>
+      <span className="font-mono text-sm text-fg-1">{view.name}</span>
+      <span className="text-[11px] text-fg-3">view</span>
     </div>
   );
 }
@@ -191,7 +191,7 @@ function StatusBadge({ status }: { status: ChangeStatus }) {
   const { label, color, bg } = statusStyle(status);
   return (
     <span
-      className="inline-flex h-[14px] shrink-0 items-center rounded-[3px] px-1 font-mono text-[9px] font-semibold uppercase tracking-[0.04em]"
+      className="inline-flex h-[14px] shrink-0 items-center rounded-[3px] px-1 font-mono text-[10px] font-semibold uppercase tracking-[0.04em]"
       style={{ background: bg, color }}
     >
       {label}

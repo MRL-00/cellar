@@ -113,7 +113,7 @@ export function ExportSetupModal({ onClose }: { onClose: () => void }) {
           <span className="inline-flex text-accent">
             <Icon.download size={14} />
           </span>
-          <span className="whitespace-nowrap text-[12.5px] font-semibold text-fg-0">
+          <span className="whitespace-nowrap text-sm font-semibold text-fg-0">
             Export setup
           </span>
         </div>
@@ -123,7 +123,7 @@ export function ExportSetupModal({ onClose }: { onClose: () => void }) {
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-3.5">
-        <p className="m-0 mb-3 max-w-[52ch] text-[11.5px] text-fg-2 text-pretty">
+        <p className="m-0 mb-3 max-w-[52ch] text-sm text-fg-2 text-pretty">
           Pick what to include, then download a <code>.json</code> file you can
           share or move to another machine.
         </p>
@@ -159,13 +159,13 @@ export function ExportSetupModal({ onClose }: { onClose: () => void }) {
                   {on && !empty && <Icon.check size={10} />}
                 </span>
                 <span className="min-w-0">
-                  <span className="flex items-center gap-1.5 text-[12px] font-medium text-fg-0">
+                  <span className="flex items-center gap-1.5 text-sm font-medium text-fg-0">
                     {section.label}
-                    <span className="font-mono text-[10px] text-fg-3">
+                    <span className="font-mono text-[11px] text-fg-3">
                       {empty ? "none saved" : `×${count}`}
                     </span>
                   </span>
-                  <span className="block text-[10.5px] text-fg-3">
+                  <span className="block text-[11.5px] text-fg-3">
                     {section.describe(count)}
                   </span>
                 </span>
@@ -174,7 +174,7 @@ export function ExportSetupModal({ onClose }: { onClose: () => void }) {
           })}
         </div>
 
-        <div className="mt-3 flex items-center gap-1.5 rounded-[4px] border border-dashed border-border-default bg-bg-inset px-3 py-2 text-[11px] text-fg-2">
+        <div className="mt-3 flex items-center gap-1.5 rounded-[4px] border border-dashed border-border-default bg-bg-inset px-3 py-2 text-sm text-fg-2">
           <Icon.lock size={12} stroke="var(--fg-3)" />
           <span>
             Passwords and API keys are never exported — recipients re-enter their
@@ -184,7 +184,7 @@ export function ExportSetupModal({ onClose }: { onClose: () => void }) {
       </div>
 
       <div className="flex h-11 shrink-0 items-center justify-between gap-3 border-t border-border-default bg-bg-2 px-3">
-        <span className="font-mono text-[10.5px] text-fg-3">
+        <span className="font-mono text-[11.5px] text-fg-3">
           {anySelected ? `${json.length.toLocaleString()} bytes` : "nothing selected"}
         </span>
         <div className="flex items-center gap-2">

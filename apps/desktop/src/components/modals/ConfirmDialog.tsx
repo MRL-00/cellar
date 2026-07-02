@@ -2,7 +2,7 @@ import { useConfirm } from "../../state/confirm";
 import { Modal } from "./Modal";
 
 const BTN_BASE =
-  "inline-flex h-[26px] items-center gap-[5px] whitespace-nowrap rounded-[4px] border px-3 text-[11.5px] font-medium transition-[background,color,border-color,filter] duration-[120ms]";
+  "inline-flex h-[26px] items-center gap-[5px] whitespace-nowrap rounded-[4px] border px-3 text-sm font-medium transition-[background,color,border-color,filter] duration-[120ms]";
 const BTN_SUBTLE =
   BTN_BASE +
   " text-fg-1 bg-transparent border-border-default hover:bg-bg-3 hover:border-border-strong hover:text-fg-0";
@@ -21,10 +21,10 @@ export function ConfirmDialog() {
   return (
     <Modal onClose={() => resolve(false)} width={420}>
       <div className="flex flex-col gap-3 p-4">
-        <span className="text-[12.5px] font-semibold text-fg-0">
+        <span className="text-sm font-semibold text-fg-0">
           {request.title}
         </span>
-        <span className="whitespace-pre-line text-[11.5px] leading-relaxed text-fg-2">
+        <span className="whitespace-pre-line text-sm leading-relaxed text-fg-2">
           {request.message}
         </span>
         <div className="mt-1 flex justify-end gap-2">

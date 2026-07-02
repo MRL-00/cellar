@@ -106,11 +106,11 @@ export function PlanPanel({ activeTab }: { activeTab: WorkspaceTab | null }) {
           <span className="inline-flex text-accent">
             <Icon.tree size={13} />
           </span>
-          <span className="truncate font-mono text-[11px] text-fg-2">
+          <span className="truncate font-mono text-sm text-fg-2">
             {queryTab ? queryTab.title : "no SQL query selected"}
           </span>
           {stale && (
-            <span className="rounded-[3px] border border-warn/40 px-1.5 py-[1px] text-[10px] text-warn">
+            <span className="rounded-[3px] border border-warn/40 px-1.5 py-[1px] text-[11px] text-warn">
               stale
             </span>
           )}
@@ -134,7 +134,7 @@ export function PlanPanel({ activeTab }: { activeTab: WorkspaceTab | null }) {
             onClick={copyRawJson}
             disabled={!canCopyRawJson}
             title="Copy raw Postgres EXPLAIN JSON"
-            className="inline-flex h-[23px] items-center gap-1.5 rounded-[4px] border border-border-default bg-bg-2 px-2 text-[11px] text-fg-2 disabled:cursor-not-allowed disabled:opacity-50 hover:border-border-strong hover:bg-bg-3 hover:text-fg-0"
+            className="inline-flex h-[23px] items-center gap-1.5 rounded-[4px] border border-border-default bg-bg-2 px-2 text-sm text-fg-2 disabled:cursor-not-allowed disabled:opacity-50 hover:border-border-strong hover:bg-bg-3 hover:text-fg-0"
           >
             {copied ? <Icon.check size={10} /> : <Icon.copy size={10} />}
             {copied ? "Copied" : "JSON"}
@@ -148,7 +148,7 @@ export function PlanPanel({ activeTab }: { activeTab: WorkspaceTab | null }) {
                 ? "Run Postgres EXPLAIN ANALYZE"
                 : "Run Postgres EXPLAIN without executing the statement")
             }
-            className="inline-flex h-[23px] items-center gap-1.5 rounded-[4px] border border-border-default bg-bg-2 px-2 text-[11px] text-fg-1 disabled:cursor-not-allowed disabled:opacity-50 hover:border-border-strong hover:bg-bg-3"
+            className="inline-flex h-[23px] items-center gap-1.5 rounded-[4px] border border-border-default bg-bg-2 px-2 text-sm text-fg-1 disabled:cursor-not-allowed disabled:opacity-50 hover:border-border-strong hover:bg-bg-3"
           >
             <Icon.bolt size={10} />
             {loading ? "Explaining..." : "Run"}
@@ -211,7 +211,7 @@ function PlanModeButton({
       aria-pressed={active}
       onClick={onClick}
       className={
-        "rounded-[3px] px-2 text-[10.5px] leading-[19px] transition-colors " +
+        "rounded-[3px] px-2 text-[11.5px] leading-[19px] transition-colors " +
         (active
           ? "bg-bg-3 text-fg-0 shadow-sm"
           : "text-fg-3 hover:bg-bg-2 hover:text-fg-1")
@@ -224,7 +224,7 @@ function PlanModeButton({
 
 function AnalyzeWarning() {
   return (
-    <div className="flex items-start gap-2 rounded-[4px] border border-warn/30 bg-update-bg px-2.5 py-2 text-[10.5px] leading-[1.45] text-fg-2">
+    <div className="flex items-start gap-2 rounded-[4px] border border-warn/30 bg-update-bg px-2.5 py-2 text-[11.5px] leading-[1.45] text-fg-2">
       <Icon.warn size={13} className="mt-[1px] text-warn" />
       <div>
         <span className="font-medium text-warn">EXPLAIN ANALYZE executes SQL.</span>{" "}
@@ -266,7 +266,7 @@ function detailForUnavailable(reason: string): string {
 
 function PlanSummary({ plan, stale }: { plan: QueryPlan; stale: boolean }) {
   return (
-    <div className="grid grid-cols-2 gap-2 text-[10.5px] sm:grid-cols-4">
+    <div className="grid grid-cols-2 gap-2 text-[11.5px] sm:grid-cols-4">
       <Metric
         label="mode"
         value={plan.mode === "analyze" ? "analyze" : "estimate"}
@@ -290,12 +290,12 @@ function Metric({
 }) {
   return (
     <div className="rounded-[4px] border border-border-default bg-bg-1 px-2 py-1.5">
-      <div className="text-[9.5px] uppercase tracking-[0.08em] text-fg-3">
+      <div className="text-[10.5px] uppercase tracking-[0.08em] text-fg-3">
         {label}
       </div>
       <div
         className={
-          "font-mono text-[11px] " +
+          "font-mono text-[12px] " +
           (tone === "warn" ? "text-warn" : "text-fg-1")
         }
       >
@@ -313,21 +313,21 @@ function PlanNodeView({ node, maxCost }: { node: PlanNode; maxCost: number }) {
   return (
     <div className="rounded-[4px] border border-border-default bg-bg-1">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-2 py-1.5">
-        <span className="font-mono text-[11.5px] font-medium text-fg-0">
+        <span className="font-mono text-sm font-medium text-fg-0">
           {node.node_type}
         </span>
         {node.relation_name && (
-          <span className="font-mono text-[10.5px] text-fg-2">
+          <span className="font-mono text-[11.5px] text-fg-2">
             {node.schema_name ? `${node.schema_name}.` : ""}
             {node.relation_name}
           </span>
         )}
         {node.index_name && (
-          <span className="font-mono text-[10.5px] text-accent">
+          <span className="font-mono text-[11.5px] text-accent">
             {node.index_name}
           </span>
         )}
-        <span className="ml-auto font-mono text-[10px] text-fg-3">
+        <span className="ml-auto font-mono text-[11px] text-fg-3">
           cost {formatRange(node.startup_cost, node.total_cost)} · rows{" "}
           {node.plan_rows ?? "?"}
         </span>
@@ -344,13 +344,13 @@ function PlanNodeView({ node, maxCost }: { node: PlanNode; maxCost: number }) {
               }}
             />
           </div>
-          <span className="w-[28px] text-right font-mono text-[9.5px] text-fg-3">
+          <span className="w-[28px] text-right font-mono text-[10.5px] text-fg-3">
             {heatPercent}%
           </span>
         </div>
       </div>
       {(node.actual_total_time_ms != null || node.details.length > 0) && (
-        <div className="border-t border-border-divider px-2 py-1.5 text-[10.5px] text-fg-2">
+        <div className="border-t border-border-divider px-2 py-1.5 text-[11.5px] text-fg-2">
           {node.actual_total_time_ms != null && (
             <div className="font-mono text-fg-2">
               actual {formatRange(node.actual_startup_time_ms, node.actual_total_time_ms)} ms · rows{" "}
@@ -390,11 +390,11 @@ function PlanEmpty({
   warn?: boolean;
 }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-1.5 p-6 text-center text-[11.5px] text-fg-3">
-      <div className={"text-[12px] font-medium " + (warn ? "text-warn" : "text-fg-1")}>
+    <div className="flex h-full flex-col items-center justify-center gap-1.5 p-6 text-center text-sm text-fg-3">
+      <div className={"text-sm font-medium " + (warn ? "text-warn" : "text-fg-1")}>
         {title}
       </div>
-      <div className="max-w-[360px] text-[10.5px] leading-[1.5] text-fg-3">
+      <div className="max-w-[360px] text-[11.5px] leading-[1.5] text-fg-3">
         {detail}
       </div>
     </div>

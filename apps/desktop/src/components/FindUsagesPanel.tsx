@@ -71,15 +71,15 @@ export function FindUsagesPanel() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-bg-inset text-[11px]">
+    <div className="flex h-full min-h-0 flex-col bg-bg-inset text-[12px]">
       <div className="flex h-8 shrink-0 items-center justify-between gap-3 border-b border-border-divider px-2">
         <div className="flex min-w-0 items-center gap-2">
           <span className="shrink-0 font-medium text-fg-1">Find Usages</span>
-          <span className="min-w-0 truncate font-mono text-[10.5px] text-fg-2">
+          <span className="min-w-0 truncate font-mono text-[11.5px] text-fg-2">
             {targetLabel}
           </span>
           {target.column && (
-            <span className="shrink-0 rounded-[4px] bg-accent-soft px-1.5 py-px font-mono text-[9.5px] text-accent">
+            <span className="shrink-0 rounded-[4px] bg-accent-soft px-1.5 py-px font-mono text-[10.5px] text-accent">
               column
             </span>
           )}
@@ -136,7 +136,7 @@ export function FindUsagesPanel() {
       </div>
 
       {status === "ready" && results.length > 0 && (
-        <div className="flex h-6 shrink-0 items-center border-t border-border-divider px-2 font-mono text-[10px] text-fg-3">
+        <div className="flex h-6 shrink-0 items-center border-t border-border-divider px-2 font-mono text-[11px] text-fg-3">
           {results.length} {results.length === 1 ? "usage" : "usages"}
           {allSchemas ? " across all schemas" : ` in ${target.schema}`}
         </div>
@@ -159,7 +159,7 @@ function ScopeButton({
       type="button"
       onClick={onClick}
       className={
-        "h-[20px] px-2 text-[10px] " +
+        "h-[20px] px-2 text-[11px] " +
         (active
           ? "bg-accent-soft text-accent"
           : "text-fg-2 hover:bg-bg-2 hover:text-fg-0")
@@ -190,27 +190,27 @@ function UsageRow({
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-1.5">
-          <span className="shrink-0 rounded-[3px] bg-bg-2 px-1 py-px font-mono text-[9px] text-fg-3">
+          <span className="shrink-0 rounded-[3px] bg-bg-2 px-1 py-px font-mono text-[10px] text-fg-3">
             {meta.pill}
           </span>
-          <span className="min-w-0 truncate font-mono text-[11px] text-fg-1">
+          <span className="min-w-0 truncate font-mono text-sm text-fg-1">
             {qualifiedName(usage.schema, usage.name)}
           </span>
           {usage.on_table && (
-            <span className="shrink-0 font-mono text-[10px] text-fg-3">
+            <span className="shrink-0 font-mono text-[11px] text-fg-3">
               on {usage.on_table}
             </span>
           )}
           {usage.matched_column && (
-            <span className="shrink-0 rounded-[3px] bg-accent-soft px-1 py-px font-mono text-[9px] text-accent">
+            <span className="shrink-0 rounded-[3px] bg-accent-soft px-1 py-px font-mono text-[10px] text-accent">
               {usage.matched_column}
             </span>
           )}
-          <span className="ml-auto shrink-0 font-mono text-[9.5px] text-fg-4">
+          <span className="ml-auto shrink-0 font-mono text-[10.5px] text-fg-4">
             L{usage.line}
           </span>
         </div>
-        <pre className="m-0 mt-1 max-h-[40px] overflow-hidden whitespace-pre-wrap break-words font-mono text-[10.5px] leading-[1.45] text-fg-2">
+        <pre className="m-0 mt-1 max-h-[40px] overflow-hidden whitespace-pre-wrap break-words font-mono text-[11.5px] leading-[1.45] text-fg-2">
           {usage.snippet}
         </pre>
       </div>
@@ -234,12 +234,12 @@ function EmptyState({
     <div className="flex h-full flex-col items-center justify-center gap-1.5 p-6 text-center">
       <div
         className={
-          "text-[12px] font-medium " + (tone === "warn" ? "text-warn" : "text-fg-1")
+          "text-sm font-medium " + (tone === "warn" ? "text-warn" : "text-fg-1")
         }
       >
         {title}
       </div>
-      <div className="max-w-[460px] text-[10.5px] leading-[1.5] text-fg-3">
+      <div className="max-w-[460px] text-[11.5px] leading-[1.5] text-fg-3">
         {detail}
       </div>
     </div>

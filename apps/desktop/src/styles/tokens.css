@@ -100,14 +100,14 @@
   --font-mono: "JetBrains Mono", "Geist Mono", ui-monospace, "SF Mono", "Menlo", "Consolas", monospace;
   --font-interface: var(--font-sans);
   --font-data: var(--font-mono);
-  /* Size scale: 12, 13 (base), 14, 16, 18, 24. Base lives on --fs-sm, which the
+  /* Size scale: 13, 14 (base), 15, 17, 19, 25. Base lives on --fs-sm, which the
      body uses (see base.css). */
-  --fs-xs: 12px;
-  --fs-sm: 13px;
-  --fs-md: 14px;
-  --fs-lg: 16px;
-  --fs-xl: 18px;
-  --fs-2xl: 24px;
+  --fs-xs: 13px;
+  --fs-sm: 14px;
+  --fs-md: 15px;
+  --fs-lg: 17px;
+  --fs-xl: 19px;
+  --fs-2xl: 25px;
 }
 
 [data-theme="light"] {

@@ -88,7 +88,7 @@ export function SchemaCompareDialog({
       <div className="flex h-[38px] shrink-0 items-center justify-between border-b border-border-default pl-3.5 pr-2">
         <div className="flex items-center gap-2">
           <Icon.diff size={14} stroke="var(--accent)" />
-          <span className="text-[12.5px] font-semibold text-fg-0">
+          <span className="text-sm font-semibold text-fg-0">
             Compare schemas
           </span>
         </div>
@@ -127,18 +127,18 @@ export function SchemaCompareDialog({
           onError={setError}
         />
 
-        {error && <div className="text-[11px] text-warn">{error}</div>}
+        {error && <div className="text-sm text-warn">{error}</div>}
       </div>
 
       <div className="flex min-h-11 shrink-0 items-center justify-between gap-3 border-t border-border-default bg-bg-2 px-3 py-2">
-        <span className="text-[10.5px] text-fg-3">
+        <span className="text-[11.5px] text-fg-3">
           The migration transforms the source into the target. Generated SQL is
           reviewed before it runs.
         </span>
         <div className="flex items-center gap-2">
           <button
             type="button"
-            className="inline-flex h-[26px] items-center rounded-[4px] border border-border-default bg-transparent px-2.5 text-[11.5px] text-fg-1 hover:bg-bg-3"
+            className="inline-flex h-[26px] items-center rounded-[4px] border border-border-default bg-transparent px-2.5 text-sm text-fg-1 hover:bg-bg-3"
             onClick={onClose}
           >
             Cancel
@@ -147,7 +147,7 @@ export function SchemaCompareDialog({
             type="button"
             disabled={!canCompare}
             onClick={handleCompare}
-            className="inline-flex h-[26px] items-center gap-1.5 rounded-[4px] border border-transparent bg-accent px-2.5 text-[11.5px] font-medium text-white hover:brightness-[1.07] disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-[26px] items-center gap-1.5 rounded-[4px] border border-transparent bg-accent px-2.5 text-sm font-medium text-white hover:brightness-[1.07] disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Icon.diff size={11} />
             Compare
@@ -208,8 +208,8 @@ function SidePicker({
   return (
     <div className="flex flex-col gap-2 rounded-[6px] border border-border-default bg-bg-2 p-2.5">
       <div className="flex items-baseline justify-between">
-        <span className="text-[11.5px] font-semibold text-fg-0">{heading}</span>
-        <span className="text-[10px] text-fg-3">{subtitle}</span>
+        <span className="text-sm font-semibold text-fg-0">{heading}</span>
+        <span className="text-[11px] text-fg-3">{subtitle}</span>
       </div>
 
       <div className="flex gap-1">
@@ -331,7 +331,7 @@ function SnapshotManager({
 
   return (
     <div className="flex flex-col gap-2 rounded-[6px] border border-border-default bg-bg-2 p-2.5">
-      <span className="text-[11.5px] font-semibold text-fg-0">Snapshots</span>
+      <span className="text-sm font-semibold text-fg-0">Snapshots</span>
       <div className="flex items-end gap-2">
         <Field label="Connection" className="flex-1">
           <Select
@@ -356,7 +356,7 @@ function SnapshotManager({
           type="button"
           disabled={!canSave}
           onClick={() => void save()}
-          className="inline-flex h-[26px] items-center gap-1.5 rounded-[4px] border border-border-default bg-bg-1 px-2.5 text-[11.5px] text-fg-1 hover:bg-bg-3 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex h-[26px] items-center gap-1.5 rounded-[4px] border border-border-default bg-bg-1 px-2.5 text-sm text-fg-1 hover:bg-bg-3 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <Icon.download size={11} />
           {saving ? "Saving…" : "Save snapshot"}
@@ -367,10 +367,10 @@ function SnapshotManager({
           {snapshots.map((s) => (
             <div
               key={s.id}
-              className="flex items-center gap-2 border-b border-border-divider px-2 py-1 text-[11px] last:border-b-0"
+              className="flex items-center gap-2 border-b border-border-divider px-2 py-1 text-sm last:border-b-0"
             >
               <span className="min-w-0 flex-1 truncate text-fg-1">{s.label}</span>
-              <span className="shrink-0 text-[10px] text-fg-3">
+              <span className="shrink-0 text-[11px] text-fg-3">
                 {s.table_count} tables · {formatWhen(s.created_at_ms)}
               </span>
               <button
@@ -403,7 +403,7 @@ function ModeTab({
       type="button"
       onClick={onClick}
       className={
-        "rounded-[4px] px-2 py-0.5 text-[11px] " +
+        "rounded-[4px] px-2 py-0.5 text-sm " +
         (active
           ? "bg-accent-soft text-accent"
           : "text-fg-2 hover:bg-bg-3 hover:text-fg-0")
@@ -425,7 +425,7 @@ function Field({
 }) {
   return (
     <label className={"flex flex-col gap-0.5 " + className}>
-      <span className="text-[10px] uppercase tracking-[0.05em] text-fg-3">
+      <span className="text-[11px] uppercase tracking-[0.05em] text-fg-3">
         {label}
       </span>
       {children}
@@ -448,7 +448,7 @@ function Select({
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="h-[26px] rounded-[4px] border border-border-default bg-bg-1 px-1.5 text-[11.5px] text-fg-1 outline-none focus:border-accent-line"
+      className="h-[26px] rounded-[4px] border border-border-default bg-bg-1 px-1.5 text-sm text-fg-1 outline-none focus:border-accent-line"
     >
       <option value="">{placeholder}</option>
       {options.map((o) => (

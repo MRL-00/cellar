@@ -50,11 +50,11 @@ export function EmptyState({ onNew }: { onNew: () => void }) {
             />
           </span>
         </div>
-        <h1 className="m-0 mb-1 text-[20px] font-semibold tracking-[-0.01em] text-fg-0">
+        <h1 className="m-0 mb-1 text-[21px] font-semibold tracking-[-0.01em] text-fg-0">
           Welcome to Cellar
         </h1>
         <p
-          className="m-0 mb-[22px] text-[12.5px] text-fg-2"
+          className="m-0 mb-[22px] text-sm text-fg-2"
           style={{ textWrap: "pretty" }}
         >
           Connect to Postgres, inspect schemas, run SQL, and browse table data.
@@ -63,7 +63,7 @@ export function EmptyState({ onNew }: { onNew: () => void }) {
         <div className="mb-[22px] flex flex-col gap-1.5">
           <button
             onClick={onNew}
-            className="flex h-8 items-center justify-center gap-2 whitespace-nowrap rounded-[6px] border px-3 text-xs font-medium text-accent-fg transition-[filter] duration-[120ms] hover:brightness-[1.07]"
+            className="flex h-8 items-center justify-center gap-2 whitespace-nowrap rounded-[6px] border px-3 text-sm font-medium text-accent-fg transition-[filter] duration-[120ms] hover:brightness-[1.07]"
             style={{
               background: "var(--accent)",
               borderColor: "color-mix(in oklab, var(--accent) 40%, black)",
@@ -75,7 +75,7 @@ export function EmptyState({ onNew }: { onNew: () => void }) {
           <button
             disabled
             title="Connection import is not wired yet"
-            className="flex h-8 cursor-not-allowed items-center justify-center gap-2 whitespace-nowrap rounded-[6px] border border-border-default bg-bg-2 px-3 text-xs text-fg-2 opacity-55"
+            className="flex h-8 cursor-not-allowed items-center justify-center gap-2 whitespace-nowrap rounded-[6px] border border-border-default bg-bg-2 px-3 text-sm text-fg-2 opacity-55"
           >
             <Icon.fileText size={12} />
             <span>Import from DataGrip / DBeaver</span>
@@ -83,14 +83,14 @@ export function EmptyState({ onNew }: { onNew: () => void }) {
           <button
             disabled
             title="Demo database provisioning is not wired yet"
-            className="flex h-8 cursor-not-allowed items-center justify-center gap-2 whitespace-nowrap rounded-[6px] border border-border-default bg-bg-2 px-3 text-xs text-fg-2 opacity-55"
+            className="flex h-8 cursor-not-allowed items-center justify-center gap-2 whitespace-nowrap rounded-[6px] border border-border-default bg-bg-2 px-3 text-sm text-fg-2 opacity-55"
           >
             <Icon.cloud size={12} />
             <span>Connect to demo database</span>
           </button>
         </div>
 
-        <div className="mb-2 text-[10px] uppercase tracking-[0.06em] text-fg-3">
+        <div className="mb-2 text-[11px] uppercase tracking-[0.06em] text-fg-3">
           or pick an engine to start
         </div>
         <div className="mb-[22px] grid grid-cols-5 gap-1.5">
@@ -125,7 +125,7 @@ export function EmptyState({ onNew }: { onNew: () => void }) {
                 >
                   {m.letter}
                 </span>
-                <span className="whitespace-nowrap text-[10px] text-fg-1">
+                <span className="whitespace-nowrap text-sm text-fg-1">
                   {SHORT[e]}
                 </span>
               </button>
@@ -134,30 +134,30 @@ export function EmptyState({ onNew }: { onNew: () => void }) {
         </div>
 
         <div className="mb-[18px] flex justify-center gap-4">
-          <span className="inline-flex items-center gap-1 whitespace-nowrap text-[10.5px] text-fg-3">
+          <span className="inline-flex items-center gap-1 whitespace-nowrap text-[11.5px] text-fg-3">
             <kbd className="kbd">⌘</kbd>
             <kbd className="kbd">K</kbd>
             <span>command palette</span>
           </span>
-          <span className="inline-flex items-center gap-1 whitespace-nowrap text-[10.5px] text-fg-3">
+          <span className="inline-flex items-center gap-1 whitespace-nowrap text-[11.5px] text-fg-3">
             <kbd className="kbd">⌘</kbd>
             <kbd className="kbd">N</kbd>
             <span>new connection</span>
           </span>
-          <span className="inline-flex items-center gap-1 whitespace-nowrap text-[10.5px] text-fg-3">
+          <span className="inline-flex items-center gap-1 whitespace-nowrap text-[11.5px] text-fg-3">
             <kbd className="kbd">⌘</kbd>
             <kbd className="kbd">,</kbd>
             <span>settings</span>
           </span>
         </div>
 
-        <div className="border-t border-border-divider pt-4 text-[10.5px] text-fg-3">
+        <div className="border-t border-border-divider pt-4 text-[11.5px] text-fg-3">
           <span>
             v0.1.0 · MIT licensed ·{" "}
             <button
               disabled
               title="Documentation links are not wired in the desktop shell yet"
-              className="cursor-not-allowed bg-transparent text-[10.5px] text-fg-3 underline underline-offset-2 opacity-70"
+              className="cursor-not-allowed bg-transparent text-[11.5px] text-fg-3 underline underline-offset-2 opacity-70"
             >
               docs
             </button>{" "}
@@ -165,7 +165,7 @@ export function EmptyState({ onNew }: { onNew: () => void }) {
             <button
               disabled
               title="External links are not wired in the desktop shell yet"
-              className="cursor-not-allowed bg-transparent text-[10.5px] text-fg-3 underline underline-offset-2 opacity-70"
+              className="cursor-not-allowed bg-transparent text-[11.5px] text-fg-3 underline underline-offset-2 opacity-70"
             >
               github
             </button>

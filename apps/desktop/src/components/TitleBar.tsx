@@ -101,7 +101,7 @@ export function TitleBar({
           <>
             <div className="mx-0.5 h-4 w-px bg-border-default" />
             <div className="flex items-center gap-0.5 max-[1080px]:[&_svg]:hidden">
-              <span className="inline-flex items-center gap-[5px] whitespace-nowrap rounded-[4px] px-1.5 py-[3px] text-[11.5px] text-fg-1">
+              <span className="inline-flex items-center gap-[5px] whitespace-nowrap rounded-[4px] px-1.5 py-[3px] text-sm text-fg-1">
                 <Icon.database size={12} />
                 <span>{activeConn?.name ?? activeTab.connectionId}</span>
               </span>
@@ -111,20 +111,20 @@ export function TitleBar({
                   type="button"
                   onClick={openDatabaseMenu}
                   title="Switch database"
-                  className="inline-flex items-center gap-[5px] whitespace-nowrap rounded-[4px] px-1.5 py-[3px] text-[11.5px] text-fg-1 transition-colors hover:bg-bg-2 max-[1080px]:hidden"
+                  className="inline-flex items-center gap-[5px] whitespace-nowrap rounded-[4px] px-1.5 py-[3px] text-sm text-fg-1 transition-colors hover:bg-bg-2 max-[1080px]:hidden"
                 >
                   <span style={{ color: engineColor }}>●</span>
                   <span>{activeTab.database}</span>
                   <Icon.chevronDown size={10} style={{ opacity: 0.5 }} />
                 </button>
               ) : (
-                <span className="inline-flex items-center gap-[5px] whitespace-nowrap rounded-[4px] px-1.5 py-[3px] text-[11.5px] text-fg-1 max-[1080px]:hidden">
+                <span className="inline-flex items-center gap-[5px] whitespace-nowrap rounded-[4px] px-1.5 py-[3px] text-sm text-fg-1 max-[1080px]:hidden">
                   <span style={{ color: engineColor }}>●</span>
                   <span>{activeTab.database}</span>
                 </span>
               )}
               <Icon.chevronRight size={11} style={{ opacity: 0.4 }} />
-              <span className="inline-flex items-center gap-[5px] whitespace-nowrap rounded-[4px] px-1.5 py-[3px] text-[11.5px] text-fg-1 max-[1080px]:hidden">
+              <span className="inline-flex items-center gap-[5px] whitespace-nowrap rounded-[4px] px-1.5 py-[3px] text-sm text-fg-1 max-[1080px]:hidden">
                 {activeTab.kind === "query" ? (
                   <Icon.terminal size={11} />
                 ) : activeTab.kind === "schema-compare" ? (
@@ -146,7 +146,7 @@ export function TitleBar({
       <button
         type="button"
         onClick={onOpenPalette}
-        className="absolute left-1/2 top-1/2 flex h-[24px] min-w-0 w-[320px] max-w-[320px] -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-[5px] border border-border-default bg-bg-inset px-2 text-[11.5px] text-fg-3 transition-[border-color] duration-150 hover:border-border-strong"
+        className="absolute left-1/2 top-1/2 flex h-[24px] min-w-0 w-[320px] max-w-[320px] -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-[5px] border border-border-default bg-bg-inset px-2 text-sm text-fg-3 transition-[border-color] duration-150 hover:border-border-strong"
       >
         <Icon.search size={12} />
         <span className="flex-1 text-left">

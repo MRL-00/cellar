@@ -49,7 +49,7 @@ export function MessagesView({
             />
           ))}
         </div>
-        <div className="font-mono text-[10px] text-fg-3">
+        <div className="font-mono text-[12px] text-fg-3">
           {messages.length === 0 ? "no messages" : `${messages.length} total`}
         </div>
       </div>
@@ -65,7 +65,7 @@ export function MessagesView({
         />
       ) : (
         <div className="min-h-0 flex-1 overflow-auto">
-          <div className="grid min-w-[720px] grid-cols-[92px_74px_86px_minmax(220px,1fr)_160px] border-b border-border-divider px-2 py-1 font-mono text-[10px] uppercase text-fg-3">
+          <div className="grid min-w-[720px] grid-cols-[92px_74px_86px_minmax(220px,1fr)_160px] border-b border-border-divider px-2 py-1 font-mono text-[12px] uppercase text-fg-3">
             <span>time</span>
             <span>level</span>
             <span>source</span>
@@ -96,7 +96,7 @@ function SeverityFilter({
     <button
       onClick={onClick}
       className={
-        "inline-flex h-[22px] items-center gap-1 rounded-[4px] px-2 font-mono text-[10.5px] " +
+        "inline-flex h-[22px] items-center gap-1 rounded-[4px] px-2 font-mono text-[12px] " +
         (active
           ? "bg-accent-soft text-accent"
           : "text-fg-2 hover:bg-bg-2 hover:text-fg-0")
@@ -110,7 +110,7 @@ function SeverityFilter({
 
 function MessageRow({ message }: { message: QueryMessage }) {
   return (
-    <div className="grid min-w-[720px] grid-cols-[92px_74px_86px_minmax(220px,1fr)_160px] items-start border-b border-border-subtle px-2 py-1.5 font-mono text-[10.5px] leading-[1.45] hover:bg-bg-1">
+    <div className="grid min-w-[720px] grid-cols-[92px_74px_86px_minmax(220px,1fr)_160px] items-start border-b border-border-subtle px-2 py-1.5 font-mono text-sm leading-[1.45] hover:bg-bg-1">
       <span className="text-fg-3">{formatMessageTime(message.timestamp)}</span>
       <span className={severityClass(message.severity)}>{message.severity}</span>
       <span className="text-fg-2">{message.source}</span>
@@ -130,9 +130,9 @@ function EmptyMessagePanel({
   detail: string;
 }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-1.5 bg-bg-inset p-6 text-center text-[11.5px] text-fg-3">
-      <div className="text-[12px] font-medium text-fg-1">{title}</div>
-      <div className="max-w-[460px] text-[10.5px] leading-[1.5] text-fg-3">
+    <div className="flex h-full flex-col items-center justify-center gap-1.5 bg-bg-inset p-6 text-center text-[12.5px] text-fg-3">
+      <div className="text-[13px] font-medium text-fg-1">{title}</div>
+      <div className="max-w-[460px] text-[11.5px] leading-[1.5] text-fg-3">
         {detail}
       </div>
     </div>

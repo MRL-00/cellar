@@ -25,7 +25,7 @@ export function SettingsConnections() {
             defaultValue="10"
             style={{ width: 70, flex: "none" }}
           />
-          <span className="text-[11px] text-fg-2">seconds</span>
+          <span className="text-sm text-fg-2">seconds</span>
         </Row>
         <Row label="Keep-alive interval">
           <input
@@ -34,7 +34,7 @@ export function SettingsConnections() {
             defaultValue="30"
             style={{ width: 70, flex: "none" }}
           />
-          <span className="text-[11px] text-fg-2">seconds</span>
+          <span className="text-sm text-fg-2">seconds</span>
         </Row>
         <Row label="Application name">
           <input
@@ -68,7 +68,7 @@ export function SettingsConnections() {
             defaultValue="100"
             style={{ width: 70, flex: "none" }}
           />
-          <span className="text-[11px] text-fg-2">rows</span>
+          <span className="text-sm text-fg-2">rows</span>
         </Row>
       </Section>
     </div>
@@ -148,7 +148,7 @@ export function SettingsBackups({
             type="button"
             disabled
             title="Snapshot location browsing is not wired yet"
-            className="inline-flex h-[26px] cursor-not-allowed items-center gap-1 rounded-[4px] border border-border-default bg-bg-2 px-2 text-[11px] text-fg-2 opacity-70"
+            className="inline-flex h-[26px] cursor-not-allowed items-center gap-1 rounded-[4px] border border-border-default bg-bg-2 px-2 text-sm text-fg-2 opacity-70"
           >
             <Icon.fileText size={11} />
             <span>Browse</span>
@@ -161,7 +161,7 @@ export function SettingsBackups({
             defaultValue="30"
             style={{ width: 70, flex: "none" }}
           />
-          <span className="text-[11px] text-fg-2">days</span>
+          <span className="text-sm text-fg-2">days</span>
         </Row>
       </Section>
       <Section title="Export defaults">
