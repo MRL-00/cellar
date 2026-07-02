@@ -582,7 +582,7 @@ function TableRow({
 function StatusDot({ status }: { status: ConnStatus }) {
   const color =
     status === "connected"
-      ? "var(--accent)"
+      ? "var(--insert)"
       : status === "connecting"
         ? "var(--warn)"
         : status === "error"
