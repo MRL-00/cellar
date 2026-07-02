@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.3.2
+
+### Features
+
+- **Bundled interface & editor fonts** — Geist, Inter, JetBrains Mono, and
+  Roboto now ship with the app (with their OFL licenses), so the font pickers
+  work offline and render consistently across machines.
+- **Font settings applied everywhere** — the interface and editor fonts chosen
+  in Settings are now wired through the whole UI instead of just being stored.
+- **Update toast** — a bottom-right "Update available" toast appears on startup
+  when a new version is found; its Update button opens Settings → Updates.
+- **In-app release notes** — the Updates panel shows a "What's new" section with
+  the pending version's release notes (falling back to the bundled changelog).
+
+### Bug fixes
+
+- **Sidebar tree** — unified the tree label font size and weight, and matched
+  folder/database labels to the base font size.
+- **Pane separators** — resizable pane separators are now visible on the dark
+  theme.
+- **Grid font** — preserved the mono font features in the data grid.
+
 ## 0.3.1
 
 ### Features
