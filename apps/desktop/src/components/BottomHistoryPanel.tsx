@@ -201,7 +201,7 @@ function EmptyHistory({ title, detail }: { title: string; detail?: string }) {
 
 function formatRows(record: QueryHistoryRecord) {
   if (record.row_count == null) return "no rows";
-  return `${record.row_count.toLocaleString()} row${record.row_count === 1 ? "" : "s"}`;
+  return `${record.row_count.toLocaleString("en-US")} row${record.row_count === 1 ? "" : "s"}`;
 }
 
 function formatTimestamp(ms: number) {

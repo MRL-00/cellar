@@ -208,7 +208,7 @@ export function App() {
         {!empty && panels.left && (
           <>
             <div
-              className="flex min-w-0 flex-col bg-bg-1"
+              className="flex min-w-0 flex-col bg-bg-0"
               style={{ width: leftWidth }}
             >
               <Sidebar
@@ -281,7 +281,7 @@ export function App() {
               )}
             />
             <div
-              className="flex min-w-0 flex-col bg-bg-1"
+              className="flex min-w-0 flex-col bg-bg-0"
               style={{ width: rightWidth }}
             >
               <AIPanel
