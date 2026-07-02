@@ -14,6 +14,7 @@ import type {
   FilterLogic,
   FilterOperator,
   GridColumn,
+  SortState,
 } from "./types";
 
 type ComposerDraft = {
@@ -37,6 +38,11 @@ export type FilterBarProps = {
   onQuickFilterChange?: (next: string) => void;
   quickFilterColumn?: string | null;
   onQuickFilterColumnChange?: (next: string | null) => void;
+  totalRows: number;
+  filteredRows: number;
+  serverRows?: number;
+  sort?: SortState;
+  onSortChange?: (next: SortState) => void;
 };
 
 export function FilterBar({
@@ -47,6 +53,11 @@ export function FilterBar({
   onQuickFilterChange,
   quickFilterColumn,
   onQuickFilterColumnChange,
+  totalRows,
+  filteredRows,
+  serverRows,
+  sort,
+  onSortChange,
 }: FilterBarProps) {
   const [draft, setDraft] = useState<ComposerDraft | null>(null);
   const columnRef = useRef<HTMLSelectElement | null>(null);
@@ -379,6 +390,69 @@ export function FilterBar({
             clear
           </button>
         )}
+      </div>
+      {onSortChange && (
+        <div className="grid-orderby">
+          <span className="grid-filterbar-label">
+            {sort?.direction === "desc" ? (
+              <GridIcon.sortDesc size={11} style={{ color: "var(--accent)" }} />
+            ) : (
+              <GridIcon.sortAsc
+                size={11}
+                style={{ color: sort ? "var(--accent)" : "var(--fg-3)" }}
+              />
+            )}
+            <span>order by</span>
+          </span>
+          <select
+            className="grid-filter-select"
+            value={sort?.columnKey ?? ""}
+            onChange={(e) =>
+              onSortChange(
+                e.target.value
+                  ? { columnKey: e.target.value, direction: sort?.direction ?? "asc" }
+                  : null,
+              )
+            }
+            aria-label="Order by column"
+          >
+            <option value="">—</option>
+            {columns.map((column) => (
+              <option key={column.key} value={column.key}>
+                {column.name}
+              </option>
+            ))}
+          </select>
+          {sort && (
+            <button
+              className="grid-filter-logic"
+              onClick={() =>
+                onSortChange({
+                  columnKey: sort.columnKey,
+                  direction: sort.direction === "asc" ? "desc" : "asc",
+                })
+              }
+              title="Toggle sort direction"
+            >
+              {sort.direction}
+            </button>
+          )}
+        </div>
+      )}
+      <div
+        className="grid-filterbar-summary mono"
+        title={
+          serverRows === undefined
+            ? "Filtered rows in the loaded page"
+            : `Filtered rows in the loaded page. Server total: ${serverRows.toLocaleString()}`
+        }
+      >
+        <span style={{ color: "var(--fg-1)" }}>
+          {filteredRows.toLocaleString()}
+        </span>
+        <span style={{ color: "var(--fg-3)" }}>/</span>
+        <span style={{ color: "var(--fg-2)" }}>{totalRows.toLocaleString()}</span>
+        <span style={{ color: "var(--fg-3)" }}> page rows</span>
       </div>
     </div>
   );
