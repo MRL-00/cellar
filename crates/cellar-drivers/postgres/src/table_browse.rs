@@ -7,8 +7,8 @@ use cellar_core::query::{
 };
 use cellar_core::schema::{Column, Table};
 use cellar_core::table_browse::{
-    column_for, normalized_limit, normalized_offset, reject_value, require_value, unsupported,
-    validate_table_request, TableBrowseError,
+    column_for, escape_like_wildcards, normalized_limit, normalized_offset, reject_value,
+    require_value, unsupported, validate_table_request, TableBrowseError,
 };
 use cellar_core::value::{ColumnMeta, Row};
 use futures::TryStreamExt;
@@ -203,6 +203,13 @@ fn push_filter<'args>(
         | TableFilterOperator::EndsWith
         | TableFilterOperator::Like => {
             let value = require_value(filter)?;
+            // `like` passes the user's pattern through; the literal-text
+            // operators must not treat %/_ in the value as wildcards.
+            let value = if filter.operator == TableFilterOperator::Like {
+                value
+            } else {
+                escape_like_wildcards(&value)
+            };
             let is_uuid = matches!(kind, ColumnKind::Typed("uuid", _));
             if !matches!(kind, ColumnKind::Text) && !is_uuid {
                 return Err(unsupported(column, filter.operator));
@@ -425,9 +432,18 @@ mod tests {
     #[test]
     fn builds_pattern_operators_as_ilike_variants() {
         let cases = [
-            (TableFilterOperator::NotContains, r#"NOT ("email" ILIKE ('%' || $1 || '%'))"#),
-            (TableFilterOperator::StartsWith, r#""email" ILIKE ($1 || '%')"#),
-            (TableFilterOperator::EndsWith, r#""email" ILIKE ('%' || $1)"#),
+            (
+                TableFilterOperator::NotContains,
+                r#"NOT ("email" ILIKE ('%' || $1 || '%'))"#,
+            ),
+            (
+                TableFilterOperator::StartsWith,
+                r#""email" ILIKE ($1 || '%')"#,
+            ),
+            (
+                TableFilterOperator::EndsWith,
+                r#""email" ILIKE ('%' || $1)"#,
+            ),
             (TableFilterOperator::Like, r#""email" ILIKE $1"#),
         ];
         for (operator, expected) in cases {
@@ -451,10 +467,7 @@ mod tests {
             value: Some("fe27".into()),
         });
         let sql = sql_for(&req).expect("sql");
-        assert!(
-            sql.contains(r#""external_id"::text ILIKE"#),
-            "got: {sql}"
-        );
+        assert!(sql.contains(r#""external_id"::text ILIKE"#), "got: {sql}");
     }
 
     #[test]

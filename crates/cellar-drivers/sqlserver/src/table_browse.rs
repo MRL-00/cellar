@@ -7,8 +7,8 @@ use cellar_core::query::{
 };
 use cellar_core::schema::Table;
 use cellar_core::table_browse::{
-    column_for, normalized_limit, normalized_offset, reject_value, require_value, unsupported,
-    validate_table_request, TableBrowseError,
+    column_for, escape_like_wildcards, normalized_limit, normalized_offset, reject_value,
+    require_value, unsupported, validate_table_request, TableBrowseError,
 };
 use cellar_core::value::{ColumnMeta, Row};
 use futures_util::TryStreamExt;
@@ -225,14 +225,23 @@ fn filter_sql(filter: &TableFilterClause, table: &Table) -> Result<String, Table
             if !is_text_type(&column.data_type) {
                 return Err(unsupported(column, filter.operator));
             }
+            if filter.operator == TableFilterOperator::Like {
+                // User-controlled pattern, passed through verbatim.
+                return Ok(format!("{ident} LIKE {}", quote_literal(&value)));
+            }
+            // Literal text: escape LIKE wildcards, including SQL Server's `[`
+            // character-class wildcard, and declare the escape character.
+            let escaped = escape_like_wildcards(&value).replace('[', "\\[");
             let (keyword, pattern) = match filter.operator {
-                TableFilterOperator::NotContains => ("NOT LIKE", format!("%{value}%")),
-                TableFilterOperator::StartsWith => ("LIKE", format!("{value}%")),
-                TableFilterOperator::EndsWith => ("LIKE", format!("%{value}")),
-                TableFilterOperator::Like => ("LIKE", value.clone()),
-                _ => ("LIKE", format!("%{value}%")),
+                TableFilterOperator::NotContains => ("NOT LIKE", format!("%{escaped}%")),
+                TableFilterOperator::StartsWith => ("LIKE", format!("{escaped}%")),
+                TableFilterOperator::EndsWith => ("LIKE", format!("%{escaped}")),
+                _ => ("LIKE", format!("%{escaped}%")),
             };
-            Ok(format!("{ident} {keyword} {}", quote_literal(&pattern)))
+            Ok(format!(
+                "{ident} {keyword} {} ESCAPE '\\'",
+                quote_literal(&pattern)
+            ))
         }
         TableFilterOperator::Equals | TableFilterOperator::NotEquals => {
             let value = require_value(filter)?;

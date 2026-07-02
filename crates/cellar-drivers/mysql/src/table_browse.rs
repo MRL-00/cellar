@@ -8,8 +8,8 @@ use cellar_core::query::{
 };
 use cellar_core::schema::Table;
 use cellar_core::table_browse::{
-    column_for, normalized_limit, normalized_offset, reject_value, require_value, unsupported,
-    validate_table_request, TableBrowseError,
+    column_for, escape_like_wildcards, normalized_limit, normalized_offset, reject_value,
+    require_value, unsupported, validate_table_request, TableBrowseError,
 };
 use cellar_core::value::{ColumnMeta, Row};
 use futures::TryStreamExt;
@@ -192,6 +192,13 @@ fn push_filter<'args>(
         | TableFilterOperator::EndsWith
         | TableFilterOperator::Like => {
             let value = require_value(filter)?;
+            // `like` passes the user's pattern through; the literal-text
+            // operators must not treat %/_ in the value as wildcards.
+            let value = if filter.operator == TableFilterOperator::Like {
+                value
+            } else {
+                escape_like_wildcards(&value)
+            };
             if !matches!(kind, ColumnKind::Text) {
                 return Err(unsupported(column, filter.operator));
             }
