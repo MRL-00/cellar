@@ -1,4 +1,4 @@
-import { operatorsForColumn } from "@cellar/data-grid";
+import { normalizeLikePattern, operatorsForColumn } from "@cellar/data-grid";
 import type {
   FilterClause,
   FilterOperator,
@@ -21,11 +21,16 @@ const ADVANCED_OPERATOR_MAP: Partial<Record<FilterOperator, TableFilterOperator>
   equals: "equals",
   notEquals: "not_equals",
   contains: "contains",
+  notContains: "not_contains",
+  startsWith: "starts_with",
+  endsWith: "ends_with",
+  like: "like",
   greaterThan: "greater_than",
+  greaterThanOrEqual: "greater_than_or_equal",
   lessThan: "less_than",
+  lessThanOrEqual: "less_than_or_equal",
   isNull: "is_null",
   isNotNull: "is_not_null",
-  // `startsWith` has no server operator — it stays a local page filter.
 };
 
 function operatorNeedsValue(operator: TableFilterOperator): boolean {
@@ -48,8 +53,10 @@ export function advancedFiltersToClauses(
     const operator = ADVANCED_OPERATOR_MAP[filter.operator];
     if (!operator) continue;
     const needsValue = operatorNeedsValue(operator);
-    const value = (filter.value ?? "").trim();
+    let value = (filter.value ?? "").trim();
     if (needsValue && value.length === 0) continue;
+    // Match the grid's local `like` semantics: bare text means %text%.
+    if (operator === "like") value = normalizeLikePattern(value);
     clauses.push({
       column: filter.columnKey,
       operator,

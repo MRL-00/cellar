@@ -26,7 +26,6 @@ import { useTabResults } from "../state/tabResults";
 import {
   buildQueryErrorMessage,
   buildQueryResultMessages,
-  buildTableLoadStartedMessage,
   type TableQueryContext,
 } from "../lib/queryMessages";
 
@@ -137,9 +136,7 @@ export function useTableData(
     if (tabId) {
       useTabResults.getState().clearTab(tabId);
     }
-    useQueryMessages
-      .getState()
-      .replaceForTab(messageTabId, [buildTableLoadStartedMessage(queryContext)]);
+    useQueryMessages.getState().replaceForTab(messageTabId, []);
     void (async () => {
       try {
         const result = await loadTableQuery(request);

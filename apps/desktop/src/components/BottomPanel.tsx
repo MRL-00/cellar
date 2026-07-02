@@ -313,11 +313,11 @@ function headerItems(
   if (activeTab.kind === "schema-compare")
     return [activeTab.title, "schema compare tab"];
   if (activeTab.kind === "er-diagram") return [activeTab.title, "ER diagram"];
-  if (!result) return [tableLabel(activeTab), "table rows shown above"];
+  if (!result) return [tableLabel(activeTab)];
 
   const context = resultContextLabel(result.source);
   if (result.source.kind === "table") {
-    return [context, "table rows shown above"];
+    return [context];
   }
   if (result.status === "loading") {
     return [context, "loading", maxRowsLabel(result.source.maxRows, false)];
@@ -533,7 +533,6 @@ function ReadOnlyResultGrid({
         <DataGrid
           columns={result.columns}
           rows={result.rows}
-          totalRows={result.truncated ? undefined : result.rows.length}
           changes={grid.changes}
           onChange={grid.setChanges}
           selection={grid.selection}

@@ -8,8 +8,8 @@ use cellar_core::query::{
 };
 use cellar_core::schema::Table;
 use cellar_core::table_browse::{
-    column_for, normalized_limit, normalized_offset, reject_value, require_value, unsupported,
-    validate_table_request, TableBrowseError,
+    column_for, escape_like_wildcards, normalized_limit, normalized_offset, reject_value,
+    require_value, unsupported, validate_table_request, TableBrowseError,
 };
 use cellar_core::value::{ColumnMeta, Row};
 use futures::TryStreamExt;
@@ -186,15 +186,49 @@ fn push_filter<'args>(
             push_ident(builder, &column.name);
             builder.push(" IS NOT NULL");
         }
-        TableFilterOperator::Contains => {
+        TableFilterOperator::Contains
+        | TableFilterOperator::NotContains
+        | TableFilterOperator::StartsWith
+        | TableFilterOperator::EndsWith
+        | TableFilterOperator::Like => {
             let value = require_value(filter)?;
+            // `like` passes the user's pattern through; the literal-text
+            // operators must not treat %/_ in the value as wildcards.
+            let value = if filter.operator == TableFilterOperator::Like {
+                value
+            } else {
+                escape_like_wildcards(&value)
+            };
             if !matches!(kind, ColumnKind::Text) {
                 return Err(unsupported(column, filter.operator));
             }
             push_ident(builder, &column.name);
-            builder.push(" LIKE CONCAT('%', ");
-            builder.push_bind(value);
-            builder.push(", '%')");
+            match filter.operator {
+                TableFilterOperator::NotContains => {
+                    builder.push(" NOT LIKE CONCAT('%', ");
+                    builder.push_bind(value);
+                    builder.push(", '%')");
+                }
+                TableFilterOperator::StartsWith => {
+                    builder.push(" LIKE CONCAT(");
+                    builder.push_bind(value);
+                    builder.push(", '%')");
+                }
+                TableFilterOperator::EndsWith => {
+                    builder.push(" LIKE CONCAT('%', ");
+                    builder.push_bind(value);
+                    builder.push(")");
+                }
+                TableFilterOperator::Like => {
+                    builder.push(" LIKE ");
+                    builder.push_bind(value);
+                }
+                _ => {
+                    builder.push(" LIKE CONCAT('%', ");
+                    builder.push_bind(value);
+                    builder.push(", '%')");
+                }
+            }
         }
         TableFilterOperator::Equals | TableFilterOperator::NotEquals => {
             let value = require_value(filter)?;

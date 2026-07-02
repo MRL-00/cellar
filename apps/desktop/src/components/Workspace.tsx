@@ -405,9 +405,6 @@ function TableTabPane({
       <DataGrid
         columns={data.columns}
         rows={data.rows}
-        totalRows={
-          data.totalRows ?? (data.truncated ? undefined : data.rows.length)
-        }
         pagination={pagination}
         changes={changes}
         onChange={handleGridChange}
