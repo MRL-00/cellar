@@ -35,6 +35,7 @@ describe("@cellar/ipc", () => {
         "erGraph",
         "explainQuery",
         "findUsages",
+        "importDatagrip",
         "introspect",
         "listQueryHistory",
         "listConnections",

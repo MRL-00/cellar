@@ -30,6 +30,7 @@ export {
   filterRows,
   filterValuePreview,
   nextOperatorForColumn,
+  normalizeLikePattern,
   operatorsForColumn,
   rowMatchesFilters,
 } from "./filters";

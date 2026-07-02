@@ -7,8 +7,8 @@ use cellar_core::query::{
 };
 use cellar_core::schema::Table;
 use cellar_core::table_browse::{
-    column_for, normalized_limit, normalized_offset, reject_value, require_value, unsupported,
-    validate_table_request, TableBrowseError,
+    column_for, escape_like_wildcards, normalized_limit, normalized_offset, reject_value,
+    require_value, unsupported, validate_table_request, TableBrowseError,
 };
 use cellar_core::value::{ColumnMeta, Row};
 use futures_util::TryStreamExt;
@@ -216,14 +216,31 @@ fn filter_sql(filter: &TableFilterClause, table: &Table) -> Result<String, Table
             reject_value(filter)?;
             Ok(format!("{ident} IS NOT NULL"))
         }
-        TableFilterOperator::Contains => {
+        TableFilterOperator::Contains
+        | TableFilterOperator::NotContains
+        | TableFilterOperator::StartsWith
+        | TableFilterOperator::EndsWith
+        | TableFilterOperator::Like => {
             let value = require_value(filter)?;
             if !is_text_type(&column.data_type) {
                 return Err(unsupported(column, filter.operator));
             }
+            if filter.operator == TableFilterOperator::Like {
+                // User-controlled pattern, passed through verbatim.
+                return Ok(format!("{ident} LIKE {}", quote_literal(&value)));
+            }
+            // Literal text: escape LIKE wildcards, including SQL Server's `[`
+            // character-class wildcard, and declare the escape character.
+            let escaped = escape_like_wildcards(&value).replace('[', "\\[");
+            let (keyword, pattern) = match filter.operator {
+                TableFilterOperator::NotContains => ("NOT LIKE", format!("%{escaped}%")),
+                TableFilterOperator::StartsWith => ("LIKE", format!("{escaped}%")),
+                TableFilterOperator::EndsWith => ("LIKE", format!("%{escaped}")),
+                _ => ("LIKE", format!("%{escaped}%")),
+            };
             Ok(format!(
-                "{ident} LIKE {}",
-                quote_literal(&format!("%{value}%"))
+                "{ident} {keyword} {} ESCAPE '\\'",
+                quote_literal(&pattern)
             ))
         }
         TableFilterOperator::Equals | TableFilterOperator::NotEquals => {
@@ -272,7 +289,12 @@ fn quote_literal(value: &str) -> String {
 
 fn is_text_type(data_type: &str) -> bool {
     let lower = data_type.to_lowercase();
-    lower.contains("char") || lower == "text" || lower == "ntext" || lower == "xml"
+    // uniqueidentifier: LIKE implicitly converts it to char, so contains works.
+    lower.contains("char")
+        || lower == "text"
+        || lower == "ntext"
+        || lower == "xml"
+        || lower == "uniqueidentifier"
 }
 
 fn supports_ordering(data_type: &str) -> bool {
@@ -404,6 +426,30 @@ mod tests {
         assert_eq!(err, TableBrowseError::UnknownColumn("missing".into()));
     }
 
+    #[test]
+    fn contains_allows_uniqueidentifier_columns() {
+        let table = table();
+        let request = TableBrowseRequest {
+            connection_id: "conn".into(),
+            database: Some("main".into()),
+            schema: "dbo".into(),
+            table: "orders]archive".into(),
+            limit: Some(25),
+            offset: None,
+            sorts: Vec::new(),
+            filters: vec![TableFilterClause {
+                column: "guid".into(),
+                operator: TableFilterOperator::Contains,
+                value: Some("fe27".into()),
+            }],
+            primary_key_fallback_ordering: true,
+            include_total: false,
+        };
+
+        let sql = build_table_browse_query(&request, &table).unwrap();
+        assert!(sql.contains("[guid] LIKE N'%fe27%'"), "got: {sql}");
+    }
+
     fn table() -> Table {
         Table {
             name: "orders]archive".into(),
@@ -426,6 +472,15 @@ mod tests {
                     default: None,
                     is_primary_key: false,
                     ordinal: 2,
+                    comment: None,
+                },
+                Column {
+                    name: "guid".into(),
+                    data_type: "uniqueidentifier".into(),
+                    nullable: true,
+                    default: None,
+                    is_primary_key: false,
+                    ordinal: 3,
                     comment: None,
                 },
             ],

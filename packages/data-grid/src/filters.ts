@@ -14,9 +14,14 @@ export const FILTER_OPERATORS: readonly {
   { value: "equals", label: "=", needsValue: true },
   { value: "notEquals", label: "!=", needsValue: true },
   { value: "contains", label: "contains", needsValue: true },
+  { value: "notContains", label: "not contains", needsValue: true },
   { value: "startsWith", label: "starts with", needsValue: true },
+  { value: "endsWith", label: "ends with", needsValue: true },
+  { value: "like", label: "like", needsValue: true },
   { value: "greaterThan", label: ">", needsValue: true },
+  { value: "greaterThanOrEqual", label: ">=", needsValue: true },
   { value: "lessThan", label: "<", needsValue: true },
+  { value: "lessThanOrEqual", label: "<=", needsValue: true },
   { value: "isNull", label: "is null", needsValue: false },
   { value: "isNotNull", label: "is not null", needsValue: false },
 ];
@@ -44,7 +49,17 @@ const NUMERIC_TYPES = [
 
 const DATE_TYPES = ["date", "time", "timestamp", "timestamptz", "timetz"];
 const BOOL_TYPES = ["bool", "boolean"];
-const TEXT_TYPES = ["text", "char", "varchar", "citext", "uuid", "json", "jsonb"];
+const TEXT_TYPES = [
+  "text",
+  "char",
+  "varchar",
+  "citext",
+  "uuid",
+  "guid",
+  "uniqueidentifier",
+  "json",
+  "jsonb",
+];
 
 function operatorMeta(operator: FilterOperator) {
   return FILTER_OPERATORS.find((op) => op.value === operator) ?? FILTER_OPERATORS[0]!;
@@ -63,11 +78,11 @@ export function operatorsForColumn(column: GridColumn): FilterOperator[] {
   const category = columnCategory(column);
 
   if (category === "text") {
-    base.push("contains", "startsWith");
+    base.push("contains", "notContains", "startsWith", "endsWith", "like");
   }
 
   if (category === "number" || category === "date") {
-    base.push("greaterThan", "lessThan");
+    base.push("greaterThan", "greaterThanOrEqual", "lessThan", "lessThanOrEqual");
   }
 
   if (column.nullable) {
@@ -143,7 +158,12 @@ export function evaluateFilterClause(
   if (needle.length === 0) return true;
 
   const category = columnCategory(column);
-  if (clause.operator === "greaterThan" || clause.operator === "lessThan") {
+  if (
+    clause.operator === "greaterThan" ||
+    clause.operator === "greaterThanOrEqual" ||
+    clause.operator === "lessThan" ||
+    clause.operator === "lessThanOrEqual"
+  ) {
     return compareOrdered(value, needle, category, clause.operator);
   }
 
@@ -153,7 +173,10 @@ export function evaluateFilterClause(
   if (clause.operator === "equals") return current === expected;
   if (clause.operator === "notEquals") return current !== expected;
   if (clause.operator === "contains") return current.includes(expected);
+  if (clause.operator === "notContains") return !current.includes(expected);
   if (clause.operator === "startsWith") return current.startsWith(expected);
+  if (clause.operator === "endsWith") return current.endsWith(expected);
+  if (clause.operator === "like") return likeMatch(current, expected);
   return true;
 }
 
@@ -179,7 +202,7 @@ function compareOrdered(
   value: GridRow[string],
   needle: string,
   category: ReturnType<typeof columnCategory>,
-  operator: "greaterThan" | "lessThan",
+  operator: "greaterThan" | "greaterThanOrEqual" | "lessThan" | "lessThanOrEqual",
 ): boolean {
   if (value === null || value === undefined) return false;
 
@@ -196,7 +219,34 @@ function compareOrdered(
   }
 
   if (!Number.isFinite(left) || !Number.isFinite(right)) return false;
-  return operator === "greaterThan" ? left > right : left < right;
+  switch (operator) {
+    case "greaterThan":
+      return left > right;
+    case "greaterThanOrEqual":
+      return left >= right;
+    case "lessThan":
+      return left < right;
+    case "lessThanOrEqual":
+      return left <= right;
+  }
+}
+
+/**
+ * A `like` pattern with no wildcards is treated as `%pattern%` so plain text
+ * "just works"; typing any `%`/`_` switches to exact SQL semantics. Shared with
+ * the server request builder so local and server-side matching agree.
+ */
+export function normalizeLikePattern(pattern: string): string {
+  return pattern.includes("%") || pattern.includes("_") ? pattern : `%${pattern}%`;
+}
+
+/** SQL LIKE semantics: `%` matches any run, `_` matches one char. Case-insensitive. */
+function likeMatch(value: string, pattern: string): boolean {
+  const regex = normalizeLikePattern(pattern)
+    .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    .replaceAll("%", ".*")
+    .replaceAll("_", ".");
+  return new RegExp(`^${regex}$`).test(value);
 }
 
 function columnCategory(

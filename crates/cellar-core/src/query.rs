@@ -303,6 +303,11 @@ pub enum TableFilterOperator {
     Equals,
     NotEquals,
     Contains,
+    NotContains,
+    StartsWith,
+    EndsWith,
+    /// Raw SQL LIKE pattern (`%`/`_` supplied by the user), matched case-insensitively.
+    Like,
     IsNull,
     IsNotNull,
     GreaterThan,
