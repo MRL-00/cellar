@@ -48,7 +48,11 @@ export {
   parseCellInput,
   type CellEditorProps,
 } from "./Cell";
-export { FilterBar, type FilterBarProps } from "./FilterBar";
+export {
+  FilterBar,
+  type FilterBarProps,
+  type SavedFilterControls,
+} from "./FilterBar";
 export { PendingBar, type PendingBarProps } from "./PendingBar";
 export { TypeIcon } from "./TypeIcon";
 

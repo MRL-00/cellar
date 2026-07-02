@@ -184,11 +184,115 @@
   font-size: var(--fs-sm);
 }
 .grid-select-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 3px 8px;
   border-radius: 3px;
   color: var(--fg-1);
   white-space: nowrap;
   cursor: default;
+}
+/* Saved filter presets — dropdown-menu trigger + panel. */
+.grid-preset-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  max-width: 190px;
+  padding: 0 8px;
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  background: var(--bg-inset);
+  color: var(--fg-2);
+  font-size: var(--fs-xs);
+  cursor: default;
+}
+.grid-preset-trigger:hover {
+  background: var(--bg-3);
+  color: var(--fg-0);
+  border-color: var(--border-strong);
+}
+.grid-preset-trigger:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-line);
+}
+.grid-preset-trigger.is-active {
+  color: var(--accent);
+  border-color: var(--accent-line);
+}
+.grid-preset-trigger > svg {
+  flex-shrink: 0;
+}
+.grid-preset-trigger-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.grid-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 180px;
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--bg-2);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+  font-size: var(--fs-sm);
+}
+.grid-menu-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 8px 4px 6px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--fg-1);
+  font-size: var(--fs-sm);
+  text-align: left;
+  white-space: nowrap;
+  cursor: default;
+}
+.grid-menu-item:hover,
+.grid-menu-item:focus-visible {
+  background: var(--bg-3);
+  color: var(--fg-0);
+  outline: none;
+}
+.grid-menu-item.is-selected {
+  color: var(--accent);
+}
+.grid-menu-check {
+  display: inline-flex;
+  width: 12px;
+  flex-shrink: 0;
+  justify-content: center;
+  color: var(--fg-3);
+}
+.grid-menu-item.is-selected .grid-menu-check {
+  color: var(--accent);
+}
+.grid-menu-item-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.grid-menu-delete {
+  visibility: hidden;
+}
+.grid-menu-item:hover .grid-menu-delete {
+  visibility: visible;
+}
+.grid-menu-separator {
+  height: 1px;
+  margin: 4px 2px;
+  background: var(--border-default);
 }
 .grid-select-option.is-active {
   background: var(--bg-3);

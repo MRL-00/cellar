@@ -9,6 +9,7 @@ import {
 } from "./filters";
 import { GridIcon } from "./icons";
 import { GridSelect } from "./GridSelect";
+import { PresetMenu } from "./PresetMenu";
 import type {
   ColumnFilters,
   FilterClause,
@@ -24,6 +25,23 @@ type ComposerDraft = {
   operator: FilterOperator;
   value: string;
   logic: FilterLogic;
+};
+
+export type SavedFilterControls = {
+  /** Preset names for this table, in display order. */
+  names: readonly string[];
+  /**
+   * Name of the preset the current toolbar state matches, if any. Shown on the
+   * dropdown trigger; hosts typically derive it by comparing state to the
+   * saved snapshots, so it clears itself as soon as the user edits anything.
+   */
+  activeName?: string | null;
+  /** Snapshot the current quick filter + chips + sort under `name`. */
+  onSave: (name: string) => void;
+  onApply: (name: string) => void;
+  onDelete: (name: string) => void;
+  /** Reset the whole toolbar (quick filter, chips, sort) — unselects. */
+  onClear: () => void;
 };
 
 export type FilterBarProps = {
@@ -44,6 +62,8 @@ export type FilterBarProps = {
   serverRows?: number;
   sort?: SortState;
   onSortChange?: (next: SortState) => void;
+  /** Saved filter presets. Hidden when omitted. */
+  savedFilters?: SavedFilterControls;
 };
 
 export function FilterBar({
@@ -59,6 +79,7 @@ export function FilterBar({
   serverRows,
   sort,
   onSortChange,
+  savedFilters,
 }: FilterBarProps) {
   const [draft, setDraft] = useState<ComposerDraft | null>(null);
   const columnRef = useRef<HTMLButtonElement | null>(null);
@@ -178,6 +199,21 @@ export function FilterBar({
     const handle = setTimeout(() => onQuickRef.current?.(quickDraft.trim()), 250);
     return () => clearTimeout(handle);
   }, [quickDraft]);
+  // Saved presets: the "presets" word is the dropdown (apply / hover-× delete);
+  // the save button swaps it for a small name input. No selected-preset state —
+  // applying is a one-shot action, not a mode.
+  const [presetDraft, setPresetDraft] = useState<string | null>(null);
+  const presetInputRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    if (presetDraft !== null) presetInputRef.current?.focus();
+  }, [presetDraft !== null]);
+  const applyPresetDraft = () => {
+    const name = presetDraft?.trim();
+    if (!name) return;
+    savedFilters?.onSave(name);
+    setPresetDraft(null);
+  };
+
   const quickValue = quickDraft;
   const quickColumnValue = quickFilterColumn ?? textColumns[0]?.key ?? "";
   const quickActive = quickValue.trim().length > 0;
@@ -431,6 +467,55 @@ export function FilterBar({
             >
               {sort.direction}
             </button>
+          )}
+        </div>
+      )}
+      {savedFilters && (
+        <div className="grid-orderby">
+          {presetDraft !== null ? (
+            <>
+              <input
+                ref={presetInputRef}
+                className="grid-filter-input mono"
+                value={presetDraft}
+                onChange={(e) => setPresetDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    applyPresetDraft();
+                  }
+                  if (e.key === "Escape") {
+                    e.stopPropagation();
+                    setPresetDraft(null);
+                  }
+                }}
+                placeholder="preset name"
+                aria-label="Preset name"
+              />
+              <button
+                className="grid-filter-apply"
+                onClick={applyPresetDraft}
+                disabled={!presetDraft.trim()}
+              >
+                save
+              </button>
+              <button
+                className="grid-filter-cancel"
+                onClick={() => setPresetDraft(null)}
+                aria-label="Cancel saving preset"
+              >
+                <GridIcon.close size={9} />
+              </button>
+            </>
+          ) : (
+            <PresetMenu
+              names={savedFilters.names}
+              activeName={savedFilters.activeName ?? null}
+              onApply={savedFilters.onApply}
+              onDelete={savedFilters.onDelete}
+              onClear={savedFilters.onClear}
+              onSaveRequest={() => setPresetDraft("")}
+            />
           )}
         </div>
       )}
