@@ -206,7 +206,7 @@ export function FilterBar({
   const presetInputRef = useRef<HTMLInputElement | null>(null);
   useEffect(() => {
     if (presetDraft !== null) presetInputRef.current?.focus();
-  }, [presetDraft !== null]);
+  }, [presetDraft]);
   const applyPresetDraft = () => {
     const name = presetDraft?.trim();
     if (!name) return;

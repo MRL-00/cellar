@@ -244,25 +244,40 @@
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
   font-size: var(--fs-sm);
 }
+/* Row wrapper: apply/clear and delete are sibling buttons inside it, so the
+   delete “×” stays keyboard-focusable instead of nesting inside a button. */
 .grid-menu-item {
   display: flex;
   width: 100%;
   align-items: center;
-  gap: 7px;
-  padding: 4px 8px 4px 6px;
-  border: 0;
+  gap: 4px;
+  padding: 0 4px 0 0;
   border-radius: 4px;
-  background: none;
   color: var(--fg-1);
   font-size: var(--fs-sm);
-  text-align: left;
   white-space: nowrap;
   cursor: default;
 }
+.grid-menu-item-main {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 4px 4px 6px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-size: inherit;
+  text-align: left;
+  cursor: default;
+}
 .grid-menu-item:hover,
-.grid-menu-item:focus-visible {
+.grid-menu-item:focus-within {
   background: var(--bg-3);
   color: var(--fg-0);
+}
+.grid-menu-item-main:focus-visible {
   outline: none;
 }
 .grid-menu-item.is-selected {
@@ -286,7 +301,8 @@
 .grid-menu-delete {
   visibility: hidden;
 }
-.grid-menu-item:hover .grid-menu-delete {
+.grid-menu-item:hover .grid-menu-delete,
+.grid-menu-item:focus-within .grid-menu-delete {
   visibility: visible;
 }
 .grid-menu-separator {

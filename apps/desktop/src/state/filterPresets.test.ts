@@ -22,11 +22,11 @@ describe("useFilterPresets", () => {
       useFilterPresets.getState().presets["t1"]?.map((p) => p.name),
     ).toEqual(["active users", "recent"]);
 
-    // Same name overwrites in place rather than duplicating.
-    savePreset("t1", preset("recent", { quickFilter: "now" }));
+    // Same name overwrites in place — no duplicate, and list order is kept.
+    savePreset("t1", preset("active users", { quickFilter: "now" }));
     const t1 = useFilterPresets.getState().presets["t1"] ?? [];
-    expect(t1.filter((p) => p.name === "recent")).toHaveLength(1);
-    expect(t1.find((p) => p.name === "recent")?.quickFilter).toBe("now");
+    expect(t1.map((p) => p.name)).toEqual(["active users", "recent"]);
+    expect(t1.find((p) => p.name === "active users")?.quickFilter).toBe("now");
 
     deletePreset("t1", "active users");
     deletePreset("t1", "recent");

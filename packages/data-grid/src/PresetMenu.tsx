@@ -112,70 +112,76 @@ export function PresetMenu({
                 {names.map((name) => {
                   const isActive = name === activeName;
                   return (
-                    <button
+                    <div
                       key={name}
-                      type="button"
-                      role="menuitemradio"
-                      aria-checked={isActive}
                       className={
                         "grid-menu-item" + (isActive ? " is-selected" : "")
                       }
-                      // Clicking the active preset again unselects it.
-                      onClick={() => act(isActive ? onClear : () => onApply(name))}
                     >
-                      <span className="grid-menu-check">
-                        {isActive && <GridIcon.check size={10} />}
-                      </span>
-                      <span className="grid-menu-item-label">{name}</span>
+                      <button
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={isActive}
+                        className="grid-menu-item-main"
+                        // Clicking the active preset again unselects it.
+                        onClick={() =>
+                          act(isActive ? onClear : () => onApply(name))
+                        }
+                      >
+                        <span className="grid-menu-check">
+                          {isActive && <GridIcon.check size={10} />}
+                        </span>
+                        <span className="grid-menu-item-label">{name}</span>
+                      </button>
                       {/* The active preset can't be deleted — clear it first,
                           otherwise the toolbar is left on a view that no
                           longer exists anywhere. */}
                       {!isActive && (
-                        <span
-                          role="button"
-                          tabIndex={-1}
+                        <button
+                          type="button"
                           className="grid-filter-remove grid-menu-delete"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onDelete(name);
-                          }}
+                          onClick={() => onDelete(name)}
                           aria-label={`Delete preset ${name}`}
                           title="Delete preset"
                         >
                           <GridIcon.close size={9} />
-                        </span>
+                        </button>
                       )}
-                    </button>
+                    </div>
                   );
                 })}
                 <div className="grid-menu-separator" role="separator" />
               </>
             )}
-            <button
-              type="button"
-              role="menuitem"
-              className="grid-menu-item"
-              onClick={() => act(onSaveRequest)}
-            >
-              <span className="grid-menu-check">
-                <GridIcon.plus size={10} />
-              </span>
-              <span className="grid-menu-item-label">
-                Save current as preset…
-              </span>
-            </button>
-            {activeName && (
+            <div className="grid-menu-item">
               <button
                 type="button"
                 role="menuitem"
-                className="grid-menu-item"
-                onClick={() => act(onClear)}
+                className="grid-menu-item-main"
+                onClick={() => act(onSaveRequest)}
               >
                 <span className="grid-menu-check">
-                  <GridIcon.close size={9} />
+                  <GridIcon.plus size={10} />
                 </span>
-                <span className="grid-menu-item-label">Clear preset</span>
+                <span className="grid-menu-item-label">
+                  Save current as preset…
+                </span>
               </button>
+            </div>
+            {activeName && (
+              <div className="grid-menu-item">
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="grid-menu-item-main"
+                  onClick={() => act(onClear)}
+                >
+                  <span className="grid-menu-check">
+                    <GridIcon.close size={9} />
+                  </span>
+                  <span className="grid-menu-item-label">Clear preset</span>
+                </button>
+              </div>
             )}
           </div>,
           document.body,
