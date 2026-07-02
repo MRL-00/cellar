@@ -49,6 +49,28 @@ import type {
 const ROWNO_WIDTH = 36;
 const COLUMN_AUTOFIT_PADDING = 32;
 const HEADER_AUTOFIT_PADDING = 58;
+/* Default (data-driven) column widths are capped so one long text column can't
+   eat the viewport; explicit double-click autofit is uncapped. */
+const MAX_AUTO_WIDTH = 420;
+/* ponytail: sample the first N loaded rows for default widths; scanning the
+   whole page buys little once widths have converged. */
+const AUTO_WIDTH_SAMPLE_ROWS = 200;
+
+let measureCanvas: HTMLCanvasElement | null = null;
+/** Measure `text` in the grid's mono font. Cell data renders at 13px
+    (--fs-sm), header names at 11px. */
+function measureGridText(text: string, fontSize = 13): number {
+  if (typeof document === "undefined") return text.length * 8;
+  measureCanvas ??= document.createElement("canvas");
+  const context = measureCanvas.getContext("2d");
+  if (!context) return text.length * 8;
+  const monoFont =
+    getComputedStyle(document.documentElement)
+      .getPropertyValue("--font-mono")
+      .trim() || "monospace";
+  context.font = `${fontSize}px ${monoFont}`;
+  return context.measureText(text).width;
+}
 const HEADER_HEIGHT = 26;
 const DEFAULT_ROW_HEIGHT = 22;
 const MIN_ROW_OVERSCAN = 24;
@@ -270,12 +292,46 @@ export function DataGrid({
   const isResizing = resizing !== null;
   const resizingRef = useRef<ColumnResizeState | null>(null);
   const suppressNextSortRef = useRef(false);
-  const measureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const insertCounterRef = useRef(0);
 
+  /* Data-driven default widths: any column WITHOUT a user-set width (resize /
+     double-click autofit, persisted in the layout) is sized to fit its header
+     and the visible data, capped at MAX_AUTO_WIDTH. Computed at render time so
+     nothing is written back into the saved layout. */
+  const autoWidths = useMemo(() => {
+    const widths: Record<string, number> = {};
+    const sample = rows.slice(0, AUTO_WIDTH_SAMPLE_ROWS);
+    for (const column of columns) {
+      if (activeColumnLayout.widths[column.key] !== undefined) continue;
+      const adornment = column.fk ? 24 : column.enum ? 18 : 0;
+      let width =
+        measureGridText(column.name, 11) +
+        measureGridText(column.type, 11) +
+        HEADER_AUTOFIT_PADDING;
+      for (const row of sample) {
+        const value = row[column.key];
+        const text = value === null || value === undefined ? "NULL" : String(value);
+        width = Math.max(
+          width,
+          measureGridText(text) + COLUMN_AUTOFIT_PADDING + adornment,
+        );
+        if (width >= MAX_AUTO_WIDTH) break;
+      }
+      widths[column.key] = Math.min(
+        MAX_AUTO_WIDTH,
+        Math.max(MIN_COLUMN_WIDTH, Math.ceil(width)),
+      );
+    }
+    return widths;
+  }, [activeColumnLayout.widths, columns, rows]);
+
   const renderedColumns = useMemo(
-    () => layoutForColumns(columns, activeColumnLayout),
-    [activeColumnLayout, columns],
+    () =>
+      layoutForColumns(columns, activeColumnLayout).map((column) => {
+        const auto = autoWidths[column.key];
+        return auto === undefined ? column : { ...column, width: auto };
+      }),
+    [activeColumnLayout, autoWidths, columns],
   );
 
   // Local search across visible page. Server-side filtering happens upstream
@@ -567,24 +623,11 @@ export function DataGrid({
     [],
   );
 
-  const measureGridText = useCallback((text: string): number => {
-    if (typeof document === "undefined") return text.length * 8;
-    const canvas =
-      measureCanvasRef.current ??
-      (measureCanvasRef.current = document.createElement("canvas"));
-    const context = canvas.getContext("2d");
-    if (!context) return text.length * 8;
-    const rootStyle = getComputedStyle(document.documentElement);
-    const monoFont = rootStyle.getPropertyValue("--font-mono").trim() || "monospace";
-    context.font = `11px ${monoFont}`;
-    return context.measureText(text).width;
-  }, []);
-
   const autofitColumn = useCallback(
     (column: GridColumn) => {
       const headerWidth =
-        measureGridText(column.name) +
-        measureGridText(column.type) +
+        measureGridText(column.name, 11) +
+        measureGridText(column.type, 11) +
         HEADER_AUTOFIT_PADDING;
       const valueWidth = visibleRows.reduce((maxWidth, row) => {
         const change = changes[row.id]?.edits?.[column.key];
@@ -608,7 +651,7 @@ export function DataGrid({
         },
       });
     },
-    [activeColumnLayout, changes, measureGridText, updateColumnLayout, visibleRows],
+    [activeColumnLayout, changes, updateColumnLayout, visibleRows],
   );
 
   const reorderColumn = useCallback(

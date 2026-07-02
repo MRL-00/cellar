@@ -82,7 +82,7 @@
   --shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.4);
 
   /* Sizing — compact density */
-  --row-h: 22px;
+  --row-h: 25px;
   --row-h-tight: 20px;
   --tab-h: 30px;
   --titlebar-h: 34px;
@@ -152,7 +152,7 @@
 }
 
 [data-density="compact"] {
-  --row-h: 22px;
+  --row-h: 25px;
   --tab-h: 30px;
 }
 [data-density="comfortable"] {
