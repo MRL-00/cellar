@@ -199,10 +199,15 @@ fn push_filter<'args>(
         }
         TableFilterOperator::Contains => {
             let value = require_value(filter)?;
-            if !matches!(kind, ColumnKind::Text) {
+            let is_uuid = matches!(kind, ColumnKind::Typed("uuid", _));
+            if !matches!(kind, ColumnKind::Text) && !is_uuid {
                 return Err(unsupported(column, filter.operator));
             }
             push_ident(builder, &column.name);
+            if is_uuid {
+                // ILIKE needs text; uuid has no implicit cast.
+                builder.push("::text");
+            }
             builder.push(" ILIKE ('%' || ");
             builder.push_bind(value);
             builder.push(" || '%')");
@@ -366,6 +371,7 @@ mod tests {
                 column("age", "int4", false),
                 column("deleted_at", "timestamptz", false),
                 column("payload", "jsonb", false),
+                column("external_id", "uuid", false),
             ],
         }
     }
@@ -386,6 +392,21 @@ mod tests {
         Ok(build_table_browse_query(request, &table())?
             .sql()
             .to_string())
+    }
+
+    #[test]
+    fn contains_casts_uuid_columns_to_text() {
+        let mut req = request();
+        req.filters.push(TableFilterClause {
+            column: "external_id".into(),
+            operator: TableFilterOperator::Contains,
+            value: Some("fe27".into()),
+        });
+        let sql = sql_for(&req).expect("sql");
+        assert!(
+            sql.contains(r#""external_id"::text ILIKE"#),
+            "got: {sql}"
+        );
     }
 
     #[test]

@@ -22,10 +22,13 @@ const ADVANCED_OPERATOR_MAP: Partial<Record<FilterOperator, TableFilterOperator>
   notEquals: "not_equals",
   contains: "contains",
   greaterThan: "greater_than",
+  greaterThanOrEqual: "greater_than_or_equal",
   lessThan: "less_than",
+  lessThanOrEqual: "less_than_or_equal",
   isNull: "is_null",
   isNotNull: "is_not_null",
-  // `startsWith` has no server operator — it stays a local page filter.
+  // `startsWith`/`endsWith`/`notContains`/`like` have no server operator —
+  // they stay local page filters.
 };
 
 function operatorNeedsValue(operator: TableFilterOperator): boolean {

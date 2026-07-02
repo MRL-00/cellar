@@ -8,6 +8,7 @@ import {
   operatorsForColumn,
 } from "./filters";
 import { GridIcon } from "./icons";
+import { GridSelect } from "./GridSelect";
 import type {
   ColumnFilters,
   FilterClause,
@@ -55,7 +56,7 @@ export function FilterBar({
   serverRows,
 }: FilterBarProps) {
   const [draft, setDraft] = useState<ComposerDraft | null>(null);
-  const columnRef = useRef<HTMLSelectElement | null>(null);
+  const columnRef = useRef<HTMLButtonElement | null>(null);
   const valueRef = useRef<HTMLInputElement | null>(null);
   const columnsByKey = useMemo(
     () => new Map(columns.map((column) => [column.key, column])),
@@ -190,19 +191,17 @@ export function FilterBar({
             aria-label="Quick filter"
           />
           {textColumns.length > 0 && (
-            <select
-              className="grid-filter-select grid-quickfilter-column"
+            <GridSelect
+              className="grid-quickfilter-column"
               value={quickColumnValue}
-              onChange={(e) => onQuickFilterColumnChange?.(e.target.value || null)}
+              options={textColumns.map((column) => ({
+                value: column.key,
+                label: column.name,
+              }))}
+              onChange={(next) => onQuickFilterColumnChange?.(next || null)}
               aria-label="Quick filter column"
               title="Text column searched by the quick filter (numeric values match the id/primary key)"
-            >
-              {textColumns.map((column) => (
-                <option key={column.key} value={column.key}>
-                  {column.name}
-                </option>
-              ))}
-            </select>
+            />
           )}
           {quickActive && (
             <button
@@ -284,56 +283,52 @@ export function FilterBar({
             }}
           >
             {filters.length > 0 && !draft.id && (
-              <select
-                className="grid-filter-select grid-filter-logic-select"
+              <GridSelect
+                className="grid-filter-logic-select"
                 value={draft.logic}
-                onChange={(e) =>
-                  setDraft({ ...draft, logic: e.target.value as FilterLogic })
+                options={[
+                  { value: "and", label: "and" },
+                  { value: "or", label: "or" },
+                ]}
+                onChange={(next) =>
+                  setDraft({ ...draft, logic: next as FilterLogic })
                 }
                 aria-label="Filter join"
-              >
-                <option value="and">and</option>
-                <option value="or">or</option>
-              </select>
+              />
             )}
-            <select
+            <GridSelect
               ref={columnRef}
-              className="grid-filter-select"
               value={draft.columnKey}
-              onChange={(e) => {
-                const nextColumn = columnsByKey.get(e.target.value);
+              options={columns.map((column) => ({
+                value: column.key,
+                label: column.name,
+              }))}
+              onChange={(next) => {
+                const nextColumn = columnsByKey.get(next);
                 if (!nextColumn) return;
                 const operator = nextOperatorForColumn(nextColumn, draft.operator);
                 setDraft({ ...draft, columnKey: nextColumn.key, operator });
               }}
               aria-label="Filter column"
-            >
-              {columns.map((column) => (
-                <option key={column.key} value={column.key}>
-                  {column.name}
-                </option>
-              ))}
-            </select>
-            <select
-              className="grid-filter-select grid-filter-operator-select"
+            />
+            <GridSelect
+              className="grid-filter-operator-select"
               value={draft.operator}
-              onChange={(e) =>
+              options={draftOperators.map((operator) => ({
+                value: operator,
+                label: filterOperatorLabel(operator),
+              }))}
+              onChange={(next) =>
                 setDraft({
                   ...draft,
-                  operator: e.target.value as FilterOperator,
-                  value: filterNeedsValue(e.target.value as FilterOperator)
+                  operator: next as FilterOperator,
+                  value: filterNeedsValue(next as FilterOperator)
                     ? draft.value
                     : "",
                 })
               }
               aria-label="Filter operator"
-            >
-              {draftOperators.map((operator) => (
-                <option key={operator} value={operator}>
-                  {filterOperatorLabel(operator)}
-                </option>
-              ))}
-            </select>
+            />
             {needsValue && (
               <input
                 ref={valueRef}
