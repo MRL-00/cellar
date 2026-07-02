@@ -1,23 +1,13 @@
 import {
-  memo,
   useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
-  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
-  type ReactNode,
   type UIEvent,
 } from "react";
-import { CellEditor, CellValue, type CellEditorProps } from "./Cell";
-
-/**
- * Renders a custom inline editor for a cell, or returns `null` to defer to the
- * built-in editor. See {@link DataGridProps.renderEditor}.
- */
-export type CellEditorRenderer = (props: CellEditorProps) => ReactNode | null;
 import {
   emptyColumnLayout,
   layoutForColumns,
@@ -25,196 +15,39 @@ import {
   pruneColumnLayout,
   sameColumnLayout,
 } from "./columnLayout";
+import type { CellEditorRenderer, DataGridProps } from "./DataGridProps";
 import { FilterBar } from "./FilterBar";
 import { filterRows } from "./filters";
+import { GridHeaderRow, type ColumnResizeState } from "./GridHeaderRow";
 import { GridIcon } from "./icons";
+import { GridRowView } from "./GridRowView";
+import { PaginationBar } from "./PaginationBar";
 import { PendingBar } from "./PendingBar";
 import { defaultRendererRegistry } from "./renderers/registry";
-import type { RendererRegistry, SaveBlob } from "./renderers/types";
 import { cycleSortState, sortGridRows } from "./sort";
-import { TypeIcon } from "./TypeIcon";
 import type {
   CellAddress,
   CellChange,
-  ColumnFilters,
   GridColumn,
   GridColumnLayout,
-  GridPagination,
   GridRow,
   PendingChange,
   PendingChanges,
   SortState,
 } from "./types";
+import {
+  calculateVirtualRows,
+  DEFAULT_ROW_HEIGHT,
+  shouldVirtualizeRows,
+} from "./virtualRows";
+
+export type { CellEditorRenderer, DataGridProps } from "./DataGridProps";
+export { calculateVirtualRows, shouldVirtualizeRows } from "./virtualRows";
+export { useGridState, type UseGridStateOptions } from "./useGridState";
 
 const ROWNO_WIDTH = 36;
 const COLUMN_AUTOFIT_PADDING = 32;
 const HEADER_AUTOFIT_PADDING = 58;
-const HEADER_HEIGHT = 26;
-const DEFAULT_ROW_HEIGHT = 22;
-const MIN_ROW_OVERSCAN = 24;
-const OVERSCAN_VIEWPORTS = 3;
-// Below this, full row flow is cheap enough; above it we window the rows so a
-// wide table never puts thousands of cells in the DOM (which makes every
-// interaction — typing in the filter included — janky). The default page size
-// is 500, so this must sit under it or ordinary pages never virtualize.
-const VIRTUAL_ROW_THRESHOLD = 100;
-
-export function calculateVirtualRows({
-  rowCount,
-  viewportHeight,
-  scrollTop,
-  rowHeight,
-}: {
-  rowCount: number;
-  viewportHeight: number;
-  scrollTop: number;
-  rowHeight: number;
-}) {
-  const measuredRowHeight = rowHeight || DEFAULT_ROW_HEIGHT;
-  const bodyScrollTop = Math.max(0, scrollTop - HEADER_HEIGHT);
-  const measuredViewportHeight = viewportHeight || measuredRowHeight * 30;
-  const visibleCount = Math.ceil(
-    (measuredViewportHeight + HEADER_HEIGHT) / measuredRowHeight,
-  );
-  const overscan = Math.max(
-    MIN_ROW_OVERSCAN,
-    visibleCount * OVERSCAN_VIEWPORTS,
-  );
-  const first = Math.max(
-    0,
-    Math.floor(bodyScrollTop / measuredRowHeight) - overscan,
-  );
-  const last = Math.min(rowCount, first + visibleCount + overscan * 2);
-
-  return {
-    first,
-    last,
-    totalHeight: rowCount * measuredRowHeight,
-  };
-}
-
-export function shouldVirtualizeRows(rowCount: number): boolean {
-  return rowCount > VIRTUAL_ROW_THRESHOLD;
-}
-
-type ColumnResizeState = {
-  columnKey: string;
-  startX: number;
-  startWidth: number;
-  nextWidth: number;
-};
-
-export type DataGridProps = {
-  columns: readonly GridColumn[];
-  rows: readonly GridRow[];
-
-  /** Live pending edits. Drives the row tint and the bottom pending bar. */
-  changes: PendingChanges;
-  onChange: (next: PendingChanges) => void;
-
-  /** Active selection / inline editor. Both controlled to support keyboard nav. */
-  selection: CellAddress | null;
-  onSelect: (next: CellAddress | null) => void;
-  editing: CellAddress | null;
-  onEdit: (next: CellAddress | null) => void;
-
-  filters: ColumnFilters;
-  onFiltersChange: (next: ColumnFilters) => void;
-
-  /**
-   * Quick filter pinned in the toolbar. Independent of the advanced filter
-   * chips: clearing one never touches the other. When omitted, the quick filter
-   * input is hidden. The compiled clause is applied server-side by the host.
-   */
-  quickFilter?: string;
-  onQuickFilterChange?: (next: string) => void;
-  quickFilterColumn?: string | null;
-  onQuickFilterColumnChange?: (next: string | null) => void;
-
-  sort?: SortState;
-  onSortChange?: (next: SortState) => void;
-
-  columnLayout?: GridColumnLayout;
-  onColumnLayoutChange?: (next: GridColumnLayout) => void;
-
-  /**
-   * Number of leftmost columns to freeze. The frozen columns stick to the left
-   * edge as the user scrolls horizontally — same idea as Excel's freeze panes.
-   */
-  frozenCount?: number;
-
-  /** Total row count on the server (the grid usually only holds a page). */
-  totalRows?: number;
-  pagination?: GridPagination;
-
-  onCommit?: () => void;
-  onRevert?: () => void;
-
-  /** Read-only result grids can still select/filter, but do not expose edits. */
-  readOnly?: boolean;
-
-  /** Text to display for NULL cell values. Defaults to "NULL". */
-  nullDisplay?: string;
-
-  /**
-   * Pluggable rich-type cell renderers. Defaults to the built-in set (JSON,
-   * arrays, bytea, geometry). Pass `null` to disable rich rendering entirely
-   * and fall back to plain stringified display.
-   */
-  renderers?: RendererRegistry | null;
-
-  /**
-   * Optional override for the inline cell editor. Receives the same props as the
-   * built-in editor; return an element to take over editing for a cell, or
-   * `null` to fall back to the built-in text/number/native-picker editor. Lets a
-   * host supply a richer editor — e.g. a calendar date picker — without pulling
-   * its UI dependencies into this dependency-free package.
-   */
-  renderEditor?: CellEditorRenderer;
-
-  /** Override how a renderer persists binary payloads (e.g. a native dialog). */
-  saveBlob?: SaveBlob;
-
-  /** Stripe alternating data rows. Defaults to false. */
-  stripeRows?: boolean;
-
-  /**
-   * Right-click on a data cell. The host receives the row object and column so
-   * it can render its own context menu (e.g. copy-as) without depending on the
-   * grid's internal filter/sort order.
-   */
-  onCellContextMenu?: (
-    event: ReactMouseEvent<HTMLDivElement>,
-    row: GridRow,
-    column: GridColumn,
-  ) => void;
-
-  /**
-   * Full-row selection, driven by clicking the row-number gutter. Independent of
-   * the single-cell `selection` (the two are mutually exclusive). The index is
-   * into the grid's current visible (filtered + sorted) order; the callback also
-   * hands back the row object so the host can copy it without re-deriving order.
-   */
-  selectedRow?: number | null;
-  onRowSelect?: (rowIndex: number | null, row: GridRow | null) => void;
-
-  /** Right-click on the row-number gutter. Selects the row, then notifies. */
-  onRowContextMenu?: (
-    event: ReactMouseEvent<HTMLDivElement>,
-    row: GridRow,
-    rowIndex: number,
-  ) => void;
-
-  /**
-   * Right-click on a column header. The host receives the column so it can
-   * offer column-scoped actions (e.g. "Find Usages") without the grid knowing
-   * the source table/schema.
-   */
-  onHeaderContextMenu?: (
-    event: ReactMouseEvent<HTMLDivElement>,
-    column: GridColumn,
-  ) => void;
-};
 
 /**
  * Editable, virtualization-ready data grid. Renders one page of rows at a time
@@ -712,124 +545,29 @@ export function DataGrid({
         onScroll={virtualized ? handleScroll : undefined}
       >
         <div className="grid-table" style={{ minWidth: minTableWidth }}>
-          <div className="grid-row grid-header-row">
-            <div className="grid-cell grid-cell-rowno">
-              <GridIcon.hash size={9} stroke="var(--fg-3)" />
-            </div>
-            {renderedColumns.map((c, ci) => {
-              const sorted = activeSort?.columnKey === c.key ? activeSort : null;
-              const ariaSort =
-                sorted?.direction === "asc"
-                  ? "ascending"
-                  : sorted?.direction === "desc"
-                    ? "descending"
-                    : "none";
-              const SortIcon =
-                sorted?.direction === "desc"
-                  ? GridIcon.sortDesc
-                  : GridIcon.sortAsc;
-              const nextSortLabel =
-                sorted?.direction === "asc"
-                  ? "Sort descending"
-                  : sorted?.direction === "desc"
-                    ? "Clear sort"
-                    : "Sort ascending";
-              return (
-                <div
-                  key={c.key}
-                  className={
-                    "grid-cell grid-header-cell" +
-                    (ci < frozenCount ? " frozen" : "") +
-                    (sorted ? " is-sorted" : "") +
-                    (draggedColumnKey === c.key ? " is-dragging" : "") +
-                    (columnDropTargetKey === c.key ? " is-drop-target" : "")
-                  }
-                  role="columnheader"
-                  aria-sort={ariaSort}
-                  aria-label={`${c.name}, ${c.type}. ${nextSortLabel}.`}
-                  tabIndex={0}
-                  style={{ width: c.width, flexBasis: c.width }}
-                  title={nextSortLabel}
-                  draggable={!isResizing}
-                  onDragStart={(event) => {
-                    event.dataTransfer.effectAllowed = "move";
-                    event.dataTransfer.setData("text/plain", c.key);
-                    setDraggedColumnKey(c.key);
-                    suppressNextSortRef.current = true;
-                  }}
-                  onDragOver={(event) => {
-                    if (!draggedColumnKey || draggedColumnKey === c.key) return;
-                    event.preventDefault();
-                    event.dataTransfer.dropEffect = "move";
-                    setColumnDropTargetKey(c.key);
-                  }}
-                  onDragLeave={() => {
-                    setColumnDropTargetKey((current) =>
-                      current === c.key ? null : current,
-                    );
-                  }}
-                  onDrop={(event) => {
-                    event.preventDefault();
-                    const sourceKey =
-                      event.dataTransfer.getData("text/plain") || draggedColumnKey;
-                    if (sourceKey) reorderColumn(sourceKey, c.key);
-                    setDraggedColumnKey(null);
-                    setColumnDropTargetKey(null);
-                    suppressNextSortRef.current = true;
-                  }}
-                  onDragEnd={() => {
-                    setDraggedColumnKey(null);
-                    setColumnDropTargetKey(null);
-                  }}
-                  onClick={() => handleSort(c.key)}
-                  onContextMenu={
-                    onHeaderContextMenu
-                      ? (event) => onHeaderContextMenu(event, c)
-                      : undefined
-                  }
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      handleSort(c.key);
-                    }
-                  }}
-                >
-                  <span className="grid-header-icon">
-                    <TypeIcon col={c} />
-                  </span>
-                  <span className="grid-header-name">{c.name}</span>
-                  <span className="grid-header-type">{c.type}</span>
-                  <span className="grid-header-sort" aria-hidden="true">
-                    <SortIcon size={10} />
-                  </span>
-                  <span
-                    className={
-                      "grid-col-resize" +
-                      (resizing?.columnKey === c.key ? " is-resizing" : "")
-                    }
-                    role="separator"
-                    aria-orientation="vertical"
-                    aria-label={`Resize ${c.name} column`}
-                    aria-valuemin={MIN_COLUMN_WIDTH}
-                    aria-valuenow={
-                      resizing?.columnKey === c.key ? resizing.nextWidth : c.width
-                    }
-                    tabIndex={-1}
-                    onPointerDown={(event) => beginColumnResize(event, c)}
-                    onDoubleClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      suppressNextSortRef.current = true;
-                      resizingRef.current = null;
-                      setResizing(null);
-                      autofitColumn(c);
-                    }}
-                    onClick={(event) => event.stopPropagation()}
-                  />
-                </div>
-              );
-            })}
-          </div>
+          <GridHeaderRow
+            columns={renderedColumns}
+            activeSort={activeSort}
+            frozenCount={frozenCount}
+            isResizing={isResizing}
+            resizing={resizing}
+            draggedColumnKey={draggedColumnKey}
+            columnDropTargetKey={columnDropTargetKey}
+            setDraggedColumnKey={setDraggedColumnKey}
+            setColumnDropTargetKey={setColumnDropTargetKey}
+            suppressNextSort={() => {
+              suppressNextSortRef.current = true;
+            }}
+            reorderColumn={reorderColumn}
+            handleSort={handleSort}
+            beginColumnResize={beginColumnResize}
+            cancelResize={() => {
+              resizingRef.current = null;
+              setResizing(null);
+            }}
+            autofitColumn={autofitColumn}
+            onHeaderContextMenu={onHeaderContextMenu}
+          />
 
           <div
             className={
@@ -907,354 +645,4 @@ export function DataGrid({
       )}
     </div>
   );
-}
-
-type GridRowViewProps = {
-  row: GridRow;
-  rowIndex: number;
-  rowNumber: number;
-  columns: readonly GridColumn[];
-  change: PendingChange | undefined;
-  selected: CellAddress | null;
-  rowSelected: boolean;
-  editing: CellAddress | null;
-  frozenCount: number;
-  readOnly: boolean;
-  nullDisplay: string;
-  renderers: RendererRegistry | null;
-  renderEditor: CellEditorRenderer | undefined;
-  saveBlob: SaveBlob | undefined;
-  stripeRows: boolean;
-  top: number | undefined;
-  onSelect: (next: CellAddress | null) => void;
-  onEdit: (next: CellAddress | null) => void;
-  onCellEdit: (
-    rowId: string,
-    colKey: string,
-    prev: CellChange["from"],
-    next: CellChange["to"],
-  ) => void;
-  onCellContextMenu: DataGridProps["onCellContextMenu"];
-  onRowSelect: DataGridProps["onRowSelect"];
-  onRowContextMenu: DataGridProps["onRowContextMenu"];
-};
-
-const GridRowView = memo(function GridRowView({
-  row,
-  rowIndex,
-  rowNumber,
-  columns,
-  change,
-  selected,
-  rowSelected,
-  editing,
-  frozenCount,
-  readOnly,
-  nullDisplay,
-  renderers,
-  renderEditor,
-  saveBlob,
-  stripeRows,
-  top,
-  onSelect,
-  onEdit,
-  onCellEdit,
-  onCellContextMenu,
-  onRowSelect,
-  onRowContextMenu,
-}: GridRowViewProps) {
-  const kind = change?.kind;
-  // A single selected cell gives the row a faint tint; clicking the row-number
-  // gutter selects the whole row (a stronger highlight). The two are mutually
-  // exclusive — selecting one clears the other in the handlers below.
-  const cellInRow = selected !== null;
-  const rowGutterInteractive = onRowSelect !== undefined;
-
-  // Compute stripe class from absolute rowIndex so it stays correct in virtual
-  // scroll mode (where nth-child reflects only the current render window).
-  // Only apply the stripe when there is no pending-change tint (is-update,
-  // is-insert, is-delete), so the change indicators are never hidden.
-  const isStripe = stripeRows && !kind && rowIndex % 2 === 1;
-
-  return (
-    <div
-      className={
-        "grid-row" +
-        (kind ? " is-" + kind : "") +
-        (isStripe ? " is-stripe" : "") +
-        (cellInRow ? " is-selected-row" : "") +
-        (rowSelected ? " is-row-selected" : "")
-      }
-      style={top === undefined ? undefined : { top }}
-    >
-      <div
-        className={
-          "grid-cell grid-cell-rowno" +
-          (rowGutterInteractive ? " is-interactive" : "") +
-          (rowSelected ? " is-active" : "")
-        }
-        role={rowGutterInteractive ? "button" : undefined}
-        tabIndex={rowGutterInteractive ? 0 : undefined}
-        aria-pressed={rowGutterInteractive ? rowSelected : undefined}
-        title={rowGutterInteractive ? "Select row" : undefined}
-        onClick={
-          rowGutterInteractive
-            ? () => {
-                onSelect(null);
-                onEdit(null);
-                onRowSelect?.(
-                  rowSelected ? null : rowIndex,
-                  rowSelected ? null : row,
-                );
-              }
-            : undefined
-        }
-        onKeyDown={
-          rowGutterInteractive
-            ? (event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  onSelect(null);
-                  onEdit(null);
-                  onRowSelect?.(
-                    rowSelected ? null : rowIndex,
-                    rowSelected ? null : row,
-                  );
-                }
-              }
-            : undefined
-        }
-        onContextMenu={
-          onRowContextMenu &&
-          ((event) => {
-            onSelect(null);
-            onEdit(null);
-            onRowSelect?.(rowIndex, row);
-            onRowContextMenu(event, row, rowIndex);
-          })
-        }
-      >
-        <span className="grid-rowno-num tnum">{rowNumber}</span>
-        {kind === "update" && (
-          <span
-            className="grid-gutter-mark"
-            style={{ background: "var(--update)" }}
-            title="Updated"
-          />
-        )}
-        {kind === "insert" && (
-          <span
-            className="grid-gutter-mark"
-            style={{ background: "var(--insert)" }}
-            title="Inserted"
-          />
-        )}
-        {kind === "delete" && (
-          <span
-            className="grid-gutter-mark"
-            style={{ background: "var(--delete)" }}
-            title="Marked for delete"
-          />
-        )}
-      </div>
-      {columns.map((c, ci) => {
-        const isSel = selected?.col === ci;
-        const isEdit = !readOnly && editing?.col === ci;
-        const cellChange = change?.edits?.[c.key];
-        const displayed = cellChange ? cellChange.to : row[c.key];
-        const original = row[c.key] ?? null;
-
-        return (
-          <div
-            key={c.key}
-            className={
-              "grid-cell" +
-              (ci < frozenCount ? " frozen" : "") +
-              (cellChange ? " is-edited" : "") +
-              (isSel ? " is-selected" : "") +
-              (isEdit ? " is-editing" : "")
-            }
-            style={{ width: c.width, flexBasis: c.width }}
-            onClick={() => {
-              if (rowSelected) onRowSelect?.(null, null);
-              onSelect({ row: rowIndex, col: ci });
-            }}
-            onDoubleClick={() => {
-              if (!readOnly) onEdit({ row: rowIndex, col: ci });
-            }}
-            onContextMenu={
-              onCellContextMenu &&
-              ((event) => {
-                if (rowSelected) onRowSelect?.(null, null);
-                onSelect({ row: rowIndex, col: ci });
-                onCellContextMenu(event, row, c);
-              })
-            }
-          >
-            {isEdit ? (
-              (() => {
-                const editorProps: CellEditorProps = {
-                  col: c,
-                  value: displayed,
-                  onCommit: (v) => {
-                    onCellEdit(
-                      row.id,
-                      c.key,
-                      (original ?? null) as CellChange["from"],
-                      (v ?? null) as CellChange["to"],
-                    );
-                    onEdit(null);
-                  },
-                  onCancel: () => onEdit(null),
-                };
-                // Host-supplied editor wins when it claims the cell; otherwise
-                // fall back to the built-in text/number/native-picker editor.
-                return renderEditor?.(editorProps) ?? <CellEditor {...editorProps} />;
-              })()
-            ) : (
-              <CellValue
-                col={c}
-                value={displayed}
-                nullDisplay={nullDisplay}
-                renderers={renderers}
-                saveBlob={saveBlob}
-              />
-            )}
-            {cellChange && !isEdit && (
-              <span
-                className="grid-cell-prev"
-                title={`Was: ${cellChange.from ?? "NULL"}`}
-              >
-                <span className="grid-cell-prev-strike">
-                  {cellChange.from === null ? "NULL" : String(cellChange.from)}
-                </span>
-              </span>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-});
-
-function PaginationBar({
-  pagination,
-  rowCount,
-}: {
-  pagination: GridPagination;
-  rowCount: number;
-}) {
-  const options = pagination.pageSizeOptions ?? [100, 250, 500];
-  const firstRow = rowCount === 0 ? pagination.offset : pagination.offset + 1;
-  const lastRow = pagination.offset + rowCount;
-  const totalRows = pagination.totalRows ?? null;
-
-  const range =
-    rowCount === 0
-      ? `No rows at offset ${pagination.offset}`
-      : `Rows ${formatNumber(firstRow)}–${formatNumber(lastRow)}${
-          totalRows !== null ? ` of ${formatNumber(totalRows)}` : ""
-        }`;
-  const nextRangeStart = pagination.offset + pagination.limit + 1;
-  const nextRangeEnd = pagination.offset + pagination.limit * 2;
-
-  return (
-    <div className="grid-pagination">
-      <div className="grid-pagination-range">
-        <span className="tnum">{range}</span>
-        {pagination.hasNext && totalRows === null && (
-          <span className="grid-pagination-more">more available</span>
-        )}
-      </div>
-      <div className="grid-pagination-controls">
-        {pagination.onPageSizeChange && (
-          <label className="grid-pagination-size">
-            <span>Page size</span>
-            <select
-              value={pagination.limit}
-              onChange={(e) => pagination.onPageSizeChange?.(Number(e.target.value))}
-              disabled={pagination.loading}
-              aria-label="Page size"
-            >
-              {options.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-        <button
-          className="grid-pagination-btn"
-          type="button"
-          onClick={pagination.onPrevious}
-          disabled={!pagination.hasPrevious || pagination.loading}
-          title="Previous page"
-          aria-label="Previous page"
-        >
-          <GridIcon.chevronLeft size={12} />
-        </button>
-        <button
-          className="grid-pagination-btn"
-          type="button"
-          onClick={pagination.onNext}
-          disabled={!pagination.hasNext || pagination.loading}
-          title={
-            pagination.hasNext
-              ? `Next page: rows ${formatNumber(nextRangeStart)}–${formatNumber(nextRangeEnd)}`
-              : "Next page"
-          }
-          aria-label="Next page"
-        >
-          <GridIcon.chevronRight size={12} />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function formatNumber(value: number): string {
-  return new Intl.NumberFormat("en-US").format(value);
-}
-
-export type UseGridStateOptions = {
-  initialFilters?: ColumnFilters;
-  initialChanges?: PendingChanges;
-  initialSort?: SortState;
-};
-
-/**
- * Minimal local controller for the grid. Suits tabs that don't have a backing
- * Zustand store yet; once we wire `useTabs`, the same pieces can be lifted into
- * a store and the grid stays exactly the same.
- */
-export function useGridState({
-  initialFilters = [],
-  initialChanges = {},
-  initialSort = null,
-}: UseGridStateOptions = {}) {
-  const [filters, setFilters] = useState<ColumnFilters>(initialFilters);
-  const [changes, setChanges] = useState<PendingChanges>(initialChanges);
-  const [sort, setSort] = useState<SortState>(initialSort);
-  const [selection, setSelection] = useState<CellAddress | null>(null);
-  const [editing, setEditing] = useState<CellAddress | null>(null);
-  const [selectedRow, setSelectedRow] = useState<number | null>(null);
-
-  const revert = useCallback(() => setChanges({}), []);
-
-  return {
-    filters,
-    setFilters,
-    changes,
-    setChanges,
-    sort,
-    setSort,
-    selection,
-    setSelection,
-    editing,
-    setEditing,
-    selectedRow,
-    setSelectedRow,
-    revert,
-  };
 }
