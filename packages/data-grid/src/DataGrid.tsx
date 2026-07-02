@@ -98,7 +98,6 @@ export function DataGrid({
   columnLayout,
   onColumnLayoutChange,
   frozenCount = 0,
-  totalRows,
   pagination,
   onCommit,
   onRevert,
@@ -614,7 +613,7 @@ export function DataGrid({
         onQuickFilterColumnChange={onQuickFilterColumnChange}
         totalRows={rows.length}
         filteredRows={visibleRows.length}
-        serverRows={totalRows}
+        serverRows={pagination?.totalRows ?? undefined}
         sort={activeSort}
         onSortChange={applySort}
       />

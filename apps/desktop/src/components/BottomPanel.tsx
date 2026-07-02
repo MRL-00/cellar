@@ -121,7 +121,7 @@ export function BottomPanel({ onClose }: { onClose: () => void }) {
                 disabled={!t.enabled}
                 title={t.enabled ? t.label : `${t.label} is not wired yet`}
                 className={
-                  "mt-[3px] inline-flex h-[22px] items-center gap-1.5 rounded-[4px] px-2 text-[11px] disabled:cursor-default disabled:opacity-45 " +
+                  "mt-[3px] inline-flex h-[22px] items-center gap-1.5 rounded-[4px] px-2 text-sm disabled:cursor-default disabled:opacity-45 " +
                   (isActive
                     ? "bg-bg-3 text-fg-0"
                     : "text-fg-2 hover:bg-bg-2 hover:text-fg-0 disabled:hover:bg-transparent disabled:hover:text-fg-2")
@@ -134,7 +134,7 @@ export function BottomPanel({ onClose }: { onClose: () => void }) {
                 {t.count != null && (
                   <span
                     className={
-                      "rounded-[8px] px-1 py-px font-mono text-[9.5px] " +
+                      "rounded-[8px] px-1 py-px font-mono text-[10.5px] " +
                       (isActive ? "bg-bg-1 text-fg-0" : "bg-bg-2 text-fg-2")
                     }
                   >
@@ -233,9 +233,9 @@ export function BottomPanel({ onClose }: { onClose: () => void }) {
 
 function Placeholder({ tab }: { tab: BottomTabId }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-1.5 p-6 text-center text-[11.5px] text-fg-3">
-      <div className="text-[12px] font-medium text-fg-1">{labelFor(tab)}</div>
-      <div className="max-w-[320px] text-[10.5px] leading-[1.5] text-fg-3">
+    <div className="flex h-full flex-col items-center justify-center gap-1.5 p-6 text-center text-[12.5px] text-fg-3">
+      <div className="text-sm font-medium text-fg-1">{labelFor(tab)}</div>
+      <div className="max-w-[320px] text-[11.5px] leading-[1.5] text-fg-3">
         {subFor(tab)}
       </div>
     </div>

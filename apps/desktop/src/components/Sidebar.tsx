@@ -573,13 +573,13 @@ export function Sidebar({
 
   return (
     <div
-      className="flex h-full flex-col text-[11.5px]"
+      className="flex h-full flex-col text-[9px]"
       style={{ fontFamily: "var(--font-sans)" }}
     >
       <div className="flex shrink-0 items-center justify-between pt-[7px] pb-[5px] pl-2.5 pr-2">
-        <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-fg-2">
+        <div className="flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-[0.04em] text-fg-2">
           <span>Connections</span>
-          <span className="rounded-[8px] bg-bg-2 px-1.5 py-px text-[10px] tabular-nums text-fg-3">
+          <span className="rounded-[8px] bg-bg-2 px-1.5 py-px text-[11px] tabular-nums text-fg-3">
             {connections.length}
           </span>
         </div>
@@ -609,7 +609,7 @@ export function Sidebar({
           placeholder="Filter…"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          className="flex-1 border-none bg-transparent py-0.5 text-[11.5px] leading-4 text-fg-0 outline-none placeholder:text-fg-3"
+          className="flex-1 border-none bg-transparent py-0.5 text-sm leading-4 text-fg-0 outline-none placeholder:text-fg-3"
         />
         <span className="kbd">⌘F</span>
       </div>
@@ -619,7 +619,7 @@ export function Sidebar({
           <button
             type="button"
             onClick={onNewConnection}
-            className="mx-2 mt-1 mb-3 flex w-[calc(100%-16px)] items-center gap-1.5 rounded-[4px] border border-dashed border-border-default px-2 py-1.5 text-[11.5px] text-fg-2 transition-[border-color,color,background] duration-150 hover:border-solid hover:border-accent-line hover:bg-accent-soft hover:text-accent"
+            className="mx-2 mt-1 mb-3 flex w-[calc(100%-16px)] items-center gap-1.5 rounded-[4px] border border-dashed border-border-default px-2 py-1.5 text-sm text-fg-2 transition-[border-color,color,background] duration-150 hover:border-solid hover:border-accent-line hover:bg-accent-soft hover:text-accent"
           >
             <Icon.plus size={11} />
             <span>New connection</span>
@@ -627,7 +627,7 @@ export function Sidebar({
         )}
 
         {matchCount === 0 && (
-          <div className="px-3 py-5 text-center text-[11px] text-fg-3">
+          <div className="px-3 py-5 text-center text-[12px] text-fg-3">
             {connections.length === 0 ? "no connections yet" : "no matches"}
           </div>
         )}
@@ -675,7 +675,7 @@ export function Sidebar({
           type="button"
           onClick={onOpenSettings}
           title="Settings (⌘,)"
-          className="flex items-center gap-1.5 rounded-[4px] px-1.5 py-1 text-[11.5px] text-fg-2 transition-colors duration-150 hover:bg-bg-2 hover:text-fg-0"
+          className="flex items-center gap-1.5 rounded-[4px] px-1.5 py-1 text-sm text-fg-2 transition-colors duration-150 hover:bg-bg-2 hover:text-fg-0"
         >
           <Icon.settings size={13} />
           <span>Settings</span>

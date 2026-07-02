@@ -120,6 +120,17 @@ pub fn reject_value(filter: &TableFilterClause) -> Result<(), TableBrowseError> 
     Ok(())
 }
 
+/// Escape LIKE wildcards (`\`, `%`, `_`) in user text so contains/starts
+/// with/ends with match it literally. Backslash is the escape character in
+/// Postgres and MySQL by default; SQL Server drivers must add `ESCAPE '\'`.
+/// Not used for the `like` operator, where the user controls the wildcards.
+pub fn escape_like_wildcards(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
+}
+
 pub fn unsupported(column: &Column, operator: TableFilterOperator) -> TableBrowseError {
     TableBrowseError::UnsupportedOperator {
         column: column.name.clone(),

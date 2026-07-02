@@ -46,19 +46,19 @@ function CodeBlock({ lang, code }: { lang: string; code: string }) {
   return (
     <div className="overflow-hidden rounded-[5px] border border-border-default bg-bg-inset">
       <div className="flex items-center justify-between border-b border-border-divider px-2 py-1">
-        <span className="font-mono text-[9.5px] uppercase tracking-[0.05em] text-fg-3">
+        <span className="font-mono text-[10.5px] uppercase tracking-[0.05em] text-fg-3">
           {lang || "code"}
         </span>
         <button
           onClick={copy}
-          className="inline-flex items-center gap-1 rounded-[3px] px-1 text-[10px] text-fg-2 hover:bg-bg-3 hover:text-fg-0"
+          className="inline-flex items-center gap-1 rounded-[3px] px-1 text-[11px] text-fg-2 hover:bg-bg-3 hover:text-fg-0"
           title="Copy"
         >
           <Icon.copy size={10} />
           <span>{copied ? "copied" : "copy"}</span>
         </button>
       </div>
-      <pre className="overflow-x-auto px-2.5 py-2 font-mono text-[11.5px] leading-[1.5] text-fg-0">
+      <pre className="overflow-x-auto px-2.5 py-2 font-mono text-sm leading-[1.5] text-fg-0">
         {SQL_LANGS.test(lang.trim()) ? (
           tokensToLines(tokenizeSql(code)).map((toks, i) => (
             <div key={i} className="whitespace-pre">
@@ -79,11 +79,11 @@ export function AIMessage({ entry }: { entry: AiChatEntry }) {
       <div className="flex flex-col items-end gap-1">
         <div className="max-w-[88%] rounded-[7px] rounded-tr-[2px] border border-accent-line bg-accent-soft px-2.5 py-1.5">
           {entry.topic && entry.topic !== "ask" && (
-            <span className="mb-0.5 block font-mono text-[9.5px] uppercase tracking-[0.05em] text-accent opacity-80">
+            <span className="mb-0.5 block font-mono text-[10.5px] uppercase tracking-[0.05em] text-accent opacity-80">
               {entry.topic}
             </span>
           )}
-          <div className="whitespace-pre-wrap text-[12px] leading-[1.5] text-fg-0">
+          <div className="whitespace-pre-wrap text-sm leading-[1.5] text-fg-0">
             {entry.content || <span className="text-fg-3 italic">(empty)</span>}
           </div>
         </div>
@@ -93,7 +93,7 @@ export function AIMessage({ entry }: { entry: AiChatEntry }) {
 
   if (entry.error) {
     return (
-      <div className="flex items-start gap-2 rounded-[6px] border border-delete-line bg-delete-bg px-2.5 py-2 text-[11.5px] text-delete">
+      <div className="flex items-start gap-2 rounded-[6px] border border-delete-line bg-delete-bg px-2.5 py-2 text-sm text-delete">
         <span className="mt-px shrink-0">
           <Icon.warn size={12} />
         </span>
@@ -111,14 +111,14 @@ export function AIMessage({ entry }: { entry: AiChatEntry }) {
         ) : (
           <div
             key={i}
-            className="whitespace-pre-wrap text-[12px] leading-[1.55] text-fg-1"
+            className="whitespace-pre-wrap text-sm leading-[1.55] text-fg-1"
           >
             {seg.text}
           </div>
         ),
       )}
       {entry.usage && (
-        <div className="text-[9.5px] text-fg-3">
+        <div className="text-[10.5px] text-fg-3">
           {entry.usage.totalTokens} tokens · {entry.usage.promptTokens} in /{" "}
           {entry.usage.completionTokens} out
         </div>

@@ -74,9 +74,14 @@ export type FilterOperator =
   | "equals"
   | "notEquals"
   | "contains"
+  | "notContains"
   | "startsWith"
+  | "endsWith"
+  | "like"
   | "greaterThan"
+  | "greaterThanOrEqual"
   | "lessThan"
+  | "lessThanOrEqual"
   | "isNull"
   | "isNotNull";
 

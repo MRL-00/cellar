@@ -760,7 +760,11 @@ export type TableFilterClause = { column: string; operator: TableFilterOperator;
  * instead of overloading this field.
  */
 value: string | null }
-export type TableFilterOperator = "equals" | "not_equals" | "contains" | "is_null" | "is_not_null" | "greater_than" | "greater_than_or_equal" | "less_than" | "less_than_or_equal"
+export type TableFilterOperator = "equals" | "not_equals" | "contains" | "not_contains" | "starts_with" | "ends_with" | 
+/**
+ * Raw SQL LIKE pattern (`%`/`_` supplied by the user), matched case-insensitively.
+ */
+"like" | "is_null" | "is_not_null" | "greater_than" | "greater_than_or_equal" | "less_than" | "less_than_or_equal"
 export type TableSortClause = { column: string; direction: SortDirection }
 /**
  * What kind of database object references a searched table or column. Returned

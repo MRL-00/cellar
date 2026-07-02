@@ -604,11 +604,11 @@ function Toolbar(props: {
   onRefresh: () => void;
 }) {
   return (
-    <div className="relative flex h-7 shrink-0 items-center gap-1 border-b border-border-default bg-bg-1 px-2 text-[11px] text-fg-2">
+    <div className="relative flex h-7 shrink-0 items-center gap-1 border-b border-border-default bg-bg-1 px-2 text-sm text-fg-2">
       <button type="button" className="icon-btn" title="Zoom out" onClick={props.onZoomOut}>
         <Icon.minus size={12} />
       </button>
-      <span className="w-9 text-center font-mono text-[10px] text-fg-3">
+      <span className="w-9 text-center font-mono text-[11px] text-fg-3">
         {Math.round(props.zoom * 100)}%
       </span>
       <button type="button" className="icon-btn" title="Zoom in" onClick={props.onZoomIn}>
@@ -631,7 +631,7 @@ function Toolbar(props: {
       <button
         type="button"
         className={
-          "inline-flex h-[20px] items-center gap-1 rounded-[4px] border px-1.5 text-[10.5px] " +
+          "inline-flex h-[20px] items-center gap-1 rounded-[4px] border px-1.5 text-[11.5px] " +
           (props.compact
             ? "border-border-default bg-bg-2 text-fg-2 hover:text-fg-0"
             : "border-accent-line bg-accent-soft text-accent")
@@ -663,7 +663,7 @@ function Toolbar(props: {
         <Icon.history size={12} />
       </button>
 
-      <span className="ml-auto font-mono text-[10px] text-fg-3">
+      <span className="ml-auto font-mono text-[11px] text-fg-3">
         {props.nodeCount} tables · {props.edgeCount} refs
       </span>
 
@@ -674,7 +674,7 @@ function Toolbar(props: {
             return (
               <label
                 key={schema}
-                className="flex h-6 cursor-pointer items-center gap-2 px-2 text-[11px] text-fg-1 hover:bg-bg-2"
+                className="flex h-6 cursor-pointer items-center gap-2 px-2 text-sm text-fg-1 hover:bg-bg-2"
               >
                 <input
                   type="checkbox"
@@ -696,7 +696,7 @@ function Toolbar(props: {
 
 function Centered({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-full items-center justify-center text-[11.5px] text-fg-3">
+    <div className="flex h-full items-center justify-center text-sm text-fg-3">
       {children}
     </div>
   );

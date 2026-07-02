@@ -287,7 +287,7 @@ export function SidebarConnectionList({
           {visibleChildren.length === 0 ? (
             <div
               className={
-                "mx-2 my-0.5 rounded-[4px] border border-dashed px-2 py-1 text-[10.5px] " +
+                "mx-2 my-0.5 rounded-[4px] border border-dashed px-2 py-1 text-[11.5px] " +
                 (isDropInto
                   ? "border-accent-line bg-accent-soft text-accent"
                   : "border-border-default text-fg-3")
@@ -479,7 +479,7 @@ function FolderRenameInput({
         }
       }}
       onBlur={(e) => commit(e.currentTarget.value)}
-      className="min-w-0 flex-1 rounded-[3px] border border-accent-line bg-bg-inset px-1 py-px text-[12px] text-fg-0 outline-none"
+      className="min-w-0 flex-1 rounded-[3px] border border-accent-line bg-bg-inset px-1 py-px text-[13px] text-fg-0 outline-none"
     />
   );
 }

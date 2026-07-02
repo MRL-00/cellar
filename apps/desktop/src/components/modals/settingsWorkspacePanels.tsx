@@ -152,15 +152,15 @@ export function SettingsAppearance() {
               }
             }}
           />
-          <span className="text-[11px] text-fg-2">px</span>
+          <span className="text-sm text-fg-2">px</span>
           <div className="relative ml-2 w-[220px] pt-[14px]">
-            <span className="absolute top-0 left-0 -translate-x-1/2 whitespace-nowrap text-[9.5px] text-fg-3">
+            <span className="absolute top-0 left-0 -translate-x-1/2 whitespace-nowrap text-[10.5px] text-fg-3">
               {FONT_SIZE_MIN}
             </span>
-            <span className="absolute top-0 left-1/2 -translate-x-1/2 whitespace-nowrap text-[9.5px] text-fg-3">
+            <span className="absolute top-0 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10.5px] text-fg-3">
               13.5
             </span>
-            <span className="absolute top-0 right-0 translate-x-1/2 whitespace-nowrap text-[9.5px] text-fg-3">
+            <span className="absolute top-0 right-0 translate-x-1/2 whitespace-nowrap text-[10.5px] text-fg-3">
               {FONT_SIZE_MAX}
             </span>
             <input
@@ -204,7 +204,7 @@ export function SettingsAppearance() {
 export function SettingsGeneral() {
   return (
     <div className="flex-1 overflow-y-auto pb-6 pt-1">
-      <p className="px-5 pt-4 text-[11.5px] text-fg-3">
+      <p className="px-5 pt-4 text-sm text-fg-3">
         General settings and more config coming soon.
       </p>
     </div>
@@ -342,7 +342,7 @@ export function SettingsKeymap() {
                 key={s.k}
                 className="grid grid-cols-[1fr_auto_auto] items-center gap-3 border-b border-dashed border-border-divider py-1.5 last:border-b-0"
               >
-                <span className="text-[11.5px] text-fg-1">{s.k}</span>
+                <span className="text-sm text-fg-1">{s.k}</span>
                 <span className="inline-flex gap-0.5">
                   {[...s.kbd].map((k, i) => (
                     <kbd key={i} className="kbd">

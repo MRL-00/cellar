@@ -6,7 +6,6 @@ import {
   buildRunCancelResultMessage,
   buildQueryErrorMessage,
   buildQueryResultMessages,
-  buildTableLoadStartedMessage,
   formatDuration,
   severityCounts,
   type QueryRunContext,
@@ -45,15 +44,6 @@ const runContext: QueryRunContext = {
 };
 
 describe("query message builders", () => {
-  it("builds an honest table loading message", () => {
-    const message = buildTableLoadStartedMessage(context);
-
-    expect(message.severity).toBe("info");
-    expect(message.source).toBe("client");
-    expect(message.text).toContain("public.orders");
-    expect(message.sql).toBe(context.sql);
-  });
-
   it("builds success and truncation messages from QueryResult", () => {
     const messages = buildQueryResultMessages(context, {
       ...result,

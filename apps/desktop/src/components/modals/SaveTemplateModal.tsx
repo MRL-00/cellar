@@ -51,7 +51,7 @@ export function SaveTemplateModal({
           <span className="inline-flex text-accent">
             <Icon.star size={14} />
           </span>
-          <span className="whitespace-nowrap text-[12.5px] font-semibold text-fg-0">
+          <span className="whitespace-nowrap text-sm font-semibold text-fg-0">
             Save query template
           </span>
         </div>
@@ -61,9 +61,9 @@ export function SaveTemplateModal({
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-3.5">
-        <label className="mb-1 block text-[11px] font-medium text-fg-1">Name</label>
+        <label className="mb-1 block text-sm font-medium text-fg-1">Name</label>
         <input
-          className="mb-3 w-full rounded-[5px] border border-border-default bg-bg-inset px-2.5 py-1.5 text-[12px] text-fg-0 outline-none focus:border-accent"
+          className="mb-3 w-full rounded-[5px] border border-border-default bg-bg-inset px-2.5 py-1.5 text-sm text-fg-0 outline-none focus:border-accent"
           value={name}
           autoFocus
           spellCheck={false}
@@ -74,24 +74,24 @@ export function SaveTemplateModal({
           placeholder="Recent orders by region"
         />
 
-        <label className="mb-1 block text-[11px] font-medium text-fg-1">
+        <label className="mb-1 block text-sm font-medium text-fg-1">
           Description <span className="text-fg-3">(optional)</span>
         </label>
         <textarea
-          className="mb-3 h-16 w-full resize-none rounded-[5px] border border-border-default bg-bg-inset px-2.5 py-1.5 text-[12px] text-fg-0 outline-none focus:border-accent"
+          className="mb-3 h-16 w-full resize-none rounded-[5px] border border-border-default bg-bg-inset px-2.5 py-1.5 text-sm text-fg-0 outline-none focus:border-accent"
           value={description}
           spellCheck={false}
           onChange={(e) => setDescription(e.target.value)}
           placeholder="What this query is for…"
         />
 
-        <label className="mb-1 block text-[11px] font-medium text-fg-1">SQL</label>
-        <pre className="m-0 max-h-32 overflow-auto rounded-[5px] border border-border-default bg-bg-inset px-2.5 py-1.5 font-mono text-[11px] leading-[1.5] text-fg-2 whitespace-pre-wrap">
+        <label className="mb-1 block text-sm font-medium text-fg-1">SQL</label>
+        <pre className="m-0 max-h-32 overflow-auto rounded-[5px] border border-border-default bg-bg-inset px-2.5 py-1.5 font-mono text-sm leading-[1.5] text-fg-2 whitespace-pre-wrap">
           {sql.trim()}
         </pre>
 
         {error && (
-          <p className="mt-2 mb-0 text-[11px] text-delete">{error}</p>
+          <p className="mt-2 mb-0 text-sm text-delete">{error}</p>
         )}
       </div>
 

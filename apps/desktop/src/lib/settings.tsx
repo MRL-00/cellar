@@ -73,10 +73,10 @@ export const DEFAULTS: Settings = {
 };
 
 const STORAGE_KEY = "cellar.settings.v1";
-// The interface is authored compact and zoomed up for comfort: the font-size
-// setting divided by this baseline gives the global UI scale, so the default
-// 13.5px setting renders at ~1.125× rather than being a no-op.
-const FONT_SIZE_BASELINE = 12;
+// Primary text is authored at --fs-sm (13px, Tailwind text-sm). The font-size
+// setting divided by this baseline gives the global UI zoom, so primary text
+// renders at exactly the selected size (e.g. setting 13 → zoom 1 → 13px).
+const FONT_SIZE_BASELINE = 13;
 export const FONT_SIZE_MIN = 10;
 export const FONT_SIZE_MAX = 22;
 

@@ -32,9 +32,9 @@ function confirmMessage(
 }
 
 const ED_BTN =
-  "inline-flex h-[26px] items-center gap-[5px] whitespace-nowrap rounded-[4px] border border-border-default bg-bg-2 px-2.5 text-[11.5px] font-medium text-fg-1 transition-colors duration-100 hover:bg-bg-3 hover:text-fg-0 disabled:cursor-not-allowed disabled:opacity-60";
+  "inline-flex h-[26px] items-center gap-[5px] whitespace-nowrap rounded-[4px] border border-border-default bg-bg-2 px-2.5 text-sm font-medium text-fg-1 transition-colors duration-100 hover:bg-bg-3 hover:text-fg-0 disabled:cursor-not-allowed disabled:opacity-60";
 const ED_DANGER =
-  "inline-flex h-[26px] items-center gap-[5px] whitespace-nowrap rounded-[4px] border px-2.5 text-[11.5px] font-medium text-white bg-delete transition-[filter] duration-100 hover:brightness-[1.07] disabled:cursor-not-allowed disabled:opacity-60";
+  "inline-flex h-[26px] items-center gap-[5px] whitespace-nowrap rounded-[4px] border px-2.5 text-sm font-medium text-white bg-delete transition-[filter] duration-100 hover:brightness-[1.07] disabled:cursor-not-allowed disabled:opacity-60";
 
 /**
  * Right-hand panel of the schema-compare view: pick which generated DDL
@@ -104,7 +104,7 @@ export function MigrationPanel({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* Statement checklist */}
-      <div className="flex h-[26px] shrink-0 items-center justify-between border-b border-border-divider bg-bg-1 px-3 text-[10px] font-semibold uppercase tracking-[0.05em] text-fg-3">
+      <div className="flex h-[26px] shrink-0 items-center justify-between border-b border-border-divider bg-bg-1 px-3 text-[11px] font-semibold uppercase tracking-[0.05em] text-fg-3">
         <span>
           Include in migration · {selectedIds.length}/{statements.length}
         </span>
@@ -128,7 +128,7 @@ export function MigrationPanel({
 
       <div className="max-h-[34%] min-h-[60px] overflow-y-auto py-1">
         {statements.length === 0 ? (
-          <div className="px-3 py-3 text-[11px] text-fg-3">
+          <div className="px-3 py-3 text-[12px] text-fg-3">
             No DDL to generate — the schemas already match.
           </div>
         ) : (
@@ -144,7 +144,7 @@ export function MigrationPanel({
       </div>
 
       {/* Generated SQL */}
-      <div className="flex h-[26px] shrink-0 items-center justify-between border-y border-border-divider bg-bg-1 px-3 text-[10px] font-semibold uppercase tracking-[0.05em] text-fg-3">
+      <div className="flex h-[26px] shrink-0 items-center justify-between border-y border-border-divider bg-bg-1 px-3 text-[11px] font-semibold uppercase tracking-[0.05em] text-fg-3">
         <span>Migration script{state.sqlDirty ? " · edited" : ""}</span>
         <div className="flex items-center gap-2">
           <label className="flex cursor-pointer items-center gap-1 normal-case tracking-normal text-fg-2">
@@ -186,7 +186,7 @@ export function MigrationPanel({
 
       {/* Apply bar */}
       <div className="flex min-h-11 shrink-0 items-center justify-between gap-3 border-t border-border-default bg-bg-2 px-3 py-2">
-        <div className="flex min-w-0 items-center gap-2 text-[10.5px]">
+        <div className="flex min-w-0 items-center gap-2 text-[11.5px]">
           <Icon.warn
             size={10}
             stroke={requiresConfirm ? "var(--warn)" : "var(--fg-3)"}
@@ -255,10 +255,10 @@ function StatementRow({
     <label className="flex cursor-pointer items-center gap-2 px-3 py-1 hover:bg-bg-2">
       <input type="checkbox" checked={checked} onChange={onToggle} />
       <KindChip kind={statement.kind} destructive={statement.destructive} />
-      <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-fg-1">
+      <span className="min-w-0 flex-1 truncate font-mono text-sm text-fg-1">
         {statement.object}
       </span>
-      <span className="shrink-0 text-[10px] text-fg-3">
+      <span className="shrink-0 text-[11px] text-fg-3">
         {statement.description}
       </span>
     </label>
@@ -276,7 +276,7 @@ function KindChip({
   const bg = destructive ? "var(--delete-bg)" : "var(--insert-bg)";
   return (
     <span
-      className="inline-flex h-[14px] shrink-0 items-center rounded-[3px] px-1 font-mono text-[9px] font-semibold uppercase tracking-[0.03em]"
+      className="inline-flex h-[14px] shrink-0 items-center rounded-[3px] px-1 font-mono text-[10px] font-semibold uppercase tracking-[0.03em]"
       style={{ background: bg, color }}
     >
       {kind.replace(/-/g, " ")}

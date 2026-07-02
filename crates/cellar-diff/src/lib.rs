@@ -360,7 +360,10 @@ mod tests {
         })
         .expect("plan");
 
-        assert!(plan.preview.sql.contains("ON CONFLICT (\"id\") DO NOTHING;"));
+        assert!(plan
+            .preview
+            .sql
+            .contains("ON CONFLICT (\"id\") DO NOTHING;"));
     }
 
     fn assign(column: &str, value: Option<&str>) -> CellAssignment {

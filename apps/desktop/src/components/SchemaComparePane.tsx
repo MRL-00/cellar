@@ -47,7 +47,7 @@ export function SchemaComparePane({ tab }: { tab: SchemaCompareTab }) {
           <span className="text-warn">{state.error ?? "Comparison failed."}</span>
           <button
             type="button"
-            className="inline-flex items-center gap-1.5 rounded-[4px] border border-border-default bg-bg-2 px-2.5 py-1 text-[11.5px] text-fg-1 hover:bg-bg-3"
+            className="inline-flex items-center gap-1.5 rounded-[4px] border border-border-default bg-bg-2 px-2.5 py-1 text-sm text-fg-1 hover:bg-bg-3"
             onClick={() => void recompare(tab.id)}
           >
             <Icon.history size={11} />
@@ -92,8 +92,8 @@ export function SchemaComparePane({ tab }: { tab: SchemaCompareTab }) {
     <div className="flex min-h-0 flex-1 flex-col bg-bg-0">
       <div className="flex h-[30px] shrink-0 items-center gap-2 border-b border-border-default bg-bg-1 px-3">
         <Icon.diff size={13} stroke="var(--accent)" />
-        <span className="text-[12px] font-semibold text-fg-0">Schema compare</span>
-        <span className="flex items-center gap-2 text-[11px] text-fg-3">
+        <span className="text-sm font-semibold text-fg-0">Schema compare</span>
+        <span className="flex items-center gap-2 text-sm text-fg-3">
           <SummaryPill n={s.tables_added + s.views_added} label="added" color="var(--insert)" />
           <SummaryPill n={s.tables_removed + s.views_removed} label="dropped" color="var(--delete)" />
           <SummaryPill n={s.tables_modified + s.views_modified} label="changed" color="var(--update)" />
@@ -102,7 +102,7 @@ export function SchemaComparePane({ tab }: { tab: SchemaCompareTab }) {
         <div className="flex-1" />
         <button
           type="button"
-          className="inline-flex items-center gap-1.5 rounded-[4px] border border-border-default bg-bg-2 px-2 py-1 text-[11px] text-fg-1 hover:bg-bg-3"
+          className="inline-flex items-center gap-1.5 rounded-[4px] border border-border-default bg-bg-2 px-2 py-1 text-sm text-fg-1 hover:bg-bg-3"
           onClick={() => void recompare(tab.id)}
           title="Re-run the comparison against the current live schema"
         >
@@ -146,7 +146,7 @@ function SummaryPill({
 
 function PaneMessage({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex flex-1 items-center justify-center bg-bg-inset text-[11.5px] text-fg-3">
+    <div className="flex flex-1 items-center justify-center bg-bg-inset text-sm text-fg-3">
       {children}
     </div>
   );

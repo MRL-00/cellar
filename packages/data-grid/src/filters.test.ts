@@ -110,7 +110,9 @@ describe("operatorsForColumn", () => {
       "equals",
       "notEquals",
       "greaterThan",
+      "greaterThanOrEqual",
       "lessThan",
+      "lessThanOrEqual",
     ]);
     expect(operatorsForColumn(columns[4]!)).toEqual(["equals", "notEquals"]);
   });
@@ -132,5 +134,65 @@ describe("evaluateFilterClause", () => {
         logic: "and",
       }),
     ).toBe(true);
+  });
+
+  it("handles >=, <=, ends with, and not contains", () => {
+    const numClause = (operator: "greaterThanOrEqual" | "lessThanOrEqual", value: string) =>
+      evaluateFilterClause(100, columns[1]!, {
+        id: "a",
+        columnKey: "total",
+        operator,
+        value,
+        logic: "and",
+      });
+    expect(numClause("greaterThanOrEqual", "100")).toBe(true);
+    expect(numClause("greaterThanOrEqual", "101")).toBe(false);
+    expect(numClause("lessThanOrEqual", "100")).toBe(true);
+    expect(numClause("lessThanOrEqual", "99")).toBe(false);
+
+    const textClause = (operator: "endsWith" | "notContains", value: string) =>
+      evaluateFilterClause("invoice", columns[0]!, {
+        id: "a",
+        columnKey: columns[0]!.key,
+        operator,
+        value,
+        logic: "and",
+      });
+    expect(textClause("endsWith", "ice")).toBe(true);
+    expect(textClause("endsWith", "inv")).toBe(false);
+    expect(textClause("notContains", "xyz")).toBe(true);
+    expect(textClause("notContains", "voi")).toBe(false);
+  });
+
+  it("matches SQL LIKE patterns with % and _", () => {
+    const like = (pattern: string) =>
+      evaluateFilterClause("invoice", columns[0]!, {
+        id: "a",
+        columnKey: columns[0]!.key,
+        operator: "like",
+        value: pattern,
+        logic: "and",
+      });
+    expect(like("inv%")).toBe(true);
+    expect(like("%voice")).toBe(true);
+    expect(like("inv_ice")).toBe(true);
+    expect(like("invoice")).toBe(true);
+    // No wildcards → implicit %contains%.
+    expect(like("voice")).toBe(true);
+    expect(like("vo")).toBe(true);
+    expect(like("xyz")).toBe(false);
+    expect(like("inv.ice")).toBe(false);
+    // Any explicit wildcard → exact SQL semantics.
+    expect(like("voice%")).toBe(false);
+  });
+
+  it("offers text operators for guid columns", () => {
+    const guidColumn: GridColumn = {
+      key: "id",
+      name: "id",
+      type: "uniqueidentifier",
+      width: 120,
+    };
+    expect(operatorsForColumn(guidColumn)).toContain("contains");
   });
 });

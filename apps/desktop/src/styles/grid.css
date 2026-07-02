@@ -9,9 +9,8 @@
      `min-width: 0` a flex item's min-width defaults to its intrinsic content
      width (~1850px here), so `.grid-scroll` never sees overflow to scroll. */
   min-width: 0;
-  /* Match the 13px base used by the body / sidebar so grid data and the rest of
-     the UI read at the same size. */
-  font-size: var(--fs-sm);
+  /* Keep dense result data one step below the interface font. */
+  font-size: var(--fs-xs);
   /* bg-1 rather than bg-inset: near-black under bright mono text read too
      harsh; a lighter base + fg-1 data text keeps contrast comfortable. */
   background: var(--bg-1);
@@ -28,7 +27,7 @@
   border-bottom: 1px solid var(--border-default);
   flex-shrink: 0;
   font-family: var(--font-sans);
-  font-size: var(--fs-sm);
+  font-size: var(--fs-xs);
 }
 .grid-filterbar-label {
   display: inline-flex;
@@ -57,7 +56,7 @@
   padding: 0 3px;
   border-radius: 3px;
   font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: 10.5px;
   color: var(--fg-3);
   text-transform: uppercase;
 }
@@ -70,7 +69,7 @@
   background: var(--accent-soft);
   border: 1px solid var(--accent-line);
   border-radius: 4px;
-  font-size: var(--fs-sm);
+  font-size: var(--fs-xs);
   color: var(--fg-0);
   overflow: hidden;
 }
@@ -121,7 +120,7 @@
   padding: 0 6px;
   border: 1px dashed var(--border-default);
   border-radius: 4px;
-  font-size: var(--fs-sm);
+  font-size: var(--fs-xs);
   color: var(--fg-2);
 }
 .grid-filter-add:hover { color: var(--fg-0); border-color: var(--border-strong); }
@@ -143,6 +142,62 @@
   box-shadow: 0 4px 14px rgba(0,0,0,0.18);
   flex-shrink: 0;
 }
+.grid-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 18px;
+  min-width: 0;
+  max-width: 150px;
+  padding: 0 5px;
+  border: 1px solid var(--border-default);
+  border-radius: 3px;
+  background: var(--bg-inset);
+  color: var(--fg-0);
+  font-size: var(--fs-sm);
+  cursor: default;
+}
+.grid-select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-line);
+}
+.grid-select-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.grid-select > svg {
+  flex-shrink: 0;
+  color: var(--fg-3);
+}
+.grid-select-menu {
+  position: fixed;
+  z-index: 1000;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 3px;
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  background: var(--bg-2);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+  font-size: var(--fs-sm);
+}
+.grid-select-option {
+  padding: 3px 8px;
+  border-radius: 3px;
+  color: var(--fg-1);
+  white-space: nowrap;
+  cursor: default;
+}
+.grid-select-option.is-active {
+  background: var(--bg-3);
+  color: var(--fg-0);
+}
+.grid-select-option.is-selected {
+  color: var(--accent);
+}
+
 .grid-filter-select,
 .grid-filter-input {
   height: 18px;
@@ -151,7 +206,7 @@
   border-radius: 3px;
   background: var(--bg-inset);
   color: var(--fg-0);
-  font-size: var(--fs-sm);
+  font-size: var(--fs-xs);
   outline: none;
 }
 .grid-filter-select {
@@ -178,25 +233,25 @@
   height: 18px;
   padding: 0 6px;
   border-radius: 3px;
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-fg);
   font-size: var(--fs-sm);
   font-weight: 600;
 }
 .grid-filter-apply:hover:not(:disabled) {
-  background: var(--accent-line);
-  color: var(--fg-0);
+  filter: brightness(1.15);
 }
 .grid-filter-apply:disabled {
   cursor: default;
-  opacity: 0.45;
+  background: var(--bg-3);
+  color: var(--fg-3);
 }
 .grid-filter-clear {
   height: 20px;
   padding: 0 5px;
   border-radius: 3px;
   color: var(--fg-3);
-  font-size: var(--fs-sm);
+  font-size: var(--fs-xs);
   flex-shrink: 0;
 }
 .grid-filter-clear:hover { background: var(--bg-3); color: var(--fg-1); }
@@ -206,7 +261,7 @@
   align-items: center;
   gap: 3px;
   margin-left: auto;
-  font-size: 10.5px;
+  font-size: 11.5px;
 }
 
 /* ── order by (pinned before the row summary) ─────────────── */
@@ -236,20 +291,20 @@
   border-radius: 3px;
   background: var(--bg-inset);
   color: var(--fg-0);
-  font-size: var(--fs-sm);
+  font-size: var(--fs-xs);
   outline: none;
 }
 .grid-quickfilter-input:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent-line);
 }
-.grid-quickfilter-column { height: 22px; max-width: 120px; font-size: var(--fs-sm); }
+.grid-quickfilter-column { height: 22px; max-width: 120px; font-size: var(--fs-xs); }
 .grid-filter-active-count {
   padding: 0 5px;
   border-radius: 8px;
   background: var(--accent-soft);
   color: var(--accent);
-  font-size: 9.5px;
+  font-size: 10.5px;
   font-weight: 600;
 }
 
@@ -263,7 +318,7 @@
   flex-direction: column;
   font-family: var(--font-mono);
   font-feature-settings: "calt", "ss01";
-  font-size: var(--fs-sm);
+  font-size: var(--fs-xs);
   line-height: 1;
   color: var(--fg-1);
 }
@@ -337,7 +392,7 @@
   color: var(--fg-3);
   background: var(--bg-1);
   border-right: 1px solid var(--grid-column-line);
-  font-size: 10px;
+  font-size: 11px;
   position: sticky;
   left: 0;
   z-index: 2;
@@ -384,7 +439,7 @@
 }
 .grid-header-cell {
   height: 100%;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 500;
   color: var(--fg-0);
   text-transform: none;
@@ -420,7 +475,7 @@
   font-family: var(--font-mono);
 }
 .grid-header-type {
-  font-size: 9.5px;
+  font-size: 10.5px;
   color: var(--fg-3);
   font-family: var(--font-mono);
   margin-left: auto;
@@ -503,7 +558,7 @@
 .cell-null {
   color: var(--fg-3);
   font-style: italic;
-  font-size: 10px;
+  font-size: var(--fs-xs);
   letter-spacing: 0.04em;
 }
 .cell-enum {
@@ -511,7 +566,7 @@
   align-items: center;
   gap: 5px;
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 .cell-enum .dot {
   width: 6px;
@@ -547,7 +602,7 @@
   border: none;
   outline: none;
   color: var(--fg-0);
-  font-size: 11.5px;
+  font-size: var(--fs-xs);
 }
 .cell-edit-input[aria-invalid="true"] {
   background: color-mix(in oklab, var(--delete-bg) 82%, var(--bg-2));
@@ -571,7 +626,7 @@
   padding: 0 6px;
   background: var(--bg-3);
   border-radius: 3px;
-  font-size: 10px;
+  font-size: 11px;
   font-family: var(--font-sans);
   color: var(--fg-1);
   flex-shrink: 0;
@@ -591,7 +646,7 @@
   right: 4px;
   top: 50%;
   transform: translateY(-50%);
-  font-size: 9.5px;
+  font-size: 10.5px;
   color: var(--fg-3);
   pointer-events: none;
   max-width: 50%;
@@ -626,7 +681,7 @@
   background: var(--bg-1);
   border-top: 1px solid var(--border-default);
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--fg-2);
   flex-shrink: 0;
 }
@@ -651,7 +706,7 @@
   border-radius: 4px;
   background: var(--bg-inset);
   color: var(--fg-0);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   outline: none;
 }
 .grid-pagination-size select:focus {
@@ -690,7 +745,7 @@
   background: var(--bg-1);
   border-top: 1px solid var(--border-default);
   font-family: var(--font-sans);
-  font-size: 11.5px;
+  font-size: var(--fs-xs);
   flex-shrink: 0;
 }
 .grid-pending.empty { background: var(--bg-1); }
@@ -713,7 +768,7 @@
   height: 18px;
   padding: 0 6px;
   border-radius: 3px;
-  font-size: 10.5px;
+  font-size: 11.5px;
   font-weight: 500;
 }
 .grid-pending-chip .dot {
@@ -733,7 +788,7 @@
   height: 22px;
   padding: 0 9px;
   border-radius: 4px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 500;
   border: 1px solid var(--border-default);
   color: var(--fg-1);
