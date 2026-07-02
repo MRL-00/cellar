@@ -458,6 +458,27 @@ export function Sidebar({
     );
     const currentFolder =
       folders.find((f) => f.children.includes(config.id)) ?? null;
+    const otherFolders = folders.filter((f) => f.id !== currentFolder?.id);
+    if (otherFolders.length > 0) {
+      // ponytail: second-page menu instead of real submenus; the folder list
+      // reuses the same ContextMenu at the same position.
+      const x = e.clientX;
+      const y = e.clientY;
+      items.push({
+        label: "Move to folder…",
+        icon: <Icon.folder size={12} />,
+        onClick: () =>
+          setMenu({
+            x,
+            y,
+            items: otherFolders.map((f) => ({
+              label: `Move to "${f.name}"`,
+              icon: <Icon.folder size={12} />,
+              onClick: () => moveToFolder(config.id, f.id),
+            })),
+          }),
+      });
+    }
     items.push({
       label: "Move to new folder",
       icon: <Icon.folderPlus size={12} />,
