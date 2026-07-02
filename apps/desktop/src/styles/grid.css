@@ -294,9 +294,17 @@
   border-right: 1px solid var(--grid-column-line);
 }
 .grid-row:hover { background: var(--bg-2); }
-/* No zebra striping: column lines + row dividers already separate cells; a
-   third mechanism made the grid busy. .is-stripe is still applied in JS
-   (GridRowView) but intentionally unstyled. */
+/* Zebra striping is opt-in (stripeRows setting); the grid defaults to
+   column lines + row dividers only. The .is-stripe class is applied in JS
+   (GridRowView) using the absolute rowIndex so it stays correct in
+   virtual-scroll mode, and is skipped on rows carrying a pending-change
+   tint (is-update / is-insert / is-delete). */
+.grid-row.is-stripe {
+  background: var(--bg-2);
+}
+.grid-row.is-stripe:hover {
+  background: var(--bg-3);
+}
 
 .grid-row.is-update { background: var(--update-bg); }
 .grid-row.is-update:hover { background: color-mix(in oklab, var(--update-bg) 70%, var(--bg-3)); }

@@ -72,7 +72,9 @@ function measureGridText(text: string, fontSize = 13): number {
   return context.measureText(text).width;
 }
 const HEADER_HEIGHT = 26;
-const DEFAULT_ROW_HEIGHT = 22;
+/* Fallback until the CSS --row-h variable is measured — keep in sync with
+   tokens.css so the first virtualized render doesn't jump. */
+const DEFAULT_ROW_HEIGHT = 25;
 const MIN_ROW_OVERSCAN = 24;
 const OVERSCAN_VIEWPORTS = 3;
 // Below this, full row flow is cheap enough; above it we window the rows so a
@@ -298,18 +300,30 @@ export function DataGrid({
      double-click autofit, persisted in the layout) is sized to fit its header
      and the visible data, capped at MAX_AUTO_WIDTH. Computed at render time so
      nothing is written back into the saved layout. */
+  /* The widths object is re-spread on every pointermove during a resize drag,
+     so keying the memo on it would re-measure every unsized column per move.
+     Depend on the stable set of unsized column keys instead. */
+  const unsizedColumnsKey = columns
+    .map((column) => column.key)
+    .filter((key) => activeColumnLayout.widths[key] === undefined)
+    .join("\u0000");
+
   const autoWidths = useMemo(() => {
+    const unsized = new Set(
+      unsizedColumnsKey === "" ? [] : unsizedColumnsKey.split("\u0000"),
+    );
     const widths: Record<string, number> = {};
     const sample = rows.slice(0, AUTO_WIDTH_SAMPLE_ROWS);
     for (const column of columns) {
-      if (activeColumnLayout.widths[column.key] !== undefined) continue;
+      if (!unsized.has(column.key)) continue;
       const adornment = column.fk ? 24 : column.enum ? 18 : 0;
       let width =
         measureGridText(column.name, 11) +
         measureGridText(column.type, 11) +
         HEADER_AUTOFIT_PADDING;
       for (const row of sample) {
-        const value = row[column.key];
+        const edit = changes[row.id]?.edits?.[column.key];
+        const value = edit ? edit.to : row[column.key];
         const text = value === null || value === undefined ? "NULL" : String(value);
         width = Math.max(
           width,
@@ -323,7 +337,7 @@ export function DataGrid({
       );
     }
     return widths;
-  }, [activeColumnLayout.widths, columns, rows]);
+  }, [changes, columns, rows, unsizedColumnsKey]);
 
   const renderedColumns = useMemo(
     () =>
