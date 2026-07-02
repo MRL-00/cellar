@@ -47,21 +47,6 @@ export interface TableQueryContext {
   offset?: number;
 }
 
-export function buildTableLoadStartedMessage(
-  context: TableQueryContext,
-): PendingQueryMessage {
-  return {
-    tabId: context.tabId,
-    connectionId: context.connectionId,
-    database: context.database,
-    severity: "info",
-    source: "client",
-    text: `Loading ${formatQualifiedName(context.schema, context.table)} ${rowRangeLabel(context.offset ?? 0, context.maxRows)} with row limit ${context.maxRows}.`,
-    sql: context.sql,
-    statementIndex: 0,
-  };
-}
-
 export function buildQueryResultMessages(
   context: TableQueryContext,
   result: QueryResult,

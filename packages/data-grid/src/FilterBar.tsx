@@ -37,9 +37,6 @@ export type FilterBarProps = {
   onQuickFilterChange?: (next: string) => void;
   quickFilterColumn?: string | null;
   onQuickFilterColumnChange?: (next: string | null) => void;
-  totalRows: number;
-  filteredRows: number;
-  serverRows?: number;
 };
 
 export function FilterBar({
@@ -50,9 +47,6 @@ export function FilterBar({
   onQuickFilterChange,
   quickFilterColumn,
   onQuickFilterColumnChange,
-  totalRows,
-  filteredRows,
-  serverRows,
 }: FilterBarProps) {
   const [draft, setDraft] = useState<ComposerDraft | null>(null);
   const columnRef = useRef<HTMLSelectElement | null>(null);
@@ -385,21 +379,6 @@ export function FilterBar({
             clear
           </button>
         )}
-      </div>
-      <div
-        className="grid-filterbar-summary mono"
-        title={
-          serverRows === undefined
-            ? "Filtered rows in the loaded page"
-            : `Filtered rows in the loaded page. Server total: ${serverRows.toLocaleString()}`
-        }
-      >
-        <span style={{ color: "var(--fg-1)" }}>
-          {filteredRows.toLocaleString()}
-        </span>
-        <span style={{ color: "var(--fg-3)" }}>/</span>
-        <span style={{ color: "var(--fg-2)" }}>{totalRows.toLocaleString()}</span>
-        <span style={{ color: "var(--fg-3)" }}> page rows</span>
       </div>
     </div>
   );

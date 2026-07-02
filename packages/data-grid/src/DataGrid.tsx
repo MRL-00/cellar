@@ -143,8 +143,6 @@ export type DataGridProps = {
    */
   frozenCount?: number;
 
-  /** Total row count on the server (the grid usually only holds a page). */
-  totalRows?: number;
   pagination?: GridPagination;
 
   onCommit?: () => void;
@@ -243,7 +241,6 @@ export function DataGrid({
   columnLayout,
   onColumnLayoutChange,
   frozenCount = 0,
-  totalRows,
   pagination,
   onCommit,
   onRevert,
@@ -701,9 +698,6 @@ export function DataGrid({
         onQuickFilterChange={onQuickFilterChange}
         quickFilterColumn={quickFilterColumn}
         onQuickFilterColumnChange={onQuickFilterColumnChange}
-        totalRows={rows.length}
-        filteredRows={visibleRows.length}
-        serverRows={totalRows}
       />
 
       <div

@@ -199,14 +199,6 @@
 }
 .grid-filter-clear:hover { background: var(--bg-3); color: var(--fg-1); }
 
-.grid-filterbar-summary {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  margin-left: auto;
-  font-size: 10.5px;
-}
-
 /* ── quick filter (pinned, alongside advanced chips) ──────── */
 .grid-quickfilter {
   display: inline-flex;
