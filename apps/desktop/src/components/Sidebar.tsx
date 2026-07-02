@@ -458,14 +458,6 @@ export function Sidebar({
     );
     const currentFolder =
       folders.find((f) => f.children.includes(config.id)) ?? null;
-    for (const f of folders) {
-      if (f.id === currentFolder?.id) continue;
-      items.push({
-        label: `Move to "${f.name}"`,
-        icon: <Icon.folder size={12} />,
-        onClick: () => moveToFolder(config.id, f.id),
-      });
-    }
     items.push({
       label: "Move to new folder",
       icon: <Icon.folderPlus size={12} />,
