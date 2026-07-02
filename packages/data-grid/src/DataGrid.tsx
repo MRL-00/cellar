@@ -314,6 +314,11 @@ export function DataGrid({
     );
     const widths: Record<string, number> = {};
     const sample = rows.slice(0, AUTO_WIDTH_SAMPLE_ROWS);
+    /* Inserted rows live only in `changes` (appended to visibleRows later), so
+       sample their pending values too or long inserted text gets clipped. */
+    const inserts = Object.values(changes).filter(
+      (change) => change.kind === "insert",
+    );
     for (const column of columns) {
       if (!unsized.has(column.key)) continue;
       const adornment = column.fk ? 24 : column.enum ? 18 : 0;
@@ -330,6 +335,15 @@ export function DataGrid({
           measureGridText(text) + COLUMN_AUTOFIT_PADDING + adornment,
         );
         if (width >= MAX_AUTO_WIDTH) break;
+      }
+      for (const change of inserts) {
+        if (width >= MAX_AUTO_WIDTH) break;
+        const value = change.edits[column.key]?.to;
+        const text = value === null || value === undefined ? "NULL" : String(value);
+        width = Math.max(
+          width,
+          measureGridText(text) + COLUMN_AUTOFIT_PADDING + adornment,
+        );
       }
       widths[column.key] = Math.min(
         MAX_AUTO_WIDTH,
@@ -430,9 +444,18 @@ export function DataGrid({
     const resizeObserver = new ResizeObserver(scheduleSync);
     resizeObserver.observe(scroller);
 
+    /* --row-h comes from the density attribute on <html> (see tokens.css);
+       remeasure when it flips so virtual row offsets track the CSS height. */
+    const densityObserver = new MutationObserver(scheduleSync);
+    densityObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-density"],
+    });
+
     return () => {
       if (frame) window.cancelAnimationFrame(frame);
       resizeObserver.disconnect();
+      densityObserver.disconnect();
     };
   }, [measureViewport]);
 
