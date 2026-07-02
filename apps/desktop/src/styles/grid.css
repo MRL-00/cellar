@@ -12,7 +12,9 @@
   /* Match the 13px base used by the body / sidebar so grid data and the rest of
      the UI read at the same size. */
   font-size: var(--fs-sm);
-  background: var(--bg-inset);
+  /* bg-1 rather than bg-inset: near-black under bright mono text read too
+     harsh; a lighter base + fg-1 data text keeps contrast comfortable. */
+  background: var(--bg-1);
 }
 
 /* ── filter bar ───────────────────────────────────────────── */
@@ -253,6 +255,7 @@
   font-feature-settings: "calt", "ss01";
   font-size: var(--fs-sm);
   line-height: 1;
+  color: var(--fg-1);
 }
 .grid-virtual-body {
   position: relative;
@@ -281,7 +284,7 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 0 8px;
+  padding: 0 10px;
   min-width: 0;
   white-space: nowrap;
   overflow: hidden;
@@ -291,12 +294,11 @@
   border-right: 1px solid var(--grid-column-line);
 }
 .grid-row:hover { background: var(--bg-2); }
-/* Stripe rows: the .is-stripe class is applied in JS (GridRowView) using the
-   absolute rowIndex so it is correct in virtual-scroll mode where nth-child
-   only reflects the current render window.  The rule intentionally does NOT
-   apply to rows that already carry a pending-change tint (is-update / is-insert
-   / is-delete) — those classes are guarded in the JS so this selector is just a
-   safety net for specificity parity. */
+/* Zebra striping is opt-in (stripeRows setting); the grid defaults to
+   column lines + row dividers only. The .is-stripe class is applied in JS
+   (GridRowView) using the absolute rowIndex so it stays correct in
+   virtual-scroll mode, and is skipped on rows carrying a pending-change
+   tint (is-update / is-insert / is-delete). */
 .grid-row.is-stripe {
   background: var(--bg-2);
 }
@@ -354,7 +356,7 @@
 
 /* ── frozen columns + headers ─────────────────────────────── */
 .grid-cell.frozen {
-  background: var(--bg-inset);
+  background: var(--bg-1);
   position: sticky;
   z-index: 2;
 }
@@ -466,7 +468,7 @@
    columns. The gradient paints one accent-soft layer over an opaque base. */
 .grid-row.is-row-selected .grid-cell.frozen {
   background:
-    linear-gradient(var(--accent-soft), var(--accent-soft)), var(--bg-inset);
+    linear-gradient(var(--accent-soft), var(--accent-soft)), var(--bg-1);
 }
 .grid-row.is-row-selected:hover .grid-cell.frozen {
   background:
@@ -474,7 +476,7 @@
       color-mix(in oklab, var(--accent-soft) 82%, var(--bg-3)),
       color-mix(in oklab, var(--accent-soft) 82%, var(--bg-3))
     ),
-    var(--bg-inset);
+    var(--bg-1);
 }
 .grid-row.is-row-selected .grid-cell-rowno {
   background: var(--accent);

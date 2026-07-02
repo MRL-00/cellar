@@ -49,8 +49,32 @@ import type {
 const ROWNO_WIDTH = 36;
 const COLUMN_AUTOFIT_PADDING = 32;
 const HEADER_AUTOFIT_PADDING = 58;
+/* Default (data-driven) column widths are capped so one long text column can't
+   eat the viewport; explicit double-click autofit is uncapped. */
+const MAX_AUTO_WIDTH = 420;
+/* ponytail: sample the first N loaded rows for default widths; scanning the
+   whole page buys little once widths have converged. */
+const AUTO_WIDTH_SAMPLE_ROWS = 200;
+
+let measureCanvas: HTMLCanvasElement | null = null;
+/** Measure `text` in the grid's mono font. Cell data renders at 13px
+    (--fs-sm), header names at 11px. */
+function measureGridText(text: string, fontSize = 13): number {
+  if (typeof document === "undefined") return text.length * 8;
+  measureCanvas ??= document.createElement("canvas");
+  const context = measureCanvas.getContext("2d");
+  if (!context) return text.length * 8;
+  const monoFont =
+    getComputedStyle(document.documentElement)
+      .getPropertyValue("--font-mono")
+      .trim() || "monospace";
+  context.font = `${fontSize}px ${monoFont}`;
+  return context.measureText(text).width;
+}
 const HEADER_HEIGHT = 26;
-const DEFAULT_ROW_HEIGHT = 22;
+/* Fallback until the CSS --row-h variable is measured — keep in sync with
+   tokens.css so the first virtualized render doesn't jump. */
+const DEFAULT_ROW_HEIGHT = 25;
 const MIN_ROW_OVERSCAN = 24;
 const OVERSCAN_VIEWPORTS = 3;
 // Below this, full row flow is cheap enough; above it we window the rows so a
@@ -270,12 +294,72 @@ export function DataGrid({
   const isResizing = resizing !== null;
   const resizingRef = useRef<ColumnResizeState | null>(null);
   const suppressNextSortRef = useRef(false);
-  const measureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const insertCounterRef = useRef(0);
 
+  /* Data-driven default widths: any column WITHOUT a user-set width (resize /
+     double-click autofit, persisted in the layout) is sized to fit its header
+     and the visible data, capped at MAX_AUTO_WIDTH. Computed at render time so
+     nothing is written back into the saved layout. */
+  /* The widths object is re-spread on every pointermove during a resize drag,
+     so keying the memo on it would re-measure every unsized column per move.
+     Depend on the stable set of unsized column keys instead. */
+  const unsizedColumnsKey = columns
+    .map((column) => column.key)
+    .filter((key) => activeColumnLayout.widths[key] === undefined)
+    .join("\u0000");
+
+  const autoWidths = useMemo(() => {
+    const unsized = new Set(
+      unsizedColumnsKey === "" ? [] : unsizedColumnsKey.split("\u0000"),
+    );
+    const widths: Record<string, number> = {};
+    const sample = rows.slice(0, AUTO_WIDTH_SAMPLE_ROWS);
+    /* Inserted rows live only in `changes` (appended to visibleRows later), so
+       sample their pending values too or long inserted text gets clipped. */
+    const inserts = Object.values(changes).filter(
+      (change) => change.kind === "insert",
+    );
+    for (const column of columns) {
+      if (!unsized.has(column.key)) continue;
+      const adornment = column.fk ? 24 : column.enum ? 18 : 0;
+      let width =
+        measureGridText(column.name, 11) +
+        measureGridText(column.type, 11) +
+        HEADER_AUTOFIT_PADDING;
+      for (const row of sample) {
+        const edit = changes[row.id]?.edits?.[column.key];
+        const value = edit ? edit.to : row[column.key];
+        const text = value === null || value === undefined ? "NULL" : String(value);
+        width = Math.max(
+          width,
+          measureGridText(text) + COLUMN_AUTOFIT_PADDING + adornment,
+        );
+        if (width >= MAX_AUTO_WIDTH) break;
+      }
+      for (const change of inserts) {
+        if (width >= MAX_AUTO_WIDTH) break;
+        const value = change.edits[column.key]?.to;
+        const text = value === null || value === undefined ? "NULL" : String(value);
+        width = Math.max(
+          width,
+          measureGridText(text) + COLUMN_AUTOFIT_PADDING + adornment,
+        );
+      }
+      widths[column.key] = Math.min(
+        MAX_AUTO_WIDTH,
+        Math.max(MIN_COLUMN_WIDTH, Math.ceil(width)),
+      );
+    }
+    return widths;
+  }, [changes, columns, rows, unsizedColumnsKey]);
+
   const renderedColumns = useMemo(
-    () => layoutForColumns(columns, activeColumnLayout),
-    [activeColumnLayout, columns],
+    () =>
+      layoutForColumns(columns, activeColumnLayout).map((column) => {
+        const auto = autoWidths[column.key];
+        return auto === undefined ? column : { ...column, width: auto };
+      }),
+    [activeColumnLayout, autoWidths, columns],
   );
 
   // Local search across visible page. Server-side filtering happens upstream
@@ -360,9 +444,18 @@ export function DataGrid({
     const resizeObserver = new ResizeObserver(scheduleSync);
     resizeObserver.observe(scroller);
 
+    /* --row-h comes from the density attribute on <html> (see tokens.css);
+       remeasure when it flips so virtual row offsets track the CSS height. */
+    const densityObserver = new MutationObserver(scheduleSync);
+    densityObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-density"],
+    });
+
     return () => {
       if (frame) window.cancelAnimationFrame(frame);
       resizeObserver.disconnect();
+      densityObserver.disconnect();
     };
   }, [measureViewport]);
 
@@ -567,24 +660,11 @@ export function DataGrid({
     [],
   );
 
-  const measureGridText = useCallback((text: string): number => {
-    if (typeof document === "undefined") return text.length * 8;
-    const canvas =
-      measureCanvasRef.current ??
-      (measureCanvasRef.current = document.createElement("canvas"));
-    const context = canvas.getContext("2d");
-    if (!context) return text.length * 8;
-    const rootStyle = getComputedStyle(document.documentElement);
-    const monoFont = rootStyle.getPropertyValue("--font-mono").trim() || "monospace";
-    context.font = `11px ${monoFont}`;
-    return context.measureText(text).width;
-  }, []);
-
   const autofitColumn = useCallback(
     (column: GridColumn) => {
       const headerWidth =
-        measureGridText(column.name) +
-        measureGridText(column.type) +
+        measureGridText(column.name, 11) +
+        measureGridText(column.type, 11) +
         HEADER_AUTOFIT_PADDING;
       const valueWidth = visibleRows.reduce((maxWidth, row) => {
         const change = changes[row.id]?.edits?.[column.key];
@@ -608,7 +688,7 @@ export function DataGrid({
         },
       });
     },
-    [activeColumnLayout, changes, measureGridText, updateColumnLayout, visibleRows],
+    [activeColumnLayout, changes, updateColumnLayout, visibleRows],
   );
 
   const reorderColumn = useCallback(
