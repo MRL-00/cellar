@@ -266,6 +266,11 @@ jobs:
 
           cat "$RUNNER_TEMP/release-notes.md"
 
+          # Full changelog (minus the "# Changelog" title) for latest.json, so
+          # users jumping multiple versions see every release in between; the
+          # app trims it to sections newer than the installed version.
+          tail -n +2 CHANGELOG.md > "$RUNNER_TEMP/changelog-full.md"
+
       - name: Generate and upload updater manifest
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -306,7 +311,7 @@ jobs:
 
             jq -n \
               --arg version "$RELEASE_TAG" \
-              --rawfile notes "$RUNNER_TEMP/release-notes.md" \
+              --rawfile notes "$RUNNER_TEMP/changelog-full.md" \
               --arg pub_date "$pub_date" \
               --argjson platforms "$platforms" \
               '{version: $version, notes: ($notes | rtrimstr("\n")), pub_date: $pub_date, platforms: $platforms}' \
