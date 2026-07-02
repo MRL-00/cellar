@@ -1,18 +1,22 @@
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::Arc;
 
-use cellar_core::driver::{Connection, ConnectionConfig, Driver, DriverInfo, Engine};
+use cellar_core::driver::{Connection, ConnectionConfig, DriverInfo, Engine};
 use cellar_core::error::{CellarError, CellarResult};
 use cellar_core::query::{PlanMode, Query, QueryPlan, QueryResult, TableBrowseRequest};
-use cellar_core::schema::{Database, Schema, Table, UsageDefinition, UsageReference};
+use cellar_core::schema::{Database, Schema, UsageDefinition, UsageReference};
 use cellar_diff::{TableChangeRequest, TableCommitResult};
-use cellar_driver_firestore::FirestoreDriver;
-use cellar_driver_mysql::MySqlDriver;
-use cellar_driver_postgres::PostgresDriver;
-use cellar_driver_sqlserver::SqlServerDriver;
 use tokio::fs;
 use tokio::sync::RwLock;
+
+mod support;
+#[cfg(test)]
+mod tests;
+
+pub(crate) use support::cellar_dir;
+use support::{
+    driver_for, find_table, persist, reconnectable_error, should_evict_connection, storage_path,
+};
 
 /// Filename for the on-disk connection list. Lives under `~/.cellar/` —
 /// passwords are never written here (see [`cellar_secrets`]).
@@ -621,201 +625,5 @@ impl ConnectionRegistry {
             let _ = open.connection.close().await;
         }
         reconnectable_error(err)
-    }
-}
-
-fn should_evict_connection(err: &CellarError) -> bool {
-    matches!(
-        err,
-        CellarError::Connection(_) | CellarError::Tls(_) | CellarError::NotConnected(_)
-    )
-}
-
-fn reconnectable_error(err: CellarError) -> CellarError {
-    CellarError::NotConnected(format!(
-        "The database connection was lost and the stale pool was closed. Reconnect and retry the action. Last error: {err}"
-    ))
-}
-
-fn find_table(dbs: &[Database], database: &str, schema: &str, table: &str) -> CellarResult<Table> {
-    let target_schema = dbs
-        .iter()
-        .find(|db| db.name == database)
-        .and_then(|db| db.schemas.iter().find(|s| s.name == schema));
-
-    // Tables first, then fall back to views: a view is selectable just like a
-    // table, so browsing one means synthesizing a Table from it (no primary
-    // key / foreign keys / indexes, so the browse query simply skips ORDER BY).
-    target_schema
-        .and_then(|s| s.tables.iter().find(|t| t.name == table).cloned())
-        .or_else(|| {
-            target_schema
-                .and_then(|s| s.views.iter().find(|v| v.name == table))
-                .map(|v| Table {
-                    name: v.name.clone(),
-                    schema: v.schema.clone(),
-                    row_count: None,
-                    columns: v.columns.clone(),
-                    primary_key: Vec::new(),
-                    foreign_keys: Vec::new(),
-                    indexes: Vec::new(),
-                })
-        })
-        .ok_or_else(|| {
-            CellarError::invalid_config(format!(
-                "relation {database}.{schema}.{table} was not found in schema metadata"
-            ))
-        })
-}
-
-fn driver_for(engine: Engine) -> CellarResult<Box<dyn Driver>> {
-    match engine {
-        Engine::Firestore => Ok(Box::new(FirestoreDriver::default())),
-        Engine::MySql => Ok(Box::new(MySqlDriver::default())),
-        Engine::Postgres => Ok(Box::new(PostgresDriver::default())),
-        Engine::Mssql => Ok(Box::new(SqlServerDriver::new())),
-        Engine::Azure => Ok(Box::new(SqlServerDriver::azure())),
-        other => Err(CellarError::invalid_config(format!(
-            "engine {} is not supported in this build",
-            other.as_str()
-        ))),
-    }
-}
-
-/// The `~/.cellar/` application data directory. Shared by the connection
-/// store, query history, snapshots, and templates.
-pub(crate) fn cellar_dir() -> Option<PathBuf> {
-    let mut p = dirs::home_dir()?;
-    p.push(".cellar");
-    Some(p)
-}
-
-fn storage_path() -> Option<PathBuf> {
-    let mut p = cellar_dir()?;
-    p.push(STORAGE_FILENAME);
-    Some(p)
-}
-
-async fn persist(configs: &HashMap<String, ConnectionConfig>) -> CellarResult<()> {
-    let dir = cellar_dir()
-        .ok_or_else(|| CellarError::invalid_config("could not resolve home directory"))?;
-    persist_to_dir(configs, &dir).await
-}
-
-/// Persist `configs` into `dir/connections.json`. Extracted from [`persist`] so
-/// that tests can supply a temporary directory without touching `~/.cellar/`.
-///
-/// NOTE: The temp file path (`connections.json.tmp`) is fixed within the
-/// directory. Within a single process this is safe because the write-lock is
-/// held across the IO (a pre-existing lock-across-IO pattern), preventing
-/// concurrent callers from interleaving. Running two app instances against the
-/// same `~/.cellar/` directory is an unsupported scenario; using a process- or
-/// call-unique temp name (e.g. via the `tempfile` crate) would eliminate this
-/// latent risk but is left as a follow-up.
-async fn persist_to_dir(
-    configs: &HashMap<String, ConnectionConfig>,
-    dir: &std::path::Path,
-) -> CellarResult<()> {
-    fs::create_dir_all(dir).await?;
-    let path = dir.join(STORAGE_FILENAME);
-    let mut list: Vec<_> = configs.values().cloned().collect();
-    list.sort_by(|a, b| a.name.cmp(&b.name));
-    let json = serde_json::to_string_pretty(&list)?;
-    // Write to a temp file then atomically rename so a crash mid-write never
-    // leaves connections.json in a partially-written state.
-    let tmp_path = path.with_extension("json.tmp");
-    fs::write(&tmp_path, json).await?;
-    fs::rename(&tmp_path, &path).await?;
-    Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{persist_to_dir, ConnectionRegistry, STORAGE_FILENAME};
-    use cellar_core::driver::{ConnectionConfig, Engine, SslMode};
-    use std::collections::HashMap;
-
-    fn make_config(id: &str, name: &str) -> ConnectionConfig {
-        ConnectionConfig {
-            id: id.into(),
-            name: name.into(),
-            engine: Engine::Postgres,
-            host: "localhost".into(),
-            port: 5432,
-            user: "user".into(),
-            database: "db".into(),
-            ssl_mode: SslMode::Prefer,
-            env_tag: None,
-            application_name: None,
-            color: None,
-        }
-    }
-
-    /// Verify that `save()` writes the config to disk BEFORE the in-memory
-    /// registry reflects it.  We test the happy path: after a successful save
-    /// the on-disk file must contain the new config, proving that persist was
-    /// called (and succeeded) as part of the operation.
-    #[tokio::test]
-    async fn save_writes_to_disk_before_returning() {
-        let dir = tempfile::tempdir().expect("tmpdir");
-        let registry = ConnectionRegistry::empty();
-
-        // Patch the registry to write into our temp dir by calling
-        // persist_to_dir directly with the same configs map that save() would
-        // build — this mirrors the exact sequence save() executes.
-        let config = make_config("conn-1", "My DB");
-        let mut configs: HashMap<_, _> = HashMap::new();
-        configs.insert(config.id.clone(), config.clone());
-        persist_to_dir(&configs, dir.path())
-            .await
-            .expect("persist should succeed");
-
-        // Confirm the file was written and round-trips cleanly.
-        let written = tokio::fs::read_to_string(dir.path().join(STORAGE_FILENAME))
-            .await
-            .expect("file should exist after persist");
-        let parsed: Vec<ConnectionConfig> = serde_json::from_str(&written).expect("valid JSON");
-        assert_eq!(parsed.len(), 1);
-        assert_eq!(parsed[0].id, "conn-1");
-
-        // Also confirm the registry is still empty (we haven't called save()
-        // on it), which demonstrates the persist-before-mutate ordering: the
-        // caller of save() can observe the on-disk state is updated before the
-        // in-memory map is touched.
-        assert!(
-            registry.list().await.is_empty(),
-            "in-memory registry must not be mutated until persist succeeds"
-        );
-    }
-
-    /// Verify that `delete()` happy-path: the config is absent from disk after
-    /// a successful delete, matching the in-memory state.
-    #[tokio::test]
-    async fn delete_removes_config_from_disk() {
-        let dir = tempfile::tempdir().expect("tmpdir");
-
-        // Seed a config on disk.
-        let config = make_config("conn-2", "Second DB");
-        let mut configs: HashMap<_, _> = HashMap::new();
-        configs.insert(config.id.clone(), config);
-        persist_to_dir(&configs, dir.path())
-            .await
-            .expect("initial persist");
-
-        // Simulate the delete ordering: remove from map, persist, then
-        // in-memory state would be updated.
-        configs.remove("conn-2");
-        persist_to_dir(&configs, dir.path())
-            .await
-            .expect("persist after delete");
-
-        let written = tokio::fs::read_to_string(dir.path().join(STORAGE_FILENAME))
-            .await
-            .expect("file should exist");
-        let parsed: Vec<ConnectionConfig> = serde_json::from_str(&written).expect("valid JSON");
-        assert!(
-            parsed.is_empty(),
-            "disk must not contain deleted config after persist"
-        );
     }
 }

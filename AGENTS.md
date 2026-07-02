@@ -115,7 +115,7 @@ If Clawpatch reports findings, triage them before claiming the project is ready 
 - Do not hand-build executable SQL in React components. Use typed Rust/SQL/diff builders for execution paths; UI previews must at least quote identifiers and escape literals safely until the shared builder exists.
 - Do not render stub controls as if they work. Unimplemented buttons, toggles, and settings must be disabled/read-only or wired to real state and callbacks.
 - Pull request titles must not use `codex:` or `[codex]` prefixes. Use conventional prefixes such as `feat:`, `fix:`, `bug:`, `chore:`, `docs:`, `test:`, `build:`, `ci:`, or `refactor:`.
-- No human-authored source, documentation, or configuration file may exceed 800 lines. If a file approaches that size, split it by responsibility before adding more code. Generated lockfiles and binary assets are exempt, but do not hand-edit them except through their owning tools.
+- No human-authored source, documentation, or configuration file may exceed 800 lines. If a file approaches that size, split it by responsibility before adding more code. Generated files (such as `packages/ipc/src/generated.ts`), lockfiles, and binary assets are exempt, but do not hand-edit them except through their owning tools.
 
 ## Security And Privacy
 

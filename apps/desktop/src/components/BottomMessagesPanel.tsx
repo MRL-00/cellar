@@ -143,7 +143,7 @@ function metricsText(message: QueryMessage): string {
   const parts: string[] = [];
   if (message.durationMs != null) parts.push(`${message.durationMs} ms`);
   if (message.rowCount != null) {
-    parts.push(`${message.rowCount.toLocaleString()} row${message.rowCount === 1 ? "" : "s"}`);
+    parts.push(`${message.rowCount.toLocaleString("en-US")} row${message.rowCount === 1 ? "" : "s"}`);
   }
   if (message.statementIndex != null) parts.push(`stmt ${message.statementIndex + 1}`);
   return parts.length ? parts.join(" | ") : "-";
