@@ -135,7 +135,7 @@ export function ImportSetupModal({ onClose }: { onClose: () => void }) {
           <span className="inline-flex text-accent">
             <Icon.upload size={14} />
           </span>
-          <span className="whitespace-nowrap text-[12.5px] font-semibold text-fg-0">
+          <span className="whitespace-nowrap text-sm font-semibold text-fg-0">
             Import setup
           </span>
         </div>
@@ -170,7 +170,7 @@ export function ImportSetupModal({ onClose }: { onClose: () => void }) {
       <div className="flex h-11 shrink-0 items-center justify-between gap-3 border-t border-border-default bg-bg-2 px-3">
         {result ? (
           <>
-            <span className="text-[11px] text-fg-2">Import complete.</span>
+            <span className="text-sm text-fg-2">Import complete.</span>
             <button className={ED_RUN_PRIMARY} onClick={onClose}>
               <Icon.check size={11} />
               <span>Done</span>
@@ -199,7 +199,7 @@ export function ImportSetupModal({ onClose }: { onClose: () => void }) {
           </>
         ) : (
           <>
-            <span className="font-mono text-[10.5px] text-fg-3">
+            <span className="font-mono text-[11.5px] text-fg-3">
               {fileName ?? "no file selected"}
             </span>
             <button
@@ -240,7 +240,7 @@ function SourceView({
 }) {
   return (
     <div className="flex-1 overflow-y-auto px-4 py-3.5">
-      <p className="m-0 mb-3 max-w-[56ch] text-[11.5px] text-fg-2 text-pretty">
+      <p className="m-0 mb-3 max-w-[56ch] text-sm text-fg-2 text-pretty">
         Load a Cellar setup file someone shared with you. You'll review each item
         before anything changes.
       </p>
@@ -255,13 +255,13 @@ function SourceView({
       <button
         type="button"
         onClick={() => fileRef.current?.click()}
-        className="flex w-full items-center justify-center gap-2 rounded-[6px] border border-dashed border-border-strong bg-bg-2 px-3 py-5 text-[12px] text-fg-1 hover:border-accent-line hover:bg-accent-soft"
+        className="flex w-full items-center justify-center gap-2 rounded-[6px] border border-dashed border-border-strong bg-bg-2 px-3 py-5 text-sm text-fg-1 hover:border-accent-line hover:bg-accent-soft"
       >
         <Icon.fileText size={14} stroke="var(--fg-2)" />
         <span>{fileName ? `Loaded ${fileName} — choose another` : "Choose a .json file"}</span>
       </button>
 
-      <div className="my-3 flex items-center gap-2 text-[10.5px] text-fg-3">
+      <div className="my-3 flex items-center gap-2 text-[11.5px] text-fg-3">
         <span className="h-px flex-1 bg-border-divider" />
         <span>or paste JSON</span>
         <span className="h-px flex-1 bg-border-divider" />
@@ -273,11 +273,11 @@ function SourceView({
         onBlur={() => raw.trim() && onReview()}
         spellCheck={false}
         placeholder={'{\n  "format": "cellar.setup",\n  ...\n}'}
-        className="h-[180px] w-full resize-none rounded-[5px] border border-border-default bg-bg-inset px-2.5 py-2 font-mono text-[11px] text-fg-0 outline-none focus:border-accent-line"
+        className="h-[180px] w-full resize-none rounded-[5px] border border-border-default bg-bg-inset px-2.5 py-2 font-mono text-sm text-fg-0 outline-none focus:border-accent-line"
       />
 
       {error && (
-        <div className="mt-2.5 flex items-start gap-1.5 rounded-[4px] border border-[color-mix(in_oklab,var(--delete)_30%,var(--border-default))] bg-delete-bg px-3 py-2 text-[11px] text-delete">
+        <div className="mt-2.5 flex items-start gap-1.5 rounded-[4px] border border-[color-mix(in_oklab,var(--delete)_30%,var(--border-default))] bg-delete-bg px-3 py-2 text-sm text-delete">
           <Icon.warn size={12} />
           <span>{error}</span>
         </div>
@@ -330,10 +330,10 @@ function ReviewView({
               {plan.settings.apply && <Icon.check size={10} />}
             </span>
             <span className="min-w-0">
-              <span className="block text-[12px] font-medium text-fg-0">
+              <span className="block text-sm font-medium text-fg-0">
                 Apply imported appearance & settings
               </span>
-              <span className="flex items-center gap-1.5 text-[10.5px] text-fg-3">
+              <span className="flex items-center gap-1.5 text-[11.5px] text-fg-3">
                 <span
                   className="inline-block h-2.5 w-2.5 rounded-full border border-white/15"
                   style={{ background: plan.settings.settings.accent }}
@@ -423,7 +423,7 @@ function ConnRow({
     <div className="flex items-center gap-2.5 rounded-[4px] border border-border-default bg-bg-2 px-2.5 py-1.5">
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5">
-          <span className="truncate text-[11.5px] font-medium text-fg-0">
+          <span className="truncate text-sm font-medium text-fg-0">
             {item.incoming.name}
           </span>
           <StatusBadge
@@ -431,7 +431,7 @@ function ConnRow({
             label={dup ? `dup of ${item.duplicateOfName}` : "new"}
           />
         </span>
-        <span className="block truncate font-mono text-[10px] text-fg-3">
+        <span className="block truncate font-mono text-[11px] text-fg-3">
           {connHint(item.incoming)}
         </span>
       </span>
@@ -460,7 +460,7 @@ function LayoutRow({
     <div className="flex items-center gap-2.5 rounded-[4px] border border-border-default bg-bg-2 px-2.5 py-1.5">
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5">
-          <span className="truncate font-mono text-[11px] text-fg-0">
+          <span className="truncate font-mono text-sm text-fg-0">
             {item.tablePath}
           </span>
           <StatusBadge
@@ -468,7 +468,7 @@ function LayoutRow({
             label={item.exists ? "exists" : "new"}
           />
         </span>
-        <span className="block truncate font-mono text-[10px] text-fg-3">
+        <span className="block truncate font-mono text-[11px] text-fg-3">
           {item.connectionId || "—"} · {item.layout.order.length} cols
         </span>
       </span>
@@ -500,22 +500,22 @@ function ResultView({ result }: { result: ImportResult }) {
         <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-accent-soft text-accent">
           <Icon.check size={13} />
         </span>
-        <span className="text-[13px] font-semibold text-fg-0">Setup imported</span>
+        <span className="text-sm font-semibold text-fg-0">Setup imported</span>
       </div>
       <ul className="m-0 flex list-none flex-col gap-1 p-0">
         {lines.length ? (
           lines.map((line) => (
-            <li key={line} className="flex items-center gap-1.5 text-[11.5px] text-fg-1">
+            <li key={line} className="flex items-center gap-1.5 text-sm text-fg-1">
               <span className="h-1 w-1 rounded-full bg-fg-3" />
               {line}
             </li>
           ))
         ) : (
-          <li className="text-[11.5px] text-fg-2">Nothing was changed.</li>
+          <li className="text-sm text-fg-2">Nothing was changed.</li>
         )}
       </ul>
       {importedConns > 0 && (
-        <div className="mt-3 flex items-start gap-1.5 rounded-[4px] border border-dashed border-border-default bg-bg-inset px-3 py-2 text-[11px] text-fg-2">
+        <div className="mt-3 flex items-start gap-1.5 rounded-[4px] border border-dashed border-border-default bg-bg-inset px-3 py-2 text-sm text-fg-2">
           <Icon.lock size={12} stroke="var(--fg-3)" />
           <span>
             Imported connections have no password yet — open each one and set its
@@ -535,7 +535,7 @@ function StatusBadge({ tone, label }: { tone: "ok" | "warn"; label: string }) {
   return (
     <span
       className={
-        "shrink-0 rounded-[3px] px-1.5 py-px font-mono text-[9px] uppercase tracking-[0.04em] " +
+        "shrink-0 rounded-[3px] px-1.5 py-px font-mono text-[10px] uppercase tracking-[0.04em] " +
         (tone === "warn"
           ? "bg-warn-bg text-warn"
           : "bg-insert-bg text-insert")
@@ -564,7 +564,7 @@ function MiniSegment<T extends string>({
           onClick={() => onChange(o.value)}
           aria-pressed={value === o.value}
           className={
-            "h-5 rounded-[3px] px-2 text-[10.5px] " +
+            "h-5 rounded-[3px] px-2 text-[11.5px] " +
             (value === o.value
               ? "bg-bg-3 font-medium text-fg-0"
               : "text-fg-2 hover:text-fg-0")
@@ -580,7 +580,7 @@ function MiniSegment<T extends string>({
 function BulkBar({ children }: { children: React.ReactNode }) {
   return (
     <div className="mb-1 flex items-center gap-1.5">
-      <span className="text-[10px] uppercase tracking-[0.06em] text-fg-3">Bulk</span>
+      <span className="text-[11px] uppercase tracking-[0.06em] text-fg-3">Bulk</span>
       {children}
     </div>
   );
@@ -597,7 +597,7 @@ function BulkBtn({
     <button
       type="button"
       onClick={onClick}
-      className="rounded-[3px] border border-border-default bg-bg-2 px-2 py-0.5 text-[10.5px] text-fg-2 hover:border-border-strong hover:text-fg-0"
+      className="rounded-[3px] border border-border-default bg-bg-2 px-2 py-0.5 text-[11.5px] text-fg-2 hover:border-border-strong hover:text-fg-0"
     >
       {children}
     </button>

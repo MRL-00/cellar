@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Icon } from "../icons";
 
 export const ED_RUN_BASE =
-  "inline-flex h-[26px] items-center gap-[5px] whitespace-nowrap rounded-[4px] border border-transparent px-2.5 text-[11.5px] font-medium transition-[background,color,border-color,filter] duration-[120ms]";
+  "inline-flex h-[26px] items-center gap-[5px] whitespace-nowrap rounded-[4px] border border-transparent px-2.5 text-sm font-medium transition-[background,color,border-color,filter] duration-[120ms]";
 export const ED_RUN_SUBTLE =
   ED_RUN_BASE +
   " text-fg-1 bg-transparent border-border-default hover:bg-bg-3 hover:border-border-strong hover:text-fg-0";
@@ -13,7 +13,7 @@ export const ED_RUN_DANGER =
   " bg-transparent border-[color-mix(in_oklab,var(--delete)_30%,var(--border-default))] text-delete hover:bg-delete-bg hover:border-delete";
 
 export const CD_INPUT =
-  "h-[26px] min-w-0 flex-1 rounded-[4px] border border-border-default bg-bg-inset px-2 text-[11.5px] text-fg-0 outline-none focus:border-accent-line focus:bg-bg-2";
+  "h-[26px] min-w-0 flex-1 rounded-[4px] border border-border-default bg-bg-inset px-2 text-sm text-fg-0 outline-none focus:border-accent-line focus:bg-bg-2";
 
 export function Section({
   title,
@@ -27,11 +27,11 @@ export function Section({
   return (
     <section className="px-6 pb-1 pt-[18px] [&+section]:mt-1.5 [&+section]:border-t [&+section]:border-border-divider">
       <header className="mb-3">
-        <h2 className="m-0 text-[13px] font-semibold tracking-[-0.005em] text-fg-0">
+        <h2 className="m-0 text-sm font-semibold tracking-[-0.005em] text-fg-0">
           {title}
         </h2>
         {sub && (
-          <p className="m-0 mt-px max-w-[60ch] text-[11.5px] text-fg-2 text-pretty">
+          <p className="m-0 mt-px max-w-[60ch] text-sm text-fg-2 text-pretty">
             {sub}
           </p>
         )}
@@ -59,17 +59,17 @@ export function Row({
         (stack ? "items-start" : "items-center")
       }
     >
-      <div className="flex flex-col gap-[2px] text-[11.5px] font-medium text-fg-1">
+      <div className="flex flex-col gap-[2px] text-sm font-medium text-fg-1">
         <span>{label}</span>
         {hint && (
-          <span className="text-[10.5px] font-normal text-fg-3 text-pretty">
+          <span className="text-[11.5px] font-normal text-fg-3 text-pretty">
             {hint}
           </span>
         )}
       </div>
       <div
         className={
-          "min-w-0 text-[11.5px] " +
+          "min-w-0 text-sm " +
           (stack ? "block" : "flex flex-wrap items-center gap-2")
         }
       >
@@ -135,7 +135,7 @@ export function Segment<T extends string>({
           aria-pressed={value === o.value}
           onClick={() => onChange?.(o.value)}
           className={
-            "h-5 rounded-[3px] px-2.5 text-[11px] " +
+            "h-5 rounded-[3px] px-2.5 text-[12px] " +
             (value === o.value
               ? "bg-bg-3 font-medium text-fg-0"
               : "text-fg-2 " + (onChange ? "hover:text-fg-0" : ""))
@@ -164,7 +164,7 @@ export function StaticSegment({
           disabled
           aria-pressed={i === activeIdx}
           className={
-            "h-5 cursor-not-allowed rounded-[3px] px-2.5 text-[11px] " +
+            "h-5 cursor-not-allowed rounded-[3px] px-2.5 text-[12px] " +
             (i === activeIdx
               ? "bg-bg-3 font-medium text-fg-0"
               : "text-fg-2")
@@ -179,7 +179,7 @@ export function StaticSegment({
 
 export function StubBanner({ children }: { children: ReactNode }) {
   return (
-    <div className="mx-6 my-2 flex items-center gap-1.5 rounded-[4px] border border-dashed border-border-default bg-bg-inset px-3 py-2 text-[11px] text-fg-2">
+    <div className="mx-6 my-2 flex items-center gap-1.5 rounded-[4px] border border-dashed border-border-default bg-bg-inset px-3 py-2 text-[12px] text-fg-2">
       <Icon.info size={12} stroke="var(--fg-3)" />
       <span>{children}</span>
     </div>

@@ -147,7 +147,7 @@ export function ContextMenu({
             item.onClick();
           }}
           className={
-            "flex w-full items-center gap-2 px-2.5 py-[5px] text-left text-[11.5px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed " +
+            "flex w-full items-center gap-2 px-2.5 py-[5px] text-left text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed " +
             (item.danger
               ? "text-warn hover:bg-warn/10"
               : "text-fg-1 hover:bg-accent-soft hover:text-accent")

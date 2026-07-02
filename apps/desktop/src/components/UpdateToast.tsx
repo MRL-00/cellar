@@ -19,8 +19,8 @@ export function UpdateToast({
       <div className="mb-2 flex items-start gap-2">
         <Icon.sparkles size={14} stroke="var(--accent)" />
         <div className="min-w-0 flex-1">
-          <div className="text-[12px] font-semibold text-fg-0">Update available</div>
-          <div className="text-[11px] text-fg-2">
+          <div className="text-sm font-semibold text-fg-0">Update available</div>
+          <div className="text-sm text-fg-2">
             Version {version} is ready to download.
           </div>
         </div>
@@ -36,7 +36,7 @@ export function UpdateToast({
       <button
         type="button"
         onClick={onUpdate}
-        className="inline-flex h-[26px] w-full items-center justify-center gap-1 rounded-[4px] bg-accent px-2 text-[11px] font-medium text-accent-fg hover:brightness-[1.07]"
+        className="inline-flex h-[26px] w-full items-center justify-center gap-1 rounded-[4px] bg-accent px-2 text-sm font-medium text-accent-fg hover:brightness-[1.07]"
       >
         <Icon.download size={11} />
         <span>Update</span>

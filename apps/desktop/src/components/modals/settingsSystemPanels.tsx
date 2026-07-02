@@ -23,7 +23,7 @@ function renderInline(text: string, keyBase: string) {
 function Changelog({ source }: { source: string }) {
   const lines = source.replace(/\r\n/g, "\n").split("\n");
   return (
-    <div className="max-h-[260px] overflow-y-auto rounded-[5px] border border-border-default bg-bg-inset px-3 py-2.5 text-[11.5px] leading-[1.55] text-fg-2">
+    <div className="max-h-[260px] overflow-y-auto rounded-[5px] border border-border-default bg-bg-inset px-3 py-2.5 text-[12.5px] leading-[1.55] text-fg-2">
       {lines.map((raw, i) => {
         const line = raw.trimEnd();
         if (!line.trim()) return <div key={i} className="h-1.5" />;
@@ -35,7 +35,7 @@ function Changelog({ source }: { source: string }) {
               key={i}
               className={
                 "mt-2 mb-1 font-semibold text-fg-0 " +
-                (top ? "text-[13px]" : "text-[12px]")
+                (top ? "text-sm" : "text-sm")
               }
             >
               {renderInline(h[2]!, `h${i}`)}
@@ -88,13 +88,13 @@ export function SettingsPrivacy() {
             <div
               key={x.k}
               className={
-                "grid grid-cols-[160px_1fr_auto_22px] items-center gap-2.5 bg-bg-2 px-2.5 py-1.5 text-[11px] hover:bg-bg-3 " +
+                "grid grid-cols-[160px_1fr_auto_22px] items-center gap-2.5 bg-bg-2 px-2.5 py-1.5 text-sm hover:bg-bg-3 " +
                 (i !== arr.length - 1 ? "border-b border-border-divider" : "")
               }
             >
               <span className="font-medium text-fg-0">{x.k}</span>
               <span className="text-fg-2">{x.v}</span>
-              <span className="font-mono text-[10.5px] text-fg-3">
+              <span className="font-mono text-[11.5px] text-fg-3">
                 ~/.cellar/{x.path}
               </span>
               <button
@@ -152,14 +152,14 @@ export function SettingsUpdates() {
       <Section title="Updates">
         <div className="mb-2 flex items-center justify-between rounded-[5px] border border-border-default bg-bg-inset px-3 py-2.5">
           <div className="flex items-center gap-2.5">
-            <span className="font-mono text-[13px] font-semibold text-fg-0">
+            <span className="font-mono text-sm font-semibold text-fg-0">
               {versionLabel}
             </span>
-            <span className="inline-flex items-center gap-1 text-[11px]">
+            <span className="inline-flex items-center gap-1 text-[12px]">
               <Icon.info size={11} stroke="var(--fg-2)" />
               <span className="text-fg-2">{statusText}</span>
             </span>
-            <span className="text-[11px] text-fg-3">{lastCheckedLabel}</span>
+            <span className="text-sm text-fg-3">{lastCheckedLabel}</span>
           </div>
           <div className="flex items-center gap-1.5">
             {canInstall && (
@@ -167,7 +167,7 @@ export function SettingsUpdates() {
                 type="button"
                 onClick={downloadAndInstall}
                 disabled={isBusy}
-                className="inline-flex h-[26px] items-center gap-1 rounded-[4px] border border-accent-line bg-accent-soft px-2 text-[11px] font-medium text-accent hover:bg-accent/20"
+                className="inline-flex h-[26px] items-center gap-1 rounded-[4px] border border-accent-line bg-accent-soft px-2 text-[12px] font-medium text-accent hover:bg-accent/20"
               >
                 <Icon.download size={11} />
                 <span>Download &amp; install</span>
@@ -180,8 +180,8 @@ export function SettingsUpdates() {
               title={canCheck ? "Check for updates" : "Update check in progress"}
               className={
                 canCheck
-                  ? "inline-flex h-[26px] items-center gap-1 rounded-[4px] border border-border-default bg-bg-2 px-2 text-[11px] text-fg-1 hover:bg-bg-3"
-                  : "inline-flex h-[26px] cursor-not-allowed items-center gap-1 rounded-[4px] border border-border-default bg-bg-2 px-2 text-[11px] text-fg-2 opacity-70"
+                  ? "inline-flex h-[26px] items-center gap-1 rounded-[4px] border border-border-default bg-bg-2 px-2 text-[12px] text-fg-1 hover:bg-bg-3"
+                  : "inline-flex h-[26px] cursor-not-allowed items-center gap-1 rounded-[4px] border border-border-default bg-bg-2 px-2 text-[12px] text-fg-2 opacity-70"
               }
             >
               <Icon.power size={11} />
@@ -238,13 +238,13 @@ export function SettingsAbout() {
             />
           </span>
           <div>
-            <div className="text-[18px] font-semibold tracking-[-0.01em] text-fg-0">
+            <div className="text-[19px] font-semibold tracking-[-0.01em] text-fg-0">
               Cellar
             </div>
-            <div className="mb-2 text-[12px] text-fg-2">
+            <div className="mb-2 text-sm text-fg-2">
               A fast, native database client with AI built in.
             </div>
-            <div className="mb-2.5 flex gap-1.5 font-mono text-[10.5px] text-fg-2">
+            <div className="mb-2.5 flex gap-1.5 font-mono text-[11.5px] text-fg-2">
               <span>
                 {versionLabel}
                 {import.meta.env.DEV ? " · development build" : ""}
@@ -254,7 +254,7 @@ export function SettingsAbout() {
               <span className="text-fg-3">·</span>
               <span>commit unavailable</span>
             </div>
-            <div className="mb-2.5 text-[11px] text-fg-2">
+            <div className="mb-2.5 text-sm text-fg-2">
               built by{" "}
               <button
                 type="button"
@@ -264,7 +264,7 @@ export function SettingsAbout() {
                 Matt List
               </button>
             </div>
-            <div className="flex gap-1.5 text-[11px]">
+            <div className="flex gap-1.5 text-[12px]">
               <button
                 type="button"
                 disabled

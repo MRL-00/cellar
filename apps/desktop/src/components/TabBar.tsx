@@ -185,7 +185,7 @@ export function TabBar({ pane }: { pane?: PaneIndex } = {}) {
         }}
       >
         {tabs.length === 0 && (
-          <div className="inline-flex items-center px-3 text-[11px] text-fg-3">
+          <div className="inline-flex items-center px-3 text-[12px] text-fg-3">
             no tabs — double-click a table in the sidebar
           </div>
         )}
@@ -231,7 +231,7 @@ export function TabBar({ pane }: { pane?: PaneIndex } = {}) {
               onClick={() => setActive(t.id)}
               onContextMenu={(e) => openTabMenu(e, t)}
               className={
-                "group relative inline-flex items-center gap-1.5 h-full pl-2.5 pr-2 max-w-[260px] shrink-0 border-r border-border-default text-[11.5px] cursor-pointer transition-[background,color] duration-100 " +
+                "group relative inline-flex items-center gap-1.5 h-full pl-2.5 pr-2 max-w-[260px] shrink-0 border-r border-border-default text-sm cursor-pointer transition-[background,color] duration-100 " +
                 (isActive
                   ? "bg-bg-0 text-fg-0 border-b border-bg-0 -mb-px"
                   : "bg-bg-1 text-fg-2 hover:bg-bg-2 hover:text-fg-1") +

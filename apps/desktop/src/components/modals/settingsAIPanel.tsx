@@ -55,10 +55,10 @@ export function SettingsAI() {
             <Icon.sparkles size={12} stroke="var(--accent)" />
           </span>
           <div className="text-pretty">
-            <div className="mb-0.5 text-[12px] font-semibold text-fg-0">
+            <div className="mb-0.5 text-sm font-semibold text-fg-0">
               Bring-your-own-key, by design
             </div>
-            <div className="text-[11.5px] leading-[1.45] text-fg-1">
+            <div className="text-sm leading-[1.45] text-fg-1">
               All AI requests go directly from your machine to the provider. We
               see nothing. Cellar is open-source; verify the network path in the
               AI package before enabling providers.
@@ -89,19 +89,19 @@ export function SettingsAI() {
                         : "border-border-default bg-bg-2 hover:border-border-strong")
                   }
                 >
-                  <span className="text-[11.5px] font-medium text-fg-0">
+                  <span className="text-sm font-medium text-fg-0">
                     {p.label}
                   </span>
                   <span
                     className={
-                      "font-mono text-[9.5px] " +
+                      "font-mono text-[10.5px] " +
                       (active ? "text-accent opacity-85" : "text-fg-3")
                     }
                   >
                     {p.sub}
                   </span>
                   {disabled && (
-                    <span className="absolute right-[5px] top-[5px] rounded-[3px] bg-bg-3 px-1 py-px text-[8.5px] uppercase tracking-[0.04em] text-fg-3">
+                    <span className="absolute right-[5px] top-[5px] rounded-[3px] bg-bg-3 px-1 py-px text-[9.5px] uppercase tracking-[0.04em] text-fg-3">
                       soon
                     </span>
                   )}
@@ -119,11 +119,11 @@ export function SettingsAI() {
         <Row label="API key" hint="stored in OS keychain, never written to disk">
           <div className="flex min-w-0 flex-1 flex-col gap-1.5">
             <div className="inline-flex min-w-0 items-center gap-1">
-              <span className="inline-flex h-[26px] items-center rounded-l-[4px] border border-r-0 border-border-default bg-bg-inset px-1.5 font-mono text-[11px] text-fg-2">
+              <span className="inline-flex h-[26px] items-center rounded-l-[4px] border border-r-0 border-border-default bg-bg-inset px-1.5 font-mono text-sm text-fg-2">
                 {current.keyPrefix}
               </span>
               <input
-                className="-ml-px h-[26px] min-w-0 flex-1 border border-border-default bg-bg-inset px-2 font-mono text-[11.5px] text-fg-0 outline-none focus:border-accent-line focus:bg-bg-2"
+                className="-ml-px h-[26px] min-w-0 flex-1 border border-border-default bg-bg-inset px-2 font-mono text-sm text-fg-0 outline-none focus:border-accent-line focus:bg-bg-2"
                 type={reveal ? "text" : "password"}
                 value={keyDraft}
                 onChange={(e) => setKeyDraft(e.target.value)}
@@ -139,7 +139,7 @@ export function SettingsAI() {
               <button
                 type="button"
                 onClick={() => setReveal((v) => !v)}
-                className="inline-flex h-[26px] items-center gap-1 rounded-[4px] border border-border-default bg-bg-2 px-2 text-[10.5px] text-fg-1 hover:bg-bg-3"
+                className="inline-flex h-[26px] items-center gap-1 rounded-[4px] border border-border-default bg-bg-2 px-2 text-sm text-fg-1 hover:bg-bg-3"
               >
                 {reveal ? "hide" : "reveal"}
               </button>
@@ -147,12 +147,12 @@ export function SettingsAI() {
                 type="button"
                 disabled={!keyDraft.trim() || saving}
                 onClick={() => void onSaveKey()}
-                className="inline-flex h-[26px] items-center gap-1 rounded-[4px] bg-accent px-2.5 text-[11px] font-medium text-accent-fg hover:brightness-[1.07] disabled:opacity-40"
+                className="inline-flex h-[26px] items-center gap-1 rounded-[4px] bg-accent px-2.5 text-sm font-medium text-accent-fg hover:brightness-[1.07] disabled:opacity-40"
               >
                 {saving ? "saving…" : "save"}
               </button>
             </div>
-            <div className="flex items-center gap-1.5 text-[10.5px]">
+            <div className="flex items-center gap-1.5 text-[11.5px]">
               {keyConfigured ? (
                 <span className="inline-flex items-center gap-1 text-insert">
                   <Icon.check size={10} />
@@ -168,7 +168,7 @@ export function SettingsAI() {
         <Row label="Model" hint="discovered from your API key">
           <div className="flex w-full flex-col gap-[3px]">
             <div className="mb-1 flex items-center justify-between">
-              <span className="text-[10.5px] text-fg-3">
+              <span className="text-[11.5px] text-fg-3">
                 {modelsLoading
                   ? "loading models…"
                   : modelsError
@@ -179,7 +179,7 @@ export function SettingsAI() {
                 type="button"
                 disabled={!keyConfigured || modelsLoading}
                 onClick={() => void refreshModels()}
-                className="inline-flex h-[22px] items-center gap-1 rounded-[4px] border border-border-default bg-bg-2 px-2 text-[10.5px] text-fg-1 hover:bg-bg-3 disabled:opacity-40"
+                className="inline-flex h-[22px] items-center gap-1 rounded-[4px] border border-border-default bg-bg-2 px-2 text-[11.5px] text-fg-1 hover:bg-bg-3 disabled:opacity-40"
               >
                 <Icon.undo size={10} />
                 <span>refresh</span>
@@ -187,18 +187,18 @@ export function SettingsAI() {
             </div>
 
             {modelsError && (
-              <div className="mb-1 flex items-start gap-1.5 rounded-[4px] border border-delete-line bg-delete-bg px-2 py-1.5 text-[10.5px] text-delete">
+              <div className="mb-1 flex items-start gap-1.5 rounded-[4px] border border-delete-line bg-delete-bg px-2 py-1.5 text-[11.5px] text-delete">
                 <Icon.warn size={11} />
                 <span>{modelsError}</span>
               </div>
             )}
 
             {!keyConfigured ? (
-              <div className="rounded-[4px] border border-dashed border-border-default px-2.5 py-2 text-[10.5px] text-fg-3">
+              <div className="rounded-[4px] border border-dashed border-border-default px-2.5 py-2 text-[11.5px] text-fg-3">
                 Add an API key above to discover available models.
               </div>
             ) : models.length === 0 && !modelsLoading && !modelsError ? (
-              <div className="rounded-[4px] border border-dashed border-border-default px-2.5 py-2 text-[10.5px] text-fg-3">
+              <div className="rounded-[4px] border border-dashed border-border-default px-2.5 py-2 text-[11.5px] text-fg-3">
                 No chat-capable models found for this key.
               </div>
             ) : (
@@ -233,11 +233,11 @@ export function SettingsAI() {
                       checked={active}
                       onChange={() => setModel(m.id)}
                     />
-                    <span className="min-w-0 truncate font-mono text-[11.5px] text-fg-0">
+                    <span className="min-w-0 truncate font-mono text-sm text-fg-0">
                       {m.id}
                     </span>
                     {m.ctx && (
-                      <span className="font-mono text-[10px] text-fg-3">
+                      <span className="font-mono text-[11px] text-fg-3">
                         {m.ctx} ctx
                       </span>
                     )}

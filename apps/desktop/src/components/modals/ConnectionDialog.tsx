@@ -59,7 +59,7 @@ const SSL_MODES: SslMode[] = [
 ];
 
 const ED_RUN_BASE =
-  "inline-flex h-[26px] items-center gap-[5px] whitespace-nowrap rounded-[4px] border border-transparent px-2.5 text-[11.5px] font-medium transition-[background,color,border-color,filter] duration-[120ms]";
+  "inline-flex h-[26px] items-center gap-[5px] whitespace-nowrap rounded-[4px] border border-transparent px-2.5 text-sm font-medium transition-[background,color,border-color,filter] duration-[120ms]";
 
 const ED_RUN_SUBTLE =
   ED_RUN_BASE +
@@ -70,7 +70,7 @@ const ED_RUN_PRIMARY =
   " bg-accent text-accent-fg hover:brightness-[1.07] disabled:opacity-40 disabled:cursor-not-allowed";
 
 const CD_INPUT =
-  "h-[26px] min-w-0 flex-1 rounded-[4px] border border-border-default bg-bg-inset px-2 text-[11.5px] text-fg-0 outline-none font-sans focus:border-accent-line focus:bg-bg-2";
+  "h-[26px] min-w-0 flex-1 rounded-[4px] border border-border-default bg-bg-inset px-2 text-sm text-fg-0 outline-none font-sans focus:border-accent-line focus:bg-bg-2";
 
 interface ConnectionDialogProps {
   onClose: () => void;
@@ -208,7 +208,7 @@ export function ConnectionDialog({
           <span className="inline-flex text-accent">
             <Icon.database size={14} />
           </span>
-          <span className="whitespace-nowrap text-[12.5px] font-semibold text-fg-0">
+          <span className="whitespace-nowrap text-sm font-semibold text-fg-0">
             {isEdit ? "Edit connection" : "New connection"}
           </span>
         </div>
@@ -245,7 +245,7 @@ export function ConnectionDialog({
                 }
               >
                 <span
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-[6px] border font-mono text-[13px] font-semibold"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-[6px] border font-mono text-[14px] font-semibold"
                   style={{
                     color: hex,
                     background: `color-mix(in oklab, ${hex} 14%, transparent)`,
@@ -256,7 +256,7 @@ export function ConnectionDialog({
                 </span>
                 <span
                   className={
-                    "text-[10.5px] " +
+                    "text-[11.5px] " +
                     (active ? "font-medium text-fg-0" : "text-fg-1")
                   }
                 >
@@ -275,7 +275,7 @@ export function ConnectionDialog({
                 key={t}
                 onClick={() => setTab(t)}
                 className={
-                  "relative -mb-px inline-flex h-[26px] items-center gap-1.5 px-2.5 text-[11.5px] capitalize border-b-[1.5px] " +
+                  "relative -mb-px inline-flex h-[26px] items-center gap-1.5 px-2.5 text-sm capitalize border-b-[1.5px] " +
                   (isActive
                     ? "border-accent text-accent"
                     : "border-transparent text-fg-2 hover:text-fg-0")
@@ -404,7 +404,7 @@ export function ConnectionDialog({
                 ))}
               </Segment>
               {envTag === "prod" && (
-                <span className="ml-2 inline-flex items-center gap-1 text-[10.5px] text-warn">
+                <span className="ml-2 inline-flex items-center gap-1 text-[11.5px] text-warn">
                   <Icon.warn size={10} />
                   <span>prod will ask you to confirm before changing data (insert / update / delete)</span>
                 </span>
@@ -418,7 +418,7 @@ export function ConnectionDialog({
             <FormRow label="Use SSH tunnel">
               <Toggle on={ssh} onChange={setSsh} />
             </FormRow>
-            <div className="text-[11px] text-fg-3">
+            <div className="text-[12px] text-fg-3">
               SSH tunneling lands in a follow-up slice. Connect directly for now.
             </div>
           </div>
@@ -474,7 +474,7 @@ export function ConnectionDialog({
         </div>
         <div className="flex items-center gap-2">
           {savingError && (
-            <span className="text-[11px] text-warn">{savingError}</span>
+            <span className="text-sm text-warn">{savingError}</span>
           )}
           <button className={ED_RUN_SUBTLE} onClick={onClose}>
             Cancel
@@ -500,7 +500,7 @@ function TestPill({ status }: { status: TestStatus }) {
   if (status.kind === "idle") return null;
   if (status.kind === "running") {
     return (
-      <span className="inline-flex items-center gap-1 text-[11px] text-fg-3">
+      <span className="inline-flex items-center gap-1 text-[12px] text-fg-3">
         <span className="h-1.5 w-1.5 animate-sb-pulse rounded-full bg-accent" />
         contacting…
       </span>
@@ -508,7 +508,7 @@ function TestPill({ status }: { status: TestStatus }) {
   }
   if (status.kind === "ok") {
     return (
-      <span className="inline-flex items-center gap-1.5 text-[11px]">
+      <span className="inline-flex items-center gap-1.5 text-[12px]">
         <span
           className="inline-flex h-[15px] items-center gap-1 rounded-[3px] px-1.5 font-medium"
           style={{
@@ -534,7 +534,7 @@ function TestPill({ status }: { status: TestStatus }) {
     );
   }
   return (
-    <span className="inline-flex max-w-[420px] items-center gap-1 truncate text-[11px] text-warn">
+    <span className="inline-flex max-w-[420px] items-center gap-1 truncate text-sm text-warn">
       <Icon.warn size={10} />
       <span title={status.message}>{truncate(status.message, 80)}</span>
     </span>
@@ -572,13 +572,13 @@ function FormRow({
 }) {
   return (
     <div className="grid min-h-6 items-center gap-3 grid-cols-[110px_1fr]">
-      <div className="flex flex-col gap-px pt-0.5 text-[11.5px] font-medium text-fg-1">
+      <div className="flex flex-col gap-px pt-0.5 text-sm font-medium text-fg-1">
         <span>{label}</span>
         {hint && (
-          <span className="text-[10px] font-normal text-fg-3">{hint}</span>
+          <span className="text-[11px] font-normal text-fg-3">{hint}</span>
         )}
       </div>
-      <div className="flex min-w-0 items-center gap-1.5 text-[11.5px]">
+      <div className="flex min-w-0 items-center gap-1.5 text-sm">
         {children}
       </div>
     </div>
@@ -632,7 +632,7 @@ function Seg({
     <button
       onClick={onClick}
       className={
-        "h-5 rounded-[3px] px-2.5 text-[11px] " +
+        "h-5 rounded-[3px] px-2.5 text-[12px] " +
         (active
           ? "bg-bg-3 font-medium text-fg-0"
           : "text-fg-2 hover:text-fg-0")

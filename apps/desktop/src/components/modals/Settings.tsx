@@ -118,11 +118,11 @@ export function SettingsModal({
         <span className="inline-flex text-accent">
           <Icon.settings size={14} />
         </span>
-        <span className="whitespace-nowrap text-[12.5px] font-semibold text-fg-0">
+        <span className="whitespace-nowrap text-sm font-semibold text-fg-0">
           Settings
         </span>
         <span className="h-[14px] w-px bg-border-divider" />
-        <span className="font-mono text-[11px] text-fg-2">{currentLabel}</span>
+        <span className="font-mono text-[12px] text-fg-2">{currentLabel}</span>
 
         <div className="ml-auto inline-flex h-[24px] max-w-[260px] flex-1 items-center gap-1.5 rounded-[4px] border border-border-default bg-bg-inset px-[7px]">
           <Icon.search size={11} stroke="var(--fg-3)" />
@@ -131,7 +131,7 @@ export function SettingsModal({
             placeholder="Search settings…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            className="min-w-0 flex-1 bg-transparent text-[11.5px] text-fg-0 outline-none placeholder:text-fg-3"
+            className="min-w-0 flex-1 bg-transparent text-sm text-fg-0 outline-none placeholder:text-fg-3"
           />
           <span className="inline-flex gap-0.5">
             <kbd className="kbd">⌘F</kbd>
@@ -185,7 +185,7 @@ export function SettingsModal({
       </div>
 
       <div className="flex h-11 shrink-0 items-center justify-between gap-3 border-t border-border-default bg-bg-2 px-3">
-        <span className="inline-flex items-center gap-1.5 text-[11px]">
+        <span className="inline-flex items-center gap-1.5 text-[12px]">
           <span
             className="h-1.5 w-1.5 rounded-full"
             style={{ background: "var(--insert)" }}
@@ -196,7 +196,7 @@ export function SettingsModal({
           <button
             type="button"
             disabled
-            className="cursor-not-allowed text-[11px] text-fg-3 underline underline-offset-2"
+            className="cursor-not-allowed text-[12px] text-fg-3 underline underline-offset-2"
             title="Raw settings editing is not wired yet"
           >
             edit raw
@@ -264,7 +264,7 @@ function SettingsNav({
         if (!items.length) return null;
         return (
           <div key={g.group} className="py-1">
-            <div className="px-[14px] py-1 text-[9.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">
+            <div className="px-[14px] py-1 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-fg-3">
               {g.group}
             </div>
             {items.map((i) => {
@@ -276,7 +276,7 @@ function SettingsNav({
                   key={i.id}
                   onClick={() => setCat(i.id)}
                   className={
-                    "flex h-[26px] w-full items-center gap-2 border-l-2 px-[10px] pl-[14px] text-left text-[11.5px] " +
+                    "flex h-[26px] w-full items-center gap-2 border-l-2 px-[10px] pl-[14px] text-left text-sm " +
                     (active
                       ? "bg-accent-soft border-l-accent text-accent font-medium"
                       : "border-l-transparent text-fg-1 hover:bg-bg-2 hover:text-fg-0")
@@ -294,7 +294,7 @@ function SettingsNav({
                   {filter && counts[i.id] ? (
                     <span
                       className={
-                        "font-mono text-[10px] " +
+                        "font-mono text-[11px] " +
                         (active ? "text-accent" : "text-fg-3")
                       }
                     >
@@ -303,7 +303,7 @@ function SettingsNav({
                   ) : i.badge ? (
                     <span
                       className={
-                        "rounded-[3px] border px-1 py-[1px] font-mono text-[9px] uppercase tracking-[0.04em] " +
+                        "rounded-[3px] border px-1 py-[1px] font-mono text-[10px] uppercase tracking-[0.04em] " +
                         (active
                           ? "border-accent-line bg-bg-1 text-accent"
                           : "border-accent-line bg-accent-soft text-accent")
@@ -318,13 +318,13 @@ function SettingsNav({
           </div>
         );
       })}
-      <div className="mt-auto flex items-center gap-1.5 border-t border-border-divider px-[14px] py-2.5 text-[10px]">
+      <div className="mt-auto flex items-center gap-1.5 border-t border-border-divider px-[14px] py-2.5 text-[11px]">
         {appVersion && <span className="font-mono text-fg-3">{`v${appVersion}`}</span>}
         {appVersion && <span className="text-fg-3">·</span>}
         <button
           type="button"
           disabled
-          className="cursor-not-allowed text-[10px] text-fg-3 underline underline-offset-2 opacity-70"
+          className="cursor-not-allowed text-[11px] text-fg-3 underline underline-offset-2 opacity-70"
           title="Documentation links are not wired in the desktop shell yet"
         >
           docs
@@ -348,16 +348,16 @@ function SettingsSearchResults({
       <section className="px-6 pb-1 pt-[18px]">
         <header className="mb-3 flex items-end justify-between gap-3">
           <div>
-            <h2 className="m-0 text-[13px] font-semibold tracking-[-0.005em] text-fg-0">
+            <h2 className="m-0 text-sm font-semibold tracking-[-0.005em] text-fg-0">
               Search results
             </h2>
-            <p className="m-0 mt-px max-w-[60ch] text-[11.5px] text-fg-2 text-pretty">
+            <p className="m-0 mt-px max-w-[60ch] text-sm text-fg-2 text-pretty">
               {results.length
                 ? `${results.length} match${results.length === 1 ? "" : "es"} for "${q.trim()}"`
                 : `No settings match "${q.trim()}"`}
             </p>
           </div>
-          <span className="font-mono text-[10.5px] text-fg-3">
+          <span className="font-mono text-[11.5px] text-fg-3">
             labels, sections, values
           </span>
         </header>
@@ -377,17 +377,17 @@ function SettingsSearchResults({
                 }
               >
                 <span className="min-w-0">
-                  <span className="block truncate text-[11.5px] font-medium text-fg-0">
+                  <span className="block truncate text-sm font-medium text-fg-0">
                     {result.label}
                   </span>
-                  <span className="block truncate text-[10.5px] text-fg-3">
+                  <span className="block truncate text-[11.5px] text-fg-3">
                     {result.section}
                   </span>
                 </span>
-                <span className="min-w-0 truncate font-mono text-[11px] text-fg-2">
+                <span className="min-w-0 truncate font-mono text-sm text-fg-2">
                   {result.category}
                 </span>
-                <span className="inline-flex items-center gap-1 text-[10.5px] text-fg-3">
+                <span className="inline-flex items-center gap-1 text-[11.5px] text-fg-3">
                   <span>open</span>
                   <Icon.chevronRight size={10} />
                 </span>
@@ -396,10 +396,10 @@ function SettingsSearchResults({
           </div>
         ) : (
           <div className="rounded-[5px] border border-dashed border-border-default bg-bg-inset px-3 py-6 text-center">
-            <div className="text-[12px] font-medium text-fg-1">
+            <div className="text-sm font-medium text-fg-1">
               No matching settings
             </div>
-            <div className="mt-1 text-[11px] text-fg-3">
+            <div className="mt-1 text-[12px] text-fg-3">
               Try a label, category, provider, shortcut, or stored value.
             </div>
           </div>

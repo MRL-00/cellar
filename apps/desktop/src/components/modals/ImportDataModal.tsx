@@ -73,7 +73,7 @@ export function ImportDataModal({ onClose }: { onClose: () => void }) {
   if (!tab) {
     return (
       <Modal onClose={onClose} width={420}>
-        <div className="flex items-center gap-2 px-4 py-5 text-[12px] text-fg-1">
+        <div className="flex items-center gap-2 px-4 py-5 text-sm text-fg-1">
           <Icon.warn size={13} stroke="var(--fg-3)" />
           <span>Open a table before importing data.</span>
         </div>
@@ -198,10 +198,10 @@ export function ImportDataModal({ onClose }: { onClose: () => void }) {
           <span className="inline-flex text-accent">
             <Icon.upload size={14} />
           </span>
-          <span className="whitespace-nowrap text-[12.5px] font-semibold text-fg-0">
+          <span className="whitespace-nowrap text-sm font-semibold text-fg-0">
             Import data
           </span>
-          <span className="ml-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap border-l border-border-divider pl-1.5 font-mono text-[11px] text-fg-2">
+          <span className="ml-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap border-l border-border-divider pl-1.5 font-mono text-sm text-fg-2">
             {tab.schema}.{tab.table}{" "}
             <span style={{ color: "var(--fg-3)" }}>·</span>{" "}
             {conn?.name ?? "no connection"}
@@ -216,7 +216,7 @@ export function ImportDataModal({ onClose }: { onClose: () => void }) {
       {result ? (
         <ResultView result={result} />
       ) : !table ? (
-        <div className="flex-1 px-4 py-4 text-[11.5px] text-warn">
+        <div className="flex-1 px-4 py-4 text-sm text-warn">
           Schema metadata for this table isn't loaded yet — open the table once,
           then try again.
         </div>
@@ -262,7 +262,7 @@ export function ImportDataModal({ onClose }: { onClose: () => void }) {
 
       {!result && table && (
         <div className="flex h-11 shrink-0 items-center justify-between gap-3 border-t border-border-default bg-bg-2 px-3">
-          <span className="min-w-0 truncate text-[10.5px] text-fg-2">
+          <span className="min-w-0 truncate text-[11.5px] text-fg-2">
             {commitError ? (
               <span className="text-delete">{commitError}</span>
             ) : step === "source" ? (
@@ -340,7 +340,7 @@ function SourceView({
 }) {
   return (
     <div className="flex-1 overflow-y-auto px-4 py-3.5">
-      <p className="m-0 mb-3 max-w-[60ch] text-[11.5px] text-fg-2 text-pretty">
+      <p className="m-0 mb-3 max-w-[60ch] text-sm text-fg-2 text-pretty">
         Load a CSV file to update or insert rows in this table. Its first row is
         treated as the header. You'll map columns, choose a match key, and review
         the generated SQL before anything is committed.
@@ -355,13 +355,13 @@ function SourceView({
       <button
         type="button"
         onClick={() => fileRef.current?.click()}
-        className="flex w-full items-center justify-center gap-2 rounded-[6px] border border-dashed border-border-strong bg-bg-2 px-3 py-6 text-[12px] text-fg-1 hover:border-accent-line hover:bg-accent-soft"
+        className="flex w-full items-center justify-center gap-2 rounded-[6px] border border-dashed border-border-strong bg-bg-2 px-3 py-6 text-sm text-fg-1 hover:border-accent-line hover:bg-accent-soft"
       >
         <Icon.fileText size={14} stroke="var(--fg-2)" />
         <span>{fileName ? `Loaded ${fileName} — choose another` : "Choose a .csv file"}</span>
       </button>
       {error && (
-        <div className="mt-2.5 flex items-start gap-1.5 rounded-[4px] border border-[color-mix(in_oklab,var(--delete)_30%,var(--border-default))] bg-delete-bg px-3 py-2 text-[11px] text-delete">
+        <div className="mt-2.5 flex items-start gap-1.5 rounded-[4px] border border-[color-mix(in_oklab,var(--delete)_30%,var(--border-default))] bg-delete-bg px-3 py-2 text-sm text-delete">
           <Icon.warn size={12} />
           <span>{error}</span>
         </div>
@@ -426,8 +426,8 @@ function ConfigureView({
                 {mode === m.value && <Icon.check size={8} />}
               </span>
               <span>
-                <span className="block text-[12px] font-medium text-fg-0">{m.label}</span>
-                <span className="block text-[10.5px] text-fg-3">{m.hint}</span>
+                <span className="block text-sm font-medium text-fg-0">{m.label}</span>
+                <span className="block text-[11.5px] text-fg-3">{m.hint}</span>
               </span>
             </button>
           ))}
@@ -438,7 +438,7 @@ function ConfigureView({
         title="Columns"
         sub="Map each table column to a CSV column. Pick the match key (PK is unique-constraint backed for upsert/insert) and which fields to write."
       >
-        <div className="grid grid-cols-[1fr_140px_auto] items-center gap-x-2 px-1 pb-1 text-[9.5px] font-semibold uppercase tracking-[0.05em] text-fg-3">
+        <div className="grid grid-cols-[1fr_140px_auto] items-center gap-x-2 px-1 pb-1 text-[10.5px] font-semibold uppercase tracking-[0.05em] text-fg-3">
           <span>Table column</span>
           <span>From CSV</span>
           <span className="text-right">Role</span>
@@ -453,12 +453,12 @@ function ConfigureView({
                 className="grid grid-cols-[1fr_140px_auto] items-center gap-x-2 rounded-[4px] border border-border-default bg-bg-2 px-2 py-1"
               >
                 <span className="flex min-w-0 items-center gap-1.5">
-                  <span className="truncate font-mono text-[11.5px] text-fg-0">
+                  <span className="truncate font-mono text-sm text-fg-0">
                     {col.name}
                   </span>
                   {col.is_primary_key && <Tag tone="accent">PK</Tag>}
                   {!col.nullable && <Tag tone="warn">NOT NULL</Tag>}
-                  <span className="truncate font-mono text-[10px] text-fg-3">
+                  <span className="truncate font-mono text-[11px] text-fg-3">
                     {col.data_type}
                   </span>
                 </span>
@@ -467,7 +467,7 @@ function ConfigureView({
                   onChange={(e) =>
                     remap(col.name, e.target.value === "" ? null : Number(e.target.value))
                   }
-                  className="h-[24px] w-full rounded-[4px] border border-border-default bg-bg-inset px-1.5 text-[11px] text-fg-0 outline-none focus:border-accent-line"
+                  className="h-[24px] w-full rounded-[4px] border border-border-default bg-bg-inset px-1.5 text-sm text-fg-0 outline-none focus:border-accent-line"
                 >
                   <option value="">(skip)</option>
                   {csv.headers.map((h, i) => (
@@ -501,7 +501,7 @@ function ConfigureView({
       </Section>
 
       {blockers.length > 0 && (
-        <div className="mx-4 mt-1 flex flex-col gap-0.5 rounded-[4px] border border-[color-mix(in_oklab,var(--warn)_30%,var(--border-default))] bg-warn-bg px-3 py-2 text-[11px] text-warn">
+        <div className="mx-4 mt-1 flex flex-col gap-0.5 rounded-[4px] border border-[color-mix(in_oklab,var(--warn)_30%,var(--border-default))] bg-warn-bg px-3 py-2 text-sm text-warn">
           {blockers.map((b) => (
             <div key={b} className="flex items-start gap-1.5">
               <Icon.warn size={11} />
@@ -541,25 +541,25 @@ function PreviewView({
           <Stat n={counts.skipped} label="skipped (no match key)" color="var(--fg-3)" />
         )}
         <div className="flex-1" />
-        <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-[4px] bg-bg-inset px-2 py-1 font-mono text-[10.5px] text-fg-2">
+        <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-[4px] bg-bg-inset px-2 py-1 font-mono text-[11.5px] text-fg-2">
           <Icon.bracket size={10} />
           <span>BEGIN … COMMIT · atomic</span>
         </span>
       </div>
-      <div className="flex h-[24px] shrink-0 items-center justify-between border-b border-border-divider bg-bg-1 px-3 text-[10px] font-semibold uppercase tracking-[0.05em] text-fg-3">
+      <div className="flex h-[24px] shrink-0 items-center justify-between border-b border-border-divider bg-bg-1 px-3 text-[11px] font-semibold uppercase tracking-[0.05em] text-fg-3">
         <span>
           Generated SQL{totalRows > 25 ? " (first 25 rows shown)" : ""}
         </span>
       </div>
-      <div className="flex-1 overflow-auto bg-bg-inset py-2 font-mono text-[11.5px] leading-[1.55]">
+      <div className="flex-1 overflow-auto bg-bg-inset py-2 font-mono text-sm leading-[1.55]">
         {previewError ? (
-          <div className="px-3 text-[11px] text-delete">{previewError}</div>
+          <div className="px-3 text-sm text-delete">{previewError}</div>
         ) : sqlLines.length === 0 ? (
-          <div className="px-3 text-[11px] text-fg-3">Generating preview…</div>
+          <div className="px-3 text-sm text-fg-3">Generating preview…</div>
         ) : (
           sqlLines.map((toks, i) => (
             <div key={i} className="flex px-3">
-              <span className="inline-flex w-7 shrink-0 select-none items-center justify-end pr-2.5 font-mono text-[10px] text-fg-3">
+              <span className="inline-flex w-7 shrink-0 select-none items-center justify-end pr-2.5 font-mono text-[11px] text-fg-3">
                 {i + 1}
               </span>
               <span className="whitespace-pre font-mono">{renderTokens(toks)}</span>
@@ -578,9 +578,9 @@ function ResultView({ result }: { result: { rows: number; ms: number } }) {
         <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-accent-soft text-accent">
           <Icon.check size={13} />
         </span>
-        <span className="text-[13px] font-semibold text-fg-0">Import committed</span>
+        <span className="text-sm font-semibold text-fg-0">Import committed</span>
       </div>
-      <p className="m-0 text-[11.5px] text-fg-2">
+      <p className="m-0 text-sm text-fg-2">
         {result.rows} row{result.rows === 1 ? "" : "s"} affected in {result.ms} ms.
         The table has been refreshed.
       </p>
@@ -596,7 +596,7 @@ function Tag({ tone, children }: { tone: "accent" | "warn"; children: React.Reac
   return (
     <span
       className={
-        "shrink-0 rounded-[3px] px-1 py-px font-mono text-[8.5px] uppercase tracking-[0.04em] " +
+        "shrink-0 rounded-[3px] px-1 py-px font-mono text-[9.5px] uppercase tracking-[0.04em] " +
         (tone === "accent" ? "bg-accent-soft text-accent" : "bg-warn-bg text-warn")
       }
     >
@@ -626,7 +626,7 @@ function RoleToggle({
       title={title}
       aria-pressed={active}
       className={
-        "h-[20px] rounded-[3px] border px-1.5 text-[10px] " +
+        "h-[20px] rounded-[3px] border px-1.5 text-[11px] " +
         (active
           ? "border-accent bg-accent text-accent-fg"
           : "border-border-default bg-bg-inset text-fg-2 hover:text-fg-0") +
@@ -641,10 +641,10 @@ function RoleToggle({
 function Stat({ n, label, color }: { n: number; label: string; color: string }) {
   return (
     <div className="flex items-center gap-1.5">
-      <span className="font-mono text-[14px] font-semibold tabular-nums" style={{ color }}>
+      <span className="font-mono text-[15px] font-semibold tabular-nums" style={{ color }}>
         {n}
       </span>
-      <span className="text-[11px] text-fg-2">{label}</span>
+      <span className="text-sm text-fg-2">{label}</span>
     </div>
   );
 }

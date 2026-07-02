@@ -576,13 +576,13 @@ export function Sidebar({
 
   return (
     <div
-      className="flex h-full flex-col text-[11.5px]"
+      className="flex h-full flex-col text-[9px]"
       style={{ fontFamily: "var(--font-sans)" }}
     >
       <div className="flex shrink-0 items-center justify-between pt-[7px] pb-[5px] pl-2.5 pr-2">
-        <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-fg-2">
+        <div className="flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-[0.04em] text-fg-2">
           <span>Connections</span>
-          <span className="rounded-[8px] bg-bg-2 px-1.5 py-px text-[10px] tabular-nums text-fg-3">
+          <span className="rounded-[8px] bg-bg-2 px-1.5 py-px text-[11px] tabular-nums text-fg-3">
             {connections.length}
           </span>
         </div>
@@ -612,7 +612,7 @@ export function Sidebar({
           placeholder="Filter…"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          className="flex-1 border-none bg-transparent py-0.5 text-[11.5px] leading-4 text-fg-0 outline-none placeholder:text-fg-3"
+          className="flex-1 border-none bg-transparent py-0.5 text-sm leading-4 text-fg-0 outline-none placeholder:text-fg-3"
         />
         <span className="kbd">⌘F</span>
       </div>
@@ -622,7 +622,7 @@ export function Sidebar({
           <button
             type="button"
             onClick={onNewConnection}
-            className="mx-2 mt-1 mb-3 flex w-[calc(100%-16px)] items-center gap-1.5 rounded-[4px] border border-dashed border-border-default px-2 py-1.5 text-[11.5px] text-fg-2 transition-[border-color,color,background] duration-150 hover:border-solid hover:border-accent-line hover:bg-accent-soft hover:text-accent"
+            className="mx-2 mt-1 mb-3 flex w-[calc(100%-16px)] items-center gap-1.5 rounded-[4px] border border-dashed border-border-default px-2 py-1.5 text-sm text-fg-2 transition-[border-color,color,background] duration-150 hover:border-solid hover:border-accent-line hover:bg-accent-soft hover:text-accent"
           >
             <Icon.plus size={11} />
             <span>New connection</span>
@@ -630,7 +630,7 @@ export function Sidebar({
         )}
 
         {matchCount === 0 && (
-          <div className="px-3 py-5 text-center text-[11px] text-fg-3">
+          <div className="px-3 py-5 text-center text-[12px] text-fg-3">
             {connections.length === 0 ? "no connections yet" : "no matches"}
           </div>
         )}
@@ -678,7 +678,7 @@ export function Sidebar({
           type="button"
           onClick={onOpenSettings}
           title="Settings (⌘,)"
-          className="flex items-center gap-1.5 rounded-[4px] px-1.5 py-1 text-[11.5px] text-fg-2 transition-colors duration-150 hover:bg-bg-2 hover:text-fg-0"
+          className="flex items-center gap-1.5 rounded-[4px] px-1.5 py-1 text-sm text-fg-2 transition-colors duration-150 hover:bg-bg-2 hover:text-fg-0"
         >
           <Icon.settings size={13} />
           <span>Settings</span>
@@ -754,10 +754,10 @@ function SchemaVisibilityManager({
       <div className="flex max-h-[70vh] w-[420px] flex-col overflow-hidden rounded-[8px] border border-border-default bg-bg-1 shadow-xl">
         <div className="flex h-10 shrink-0 items-center justify-between border-b border-border-default px-3">
           <div className="min-w-0">
-            <div className="text-[12.5px] font-semibold text-fg-0">
+            <div className="text-sm font-semibold text-fg-0">
               Visible schemas
             </div>
-            <div className="truncate text-[10.5px] text-fg-3">
+            <div className="truncate text-[11.5px] text-fg-3">
               {state.database}
             </div>
           </div>
@@ -773,7 +773,7 @@ function SchemaVisibilityManager({
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               placeholder="Filter schemas..."
-              className="min-w-0 flex-1 border-none bg-transparent py-1 text-[11.5px] text-fg-0 outline-none placeholder:text-fg-3"
+              className="min-w-0 flex-1 border-none bg-transparent py-1 text-sm text-fg-0 outline-none placeholder:text-fg-3"
             />
           </div>
           <div className="flex flex-wrap gap-1">
@@ -818,7 +818,7 @@ function SchemaVisibilityManager({
             return (
               <label
                 key={schema.name}
-                className="flex h-7 cursor-pointer items-center gap-2 px-3 text-[11.5px] text-fg-1 hover:bg-bg-2"
+                className="flex h-7 cursor-pointer items-center gap-2 px-3 text-sm text-fg-1 hover:bg-bg-2"
               >
                 <input
                   type="checkbox"
@@ -830,7 +830,7 @@ function SchemaVisibilityManager({
                 <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
                   {schema.name}
                 </span>
-                <span className="text-[10px] tabular-nums text-fg-3">
+                <span className="text-[11px] tabular-nums text-fg-3">
                   {count}
                 </span>
               </label>
@@ -839,11 +839,11 @@ function SchemaVisibilityManager({
         </div>
 
         <div className="flex h-9 shrink-0 items-center justify-between border-t border-border-default px-3">
-          <span className="text-[10.5px] tabular-nums text-fg-3">
+          <span className="text-[11.5px] tabular-nums text-fg-3">
             {visible.size}/{state.schemas.length} visible
           </span>
           <button
-            className="h-[24px] rounded-[4px] bg-accent px-2.5 text-[11px] font-medium text-accent-fg"
+            className="h-[24px] rounded-[4px] bg-accent px-2.5 text-sm font-medium text-accent-fg"
             onClick={onClose}
           >
             Done
@@ -864,7 +864,7 @@ function SchemaAction({
   return (
     <button
       type="button"
-      className="h-5 rounded-[3px] border border-border-default bg-bg-2 px-2 text-[10.5px] text-fg-1 hover:border-border-strong hover:text-fg-0"
+      className="h-5 rounded-[3px] border border-border-default bg-bg-2 px-2 text-sm text-fg-1 hover:border-border-strong hover:text-fg-0"
       onClick={onClick}
     >
       {label}

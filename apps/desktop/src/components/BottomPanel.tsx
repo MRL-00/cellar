@@ -170,7 +170,7 @@ export function BottomPanel({ onClose }: { onClose: () => void }) {
                 disabled={!t.enabled}
                 title={t.enabled ? t.label : `${t.label} is not wired yet`}
                 className={
-                  "mt-[3px] inline-flex h-[22px] items-center gap-1.5 rounded-[4px] px-2 text-[11px] disabled:cursor-default disabled:opacity-45 " +
+                  "mt-[3px] inline-flex h-[22px] items-center gap-1.5 rounded-[4px] px-2 text-sm disabled:cursor-default disabled:opacity-45 " +
                   (isActive
                     ? "bg-bg-3 text-fg-0"
                     : "text-fg-2 hover:bg-bg-2 hover:text-fg-0 disabled:hover:bg-transparent disabled:hover:text-fg-2")
@@ -183,7 +183,7 @@ export function BottomPanel({ onClose }: { onClose: () => void }) {
                 {t.count != null && (
                   <span
                     className={
-                      "rounded-[8px] px-1 py-px font-mono text-[9.5px] " +
+                      "rounded-[8px] px-1 py-px font-mono text-[10.5px] " +
                       (isActive ? "bg-bg-1 text-fg-0" : "bg-bg-2 text-fg-2")
                     }
                   >
@@ -290,7 +290,7 @@ function HeaderMeta({
   const items = headerItems(activeTab, result);
 
   return (
-    <div className="inline-flex min-w-0 items-center gap-1.5 overflow-hidden font-mono text-[10.5px]">
+    <div className="inline-flex min-w-0 items-center gap-1.5 overflow-hidden font-mono text-[11.5px]">
       {items.map((item, i) => (
         <span
           key={`${item}-${i}`}
@@ -659,7 +659,7 @@ function ReadOnlyResultGrid({
       </div>
       <ContextMenu state={copyMenu} onClose={() => setCopyMenu(null)} />
       {result.truncated && (
-        <div className="flex shrink-0 items-center justify-between border-t border-border-default bg-bg-1 px-3 py-1.5 text-[11px] text-fg-3">
+        <div className="flex shrink-0 items-center justify-between border-t border-border-default bg-bg-1 px-3 py-1.5 text-sm text-fg-3">
           <span>
             First {result.rowCount.toLocaleString("en-US")} rows shown
             {" — "}query result was truncated at the row cap.
@@ -667,7 +667,7 @@ function ReadOnlyResultGrid({
           {onLoadMore && (
             <button
               type="button"
-              className="rounded px-2 py-0.5 text-[11px] text-accent hover:bg-accent-soft"
+              className="rounded px-2 py-0.5 text-sm text-accent hover:bg-accent-soft"
               onClick={onLoadMore}
             >
               Load more
@@ -689,16 +689,16 @@ function EmptyPanel({
   tone?: "muted" | "warn";
 }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-1.5 bg-bg-inset p-6 text-center text-[11.5px] text-fg-3">
+    <div className="flex h-full flex-col items-center justify-center gap-1.5 bg-bg-inset p-6 text-center text-sm text-fg-3">
       <div
         className={
-          "text-[12px] font-medium " +
+          "text-sm font-medium " +
           (tone === "warn" ? "text-warn" : "text-fg-1")
         }
       >
         {title}
       </div>
-      <div className="max-w-[460px] text-[10.5px] leading-[1.5] text-fg-3">
+      <div className="max-w-[460px] text-[11.5px] leading-[1.5] text-fg-3">
         {detail}
       </div>
     </div>
@@ -791,10 +791,10 @@ function HistoryPanel({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search SQL or errors"
-            className="h-6 w-full rounded-[4px] border border-border-default bg-bg-1 pl-6 pr-2 font-mono text-[11px] text-fg-1 outline-none placeholder:text-fg-4 focus:border-accent-line"
+            className="h-6 w-full rounded-[4px] border border-border-default bg-bg-1 pl-6 pr-2 font-mono text-sm text-fg-1 outline-none placeholder:text-fg-4 focus:border-accent-line"
           />
         </div>
-        <div className="min-w-0 truncate font-mono text-[10.5px] text-fg-3">
+        <div className="min-w-0 truncate font-mono text-[11.5px] text-fg-3">
           {scopeLabel}
         </div>
       </div>
@@ -855,7 +855,7 @@ function HistoryRow({
   return (
     <div className="group grid grid-cols-[minmax(0,1fr)_auto] gap-3 px-2.5 py-2 hover:bg-bg-1">
       <div className="min-w-0">
-        <div className="mb-1 flex min-w-0 items-center gap-1.5 text-[10.5px]">
+        <div className="mb-1 flex min-w-0 items-center gap-1.5 text-[11.5px]">
           <span
             className={
               "rounded-[3px] px-1 py-px font-mono " +
@@ -873,11 +873,11 @@ function HistoryRow({
           <span className="text-fg-4">·</span>
           <span className="truncate font-mono text-fg-3">{formatTimestamp(record.executed_at_ms)}</span>
         </div>
-        <pre className="m-0 max-h-[58px] overflow-hidden whitespace-pre-wrap break-words font-mono text-[11px] leading-[1.45] text-fg-1">
+        <pre className="m-0 max-h-[58px] overflow-hidden whitespace-pre-wrap break-words font-mono text-sm leading-[1.45] text-fg-1">
           {record.sql}
         </pre>
         {record.error_summary && (
-          <div className="mt-1 truncate font-mono text-[10.5px] text-delete">
+          <div className="mt-1 truncate font-mono text-[11.5px] text-delete">
             {record.error_summary}
           </div>
         )}
@@ -896,18 +896,18 @@ function HistoryRow({
 
 function EmptyHistory({ title, detail }: { title: string; detail?: string }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-1.5 p-6 text-center text-[11.5px] text-fg-3">
-      <div className="text-[12px] font-medium text-fg-1">{title}</div>
-      {detail && <div className="max-w-[360px] text-[10.5px] leading-[1.5]">{detail}</div>}
+    <div className="flex h-full flex-col items-center justify-center gap-1.5 p-6 text-center text-[12.5px] text-fg-3">
+      <div className="text-sm font-medium text-fg-1">{title}</div>
+      {detail && <div className="max-w-[360px] text-[11.5px] leading-[1.5]">{detail}</div>}
     </div>
   );
 }
 
 function Placeholder({ tab }: { tab: BottomTabId }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-1.5 p-6 text-center text-[11.5px] text-fg-3">
-      <div className="text-[12px] font-medium text-fg-1">{labelFor(tab)}</div>
-      <div className="max-w-[320px] text-[10.5px] leading-[1.5] text-fg-3">
+    <div className="flex h-full flex-col items-center justify-center gap-1.5 p-6 text-center text-[12.5px] text-fg-3">
+      <div className="text-sm font-medium text-fg-1">{labelFor(tab)}</div>
+      <div className="max-w-[320px] text-[11.5px] leading-[1.5] text-fg-3">
         {subFor(tab)}
       </div>
     </div>
@@ -937,17 +937,17 @@ function NoticesPanel({
   const unsupported = entry.capture?.supported === false;
 
   return (
-    <div className="flex h-full min-h-0 flex-col text-[11px]">
+    <div className="flex h-full min-h-0 flex-col text-[12px]">
       <div className="flex h-8 shrink-0 items-center justify-between gap-3 border-b border-border-divider px-2">
         <div className="flex min-w-0 items-center gap-2">
           <span className="font-medium text-fg-1">Database notices</span>
-          <span className="min-w-0 truncate font-mono text-[10.5px] text-fg-3">
+          <span className="min-w-0 truncate font-mono text-[11.5px] text-fg-3">
             {activeConnectionName && activeTabLabel
               ? `${activeConnectionName} / ${activeTabLabel}`
               : "no active query tab"}
           </span>
           {activeEngine && (
-            <span className="rounded-[4px] border border-border-default px-1.5 py-px font-mono text-[9.5px] text-fg-3">
+            <span className="rounded-[4px] border border-border-default px-1.5 py-px font-mono text-[10.5px] text-fg-3">
               {activeEngine}
             </span>
           )}
@@ -955,13 +955,13 @@ function NoticesPanel({
         <div className="flex shrink-0 items-center gap-2">
           <div className="hidden items-center gap-1 sm:flex">
             {visibleCounts.length === 0 ? (
-              <span className="font-mono text-[10px] text-fg-3">0</span>
+              <span className="font-mono text-[11px] text-fg-3">0</span>
             ) : (
               visibleCounts.map(([severity, count]) => (
                 <span
                   key={severity}
                   className={
-                    "rounded-[4px] px-1.5 py-px font-mono text-[9.5px] " +
+                    "rounded-[4px] px-1.5 py-px font-mono text-[10.5px] " +
                     severityPillClass(toneForSeverity(severity))
                   }
                 >
@@ -970,7 +970,7 @@ function NoticesPanel({
               ))
             )}
           </div>
-          <label className="inline-flex items-center gap-1.5 text-[10.5px] text-fg-2">
+          <label className="inline-flex items-center gap-1.5 text-[11.5px] text-fg-2">
             <input
               type="checkbox"
               checked={entry.retain}
@@ -980,7 +980,7 @@ function NoticesPanel({
             <span>Retain</span>
           </label>
           <button
-            className="h-5 rounded-[4px] border border-border-default px-2 text-[10.5px] text-fg-2 hover:bg-bg-2 hover:text-fg-0 disabled:opacity-45"
+            className="h-5 rounded-[4px] border border-border-default px-2 text-sm text-fg-2 hover:bg-bg-2 hover:text-fg-0 disabled:opacity-45"
             disabled={notices.length === 0}
             onClick={onClear}
           >
@@ -1018,8 +1018,8 @@ function NoticesPanel({
 function NoticeState({ title, body }: { title: string; body: string }) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-1.5 p-6 text-center">
-      <div className="text-[12px] font-medium text-fg-1">{title}</div>
-      <div className="max-w-[520px] text-[10.5px] leading-[1.5] text-fg-3">
+      <div className="text-sm font-medium text-fg-1">{title}</div>
+      <div className="max-w-[520px] text-[11.5px] leading-[1.5] text-fg-3">
         {body}
       </div>
     </div>
@@ -1032,13 +1032,13 @@ function NoticeRows({ notices }: { notices: DatabaseNotice[] }) {
       {notices.map((notice, index) => (
         <div
           key={`${notice.timestamp}:${index}`}
-          className="grid grid-cols-[76px_84px_82px_minmax(0,1fr)] items-start border-b border-border-divider px-2 py-1.5 font-mono text-[10.5px] leading-[1.45]"
+          className="grid grid-cols-[76px_84px_82px_minmax(0,1fr)] items-start border-b border-border-divider px-2 py-1.5 font-mono text-sm leading-[1.45]"
         >
           <span className="text-fg-3">{formatNoticeTime(notice.timestamp)}</span>
           <span>
             <span
               className={
-                "rounded-[4px] px-1.5 py-px text-[9.5px] " +
+                "rounded-[4px] px-1.5 py-px text-[10.5px] " +
                 severityPillClass(toneForSeverity(notice.severity))
               }
             >

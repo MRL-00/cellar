@@ -528,7 +528,7 @@ function TableTabPane({
 
 function PaneMessage({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex flex-1 items-center justify-center bg-bg-inset text-[11.5px] text-fg-3">
+    <div className="flex flex-1 items-center justify-center bg-bg-inset text-[12.5px] text-fg-3">
       {children}
     </div>
   );
@@ -536,7 +536,7 @@ function PaneMessage({ children }: { children: React.ReactNode }) {
 
 function EmptyWorkspace() {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-[14px] bg-bg-inset px-10 py-10 text-center text-[12.5px] text-fg-2">
+    <div className="flex flex-1 flex-col items-center justify-center gap-[14px] bg-bg-inset px-10 py-10 text-center text-sm text-fg-2">
       <span
         className="relative h-9 w-9 rounded-lg"
         style={{
@@ -554,16 +554,16 @@ function EmptyWorkspace() {
         />
       </span>
       <div>
-        <div className="text-[14px] font-semibold text-fg-0">
+        <div className="text-[15px] font-semibold text-fg-0">
           Open a table to begin
         </div>
-        <div className="max-w-[360px] text-[11.5px] leading-[1.5] text-fg-3">
+        <div className="max-w-[360px] text-[12.5px] leading-[1.5] text-fg-3">
           Add a Postgres connection in the sidebar, expand it, and click a table
           to load real rows — or hit <span className="font-mono">+</span> in the
           tab bar to open a SQL editor.
         </div>
       </div>
-      <div className="flex gap-3 text-[10.5px] text-fg-3">
+      <div className="flex gap-3 text-[11.5px] text-fg-3">
         <span className="inline-flex items-center gap-1">
           <kbd className="kbd">⌘</kbd>
           <kbd className="kbd">N</kbd>&nbsp;new connection

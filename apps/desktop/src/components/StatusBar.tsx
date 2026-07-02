@@ -18,9 +18,9 @@ export function StatusBar() {
   const connected = activeState?.status === "connected";
 
   return (
-    <div className="flex h-[22px] shrink-0 items-center justify-between border-t border-border-default bg-bg-1 px-2.5 text-[11px] text-fg-2">
+    <div className="flex h-[22px] shrink-0 items-center justify-between border-t border-border-default bg-bg-1 px-2.5 text-[12px] text-fg-2">
       <div className="flex items-center gap-3.5">
-        <span className="inline-flex h-[18px] items-center gap-[5px] whitespace-nowrap text-[10.5px]">
+        <span className="inline-flex h-[18px] items-center gap-[5px] whitespace-nowrap text-[11.5px]">
           <span
             className="inline-block h-1.5 w-1.5 rounded-full"
             style={{
@@ -51,7 +51,7 @@ export function StatusBar() {
           )}
         </span>
         {activeConn && (
-          <span className="inline-flex h-[18px] items-center gap-[5px] whitespace-nowrap text-[10.5px]">
+          <span className="inline-flex h-[18px] items-center gap-[5px] whitespace-nowrap text-[11.5px]">
             <Icon.user size={10} />
             <span className="mono">
               {activeConn.user}@{activeConn.host}
@@ -59,7 +59,7 @@ export function StatusBar() {
           </span>
         )}
         {activeConn && activeConn.ssl_mode !== "disable" && (
-          <span className="inline-flex h-[18px] items-center gap-[5px] whitespace-nowrap text-[10.5px]">
+          <span className="inline-flex h-[18px] items-center gap-[5px] whitespace-nowrap text-[11.5px]">
             <Icon.lock size={10} />
             <span>SSL · {activeConn.ssl_mode}</span>
           </span>
@@ -67,7 +67,7 @@ export function StatusBar() {
       </div>
 
       <div className="flex items-center gap-3.5">
-        <span className="inline-flex h-[18px] items-center gap-[5px] whitespace-nowrap text-[10.5px]">
+        <span className="inline-flex h-[18px] items-center gap-[5px] whitespace-nowrap text-[11.5px]">
           {lastQuery ? (
             <>
               <Icon.check size={10} style={{ color: "var(--accent)" }} />
@@ -82,7 +82,7 @@ export function StatusBar() {
           )}
         </span>
         <span
-          className="inline-flex h-[18px] items-center gap-[5px] whitespace-nowrap font-mono text-[10.5px]"
+          className="inline-flex h-[18px] items-center gap-[5px] whitespace-nowrap font-mono text-[11.5px]"
           style={{ color: "var(--fg-2)" }}
         >
           UTF-8 · LF

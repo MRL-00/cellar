@@ -54,15 +54,15 @@ export const TWISTY =
   "inline-flex h-[14px] w-[14px] shrink-0 items-center justify-center text-fg-3 hover:text-fg-1";
 
 export const META =
-  "ml-auto shrink-0 whitespace-nowrap pr-1 text-[10px] font-medium tabular-nums text-fg-3";
+  "ml-auto shrink-0 whitespace-nowrap pr-1 text-[11px] font-medium tabular-nums text-fg-3";
 
-// Authored at 12px so labels render at exactly the Settings > Appearance font
-// size after the global --ui-scale zoom (FONT_SIZE_BASELINE = 12).
+// text-sm matches the body base size (--fs-sm) so sidebar labels render at
+// exactly the Settings > Appearance font size after the --ui-scale zoom.
 export const NODE_LABEL =
-  "min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[12px] leading-[18px]";
+  "min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm leading-[18px]";
 
 const PILL =
-  "ml-1 rounded-[3px] bg-bg-2 px-1 py-px text-[9px] font-medium tabular-nums text-fg-3";
+  "ml-1 rounded-[3px] bg-bg-2 px-1 py-px text-[10px] font-medium tabular-nums text-fg-3";
 
 /** Drag/drop wiring the sidebar list attaches to a connection header row. */
 export interface ConnectionDragHandles {
@@ -159,7 +159,7 @@ export function ConnectionRow({
         </span>
         {config.env_tag === "prod" && (
           <span
-            className="rounded-[3px] px-1 py-px text-[8.5px] font-semibold uppercase tracking-[0.04em]"
+            className="rounded-[3px] px-1 py-px text-[9.5px] font-semibold uppercase tracking-[0.04em]"
             style={{
               color: "var(--warn)",
               background: "color-mix(in oklab, var(--warn) 16%, transparent)",
@@ -198,12 +198,12 @@ export function ConnectionRow({
 
       {expanded && error && (
         <div
-          className="flex items-start gap-2 px-3 py-1 text-[10.5px] text-warn"
+          className="flex items-start gap-2 px-3 py-1 text-sm text-warn"
           style={{ paddingLeft: 32 }}
         >
           <span className="min-w-0 flex-1">{error}</span>
           <button
-            className="inline-flex h-[20px] shrink-0 items-center gap-1 rounded-[4px] border border-warn/40 px-1.5 text-[10px] text-warn hover:bg-bg-2"
+            className="inline-flex h-[20px] shrink-0 items-center gap-1 rounded-[4px] border border-warn/40 px-1.5 text-[11px] text-warn hover:bg-bg-2"
             title="Reconnect"
             onClick={(e) => {
               e.stopPropagation();
@@ -218,7 +218,7 @@ export function ConnectionRow({
 
       {expanded && loadingSchema && (
         <div
-          className="px-3 py-1 text-[10.5px] text-fg-3 animate-sb-pulse"
+          className="px-3 py-1 text-sm text-fg-3 animate-sb-pulse"
           style={{ paddingLeft: 32 }}
         >
           loading schemas…

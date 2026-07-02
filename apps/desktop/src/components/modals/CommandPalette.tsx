@@ -398,7 +398,7 @@ export function CommandPalette({
               }
             }}
             autoFocus
-            className="flex-1 border-none bg-transparent text-[13px] text-fg-0 outline-none placeholder:text-fg-3"
+            className="flex-1 border-none bg-transparent text-sm text-fg-0 outline-none placeholder:text-fg-3"
           />
           <span className="kbd">esc</span>
         </div>
@@ -406,7 +406,7 @@ export function CommandPalette({
         <div className="max-h-[420px] overflow-y-auto pt-1 pb-2">
           {grouped.map(([grp, items]) => (
             <div key={grp} className="pt-1.5 pb-1">
-              <div className="px-3.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-fg-3">
+              <div className="px-3.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-fg-3">
                 {grp}
               </div>
               {items.map((entry) => {
@@ -419,7 +419,7 @@ export function CommandPalette({
                       setActive(filtered.findIndex((e) => e.id === entry.id))
                     }
                     className={
-                      "flex w-full items-center gap-2.5 px-3.5 py-1.5 text-left text-[12px] " +
+                      "flex w-full items-center gap-2.5 px-3.5 py-1.5 text-left text-sm " +
                       (isActive
                         ? "bg-accent-soft text-accent"
                         : "text-fg-1 hover:bg-bg-2 hover:text-fg-0")
@@ -432,7 +432,7 @@ export function CommandPalette({
                       {entry.label}
                     </span>
                     {entry.hint && (
-                      <span className="ml-auto min-w-0 overflow-hidden text-ellipsis whitespace-nowrap pr-1.5 text-[11px] text-fg-3">
+                      <span className="ml-auto min-w-0 overflow-hidden text-ellipsis whitespace-nowrap pr-1.5 text-[12px] text-fg-3">
                         {entry.hint}
                       </span>
                     )}
@@ -451,13 +451,13 @@ export function CommandPalette({
             </div>
           ))}
           {filtered.length === 0 && (
-            <div className="px-3.5 py-5 text-center text-[11.5px] text-fg-3">
+            <div className="px-3.5 py-5 text-center text-sm text-fg-3">
               No matches for &ldquo;{q}&rdquo;
             </div>
           )}
         </div>
 
-        <div className="flex items-center gap-3 border-t border-border-default bg-bg-2 px-3 py-1.5 text-[10.5px] text-fg-3">
+        <div className="flex items-center gap-3 border-t border-border-default bg-bg-2 px-3 py-1.5 text-[11.5px] text-fg-3">
           <span className="inline-flex items-center gap-1">
             <kbd className="kbd">↑↓</kbd>
             <span>navigate</span>
