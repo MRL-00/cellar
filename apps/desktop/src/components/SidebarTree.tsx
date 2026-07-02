@@ -56,8 +56,10 @@ export const TWISTY =
 export const META =
   "ml-auto shrink-0 whitespace-nowrap pr-1 text-[10px] font-medium tabular-nums text-fg-3";
 
+// Authored at 12px so labels render at exactly the Settings > Appearance font
+// size after the global --ui-scale zoom (FONT_SIZE_BASELINE = 12).
 export const NODE_LABEL =
-  "min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[13px] leading-[18px]";
+  "min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[12px] leading-[18px]";
 
 const PILL =
   "ml-1 rounded-[3px] bg-bg-2 px-1 py-px text-[9px] font-medium tabular-nums text-fg-3";
@@ -118,7 +120,7 @@ export function ConnectionRow({
       <div
         className={
           ROW_BASE +
-          " h-[26px] border-l-2 pl-1 font-medium text-fg-0 cursor-pointer"
+          " h-[26px] border-l-2 pl-1 text-fg-0 cursor-pointer"
         }
         style={{ borderLeftColor: accent }}
         onClick={onToggle}
@@ -152,7 +154,7 @@ export function ConnectionRow({
           )}
         </button>
         <EngineBadge engine={config.engine as Engine} size={12} color={accent} />
-        <span className={NODE_LABEL + " font-medium"}>
+        <span className={NODE_LABEL}>
           {config.name}
         </span>
         {config.env_tag === "prod" && (

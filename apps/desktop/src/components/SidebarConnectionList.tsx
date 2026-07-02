@@ -5,6 +5,7 @@ import { Icon } from "./icons";
 import {
   ICON_SLOT,
   META,
+  NODE_LABEL,
   ROW_BASE,
   TWISTY,
   type ConnectionDragHandles,
@@ -427,7 +428,7 @@ function FolderRow({
           onCancel={onCancelRename}
         />
       ) : (
-        <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[12px] font-medium leading-[18px]">
+        <span className={NODE_LABEL}>
           {folder.name}
         </span>
       )}
@@ -478,7 +479,7 @@ function FolderRenameInput({
         }
       }}
       onBlur={(e) => commit(e.currentTarget.value)}
-      className="min-w-0 flex-1 rounded-[3px] border border-accent-line bg-bg-inset px-1 py-px text-[12px] font-medium text-fg-0 outline-none"
+      className="min-w-0 flex-1 rounded-[3px] border border-accent-line bg-bg-inset px-1 py-px text-[12px] text-fg-0 outline-none"
     />
   );
 }
