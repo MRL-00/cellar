@@ -654,7 +654,6 @@ export function Sidebar({
                 error={state?.error ?? null}
                 onToggle={() => toggleExpand(c.id)}
                 onReconnect={() => void reconnect(c.id)}
-                onDisconnect={() => void disconnect(c.id)}
                 onContextMenu={(e) => openConnectionMenu(e, c)}
                 onNodeContextMenu={openNodeMenu}
                 onOpenTable={(database, schema, table) =>

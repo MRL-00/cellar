@@ -45,8 +45,24 @@ const mockDriverInfo: DriverInfo = {
   version: "PostgreSQL 16.2 (mock — vite web mode)",
 };
 
+// Temporary repro data — revert before commit.
+const reproEngines: Engine[] = ["postgres", "mssql", "azure", "mysql"];
+const reproConnections: ConnectionConfig[] = Array.from({ length: 14 }, (_, i) => ({
+  id: `repro-${i}`,
+  name: `conn-${i}`,
+  engine: reproEngines[i % reproEngines.length]!,
+  host: "localhost",
+  port: 5432,
+  database: "db",
+  user: "u",
+  ssl_mode: "prefer" as never,
+  env_tag: null,
+  application_name: null,
+  color: null,
+}));
+
 export const mockCommands = {
-  listConnections: async (): Promise<Result<ConnectionConfig[], CellarError>> => ok([]),
+  listConnections: async (): Promise<Result<ConnectionConfig[], CellarError>> => ok(reproConnections),
 
   saveConnection: async (
     config: ConnectionConfig,
