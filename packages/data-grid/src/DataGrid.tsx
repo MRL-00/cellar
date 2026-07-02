@@ -704,6 +704,8 @@ export function DataGrid({
         totalRows={rows.length}
         filteredRows={visibleRows.length}
         serverRows={totalRows}
+        sort={activeSort}
+        onSortChange={applySort}
       />
 
       <div
