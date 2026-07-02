@@ -140,6 +140,11 @@
   --accent-line: rgba(124, 58, 237, 0.28);
   --accent-fg: #ffffff;
 
+  /* Semantic — darker than the dark-theme values so they read on light surfaces */
+  --insert: #16a34a;
+  --insert-bg: rgba(22, 163, 74, 0.10);
+  --insert-line: rgba(22, 163, 74, 0.25);
+
   --syn-kw: #7c3aed;
   --syn-fn: #2563eb;
   --syn-str: #15803d;
