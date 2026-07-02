@@ -1,4 +1,11 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
 import { createPortal } from "react-dom";
 import { GridIcon } from "./icons";
 
@@ -33,10 +40,12 @@ export const GridSelect = forwardRef<HTMLButtonElement, GridSelectProps>(
       // The app scales the UI with CSS `zoom` on <body> (font-size setting).
       // The portaled menu lives inside that zoomed body, so its fixed coords
       // are in zoomed space while getBoundingClientRect() is in viewport
-      // pixels — divide by the zoom to line them up.
+      // pixels — divide by the scale to line them up. Read the app's
+      // --ui-scale variable (set alongside the zoom) rather than the computed
+      // `zoom` value, which some webview engines don't report.
       const zoom =
         Number(
-          (getComputedStyle(document.body) as CSSStyleDeclaration & { zoom?: string }).zoom,
+          getComputedStyle(document.documentElement).getPropertyValue("--ui-scale"),
         ) || 1;
       setPos({
         left: rect.left / zoom,
@@ -73,7 +82,7 @@ export const GridSelect = forwardRef<HTMLButtonElement, GridSelectProps>(
       buttonRef.current?.focus();
     };
 
-    const onKeyDown = (e: React.KeyboardEvent) => {
+    const onKeyDown = (e: KeyboardEvent) => {
       if (!open) {
         if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Enter" || e.key === " ") {
           e.preventDefault();

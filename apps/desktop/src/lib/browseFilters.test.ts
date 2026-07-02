@@ -38,10 +38,22 @@ describe("advancedFiltersToClauses", () => {
     expect(advancedFiltersToClauses([chip({ value: "  " })])).toEqual([]);
   });
 
-  it("skips operators without a server equivalent (startsWith)", () => {
+  it("maps text pattern operators to server clauses", () => {
     expect(
       advancedFiltersToClauses([chip({ operator: "startsWith", value: "a" })]),
-    ).toEqual([]);
+    ).toEqual([{ column: "status", operator: "starts_with", value: "a" }]);
+    expect(
+      advancedFiltersToClauses([chip({ operator: "notContains", value: "a" })]),
+    ).toEqual([{ column: "status", operator: "not_contains", value: "a" }]);
+  });
+
+  it("wraps bare like patterns in wildcards, leaves explicit ones alone", () => {
+    expect(
+      advancedFiltersToClauses([chip({ operator: "like", value: "abc" })]),
+    ).toEqual([{ column: "status", operator: "like", value: "%abc%" }]);
+    expect(
+      advancedFiltersToClauses([chip({ operator: "like", value: "abc%" })]),
+    ).toEqual([{ column: "status", operator: "like", value: "abc%" }]);
   });
 
   it("pushes nothing when chips use OR (no server grouping)", () => {

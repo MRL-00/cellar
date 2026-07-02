@@ -216,15 +216,23 @@ fn filter_sql(filter: &TableFilterClause, table: &Table) -> Result<String, Table
             reject_value(filter)?;
             Ok(format!("{ident} IS NOT NULL"))
         }
-        TableFilterOperator::Contains => {
+        TableFilterOperator::Contains
+        | TableFilterOperator::NotContains
+        | TableFilterOperator::StartsWith
+        | TableFilterOperator::EndsWith
+        | TableFilterOperator::Like => {
             let value = require_value(filter)?;
             if !is_text_type(&column.data_type) {
                 return Err(unsupported(column, filter.operator));
             }
-            Ok(format!(
-                "{ident} LIKE {}",
-                quote_literal(&format!("%{value}%"))
-            ))
+            let (keyword, pattern) = match filter.operator {
+                TableFilterOperator::NotContains => ("NOT LIKE", format!("%{value}%")),
+                TableFilterOperator::StartsWith => ("LIKE", format!("{value}%")),
+                TableFilterOperator::EndsWith => ("LIKE", format!("%{value}")),
+                TableFilterOperator::Like => ("LIKE", value.clone()),
+                _ => ("LIKE", format!("%{value}%")),
+            };
+            Ok(format!("{ident} {keyword} {}", quote_literal(&pattern)))
         }
         TableFilterOperator::Equals | TableFilterOperator::NotEquals => {
             let value = require_value(filter)?;

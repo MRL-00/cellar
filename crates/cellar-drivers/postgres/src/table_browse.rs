@@ -197,20 +197,48 @@ fn push_filter<'args>(
             push_ident(builder, &column.name);
             builder.push(" IS NOT NULL");
         }
-        TableFilterOperator::Contains => {
+        TableFilterOperator::Contains
+        | TableFilterOperator::NotContains
+        | TableFilterOperator::StartsWith
+        | TableFilterOperator::EndsWith
+        | TableFilterOperator::Like => {
             let value = require_value(filter)?;
             let is_uuid = matches!(kind, ColumnKind::Typed("uuid", _));
             if !matches!(kind, ColumnKind::Text) && !is_uuid {
                 return Err(unsupported(column, filter.operator));
+            }
+            if filter.operator == TableFilterOperator::NotContains {
+                builder.push("NOT (");
             }
             push_ident(builder, &column.name);
             if is_uuid {
                 // ILIKE needs text; uuid has no implicit cast.
                 builder.push("::text");
             }
-            builder.push(" ILIKE ('%' || ");
-            builder.push_bind(value);
-            builder.push(" || '%')");
+            match filter.operator {
+                TableFilterOperator::StartsWith => {
+                    builder.push(" ILIKE (");
+                    builder.push_bind(value);
+                    builder.push(" || '%')");
+                }
+                TableFilterOperator::EndsWith => {
+                    builder.push(" ILIKE ('%' || ");
+                    builder.push_bind(value);
+                    builder.push(")");
+                }
+                TableFilterOperator::Like => {
+                    builder.push(" ILIKE ");
+                    builder.push_bind(value);
+                }
+                _ => {
+                    builder.push(" ILIKE ('%' || ");
+                    builder.push_bind(value);
+                    builder.push(" || '%')");
+                }
+            }
+            if filter.operator == TableFilterOperator::NotContains {
+                builder.push(")");
+            }
         }
         TableFilterOperator::Equals | TableFilterOperator::NotEquals => {
             let value = require_value(filter)?;
@@ -392,6 +420,26 @@ mod tests {
         Ok(build_table_browse_query(request, &table())?
             .sql()
             .to_string())
+    }
+
+    #[test]
+    fn builds_pattern_operators_as_ilike_variants() {
+        let cases = [
+            (TableFilterOperator::NotContains, r#"NOT ("email" ILIKE ('%' || $1 || '%'))"#),
+            (TableFilterOperator::StartsWith, r#""email" ILIKE ($1 || '%')"#),
+            (TableFilterOperator::EndsWith, r#""email" ILIKE ('%' || $1)"#),
+            (TableFilterOperator::Like, r#""email" ILIKE $1"#),
+        ];
+        for (operator, expected) in cases {
+            let mut req = request();
+            req.filters.push(TableFilterClause {
+                column: "email".into(),
+                operator,
+                value: Some("a%".into()),
+            });
+            let sql = sql_for(&req).expect("sql");
+            assert!(sql.contains(expected), "{operator:?}: got {sql}");
+        }
     }
 
     #[test]

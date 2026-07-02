@@ -232,15 +232,17 @@ function compareOrdered(
 }
 
 /**
- * SQL LIKE semantics: `%` matches any run, `_` matches one char. Case-insensitive.
- * A pattern with no wildcards is treated as `%pattern%` so plain text "just works";
- * typing any `%`/`_` switches to exact SQL semantics.
+ * A `like` pattern with no wildcards is treated as `%pattern%` so plain text
+ * "just works"; typing any `%`/`_` switches to exact SQL semantics. Shared with
+ * the server request builder so local and server-side matching agree.
  */
+export function normalizeLikePattern(pattern: string): string {
+  return pattern.includes("%") || pattern.includes("_") ? pattern : `%${pattern}%`;
+}
+
+/** SQL LIKE semantics: `%` matches any run, `_` matches one char. Case-insensitive. */
 function likeMatch(value: string, pattern: string): boolean {
-  if (!pattern.includes("%") && !pattern.includes("_")) {
-    pattern = `%${pattern}%`;
-  }
-  const regex = pattern
+  const regex = normalizeLikePattern(pattern)
     .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
     .replaceAll("%", ".*")
     .replaceAll("_", ".");
