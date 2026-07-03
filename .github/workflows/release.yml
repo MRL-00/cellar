@@ -155,6 +155,8 @@ jobs:
           projectPath: apps/desktop
           tagName: ${{ steps.release.outputs.tag }}
           releaseName: Cellar ${{ steps.release.outputs.version }}
+          # Draft-only placeholder; publish-release overwrites the body with
+          # the version's CHANGELOG.md section before publishing.
           releaseBody: See the assets below to download Cellar for your platform.
           releaseDraft: true
           prerelease: ${{ steps.release.outputs.prerelease }}
@@ -228,6 +230,11 @@ jobs:
     needs: build-tauri
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
       - name: Resolve release tag
         id: release
         shell: bash
@@ -241,6 +248,34 @@ jobs:
           fi
 
           echo "tag=$release_tag" >> "$GITHUB_OUTPUT"
+
+      - name: Extract release notes from CHANGELOG
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Prefix-match the heading (tolerates "## x.y.z - date" styles) and
+          # skip blank lines before the first content line.
+          awk -v ver="$RELEASE_TAG" \
+            '$0 ~ "^## " ver "([[:space:]]|$)" {found=1; next}
+             /^## / {found=0}
+             found && (started || NF) {started=1; print}' \
+            CHANGELOG.md > "$RUNNER_TEMP/release-notes.md"
+
+          if [[ ! -s "$RUNNER_TEMP/release-notes.md" ]]; then
+            echo "No CHANGELOG.md section for $RELEASE_TAG — falling back to placeholder" >&2
+            echo "See the assets below to download Cellar for your platform." \
+              > "$RUNNER_TEMP/release-notes.md"
+          fi
+
+          cat "$RUNNER_TEMP/release-notes.md"
+
+          # Full changelog (minus the "# Changelog" title) for latest.json, so
+          # users jumping multiple versions see every release in between; the
+          # app trims it to sections newer than the installed version.
+          tail -n +2 CHANGELOG.md > "$RUNNER_TEMP/changelog-full.md"
 
       - name: Generate and upload updater manifest
         env:
@@ -282,10 +317,10 @@ jobs:
 
             jq -n \
               --arg version "$RELEASE_TAG" \
-              --arg notes "See the assets below to download Cellar for your platform." \
+              --rawfile notes "$RUNNER_TEMP/changelog-full.md" \
               --arg pub_date "$pub_date" \
               --argjson platforms "$platforms" \
-              '{version: $version, notes: $notes, pub_date: $pub_date, platforms: $platforms}' \
+              '{version: $version, notes: ($notes | rtrimstr("\n")), pub_date: $pub_date, platforms: $platforms}' \
               > "$tmpdir/latest.json"
 
             echo "Generated latest.json:"
@@ -302,4 +337,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          gh release edit "$RELEASE_TAG" --draft=false
+          gh release edit "$RELEASE_TAG" \
+            --notes-file "$RUNNER_TEMP/release-notes.md" \
+            --draft=false

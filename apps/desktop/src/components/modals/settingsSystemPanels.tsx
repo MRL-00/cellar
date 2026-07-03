@@ -2,6 +2,7 @@ import { Icon } from "../icons";
 import { Row, Section, StaticSegment, Toggle } from "./settingsPrimitives";
 import { useConnections } from "../../state/connections";
 import { useUpdater } from "../../lib/updater";
+import { notesSince } from "../../lib/releaseNotes";
 import { openExternal } from "../../lib/openExternal";
 import changelogMd from "../../../../../CHANGELOG.md?raw";
 
@@ -200,13 +201,15 @@ export function SettingsUpdates() {
         title="What's new"
         sub={
           status.kind === "available"
-            ? `Release notes for v${status.version}`
+            ? `What changed since ${versionLabel}`
             : `Recent changes in ${versionLabel}`
         }
       >
         <Changelog
           source={
-            (status.kind === "available" && status.update.body) || changelogMd
+            status.kind === "available" && status.update.body
+              ? notesSince(status.update.body, appVersion)
+              : changelogMd
           }
         />
       </Section>
