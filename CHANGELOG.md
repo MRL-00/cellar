@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.3.3
+
+### Features
+
+- **Saved filter presets** — save the current table filters as a named preset
+  from the grid toolbar and re-apply them later.
+- **Order by control** — sort results straight from a new Order By control in
+  the filter bar.
+- **More filter operators** — comparison and pattern operators (evaluated
+  server-side), themed operator dropdowns, and fixes for filtering GUID
+  columns.
+- **Cmd/Ctrl+F** — now focuses the sidebar filter input.
+- **Release notes catch-up** — GitHub releases publish the changelog section
+  for each version, and the in-app Updates panel shows the notes for every
+  version since the one you have installed.
+
+### Bug fixes
+
+- **Data grid** — softer contrast, content-fit column widths (remeasured on
+  density change), duplicate row-count indicators removed, and literal
+  wildcard characters in filters are now escaped.
+- **Sidebar** — connection rows no longer show visual markers, the connected
+  status dot is green, all tree labels render at the configured font size,
+  and connections can be moved to an existing folder from the context menu
+  again (without the per-folder clutter).
+- **Desktop UI** — larger, more consistent font sizes across the bottom
+  panels, sidebar, and status bar; light-theme overrides for insert tokens.
+
+### Internal
+
+- Split oversized source files to enforce the 800-line file limit.
+
 ## 0.3.2
 
 ### Features
