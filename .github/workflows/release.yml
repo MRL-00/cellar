@@ -232,6 +232,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Resolve release tag
         id: release
@@ -254,8 +256,12 @@ jobs:
         run: |
           set -euo pipefail
 
+          # Prefix-match the heading (tolerates "## x.y.z - date" styles) and
+          # skip blank lines before the first content line.
           awk -v ver="$RELEASE_TAG" \
-            '$0 == "## " ver {found=1; next} /^## / {found=0} found' \
+            '$0 ~ "^## " ver "([[:space:]]|$)" {found=1; next}
+             /^## / {found=0}
+             found && (started || NF) {started=1; print}' \
             CHANGELOG.md > "$RUNNER_TEMP/release-notes.md"
 
           if [[ ! -s "$RUNNER_TEMP/release-notes.md" ]]; then

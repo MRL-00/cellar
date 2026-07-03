@@ -207,10 +207,9 @@ export function SettingsUpdates() {
       >
         <Changelog
           source={
-            (status.kind === "available" &&
-              status.update.body &&
-              notesSince(status.update.body, appVersion)) ||
-            changelogMd
+            status.kind === "available" && status.update.body
+              ? notesSince(status.update.body, appVersion)
+              : changelogMd
           }
         />
       </Section>

@@ -36,6 +36,18 @@ describe("notesSince", () => {
     expect(notesSince("## 0.10.0\n- ten", "0.9.0")).toContain("## 0.10.0");
   });
 
+  it("matches headings with a date suffix", () => {
+    const out = notesSince("## 0.3.2 - 2026-07-01\n- fonts\n## 0.3.1 - 2026-06-30\n- theme", "0.3.1");
+    expect(out).toContain("- fonts");
+    expect(out).not.toContain("- theme");
+  });
+
+  it("treats malformed segments as 0, over-showing rather than dropping", () => {
+    // "0.3.2-beta.1" parses as 0.3.0, so 0.3.x sections still show.
+    expect(notesSince("## 0.4.0\n- next", "0.3.2-beta.1")).toContain("- next");
+    expect(notesSince(changelog, "0.3.2-beta.1")).toContain("## 0.3.1");
+  });
+
   it("passes through notes without version headings", () => {
     const single = "### Features\n- something";
     expect(notesSince(single, "0.2.0")).toBe(single);

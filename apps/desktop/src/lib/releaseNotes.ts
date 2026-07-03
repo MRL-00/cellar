@@ -3,8 +3,10 @@
 // newer than the installed version.
 
 function compareVersions(a: string, b: string): number {
-  const pa = a.split(".").map(Number);
-  const pb = b.split(".").map(Number);
+  // Number() || 0 keeps malformed segments (e.g. "0-beta") from becoming NaN
+  // and silently comparing as equal.
+  const pa = a.split(".").map((n) => Number(n) || 0);
+  const pb = b.split(".").map((n) => Number(n) || 0);
   for (let i = 0; i < 3; i++) {
     const d = (pa[i] ?? 0) - (pb[i] ?? 0);
     if (d) return d;
@@ -22,7 +24,7 @@ export function notesSince(notes: string, installed: string): string {
   let keep = false;
   let sawVersionHeading = false;
   for (const line of lines) {
-    const m = /^##\s+(\d+\.\d+\.\d+)\s*$/.exec(line);
+    const m = /^##\s+(\d+\.\d+\.\d+)(?:\s|$)/.exec(line);
     if (m) {
       sawVersionHeading = true;
       keep = compareVersions(m[1]!, installed) > 0;
