@@ -1,7 +1,6 @@
 import { useState } from "react";
 import type { ConnectionConfig, Schema, Table } from "@cellar/ipc";
 
-import { EngineBadge, type Engine } from "./EngineBadge";
 import { Icon } from "./icons";
 import type { ConnStatus } from "../state/connections";
 
@@ -82,7 +81,6 @@ export interface ConnectionRowProps {
   error: string | null;
   onToggle: () => void;
   onReconnect: () => void;
-  onDisconnect: () => void;
   onContextMenu: (e: React.MouseEvent) => void;
   onNodeContextMenu: NodeMenuHandler;
   onOpenTable: (database: string, schema: string, table: string) => void;
@@ -105,7 +103,6 @@ export function ConnectionRow({
   error,
   onToggle,
   onReconnect,
-  onDisconnect,
   onContextMenu,
   onNodeContextMenu,
   onOpenTable,
@@ -114,15 +111,13 @@ export function ConnectionRow({
   onManageSchemas,
   drag,
 }: ConnectionRowProps) {
-  const accent = config.color ?? engineDefaultColor(config.engine as Engine);
   return (
     <div>
       <div
         className={
           ROW_BASE +
-          " h-[26px] border-l-2 pl-1 text-fg-0 cursor-pointer"
+          " h-[26px] pl-1 text-fg-0 cursor-pointer"
         }
-        style={{ borderLeftColor: accent }}
         onClick={onToggle}
         onContextMenu={onContextMenu}
         draggable={drag?.draggable}
@@ -153,7 +148,6 @@ export function ConnectionRow({
             <Icon.chevronRight size={10} />
           )}
         </button>
-        <EngineBadge engine={config.engine as Engine} size={12} color={accent} />
         <span className={NODE_LABEL}>
           {config.name}
         </span>
@@ -170,30 +164,6 @@ export function ConnectionRow({
           </span>
         )}
         <StatusDot status={status} />
-        <button
-          type="button"
-          className="icon-btn ml-1 opacity-0 transition-opacity duration-100 group-hover:opacity-100"
-          title="Actions"
-          onClick={(e) => {
-            e.stopPropagation();
-            onContextMenu(e);
-          }}
-        >
-          <Icon.more size={11} />
-        </button>
-        {status === "connected" && (
-          <button
-            type="button"
-            className="icon-btn opacity-0 transition-opacity duration-100 group-hover:opacity-100"
-            title="Disconnect"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDisconnect();
-            }}
-          >
-            <Icon.power size={11} />
-          </button>
-        )}
       </div>
 
       {expanded && error && (
@@ -701,21 +671,4 @@ function writeFolderOpen(key: string, open: boolean) {
   const map = readFolderOpenMap();
   map[key] = open;
   window.localStorage.setItem(FOLDER_OPEN_STORAGE_KEY, JSON.stringify(map));
-}
-
-function engineDefaultColor(engine: Engine): string {
-  switch (engine) {
-    case "postgres":
-      return "var(--eng-postgres)";
-    case "mysql":
-      return "var(--eng-mysql)";
-    case "mssql":
-      return "var(--eng-mssql)";
-    case "azure":
-      return "var(--eng-azure)";
-    case "sqlite":
-      return "var(--eng-sqlite)";
-    case "firestore":
-      return "var(--eng-firestore)";
-  }
 }
