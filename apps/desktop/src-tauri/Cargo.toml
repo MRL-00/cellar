@@ -41,6 +41,7 @@ tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 tauri-plugin-opener = "2"
 cellar-core = { path = "../../../crates/cellar-core" }
+cellar-driver-convex = { path = "../../../crates/cellar-drivers/convex" }
 cellar-driver-firestore = { path = "../../../crates/cellar-drivers/firestore" }
 cellar-driver-mysql = { path = "../../../crates/cellar-drivers/mysql" }
 cellar-driver-postgres = { path = "../../../crates/cellar-drivers/postgres" }

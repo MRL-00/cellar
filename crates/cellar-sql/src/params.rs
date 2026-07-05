@@ -50,7 +50,7 @@ fn dialect_for(engine: Engine) -> Box<dyn Dialect> {
         Engine::MySql => Box::new(MySqlDialect {}),
         Engine::Sqlite => Box::new(SQLiteDialect {}),
         Engine::Mssql | Engine::Azure => Box::new(MsSqlDialect {}),
-        Engine::Firestore => Box::new(GenericDialect {}),
+        Engine::Firestore | Engine::Convex => Box::new(GenericDialect {}),
     }
 }
 

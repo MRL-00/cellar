@@ -37,6 +37,7 @@ const DIALECTS: Record<Engine, string> = {
   mssql: "SQL Server",
   azure: "Azure SQL",
   firestore: "Firestore",
+  convex: "Convex",
 };
 
 const PLACEHOLDER =
@@ -82,7 +83,7 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
   const sql = tab.sql;
   const connected = status === "connected";
   const isPostgres = engine === "postgres" || engine === undefined;
-  const supportsSql = engine !== "firestore";
+  const supportsSql = engine !== "firestore" && engine !== "convex";
 
   const statements = useMemo(() => splitStatements(sql), [sql]);
   const current = useMemo(
@@ -256,7 +257,7 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
   const runTitle = !connected
     ? "Connect this tab's database to run SQL"
     : !supportsSql
-      ? "Firestore query execution is not supported yet"
+      ? "Query execution is not supported for this engine yet"
     : current
       ? "Run the statement under the cursor"
       : "Place the cursor in a statement to run it";
@@ -305,7 +306,7 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
                 ? "Connect to run SQL"
                 : supportsSql
                   ? "Run the entire editor buffer"
-                  : "Firestore query execution is not supported yet"
+                  : "Query execution is not supported for this engine yet"
             }
           >
             <Icon.play size={11} />

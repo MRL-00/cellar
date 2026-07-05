@@ -9,6 +9,7 @@ use std::path::PathBuf;
 use cellar_core::driver::{ConnectionConfig, Driver, Engine};
 use cellar_core::error::{CellarError, CellarResult};
 use cellar_core::schema::{Database, Table};
+use cellar_driver_convex::ConvexDriver;
 use cellar_driver_firestore::FirestoreDriver;
 use cellar_driver_mysql::MySqlDriver;
 use cellar_driver_postgres::PostgresDriver;
@@ -68,6 +69,7 @@ pub(super) fn find_table(
 
 pub(super) fn driver_for(engine: Engine) -> CellarResult<Box<dyn Driver>> {
     match engine {
+        Engine::Convex => Ok(Box::new(ConvexDriver::default())),
         Engine::Firestore => Ok(Box::new(FirestoreDriver::default())),
         Engine::MySql => Ok(Box::new(MySqlDriver::default())),
         Engine::Postgres => Ok(Box::new(PostgresDriver::default())),

@@ -1,0 +1,15 @@
+[package]
+name = "cellar-driver-convex"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Cellar — Convex driver built on the Convex streaming export HTTP API"
+publish = false
+
+[dependencies]
+cellar-core = { path = "../../cellar-core" }
+async-trait = "0.1"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }

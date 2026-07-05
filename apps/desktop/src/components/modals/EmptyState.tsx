@@ -1,7 +1,15 @@
 import { Icon } from "../icons";
 import { ENGINE_META, type Engine } from "../EngineBadge";
+import { EngineLogo } from "../EngineLogo";
 
-const ENGINE_ORDER: Engine[] = ["postgres", "firestore", "mssql", "mysql", "sqlite"];
+const ENGINE_ORDER: Engine[] = [
+  "postgres",
+  "firestore",
+  "convex",
+  "mssql",
+  "mysql",
+  "sqlite",
+];
 
 const ENGINE_HEX: Record<Engine, string> = {
   postgres: "#4f8ff7",
@@ -10,6 +18,7 @@ const ENGINE_HEX: Record<Engine, string> = {
   azure: "#5bb8e0",
   sqlite: "#a78bfa",
   firestore: "#f4c542",
+  convex: "#f25c4d",
 };
 
 const SHORT: Record<Engine, string> = {
@@ -19,6 +28,7 @@ const SHORT: Record<Engine, string> = {
   azure: "Azure",
   sqlite: "SQLite",
   firestore: "Firestore",
+  convex: "Convex",
 };
 
 export function EmptyState({ onNew }: { onNew: () => void }) {
@@ -93,7 +103,7 @@ export function EmptyState({ onNew }: { onNew: () => void }) {
         <div className="mb-2 text-[11px] uppercase tracking-[0.06em] text-fg-3">
           or pick an engine to start
         </div>
-        <div className="mb-[22px] grid grid-cols-5 gap-1.5">
+        <div className="mb-[22px] grid grid-cols-[repeat(auto-fill,minmax(92px,1fr))] gap-1.5">
           {ENGINE_ORDER.map((e) => {
             const m = ENGINE_META[e];
             const hex = ENGINE_HEX[e];
@@ -101,6 +111,7 @@ export function EmptyState({ onNew }: { onNew: () => void }) {
               e === "postgres" ||
               e === "mssql" ||
               e === "firestore" ||
+              e === "convex" ||
               e === "mysql";
             return (
               <button
@@ -123,7 +134,7 @@ export function EmptyState({ onNew }: { onNew: () => void }) {
                     borderColor: `color-mix(in oklab, ${hex} 30%, transparent)`,
                   }}
                 >
-                  {m.letter}
+                  <EngineLogo engine={e} size={16} />
                 </span>
                 <span className="whitespace-nowrap text-sm text-fg-1">
                   {SHORT[e]}

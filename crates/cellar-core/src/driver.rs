@@ -19,6 +19,7 @@ pub enum Engine {
     Mssql,
     Azure,
     Firestore,
+    Convex,
 }
 
 impl Engine {
@@ -30,6 +31,7 @@ impl Engine {
             Self::Mssql => "mssql",
             Self::Azure => "azure",
             Self::Firestore => "firestore",
+            Self::Convex => "convex",
         }
     }
 }

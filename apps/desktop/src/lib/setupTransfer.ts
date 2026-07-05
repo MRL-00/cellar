@@ -44,6 +44,7 @@ const ENGINES: Engine[] = [
   "mssql",
   "azure",
   "firestore",
+  "convex",
 ];
 const SSL_MODES: SslMode[] = [
   "disable",

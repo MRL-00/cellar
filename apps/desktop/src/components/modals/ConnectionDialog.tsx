@@ -4,10 +4,18 @@ import { commands, unwrap } from "@cellar/ipc";
 
 import { Icon } from "../icons";
 import { ENGINE_META, type Engine } from "../EngineBadge";
+import { EngineLogo } from "../EngineLogo";
 import { Modal } from "./Modal";
 import { useConnections } from "../../state/connections";
 
-const ENGINE_ORDER: Engine[] = ["postgres", "firestore", "mssql", "mysql", "sqlite"];
+const ENGINE_ORDER: Engine[] = [
+  "postgres",
+  "firestore",
+  "convex",
+  "mssql",
+  "mysql",
+  "sqlite",
+];
 
 const ENGINE_HEX: Record<Engine, string> = {
   postgres: "#4f8ff7",
@@ -16,6 +24,7 @@ const ENGINE_HEX: Record<Engine, string> = {
   azure: "#5bb8e0",
   sqlite: "#a78bfa",
   firestore: "#f4c542",
+  convex: "#f25c4d",
 };
 
 const SWATCH_COLORS = ["#4f8ff7", "#f6a44a", "#d97a5a", "#5bb8e0", "#a78bfa", "#4ade80", "#f87171"];
@@ -27,6 +36,7 @@ const DEFAULT_PORT: Record<Engine, number> = {
   azure: 1433,
   sqlite: 0,
   firestore: 443,
+  convex: 443,
 };
 
 // Default catalog to target when the user first picks an engine. MySQL has no
@@ -40,6 +50,7 @@ const DEFAULT_DATABASE: Record<Engine, string> = {
   azure: "master",
   sqlite: "",
   firestore: "",
+  convex: "",
 };
 
 type Tab = "general" | "ssh" | "ssl" | "options";
@@ -130,6 +141,11 @@ export function ConnectionDialog({
       setUser("(default)");
       setSsl(true);
       setSslMode("require");
+    } else if (engine === "convex") {
+      setHost("");
+      setUser("");
+      setSsl(true);
+      setSslMode("require");
     } else if (engine === "mssql") {
       setHost("localhost");
       setSsl(true);
@@ -188,18 +204,33 @@ export function ConnectionDialog({
 
   const sqliteOnly = engine === "sqlite";
   const isFirestore = engine === "firestore";
-  const hostLabel = isFirestore ? "API host" : "Host";
+  const isConvex = engine === "convex";
+  const hostLabel = isFirestore
+    ? "API host"
+    : isConvex
+      ? "Deployment host"
+      : "Host";
   const databaseLabel = isFirestore ? "Project ID" : "Database";
   const userLabel = isFirestore ? "Database ID" : "User";
-  const passwordLabel = isFirestore ? "Credentials" : "Password";
+  const passwordLabel = isFirestore
+    ? "Credentials"
+    : isConvex
+      ? "Deploy key"
+      : "Password";
   const passwordHint = isFirestore
     ? isEdit
       ? "Leave blank to keep saved JSON/token"
       : "Leave blank for emulator; JSON/token is stored in OS keychain"
-    : isEdit
-      ? "Leave blank to keep the saved password"
-      : "Stored in OS keychain";
-  const canSave = Boolean(host && database && (isFirestore || user));
+    : isConvex
+      ? isEdit
+        ? "Leave blank to keep the saved deploy key"
+        : "Leave blank for a local backend; stored in OS keychain"
+      : isEdit
+        ? "Leave blank to keep the saved password"
+        : "Stored in OS keychain";
+  const canSave = Boolean(
+    host && (isConvex || (database && (isFirestore || user))),
+  );
 
   return (
     <Modal onClose={onClose} width={760}>
@@ -218,7 +249,7 @@ export function ConnectionDialog({
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 pt-3 pb-4">
-        <div className="mb-3.5 grid grid-cols-5 gap-1.5">
+        <div className="mb-3.5 grid grid-cols-[repeat(auto-fill,minmax(92px,1fr))] gap-1.5">
           {ENGINE_ORDER.map((e) => {
             const m = ENGINE_META[e];
             const hex = ENGINE_HEX[e];
@@ -226,6 +257,7 @@ export function ConnectionDialog({
             const disabled =
               e !== "postgres" &&
               e !== "firestore" &&
+              e !== "convex" &&
               e !== "mssql" &&
               e !== "mysql";
             return (
@@ -245,14 +277,13 @@ export function ConnectionDialog({
                 }
               >
                 <span
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-[6px] border font-mono text-[14px] font-semibold"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-[6px] border"
                   style={{
-                    color: hex,
-                    background: `color-mix(in oklab, ${hex} 14%, transparent)`,
-                    borderColor: `color-mix(in oklab, ${hex} 30%, transparent)`,
+                    background: `color-mix(in oklab, ${hex} 8%, transparent)`,
+                    borderColor: `color-mix(in oklab, ${hex} 24%, transparent)`,
                   }}
                 >
-                  {m.letter}
+                  <EngineLogo engine={e} size={17} />
                 </span>
                 <span
                   className={
@@ -310,7 +341,13 @@ export function ConnectionDialog({
                 className={CD_INPUT}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder={isFirestore ? "prod-firestore" : `local-${engine}`}
+                placeholder={
+                  isFirestore
+                    ? "prod-firestore"
+                    : isConvex
+                      ? "prod-convex"
+                      : `local-${engine}`
+                }
               />
             </FormRow>
 
@@ -319,6 +356,9 @@ export function ConnectionDialog({
                 className={CD_INPUT + " font-mono"}
                 value={host}
                 onChange={(e) => setHost(e.target.value)}
+                placeholder={
+                  isConvex ? "acoustic-panther-123.convex.cloud" : undefined
+                }
                 style={{ flex: 1 }}
               />
               <span className="text-fg-3">:</span>
@@ -330,7 +370,7 @@ export function ConnectionDialog({
               />
             </FormRow>
 
-            {!sqliteOnly && (
+            {!sqliteOnly && !isConvex && (
               <FormRow label={databaseLabel}>
                 <input
                   className={CD_INPUT + " font-mono"}
@@ -343,15 +383,17 @@ export function ConnectionDialog({
               </FormRow>
             )}
 
-            <FormRow label={userLabel}>
-              <input
-                className={CD_INPUT + " font-mono"}
-                value={user}
-                onChange={(e) => setUser(e.target.value)}
-                autoComplete="off"
-                placeholder={isFirestore ? "(default)" : undefined}
-              />
-            </FormRow>
+            {!isConvex && (
+              <FormRow label={userLabel}>
+                <input
+                  className={CD_INPUT + " font-mono"}
+                  value={user}
+                  onChange={(e) => setUser(e.target.value)}
+                  autoComplete="off"
+                  placeholder={isFirestore ? "(default)" : undefined}
+                />
+              </FormRow>
+            )}
 
             <FormRow
               label={passwordLabel}
@@ -367,7 +409,9 @@ export function ConnectionDialog({
                     ? "•••••••• (unchanged)"
                     : isFirestore
                       ? "{ service_account_json }"
-                      : ""
+                      : isConvex
+                        ? "prod:acoustic-panther-123|…"
+                        : ""
                 }
                 style={{ flex: 1 }}
                 autoComplete="new-password"
