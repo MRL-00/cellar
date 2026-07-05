@@ -367,7 +367,7 @@ mod tests {
 
         assert_eq!(
             sql,
-            "SELECT * FROM [dbo].[orders]]archive] WHERE [name] LIKE N'%O''Hara%' ORDER BY [name] DESC OFFSET 10 ROWS FETCH NEXT 26 ROWS ONLY"
+            "SELECT * FROM [dbo].[orders]]archive] WHERE [name] LIKE N'%O''Hara%' ESCAPE '\\' ORDER BY [name] DESC OFFSET 10 ROWS FETCH NEXT 26 ROWS ONLY"
         );
     }
 
@@ -398,7 +398,7 @@ mod tests {
 
         assert_eq!(
             sql,
-            "SELECT count_big(*) FROM [dbo].[orders]]archive] WHERE [name] LIKE N'%O''Hara%'"
+            "SELECT count_big(*) FROM [dbo].[orders]]archive] WHERE [name] LIKE N'%O''Hara%' ESCAPE '\\'"
         );
     }
 

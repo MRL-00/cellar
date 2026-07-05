@@ -556,6 +556,7 @@ dependencies = [
  "cellar-driver-firestore",
  "cellar-driver-mysql",
  "cellar-driver-postgres",
+ "cellar-driver-sqlite",
  "cellar-driver-sqlserver",
  "cellar-schema-diff",
  "cellar-secrets",
@@ -647,6 +648,21 @@ dependencies = [
  "thiserror 1.0.69",
  "tokio",
  "uuid",
+]
+
+[[package]]
+name = "cellar-driver-sqlite"
+version = "0.2.0"
+dependencies = [
+ "async-trait",
+ "cellar-core",
+ "chrono",
+ "futures",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "thiserror 1.0.69",
+ "tokio",
 ]
 
 [[package]]

@@ -7,6 +7,7 @@ members = [
     "crates/cellar-drivers/firestore",
     "crates/cellar-drivers/mysql",
     "crates/cellar-drivers/postgres",
+    "crates/cellar-drivers/sqlite",
     "crates/cellar-drivers/sqlserver",
     "crates/cellar-sql",
     "crates/cellar-diff",

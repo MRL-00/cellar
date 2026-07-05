@@ -45,6 +45,14 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
 
+  <link
+    rel="preload"
+    as="image"
+    href="/assets/hero-scene-poster-2x.jpg"
+    imagesrcset="/assets/hero-scene-poster.jpg 1152w, /assets/hero-scene-poster-2x.jpg 2560w"
+    imagesizes="100vw"
+    fetchpriority="high"
+  />
   <link rel="preload" as="image" href="/assets/cellar-main.png" fetchpriority="high" />
 
 </head>
@@ -96,10 +104,21 @@
 <!-- ───────────── HERO ───────────── -->
 <section class="hero" id="download">
   <div class="hero-bg" aria-hidden="true">
-    <video class="hero-video" id="heroVideo" muted loop playsinline preload="none" poster="/assets/hero-scene-poster.jpg">
-      <source src="/assets/hero-scene.webm" type="video/webm" />
-      <source src="/assets/hero-scene.mp4" type="video/mp4" />
-    </video>
+    <picture>
+      <source
+        srcset="/assets/hero-scene-poster.jpg 1152w, /assets/hero-scene-poster-2x.jpg 2560w"
+        sizes="100vw"
+      />
+      <img
+        class="hero-image"
+        src="/assets/hero-scene-poster.jpg"
+        width="2560"
+        height="1600"
+        alt=""
+        fetchpriority="high"
+        decoding="async"
+      />
+    </picture>
     <div class="hero-scrim"></div>
   </div>
   <div class="wrap hero-inner">

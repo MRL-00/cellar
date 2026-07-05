@@ -5,7 +5,10 @@ export type Engine =
   | "azure"
   | "sqlite"
   | "firestore"
-  | "convex";
+  | "convex"
+  | "supabase"
+  | "neon"
+  | "planetscale";
 
 export const ENGINE_META: Record<
   Engine,
@@ -18,6 +21,13 @@ export const ENGINE_META: Record<
   sqlite: { label: "SQLite", color: "var(--eng-sqlite)", letter: "L" },
   firestore: { label: "Firestore", color: "var(--eng-firestore)", letter: "F" },
   convex: { label: "Convex", color: "var(--eng-convex)", letter: "C" },
+  supabase: { label: "Supabase", color: "var(--eng-supabase)", letter: "S" },
+  neon: { label: "Neon", color: "var(--eng-neon)", letter: "N" },
+  planetscale: {
+    label: "PlanetScale",
+    color: "var(--eng-planetscale)",
+    letter: "P",
+  },
 };
 
 // ponytail: brand glyphs (postgres elephant, mysql dolphin, sqlite feather,
@@ -41,6 +51,12 @@ const ENGINE_GLYPH: Partial<Record<Engine, string>> = {
   // Azure SQL: cloud (filled silhouette).
   azure:
     "M19 18H6.5a4.5 4.5 0 0 1-.42-8.98 6 6 0 0 1 11.64-1.36A4.5 4.5 0 0 1 19 18z",
+  supabase:
+    "M11.9 1.036c-.015-.986-1.26-1.41-1.874-.637L.764 12.05C-.33 13.427.65 15.455 2.409 15.455h9.579l.113 7.51c.014.985 1.259 1.408 1.873.636l9.262-11.653c1.093-1.375.113-3.403-1.645-3.403h-9.642z",
+  neon:
+    "M0 4.8A4.8 4.8 0 0 1 4.8 0h14.4A4.8 4.8 0 0 1 24 4.8v12.98c0 1.335-1.69 1.913-2.508.858l-4.152-5.36v7.122a3.6 3.6 0 0 1-3.6 3.6H4.8A4.8 4.8 0 0 1 0 19.2Zm4.8-1.44a1.44 1.44 0 0 0-1.44 1.44v14.4c0 .795.645 1.44 1.44 1.44h9.12c.398 0 .6-.322.6-.72v-9.716c0-1.335 1.69-1.914 2.508-.859l4.152 5.36V4.8c0-.795-.525-1.44-1.32-1.44Z",
+  planetscale:
+    "M0 12C0 5.373 5.373 0 12 0c4.873 0 9.067 2.904 10.947 7.077l-15.87 15.87a11.981 11.981 0 0 1-2.16-1.084l9.196-9.196H12l-7.078 7.078A11.954 11.954 0 0 1 0 12zm12 12 12-12c0 6.627-5.373 12-12 12z",
 };
 
 export function EngineBadge({

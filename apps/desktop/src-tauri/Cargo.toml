@@ -45,6 +45,7 @@ cellar-driver-convex = { path = "../../../crates/cellar-drivers/convex" }
 cellar-driver-firestore = { path = "../../../crates/cellar-drivers/firestore" }
 cellar-driver-mysql = { path = "../../../crates/cellar-drivers/mysql" }
 cellar-driver-postgres = { path = "../../../crates/cellar-drivers/postgres" }
+cellar-driver-sqlite = { path = "../../../crates/cellar-drivers/sqlite" }
 cellar-driver-sqlserver = { path = "../../../crates/cellar-drivers/sqlserver" }
 cellar-diff = { path = "../../../crates/cellar-diff" }
 cellar-schema-diff = { path = "../../../crates/cellar-schema-diff" }

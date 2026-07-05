@@ -295,7 +295,9 @@ impl ConnectionRegistry {
             (open.config.engine, Arc::clone(&open.connection))
         };
 
-        match engine {
+        // Dispatch on family so hosted providers (Supabase/Neon/PlanetScale)
+        // browse through their base engine's driver.
+        match engine.family() {
             Engine::Firestore => {
                 cellar_driver_firestore::browse_collection(connection.as_ref(), &request, &table)
                     .await
@@ -322,7 +324,17 @@ impl ConnectionRegistry {
                         .await),
                 }
             }
-            Engine::Mssql | Engine::Azure => {
+            Engine::Sqlite => {
+                match cellar_driver_sqlite::browse_table(connection.as_ref(), &request, &table)
+                    .await
+                {
+                    Ok(result) => Ok(result),
+                    Err(err) => Err(self
+                        .handle_operation_error(&request.connection_id, err)
+                        .await),
+                }
+            }
+            Engine::Mssql => {
                 match cellar_driver_sqlserver::browse_table(connection.as_ref(), &request, &table)
                     .await
                 {
@@ -365,7 +377,7 @@ impl ConnectionRegistry {
             )
         };
 
-        if engine != Engine::Postgres {
+        if engine.family() != Engine::Postgres {
             return Err(CellarError::invalid_config(format!(
                 "find usages is not available for {} yet",
                 engine.as_str()
@@ -443,7 +455,7 @@ impl ConnectionRegistry {
                 .ok_or_else(|| CellarError::NotConnected(format!("no open connection for {id}")))?;
             (open.config.engine, Arc::clone(&open.connection))
         };
-        match engine {
+        match engine.family() {
             Engine::Postgres => {
                 let conn = connection.as_ref();
                 let outcome = if import {
@@ -514,7 +526,7 @@ impl ConnectionRegistry {
                 .ok_or_else(|| CellarError::NotConnected(format!("no open connection for {id}")))?;
             (open.config.engine, Arc::clone(&open.connection))
         };
-        match engine {
+        match engine.family() {
             Engine::Postgres => {
                 match cellar_driver_postgres::apply_migration(connection.as_ref(), database, sql)
                     .await
@@ -556,7 +568,7 @@ impl ConnectionRegistry {
                 .ok_or_else(|| CellarError::NotConnected(format!("no open connection for {id}")))?;
             (open.config.engine, Arc::clone(&open.connection))
         };
-        if engine != Engine::Postgres {
+        if engine.family() != Engine::Postgres {
             return Err(CellarError::invalid_config(format!(
                 "execution plans are not available for {} yet",
                 engine.as_str()

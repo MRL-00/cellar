@@ -254,10 +254,10 @@ async fn resolve_source(
 }
 
 fn dialect_for(engine: Option<Engine>) -> Dialect {
-    match engine {
+    match engine.map(|e| e.family()) {
         Some(Engine::MySql) => Dialect::MySql,
         Some(Engine::Sqlite) => Dialect::Sqlite,
-        Some(Engine::Mssql) | Some(Engine::Azure) => Dialect::Mssql,
+        Some(Engine::Mssql) => Dialect::Mssql,
         // Postgres, Firestore (no DDL), or unknown all fall back to Postgres
         // quoting — the only fully implemented DDL dialect today.
         _ => Dialect::Postgres,

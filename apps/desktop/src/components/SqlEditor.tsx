@@ -38,6 +38,9 @@ const DIALECTS: Record<Engine, string> = {
   azure: "Azure SQL",
   firestore: "Firestore",
   convex: "Convex",
+  supabase: "Supabase",
+  neon: "Neon",
+  planetscale: "PlanetScale",
 };
 
 const PLACEHOLDER =
@@ -82,7 +85,11 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
 
   const sql = tab.sql;
   const connected = status === "connected";
-  const isPostgres = engine === "postgres" || engine === undefined;
+  const isPostgres =
+    engine === "postgres" ||
+    engine === "supabase" ||
+    engine === "neon" ||
+    engine === undefined;
   const supportsSql = engine !== "firestore" && engine !== "convex";
 
   const statements = useMemo(() => splitStatements(sql), [sql]);
@@ -137,7 +144,11 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
       // Parameter binding is only implemented for the Postgres driver today.
       // For other engines, run the statement as-is rather than opening a panel
       // that implies binding we cannot perform (the engine reports any error).
-      const bindsParams = engine === undefined || engine === "postgres";
+      const bindsParams =
+        engine === undefined ||
+        engine === "postgres" ||
+        engine === "supabase" ||
+        engine === "neon";
       if (!bindsParams) {
         runRaw();
         return;

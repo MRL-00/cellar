@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::str::FromStr;
 
 use async_trait::async_trait;
-use cellar_core::driver::{Connection, ConnectionConfig, DriverInfo, Engine, SslMode};
+use cellar_core::driver::{Connection, ConnectionConfig, DriverInfo, SslMode};
 use cellar_core::error::{CellarError, CellarResult};
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions, PgSslMode};
 use sqlx::{Error as SqlxError, PgPool, Row};
@@ -134,7 +134,9 @@ pub async fn open_pool(
 
     Ok(PgConnection {
         info: DriverInfo {
-            engine: Engine::Postgres,
+            // Report the config's engine, not a literal: Supabase and Neon
+            // connections run through this same driver.
+            engine: config.engine,
             version,
         },
         pool,
