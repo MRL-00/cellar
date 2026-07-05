@@ -13,6 +13,7 @@ use cellar_driver_convex::ConvexDriver;
 use cellar_driver_firestore::FirestoreDriver;
 use cellar_driver_mysql::MySqlDriver;
 use cellar_driver_postgres::PostgresDriver;
+use cellar_driver_sqlite::SqliteDriver;
 use cellar_driver_sqlserver::SqlServerDriver;
 use tokio::fs;
 
@@ -71,14 +72,16 @@ pub(super) fn driver_for(engine: Engine) -> CellarResult<Box<dyn Driver>> {
     match engine {
         Engine::Convex => Ok(Box::new(ConvexDriver::default())),
         Engine::Firestore => Ok(Box::new(FirestoreDriver::default())),
-        Engine::MySql => Ok(Box::new(MySqlDriver::default())),
-        Engine::Postgres => Ok(Box::new(PostgresDriver::default())),
+        // Supabase and Neon speak the Postgres wire protocol; PlanetScale
+        // speaks MySQL's. They share the base engine's driver, which reports
+        // the connection's own engine via `ConnectionConfig`.
+        Engine::MySql | Engine::PlanetScale => Ok(Box::new(MySqlDriver::default())),
+        Engine::Postgres | Engine::Supabase | Engine::Neon => {
+            Ok(Box::new(PostgresDriver::default()))
+        }
+        Engine::Sqlite => Ok(Box::new(SqliteDriver::default())),
         Engine::Mssql => Ok(Box::new(SqlServerDriver::new())),
         Engine::Azure => Ok(Box::new(SqlServerDriver::azure())),
-        other => Err(CellarError::invalid_config(format!(
-            "engine {} is not supported in this build",
-            other.as_str()
-        ))),
     }
 }
 

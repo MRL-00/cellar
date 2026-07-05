@@ -4,8 +4,11 @@ import convex from "../assets/engines/convex.svg";
 import firestore from "../assets/engines/firestore.svg";
 import mssql from "../assets/engines/mssql.svg";
 import mysql from "../assets/engines/mysql.svg";
+import neon from "../assets/engines/neon.svg";
+import planetscale from "../assets/engines/planetscale.svg";
 import postgres from "../assets/engines/postgres.svg";
 import sqlite from "../assets/engines/sqlite.svg";
+import supabase from "../assets/engines/supabase.svg";
 
 // Full-color brand marks for picker-sized surfaces. The tiny sidebar badges
 // keep the monochrome tinted glyphs in EngineBadge — multi-color marks are
@@ -18,6 +21,9 @@ const LOGOS: Record<Engine, string> = {
   azure,
   firestore,
   convex,
+  supabase,
+  neon,
+  planetscale,
 };
 
 export function EngineLogo({

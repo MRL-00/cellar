@@ -19,6 +19,9 @@ const ENGINE_HEX: Record<Engine, string> = {
   sqlite: "#a78bfa",
   firestore: "#f4c542",
   convex: "#f25c4d",
+  supabase: "#3ecf8e",
+  neon: "#00e599",
+  planetscale: "#c8ccd4",
 };
 
 const SHORT: Record<Engine, string> = {
@@ -29,6 +32,9 @@ const SHORT: Record<Engine, string> = {
   sqlite: "SQLite",
   firestore: "Firestore",
   convex: "Convex",
+  supabase: "Supabase",
+  neon: "Neon",
+  planetscale: "PlanetScale",
 };
 
 export function EmptyState({ onNew }: { onNew: () => void }) {

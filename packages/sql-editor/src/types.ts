@@ -1,4 +1,12 @@
-export type SqlEngine = "postgres" | "mysql" | "sqlite" | "mssql" | "azure";
+export type SqlEngine =
+  | "postgres"
+  | "mysql"
+  | "sqlite"
+  | "mssql"
+  | "azure"
+  | "supabase"
+  | "neon"
+  | "planetscale";
 
 export interface SqlColumnMeta {
   name: string;

@@ -405,29 +405,3 @@ if (nav) {
     });
   }
 }
-
-/* ───────────── hero scene playback ─────────────
-   The hero backdrop video has no autoplay attribute, so it stays on
-   its poster frame until we opt in: only when motion is allowed, and
-   only while the hero is on screen (pause when scrolled away to save
-   battery/CPU). Reduced-motion users keep the still poster. */
-
-const heroVideo = document.getElementById("heroVideo") as HTMLVideoElement | null;
-
-if (heroVideo && !reduceMotion) {
-  const playSafe = () => heroVideo.play().catch(() => {});
-  if ("IntersectionObserver" in window) {
-    const videoObserver = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) playSafe();
-          else heroVideo.pause();
-        }
-      },
-      { threshold: 0.05 },
-    );
-    videoObserver.observe(heroVideo);
-  } else {
-    playSafe();
-  }
-}

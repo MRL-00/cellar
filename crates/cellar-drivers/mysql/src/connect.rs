@@ -2,7 +2,7 @@ use std::any::Any;
 use std::str::FromStr;
 
 use async_trait::async_trait;
-use cellar_core::driver::{Connection, ConnectionConfig, DriverInfo, Engine, SslMode};
+use cellar_core::driver::{Connection, ConnectionConfig, DriverInfo, SslMode};
 use cellar_core::error::{CellarError, CellarResult};
 use sqlx::mysql::{MySqlConnectOptions, MySqlPoolOptions, MySqlSslMode};
 use sqlx::{Error as SqlxError, MySqlPool, Row};
@@ -69,7 +69,9 @@ pub async fn open_pool(
 
     Ok(MySqlConnection {
         info: DriverInfo {
-            engine: Engine::MySql,
+            // Report the config's engine, not a literal: PlanetScale
+            // connections run through this same driver.
+            engine: config.engine,
             version,
         },
         pool,

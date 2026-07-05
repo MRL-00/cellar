@@ -64,6 +64,9 @@
   --eng-sqlite: #a78bfa;
   --eng-firestore: #f4c542;
   --eng-convex: #f25c4d;
+  --eng-supabase: #3ecf8e;
+  --eng-neon: #00e599;
+  --eng-planetscale: #c8ccd4;
 
   /* Syntax (SQL) */
   --syn-kw: #b794f6;

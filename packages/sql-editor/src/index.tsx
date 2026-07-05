@@ -389,8 +389,11 @@ function clampLine(line: number, max: number) {
 function dialectFor(engine: SqlEngine): SQLDialect {
   switch (engine) {
     case "postgres":
+    case "supabase":
+    case "neon":
       return PostgreSQL;
     case "mysql":
+    case "planetscale":
       return MySQL;
     case "sqlite":
       return SQLite;

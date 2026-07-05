@@ -45,12 +45,14 @@ pub struct PreparedStatement {
 /// largely dialect-independent; the dialect mainly affects identifier and
 /// string-literal quoting rules.
 fn dialect_for(engine: Engine) -> Box<dyn Dialect> {
-    match engine {
+    // Match on family so hosted providers (Supabase/Neon/PlanetScale/Azure)
+    // pick up their base engine's dialect.
+    match engine.family() {
         Engine::Postgres => Box::new(PostgreSqlDialect {}),
         Engine::MySql => Box::new(MySqlDialect {}),
         Engine::Sqlite => Box::new(SQLiteDialect {}),
-        Engine::Mssql | Engine::Azure => Box::new(MsSqlDialect {}),
-        Engine::Firestore | Engine::Convex => Box::new(GenericDialect {}),
+        Engine::Mssql => Box::new(MsSqlDialect {}),
+        _ => Box::new(GenericDialect {}),
     }
 }
 

@@ -20,6 +20,9 @@ pub enum Engine {
     Azure,
     Firestore,
     Convex,
+    Supabase,
+    Neon,
+    PlanetScale,
 }
 
 impl Engine {
@@ -32,6 +35,22 @@ impl Engine {
             Self::Azure => "azure",
             Self::Firestore => "firestore",
             Self::Convex => "convex",
+            Self::Supabase => "supabase",
+            Self::Neon => "neon",
+            Self::PlanetScale => "planetscale",
+        }
+    }
+
+    /// The wire-protocol family this engine speaks. Hosted providers map onto
+    /// the driver and SQL dialect of their base engine (Azure did this first
+    /// via `SqlServerDriver::azure()`), so capability gates and dispatch
+    /// should match on `family()`, not the raw variant.
+    pub fn family(&self) -> Engine {
+        match self {
+            Self::Supabase | Self::Neon => Self::Postgres,
+            Self::PlanetScale => Self::MySql,
+            Self::Azure => Self::Mssql,
+            other => *other,
         }
     }
 }

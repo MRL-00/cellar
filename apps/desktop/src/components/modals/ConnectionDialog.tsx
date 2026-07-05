@@ -10,11 +10,14 @@ import { useConnections } from "../../state/connections";
 
 const ENGINE_ORDER: Engine[] = [
   "postgres",
+  "mysql",
+  "sqlite",
+  "supabase",
+  "neon",
+  "planetscale",
   "firestore",
   "convex",
   "mssql",
-  "mysql",
-  "sqlite",
 ];
 
 const ENGINE_HEX: Record<Engine, string> = {
@@ -25,6 +28,9 @@ const ENGINE_HEX: Record<Engine, string> = {
   sqlite: "#a78bfa",
   firestore: "#f4c542",
   convex: "#f25c4d",
+  supabase: "#3ecf8e",
+  neon: "#00e599",
+  planetscale: "#c8ccd4",
 };
 
 const SWATCH_COLORS = ["#4f8ff7", "#f6a44a", "#d97a5a", "#5bb8e0", "#a78bfa", "#4ade80", "#f87171"];
@@ -37,6 +43,9 @@ const DEFAULT_PORT: Record<Engine, number> = {
   sqlite: 0,
   firestore: 443,
   convex: 443,
+  supabase: 5432,
+  neon: 5432,
+  planetscale: 3306,
 };
 
 // Default catalog to target when the user first picks an engine. MySQL has no
@@ -51,6 +60,9 @@ const DEFAULT_DATABASE: Record<Engine, string> = {
   sqlite: "",
   firestore: "",
   convex: "",
+  supabase: "postgres",
+  neon: "neondb",
+  planetscale: "",
 };
 
 type Tab = "general" | "ssh" | "ssl" | "options";
@@ -118,8 +130,14 @@ export function ConnectionDialog({
 
   const [name, setName] = useState(initial?.name ?? "");
   const [host, setHost] = useState(initial?.host ?? "localhost");
-  const [port, setPort] = useState<number>(initial?.port ?? DEFAULT_PORT.postgres);
-  const [database, setDatabase] = useState(initial?.database ?? "postgres");
+  const [port, setPort] = useState<number>(
+    initial?.port ??
+      DEFAULT_PORT[(initialEngine as Engine | undefined) ?? "postgres"],
+  );
+  const [database, setDatabase] = useState(
+    initial?.database ??
+      DEFAULT_DATABASE[(initialEngine as Engine | undefined) ?? "postgres"],
+  );
   const [user, setUser] = useState(initial?.user ?? "");
   const [password, setPassword] = useState("");
   const [appName, setAppName] = useState(initial?.application_name ?? "cellar");
@@ -150,6 +168,21 @@ export function ConnectionDialog({
       setHost("localhost");
       setSsl(true);
       setSslMode("prefer");
+    } else if (engine === "supabase") {
+      setHost("");
+      setUser("postgres");
+      setSsl(true);
+      setSslMode("require");
+    } else if (engine === "neon" || engine === "planetscale") {
+      // Both hosted services refuse plaintext connections.
+      setHost("");
+      setUser("");
+      setSsl(true);
+      setSslMode("require");
+    } else if (engine === "sqlite") {
+      setHost("");
+      setUser("");
+      setSsl(false);
     }
   }, [engine]);
 
@@ -161,7 +194,7 @@ export function ConnectionDialog({
 
   const buildConfig = (): ConnectionConfig => ({
     id,
-    name: name || `${user || "user"}@${host}/${database}`,
+    name: name || (sqliteOnly ? database : `${user || "user"}@${host}/${database}`),
     engine: engine as ConnectionConfig["engine"],
     host,
     port,
@@ -210,7 +243,21 @@ export function ConnectionDialog({
     : isConvex
       ? "Deployment host"
       : "Host";
-  const databaseLabel = isFirestore ? "Project ID" : "Database";
+  const databaseLabel = sqliteOnly
+    ? "Database file"
+    : isFirestore
+      ? "Project ID"
+      : "Database";
+  const hostPlaceholder =
+    engine === "convex"
+      ? "acoustic-panther-123.convex.cloud"
+      : engine === "supabase"
+        ? "db.abcdefghijkl.supabase.co"
+        : engine === "neon"
+          ? "ep-cool-name-123456.us-east-1.aws.neon.tech"
+          : engine === "planetscale"
+            ? "aws.connect.psdb.cloud"
+            : undefined;
   const userLabel = isFirestore ? "Database ID" : "User";
   const passwordLabel = isFirestore
     ? "Credentials"
@@ -228,9 +275,9 @@ export function ConnectionDialog({
       : isEdit
         ? "Leave blank to keep the saved password"
         : "Stored in OS keychain";
-  const canSave = Boolean(
-    host && (isConvex || (database && (isFirestore || user))),
-  );
+  const canSave = sqliteOnly
+    ? Boolean(database)
+    : Boolean(host && (isConvex || (database && (isFirestore || user))));
 
   return (
     <Modal onClose={onClose} width={760}>
@@ -254,26 +301,17 @@ export function ConnectionDialog({
             const m = ENGINE_META[e];
             const hex = ENGINE_HEX[e];
             const active = engine === e;
-            const disabled =
-              e !== "postgres" &&
-              e !== "firestore" &&
-              e !== "convex" &&
-              e !== "mssql" &&
-              e !== "mysql";
             return (
               <button
                 key={e}
                 onClick={() => {
-                  if (disabled) return;
                   userPickedEngine.current = true;
                   setEngine(e);
                 }}
-                disabled={disabled}
-                title={disabled ? "coming soon" : m.label}
+                title={m.label}
                 className={
                   "flex flex-col items-center gap-1.5 rounded-[6px] border border-border-default bg-bg-2 px-1.5 pt-2.5 pb-[9px] transition-all duration-150 hover:border-border-strong " +
-                  (active ? "shadow-[inset_0_0_0_1px_var(--accent)]" : "") +
-                  (disabled ? " opacity-40 cursor-not-allowed" : "")
+                  (active ? "shadow-[inset_0_0_0_1px_var(--accent)]" : "")
                 }
               >
                 <span
@@ -351,26 +389,26 @@ export function ConnectionDialog({
               />
             </FormRow>
 
-            <FormRow label={hostLabel}>
-              <input
-                className={CD_INPUT + " font-mono"}
-                value={host}
-                onChange={(e) => setHost(e.target.value)}
-                placeholder={
-                  isConvex ? "acoustic-panther-123.convex.cloud" : undefined
-                }
-                style={{ flex: 1 }}
-              />
-              <span className="text-fg-3">:</span>
-              <input
-                className={CD_INPUT + " font-mono w-[70px] flex-none"}
-                value={port}
-                inputMode="numeric"
-                onChange={(e) => setPort(Number(e.target.value) || 0)}
-              />
-            </FormRow>
+            {!sqliteOnly && (
+              <FormRow label={hostLabel}>
+                <input
+                  className={CD_INPUT + " font-mono"}
+                  value={host}
+                  onChange={(e) => setHost(e.target.value)}
+                  placeholder={hostPlaceholder}
+                  style={{ flex: 1 }}
+                />
+                <span className="text-fg-3">:</span>
+                <input
+                  className={CD_INPUT + " font-mono w-[70px] flex-none"}
+                  value={port}
+                  inputMode="numeric"
+                  onChange={(e) => setPort(Number(e.target.value) || 0)}
+                />
+              </FormRow>
+            )}
 
-            {!sqliteOnly && !isConvex && (
+            {!isConvex && (
               <FormRow label={databaseLabel}>
                 <input
                   className={CD_INPUT + " font-mono"}
@@ -383,7 +421,7 @@ export function ConnectionDialog({
               </FormRow>
             )}
 
-            {!isConvex && (
+            {!sqliteOnly && !isConvex && (
               <FormRow label={userLabel}>
                 <input
                   className={CD_INPUT + " font-mono"}
@@ -395,28 +433,30 @@ export function ConnectionDialog({
               </FormRow>
             )}
 
-            <FormRow
-              label={passwordLabel}
-              hint={passwordHint}
-            >
-              <input
-                className={CD_INPUT + " font-mono"}
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder={
-                  isEdit
-                    ? "•••••••• (unchanged)"
-                    : isFirestore
-                      ? "{ service_account_json }"
-                      : isConvex
-                        ? "prod:acoustic-panther-123|…"
-                        : ""
-                }
-                style={{ flex: 1 }}
-                autoComplete="new-password"
-              />
-            </FormRow>
+            {!sqliteOnly && (
+              <FormRow
+                label={passwordLabel}
+                hint={passwordHint}
+              >
+                <input
+                  className={CD_INPUT + " font-mono"}
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder={
+                    isEdit
+                      ? "•••••••• (unchanged)"
+                      : isFirestore
+                        ? "{ service_account_json }"
+                        : isConvex
+                          ? "prod:acoustic-panther-123|…"
+                          : ""
+                  }
+                  style={{ flex: 1 }}
+                  autoComplete="new-password"
+                />
+              </FormRow>
+            )}
 
             <div className="my-1 h-px bg-border-divider" />
 
