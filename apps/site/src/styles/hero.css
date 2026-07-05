@@ -143,7 +143,7 @@ h1 .accent {
   overflow: hidden;
   background: var(--bg-1);
   box-shadow: var(--shadow-lg);
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 3040 / 1786;
 }
 .window img {
   width: 100%;

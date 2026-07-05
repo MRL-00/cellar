@@ -17,8 +17,8 @@
   <meta property="og:type" content="website" />
   <!-- og:image must be an absolute URL or crawlers (X, Slack, …) silently drop it and fall back to a placeholder card -->
   <meta property="og:image" content="https://cellar.run/assets/cellar-main.png" />
-  <meta property="og:image:width" content="3164" />
-  <meta property="og:image:height" content="1635" />
+  <meta property="og:image:width" content="3040" />
+  <meta property="og:image:height" content="1786" />
   <meta property="og:image:alt" content="Cellar desktop database client, main window" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:image" content="https://cellar.run/assets/cellar-main.png" />
@@ -47,15 +47,6 @@
 
   <link rel="preload" as="image" href="/assets/cellar-main.png" fetchpriority="high" />
 
-  <script>
-    /* Apply persisted theme before paint to avoid a flash. */
-    try {
-      var t = localStorage.getItem("cellar-theme");
-      if (t === "light" || t === "dark") {
-        document.documentElement.setAttribute("data-theme", t);
-      }
-    } catch (_) {}
-  </script>
 </head>
 <body>
 
@@ -77,10 +68,6 @@
       <a href="#faq">FAQ</a>
     </div>
     <div class="nav-right">
-      <button class="theme-btn" id="themeBtn" type="button" aria-label="Toggle color theme">
-        <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
-        <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
-      </button>
       <a class="ghost-link nav-desktop" href="https://github.com/MRL-00/cellar" rel="noopener">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
         <span>GitHub</span>
@@ -161,7 +148,7 @@
 
     <div class="shot-wrap">
       <div class="window">
-        <img src="/assets/cellar-main.png" alt="Cellar main window: table editing with the AI Assistant mid-conversation" width="1920" height="1080" fetchpriority="high" decoding="async" data-theme-swap />
+        <img src="/assets/cellar-main.png" alt="Cellar main window: table editing with the AI Assistant mid-conversation" width="3040" height="1786" fetchpriority="high" decoding="async" />
       </div>
     </div>
   </div>
@@ -211,8 +198,8 @@
           <h3 style="margin-top:14px;">Ask in English. Review the SQL.</h3>
           <p>Cellar's coming-soon AI is built around visible schema context, bring-your-own provider keys, and generated SQL you inspect before it runs — assistance inside the workflow, not a black box beside it.</p>
         </div>
-        <div class="cell-shot cover">
-          <img src="/assets/main.png" alt="Planned AI assistant drafting SQL with pinned schema context" width="924" height="540" loading="lazy" decoding="async" data-theme-swap />
+        <div class="cell-shot cover ai-shot">
+          <img src="/assets/main.png" alt="Planned AI assistant drafting SQL with pinned schema context" width="748" height="1664" loading="lazy" decoding="async" />
         </div>
       </article>
 
@@ -223,7 +210,7 @@
           <p>SSH tunnels and SSL/TLS built in. Credentials live in your OS keychain — never a config file, never synced.</p>
         </div>
         <div class="cell-shot cover">
-          <img src="/assets/connection.png" alt="New connection dialog with engine picker, host, auth and test connection" width="924" height="540" loading="lazy" decoding="async" data-theme-swap />
+          <img src="/assets/connection.png" alt="New connection dialog with engine picker, host, auth and test connection" width="924" height="540" loading="lazy" decoding="async" />
         </div>
       </article>
 
@@ -242,7 +229,7 @@
           <p>Tables, columns, commands, and workspace actions — one fuzzy search away.</p>
         </div>
         <div class="cell-shot cover">
-          <img src="/assets/cmd.png" alt="Command palette searching tables, actions and navigation" width="924" height="540" loading="lazy" decoding="async" data-theme-swap />
+          <img src="/assets/cmd.png" alt="Command palette searching tables, actions and navigation" width="3024" height="1770" loading="lazy" decoding="async" />
         </div>
       </article>
 

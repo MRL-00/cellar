@@ -142,7 +142,9 @@ h2 {
 }
 .cell-shot img { width: 100%; display: block; }
 .cell.span2 .cell-shot { aspect-ratio: 21 / 9; }
+.cell.span2 .cell-shot.ai-shot { aspect-ratio: 4 / 3; }
 .cell-shot.cover img { aspect-ratio: 16 / 10; object-fit: cover; object-position: top center; height: 100%; }
+.cell-shot.ai-shot img { aspect-ratio: 4 / 3; object-position: top center; }
 
 /* text-only cells: big number + supporting line */
 .cell.metric { padding: 28px; display: flex; flex-direction: column; justify-content: space-between; min-height: 220px; }
