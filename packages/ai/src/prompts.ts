@@ -27,9 +27,9 @@ export const TOPICS: Record<AiTopic, TopicMeta> = {
       "Generate a SQL query for the request below. Return the query in a single ```sql block, then a one-sentence explanation of what it does.",
   },
   explain: {
-    hint: "Explain SQL, a table, or a result",
+    hint: "Explain SQL or answer with a read-only query",
     instruction:
-      "Explain the following clearly and concisely. If it is SQL, describe what it returns and any performance characteristics worth noting.",
+      "If the request is SQL, explain what it returns and any performance characteristics worth noting. If it is a natural-language question about the data, return one read-only SQL query in a single ```sql block so Cellar can run it, then add one short sentence describing what the result will show.",
   },
   optimize: {
     hint: "Suggest a faster equivalent query",

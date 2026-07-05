@@ -1,11 +1,31 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { ORDERED_TOPICS, TOPICS, type AiTopic } from "@cellar/ai";
+import { commands, unwrap, type QueryResult } from "@cellar/ipc";
 import { Icon } from "./icons";
 import { useAi } from "../state/ai";
 import { useTabs } from "../state/tabs";
-import { useConnections } from "../state/connections";
+import { noteConnectionIssue, useConnections } from "../state/connections";
 import { buildActiveContext, type AiContextChip } from "../lib/aiContext";
-import { AIMessage } from "./AIMessage";
+import { AIMessage, firstRunnableSql } from "./AIMessage";
+import { QUERY_ROW_LIMIT } from "../hooks/useQueryRunner";
+import { cellValueToGrid, queryResultToGrid } from "../lib/gridMapping";
+import {
+  buildRunErrorMessage,
+  buildRunResultMessages,
+  buildRunStartedMessage,
+  type QueryRunContext,
+} from "../lib/queryMessages";
+import { useQueryMessages } from "../state/queryMessages";
+import { queryResultSource, useTabResults } from "../state/tabResults";
+import { useBottomPanel } from "../state/bottomPanel";
+import { useStatus } from "../state/status";
 
 const chipMeta: Record<AiContextChip["kind"], { icon: ReactNode; color: string }> = {
   schema: { icon: <Icon.schema size={9} />, color: "var(--fg-1)" },
@@ -35,6 +55,41 @@ const DISABLED_ICON =
 
 const TOPIC_BUTTONS: AiTopic[] = ORDERED_TOPICS.filter((t) => t !== "ask");
 
+type SqlScope = {
+  connectionId: string;
+  database: string;
+  tabId: string;
+  title: string;
+};
+
+function formatAiQueryAnswer(result: QueryResult): string {
+  if (result.rows_affected != null) {
+    return `Result: ${result.rows_affected.toLocaleString()} row${result.rows_affected === 1 ? "" : "s"} affected.`;
+  }
+  if (result.rows.length === 0) return "Result: no rows returned.";
+
+  const headers = result.columns.map((c) => c.name);
+  const rows = result.rows.slice(0, 5).map((row) =>
+    row.map((cell) => String(cellValueToGrid(cell) ?? "NULL")),
+  );
+
+  if (headers.length === 1 && rows.length === 1) {
+    return `Result: ${headers[0]} = ${rows[0]?.[0] ?? "NULL"}.`;
+  }
+  if (rows.length === 1) {
+    return [
+      "Result:",
+      ...headers.map((h, i) => `${h}: ${rows[0]?.[i] ?? "NULL"}`),
+    ].join("\n");
+  }
+
+  const body = rows.map((row) =>
+    headers.map((h, i) => `${h}: ${row[i] ?? "NULL"}`).join(", "),
+  );
+  const suffix = result.rows.length > rows.length ? `\nShowing ${rows.length} of ${result.rows.length} rows.` : "";
+  return ["Result:", ...body].join("\n") + suffix;
+}
+
 export function AIPanel({
   onClose,
   onOpenSettings,
@@ -53,6 +108,14 @@ export function AIPanel({
   const sending = useAi((s) => s.sending);
   const send = useAi((s) => s.send);
   const newThread = useAi((s) => s.newThread);
+  const setQuerySql = useTabs((s) => s.setQuerySql);
+  const newQueryTab = useTabs((s) => s.newQueryTab);
+  const setActiveTab = useTabs((s) => s.setActive);
+  const setBottomTab = useBottomPanel((s) => s.setActive);
+  const [runningSql, setRunningSql] = useState(false);
+  const autoRanMessageId = useRef<string | null>(null);
+  const mounted = useRef(true);
+  const runSeq = useRef(0);
 
   // Recompute context whenever the active tab or its schema changes.
   const activeId = useTabs((s) => s.activeId);
@@ -66,6 +129,14 @@ export function AIPanel({
   useEffect(() => {
     void init();
   }, [init]);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      runSeq.current++;
+    };
+  }, []);
 
   const ready = keyConfigured && !!modelId;
   const canSend = ready && draft.trim().length > 0 && !sending;
@@ -88,6 +159,158 @@ export function AIPanel({
     setTopic((cur) => (cur === t ? "ask" : t));
     textareaRef.current?.focus();
   };
+
+  const insertSql = useCallback((sql: string): SqlScope | null => {
+    const state = useTabs.getState();
+    const active = state.tabs.find((t) => t.id === state.activeId);
+    if (!active) return null;
+    const id = active.kind === "query"
+      ? active.id
+      : newQueryTab(active.connectionId, active.database);
+    setQuerySql(id, sql.trim() + "\n");
+    setActiveTab(id);
+    const tab = useTabs.getState().tabs.find((t) => t.id === id && t.kind === "query");
+    if (!tab || tab.kind !== "query") return null;
+    return {
+      connectionId: tab.connectionId,
+      database: tab.database,
+      tabId: tab.id,
+      title: tab.title,
+    };
+  }, [newQueryTab, setActiveTab, setQuerySql]);
+
+  const activeScope = useCallback((): SqlScope | null => {
+    const state = useTabs.getState();
+    const active = state.tabs.find((t) => t.id === state.activeId);
+    if (!active) return null;
+    return {
+      connectionId: active.connectionId,
+      database: active.database,
+      tabId: active.id,
+      title: active.kind === "table" ? `${active.schema}.${active.table}` : active.title,
+    };
+  }, []);
+
+  const appendAiResult = useCallback((content: string, error = false) => {
+    useAi.setState((s) => ({
+      messages: [
+        ...s.messages,
+        {
+          id: `ai-result-${crypto.randomUUID()}`,
+          role: "model",
+          topic: "explain",
+          content,
+          error,
+        },
+      ],
+    }));
+  }, []);
+
+  const scopeStillCurrent = useCallback((scope: SqlScope, sql: string) => {
+    const tab = useTabs.getState().tabs.find((t) => t.id === scope.tabId);
+    return tab?.kind === "query" && tab.sql.trim() === sql.trim();
+  }, []);
+
+  const runSql = useCallback((sql: string, opts?: { insert?: boolean; answerInPanel?: boolean }) => {
+    if (runningSql) return;
+    const scope = opts?.insert ? insertSql(sql) : activeScope();
+    if (!scope) return;
+    const trimmed = sql.trim();
+    const database = scope.database || null;
+    const source = queryResultSource(
+      scope.connectionId,
+      database,
+      scope.tabId,
+      scope.title,
+      trimmed,
+      QUERY_ROW_LIMIT,
+    );
+    const context: QueryRunContext = {
+      tabId: scope.tabId,
+      connectionId: scope.connectionId,
+      database: scope.database || undefined,
+      label: "AI SQL",
+      sql: trimmed,
+      maxRows: QUERY_ROW_LIMIT,
+    };
+
+    setRunningSql(true);
+    const token = ++runSeq.current;
+    if (!opts?.answerInPanel) {
+      setBottomTab("results");
+      useTabResults.getState().setLoading(scope.tabId, source);
+      useQueryMessages
+        .getState()
+        .replaceForTab(scope.tabId, [buildRunStartedMessage(context)]);
+    }
+
+    void (async () => {
+      try {
+        const result = await unwrap(
+          commands.runReadOnlyQuery(
+            scope.connectionId,
+            trimmed,
+            QUERY_ROW_LIMIT,
+            database,
+          ),
+        );
+        if (!mounted.current || token !== runSeq.current) return;
+        if (opts?.insert && !scopeStillCurrent(scope, trimmed)) return;
+        if (opts?.answerInPanel) {
+          appendAiResult(formatAiQueryAnswer(result));
+        } else {
+          const { columns, rows } = queryResultToGrid(result);
+          useTabResults.getState().setReady(scope.tabId, {
+            source,
+            columns,
+            rows,
+            rowCount: rows.length,
+            truncated: result.truncated,
+            durationMs: result.duration_ms,
+            rowsAffected: result.rows_affected,
+          });
+          useQueryMessages
+            .getState()
+            .addMessages(buildRunResultMessages(context, result));
+          useTabs.getState().markQueryRun(scope.tabId);
+        }
+        useStatus.getState().setLastQuery({
+          connectionId: scope.connectionId,
+          tabId: scope.tabId,
+          rowCount: result.rows.length,
+          truncated: result.truncated,
+          durationMs: result.duration_ms,
+        });
+      } catch (err) {
+        if (!mounted.current || token !== runSeq.current) return;
+        noteConnectionIssue(scope.connectionId, err);
+        const message = err instanceof Error ? err.message : String(err);
+        if (opts?.answerInPanel) {
+          appendAiResult(`Could not run the generated query: ${message}`, true);
+        } else {
+          useTabResults.getState().setError(scope.tabId, source, message);
+          useQueryMessages
+            .getState()
+            .addMessage(buildRunErrorMessage(context, err));
+        }
+      } finally {
+        if (mounted.current && token === runSeq.current) {
+          setRunningSql(false);
+        }
+      }
+    })();
+  }, [activeScope, appendAiResult, insertSql, runningSql, scopeStillCurrent, setBottomTab]);
+
+  useEffect(() => {
+    const last = messages[messages.length - 1];
+    if (!last || last.role !== "model" || last.error) return;
+    if (last.id === autoRanMessageId.current) return;
+    if (last.topic !== "explain" && last.topic !== "ask") return;
+    const sql = firstRunnableSql(last.content);
+    if (!sql) return;
+    autoRanMessageId.current = last.id;
+    runSql(sql, { answerInPanel: true });
+  }, [messages, runSql]);
 
   return (
     <div className="flex h-full flex-col bg-bg-1 text-[13.5px]">
@@ -176,7 +399,15 @@ export function AIPanel({
             )}
           </div>
         ) : (
-          messages.map((m) => <AIMessage key={m.id} entry={m} />)
+          messages.map((m) => (
+            <AIMessage
+              key={m.id}
+              entry={m}
+              onInsertSql={insertSql}
+              onRunSql={(sql) => runSql(sql, { insert: true })}
+              runningSql={runningSql}
+            />
+          ))
         )}
         {sending && (
           <div className="flex items-center gap-2 px-1 text-[12px] text-fg-3">

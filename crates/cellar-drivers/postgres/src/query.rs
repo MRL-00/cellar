@@ -11,7 +11,7 @@ use cellar_core::value::{CellValue, ColumnMeta, Row};
 use cellar_diff::{build_postgres_plan, TableChangeRequest, TableCommitResult};
 use futures::TryStreamExt;
 use serde_json::{Map, Value};
-use sqlx::{Column as _, Row as _, TypeInfo as _};
+use sqlx::{Column as _, PgPool, Row as _, TypeInfo as _};
 
 use crate::connect::PgConnection;
 use crate::decode::decode_cell;
@@ -59,6 +59,9 @@ pub async fn execute_query(conn: &PgConnection, query: &Query) -> CellarResult<Q
         .unwrap_or(conn.config().database.as_str());
     let pool = conn.pool_for_database(database).await?;
     let pool = &pool;
+    if query.read_only {
+        return execute_read_only_query(pool, query).await;
+    }
 
     let max_rows = query.max_rows.unwrap_or(DEFAULT_MAX_ROWS);
     let max_rows_usize = max_rows as usize;
@@ -76,26 +79,7 @@ pub async fn execute_query(conn: &PgConnection, query: &Query) -> CellarResult<Q
     // rewrites named/positional placeholders to `$1..$N` and reports them in
     // bind order, and we bind the typed values through sqlx — never by
     // interpolating them into the SQL text.
-    let prepared_sql: Cow<str>;
-    let bind_values: Vec<&CellValue>;
-    if query.params.is_empty() {
-        prepared_sql = Cow::Borrowed(query.sql.as_str());
-        bind_values = Vec::new();
-    } else {
-        let prepared = cellar_sql::prepare(&query.sql, Engine::Postgres)
-            .map_err(|e| CellarError::query(e.to_string()))?;
-        let by_name: HashMap<&str, &CellValue> = query
-            .params
-            .iter()
-            .map(|p| (p.name.as_str(), &p.value))
-            .collect();
-        bind_values = cellar_sql::order_values(&prepared.parameters, &by_name)
-            .map_err(|e| CellarError::query(e.to_string()))?
-            .into_iter()
-            .copied()
-            .collect();
-        prepared_sql = Cow::Owned(prepared.sql);
-    }
+    let (prepared_sql, bind_values) = prepare_query(query)?;
     let exec_sql: &str = prepared_sql.as_ref();
 
     // SQL passes through verbatim. Driving LIMIT into user-supplied SQL would
@@ -215,6 +199,111 @@ pub async fn execute_query(conn: &PgConnection, query: &Query) -> CellarResult<Q
         // wrapping the SQL in a COUNT subquery, which requires parsing.
         total_rows: None,
     })
+}
+
+async fn execute_read_only_query(pool: &PgPool, query: &Query) -> CellarResult<QueryResult> {
+    let max_rows = query.max_rows.unwrap_or(DEFAULT_MAX_ROWS);
+    let max_rows_usize = max_rows as usize;
+    let skip_rows = query.offset.unwrap_or(0) as usize;
+    let capacity = max_rows.min(10_000) as usize;
+    let (prepared_sql, bind_values) = prepare_query(query)?;
+    let exec_sql: &str = prepared_sql.as_ref();
+    let started = Instant::now();
+
+    let mut tx = pool.begin().await.map_err(query_sqlx_err)?;
+    sqlx::query("SET TRANSACTION READ ONLY")
+        .execute(&mut *tx)
+        .await
+        .map_err(query_sqlx_err)?;
+
+    let mut statement = sqlx::query(exec_sql);
+    for &value in &bind_values {
+        statement = crate::bind::bind_value(statement, value)?;
+    }
+    #[allow(deprecated)]
+    let mut stream = statement.fetch_many(&mut *tx);
+    let mut columns: Option<Vec<ColumnMeta>> = None;
+    let mut materialized: Vec<Row> = Vec::with_capacity(capacity);
+    let mut truncated = false;
+    let mut rows_seen: usize = 0;
+    let mut rows_affected: Option<u64> = None;
+
+    while let Some(item) = stream.try_next().await.map_err(query_sqlx_err)? {
+        let r = match item {
+            sqlx::Either::Left(done) => {
+                rows_affected = Some(rows_affected.unwrap_or(0) + done.rows_affected());
+                continue;
+            }
+            sqlx::Either::Right(row) => row,
+        };
+        if columns.is_none() {
+            columns = Some(
+                r.columns()
+                    .iter()
+                    .map(|c| ColumnMeta {
+                        name: c.name().to_string(),
+                        data_type: c.type_info().name().to_string().to_lowercase(),
+                        nullable: true,
+                    })
+                    .collect(),
+            );
+        }
+        if rows_seen < skip_rows {
+            rows_seen += 1;
+            continue;
+        }
+        if materialized.len() >= max_rows_usize {
+            truncated = true;
+            break;
+        }
+
+        let mut cells: Row = Vec::with_capacity(r.columns().len());
+        for i in 0..r.columns().len() {
+            cells.push(decode_cell(&r, i)?);
+        }
+        materialized.push(cells);
+    }
+    drop(stream);
+    tx.rollback().await.map_err(query_sqlx_err)?;
+
+    let rows_affected = if columns.is_none() {
+        rows_affected
+    } else {
+        None
+    };
+
+    Ok(QueryResult {
+        columns: columns.unwrap_or_default(),
+        rows: materialized,
+        notices: Vec::new(),
+        notice_capture: NoticeCapture::unsupported(
+            "Postgres server notices are parsed by sqlx, but the current PgPool query path consumes NoticeResponse frames internally and exposes only log/tracing output without SQLSTATE, detail, hint, or query correlation.",
+        ),
+        rows_affected,
+        duration_ms: started.elapsed().as_millis() as u64,
+        truncated,
+        total_rows: None,
+    })
+}
+
+fn prepare_query(query: &Query) -> CellarResult<(Cow<'_, str>, Vec<&CellValue>)> {
+    if query.params.is_empty() {
+        return Ok((Cow::Borrowed(query.sql.as_str()), Vec::new()));
+    }
+
+    let prepared = cellar_sql::prepare(&query.sql, Engine::Postgres)
+        .map_err(|e| CellarError::query(e.to_string()))?;
+    let by_name: HashMap<&str, &CellValue> = query
+        .params
+        .iter()
+        .map(|p| (p.name.as_str(), &p.value))
+        .collect();
+    let bind_values = cellar_sql::order_values(&prepared.parameters, &by_name)
+        .map_err(|e| CellarError::query(e.to_string()))?
+        .into_iter()
+        .copied()
+        .collect();
+    Ok((Cow::Owned(prepared.sql), bind_values))
 }
 
 /// How the committed row count is checked against the plan's expectation.

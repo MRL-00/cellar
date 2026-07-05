@@ -214,7 +214,7 @@ export const useAi = create<AiStore>((set, get) => ({
         sending: false,
         messages: [
           ...s.messages,
-          { id: nextId(), role: "model", content: result.text, usage: result.usage },
+          { id: nextId(), role: "model", topic, content: result.text, usage: result.usage },
         ],
       }));
     } catch (e) {
@@ -222,7 +222,7 @@ export const useAi = create<AiStore>((set, get) => ({
         sending: false,
         messages: [
           ...s.messages,
-          { id: nextId(), role: "model", content: describeError(e), error: true },
+          { id: nextId(), role: "model", topic, content: describeError(e), error: true },
         ],
       }));
     }

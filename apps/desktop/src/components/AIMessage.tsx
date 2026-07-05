@@ -11,6 +11,10 @@ type Segment =
   | { kind: "code"; lang: string; code: string };
 
 const FENCE = /```([\w-]*)\n?([\s\S]*?)```/g;
+const READ_ONLY_SQL =
+  /^(?:\s|\/\*[\s\S]*?\*\/|--[^\n]*\n)*(select|with|show|describe|desc|explain)\b/i;
+const WRITE_SQL =
+  /\b(insert|update|delete|drop|truncate|alter|create|merge|grant|revoke|vacuum|analyze)\b/i;
 
 /** Split markdown-ish content into prose and fenced code blocks. We only need
  * enough fidelity to render SQL in a mono box with a copy button. */
@@ -35,8 +39,63 @@ export function parseSegments(content: string): Segment[] {
   return out;
 }
 
-function CodeBlock({ lang, code }: { lang: string; code: string }) {
+export function canRunFromAi(lang: string, code: string): boolean {
+  const sql = code.trim();
+  return SQL_LANGS.test(lang.trim()) && READ_ONLY_SQL.test(sql) && !WRITE_SQL.test(sql);
+}
+
+export function firstRunnableSql(content: string): string | null {
+  for (const seg of parseSegments(content)) {
+    if (seg.kind === "code" && canRunFromAi(seg.lang, seg.code)) return seg.code;
+  }
+  return null;
+}
+
+function TextBlock({ text }: { text: string }) {
+  const lines = text.split("\n").filter((line) => line.trim().length > 0);
+  return (
+    <div className="space-y-1 text-sm leading-[1.55] text-fg-1">
+      {lines.map((line, i) => {
+        const trimmed = line.trim();
+        const heading = trimmed.match(/^#{1,4}\s+(.+)$/);
+        const bullet = trimmed.match(/^[-*]\s+(.+)$/);
+        const body = (heading?.[1] ?? bullet?.[1] ?? trimmed)
+          .replace(/\*\*([^*]+)\*\*/g, "$1")
+          .replace(/`([^`]+)`/g, "$1");
+        return (
+          <div
+            key={i}
+            className={
+              heading
+                ? "pt-1 font-semibold text-fg-0"
+                : bullet
+                  ? "pl-3 before:mr-2 before:content-['-']"
+                  : ""
+            }
+          >
+            {body}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function CodeBlock({
+  lang,
+  code,
+  onInsert,
+  onRun,
+  running,
+}: {
+  lang: string;
+  code: string;
+  onInsert?: (code: string) => void;
+  onRun?: (code: string) => void;
+  running?: boolean;
+}) {
   const [copied, setCopied] = useState(false);
+  const runnable = canRunFromAi(lang, code);
   const copy = () => {
     void navigator.clipboard?.writeText(code).then(() => {
       setCopied(true);
@@ -45,18 +104,45 @@ function CodeBlock({ lang, code }: { lang: string; code: string }) {
   };
   return (
     <div className="overflow-hidden rounded-[5px] border border-border-default bg-bg-inset">
-      <div className="flex items-center justify-between border-b border-border-divider px-2 py-1">
+      <div className="flex items-center justify-between gap-2 border-b border-border-divider px-2 py-1">
         <span className="font-mono text-[10.5px] uppercase tracking-[0.05em] text-fg-3">
           {lang || "code"}
         </span>
-        <button
-          onClick={copy}
-          className="inline-flex items-center gap-1 rounded-[3px] px-1 text-[11px] text-fg-2 hover:bg-bg-3 hover:text-fg-0"
-          title="Copy"
-        >
-          <Icon.copy size={10} />
-          <span>{copied ? "copied" : "copy"}</span>
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={copy}
+            className="inline-flex items-center gap-1 rounded-[3px] px-1 text-[11px] text-fg-2 hover:bg-bg-3 hover:text-fg-0"
+            title="Copy"
+          >
+            <Icon.copy size={10} />
+            <span>{copied ? "copied" : "copy"}</span>
+          </button>
+          {SQL_LANGS.test(lang.trim()) && (
+            <>
+              <button
+                onClick={() => onInsert?.(code)}
+                className="inline-flex items-center gap-1 rounded-[3px] px-1 text-[11px] text-fg-2 hover:bg-bg-3 hover:text-fg-0"
+                title="Insert into a query tab"
+              >
+                <Icon.edit size={10} />
+                <span>insert</span>
+              </button>
+              <button
+                onClick={() => onRun?.(code)}
+                disabled={!runnable || running}
+                className="inline-flex items-center gap-1 rounded-[3px] px-1 text-[11px] text-accent hover:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+                title={
+                  runnable
+                    ? "Run read-only SQL"
+                    : "Only read-only AI SQL can run directly"
+                }
+              >
+                <Icon.playSm size={10} />
+                <span>{running ? "running" : "run"}</span>
+              </button>
+            </>
+          )}
+        </div>
       </div>
       <pre className="overflow-x-auto px-2.5 py-2 font-mono text-sm leading-[1.5] text-fg-0">
         {SQL_LANGS.test(lang.trim()) ? (
@@ -73,7 +159,17 @@ function CodeBlock({ lang, code }: { lang: string; code: string }) {
   );
 }
 
-export function AIMessage({ entry }: { entry: AiChatEntry }) {
+export function AIMessage({
+  entry,
+  onInsertSql,
+  onRunSql,
+  runningSql,
+}: {
+  entry: AiChatEntry;
+  onInsertSql?: (sql: string) => void;
+  onRunSql?: (sql: string) => void;
+  runningSql?: boolean;
+}) {
   if (entry.role === "user") {
     return (
       <div className="flex flex-col items-end gap-1">
@@ -107,14 +203,16 @@ export function AIMessage({ entry }: { entry: AiChatEntry }) {
     <div className="flex flex-col gap-2">
       {segments.map((seg, i) =>
         seg.kind === "code" ? (
-          <CodeBlock key={i} lang={seg.lang} code={seg.code} />
-        ) : (
-          <div
+          <CodeBlock
             key={i}
-            className="whitespace-pre-wrap text-sm leading-[1.55] text-fg-1"
-          >
-            {seg.text}
-          </div>
+            lang={seg.lang}
+            code={seg.code}
+            onInsert={onInsertSql}
+            onRun={onRunSql}
+            running={runningSql}
+          />
+        ) : (
+          <TextBlock key={i} text={seg.text} />
         ),
       )}
       {entry.usage && (

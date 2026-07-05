@@ -40,6 +40,10 @@ pub struct Query {
     /// does not trust caller-supplied ordering.
     #[serde(default)]
     pub params: Vec<QueryParam>,
+    /// Execute under the strongest read-only guard the driver supports.
+    /// Used for AI-generated answer queries; normal editor runs stay explicit.
+    #[serde(default)]
+    pub read_only: bool,
 }
 
 /// One bound parameter value supplied by the caller. Carries a typed
@@ -90,6 +94,7 @@ impl Query {
             database: None,
             query_id: None,
             params: Vec::new(),
+            read_only: false,
         }
     }
 
@@ -115,6 +120,11 @@ impl Query {
 
     pub fn with_params(mut self, params: Vec<QueryParam>) -> Self {
         self.params = params;
+        self
+    }
+
+    pub fn read_only(mut self) -> Self {
+        self.read_only = true;
         self
     }
 }
