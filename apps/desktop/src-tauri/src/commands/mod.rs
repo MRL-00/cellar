@@ -34,6 +34,7 @@ pub fn builder() -> Builder<tauri::Wry> {
         schema::find_usages,
         schema::er_graph,
         query::run_query,
+        query::run_read_only_query,
         query::cancel_query,
         query::explain_query,
         query::detect_query_parameters,

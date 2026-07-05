@@ -118,6 +118,14 @@ async runQuery(connectionId: string, sql: string, maxRows: number | null, offset
     else return { status: "error", error: e  as any };
 }
 },
+async runReadOnlyQuery(connectionId: string, sql: string, maxRows: number | null, database: string | null) : Promise<Result<QueryResult, CellarError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("run_read_only_query", { connectionId, sql, maxRows, database }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 /**
  * Cancel a running query previously started through [`run_query`] with a
  * `query_id`. Returns `true` when a running statement was found and

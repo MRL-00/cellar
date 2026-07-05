@@ -256,6 +256,12 @@ impl ConnectionRegistry {
                 .ok_or_else(|| CellarError::NotConnected(format!("no open connection for {id}")))?;
             (open.config.engine, Arc::clone(&open.connection))
         };
+        if query.read_only && engine != cellar_core::driver::Engine::Postgres {
+            return Err(CellarError::query(format!(
+                "read-only AI query execution is not available for {} yet",
+                engine.as_str()
+            )));
+        }
         let driver = driver_for(engine)?;
         match driver.execute_query(connection.as_ref(), &query).await {
             Ok(result) => Ok(result),

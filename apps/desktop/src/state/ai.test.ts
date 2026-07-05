@@ -61,6 +61,7 @@ describe("useAi store", () => {
     // the API turn wraps the preset instruction + context around the raw text
     expect(msgs[0]!.apiContent).toContain("Schema context:\nctx");
     expect(msgs[1]!.role).toBe("model");
+    expect(msgs[1]!.topic).toBe("generate");
     expect(msgs[1]!.error).toBeFalsy();
     expect(msgs[1]!.content).toContain("SELECT 1;");
     expect(useAi.getState().sending).toBe(false);

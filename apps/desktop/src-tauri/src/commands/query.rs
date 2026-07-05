@@ -80,6 +80,25 @@ pub async fn run_query(
     result
 }
 
+#[tauri::command]
+#[specta::specta]
+pub async fn run_read_only_query(
+    registry: State<'_, ConnectionRegistry>,
+    connection_id: String,
+    sql: String,
+    max_rows: Option<u32>,
+    database: Option<String>,
+) -> Result<QueryResult, CellarError> {
+    let mut query = Query::new(sql).read_only();
+    if let Some(n) = max_rows {
+        query = query.with_max_rows(n);
+    }
+    if let Some(db) = database {
+        query = query.with_database(db);
+    }
+    registry.run_query(&connection_id, query).await
+}
+
 /// Cancel a running query previously started through [`run_query`] with a
 /// `query_id`. Returns `true` when a running statement was found and
 /// signalled, `false` when it had already finished.
