@@ -64,6 +64,7 @@
   --color-eng-azure: var(--eng-azure);
   --color-eng-sqlite: var(--eng-sqlite);
   --color-eng-firestore: var(--eng-firestore);
+  --color-eng-convex: var(--eng-convex);
 
   /* Syntax (SQL) */
   --color-syn-kw: var(--syn-kw);
