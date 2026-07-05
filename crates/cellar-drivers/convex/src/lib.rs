@@ -9,7 +9,7 @@
 
 use std::any::Any;
 use std::collections::{BTreeMap, BTreeSet};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use cellar_core::driver::{Connection, ConnectionConfig, Driver, DriverInfo, Engine, SslMode};
@@ -26,6 +26,7 @@ use serde_json::{Map, Value};
 const SCHEMA_NAME: &str = "documents";
 const DEFAULT_SAMPLE_SIZE: usize = 25;
 const DEFAULT_BROWSE_LIMIT: u32 = 500;
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct ConvexDriver;
@@ -98,6 +99,7 @@ impl ConvexConnection {
         }
         let client = Client::builder()
             .user_agent(user_agent(config))
+            .timeout(REQUEST_TIMEOUT)
             .build()
             .map_err(|e| CellarError::connection(e.to_string()))?;
         let base_url = convex_base_url(config)?;
@@ -125,11 +127,7 @@ impl ConvexConnection {
         let mut tables = Vec::with_capacity(table_names.len());
 
         for name in table_names {
-            let documents = self
-                .list_snapshot_page(&name, None, None)
-                .await
-                .map(|page| page.values)
-                .unwrap_or_default();
+            let documents = self.list_snapshot_page(&name, None, None).await?.values;
             let sample = &documents[..documents.len().min(DEFAULT_SAMPLE_SIZE)];
             let columns = infer_columns(sample);
             tables.push(Table {
@@ -177,6 +175,10 @@ impl ConvexConnection {
 
         let started = Instant::now();
         let limit = request.limit.unwrap_or(DEFAULT_BROWSE_LIMIT) as usize;
+        // list_snapshot has no server-side offset, so paging re-reads from the
+        // snapshot start and slices the requested window locally.
+        let offset = request.offset.unwrap_or(0) as usize;
+        let fetch_until = offset.saturating_add(limit);
         let mut documents: Vec<Map<String, Value>> = Vec::new();
         let mut snapshot: Option<i64> = None;
         let mut cursor: Option<String> = None;
@@ -189,9 +191,9 @@ impl ConvexConnection {
             snapshot = page.snapshot.or(snapshot);
             cursor = page.cursor;
             documents.extend(page.values);
-            if documents.len() >= limit {
-                truncated = documents.len() > limit || page.has_more;
-                documents.truncate(limit);
+            if documents.len() >= fetch_until {
+                truncated = documents.len() > fetch_until || page.has_more;
+                documents.truncate(fetch_until);
                 break;
             }
             if !page.has_more {
@@ -199,6 +201,8 @@ impl ConvexConnection {
             }
         }
 
+        let start = offset.min(documents.len());
+        let documents = documents.split_off(start);
         let columns = columns_for_browse(table, &documents);
         let rows = documents
             .iter()
@@ -410,9 +414,12 @@ fn to_cell_value(value: &Value) -> CellValue {
     match value {
         Value::Null => CellValue::Null,
         Value::Bool(v) => CellValue::Bool(*v),
+        // Check u64 before falling back to f64: integers above i64::MAX would
+        // otherwise be rounded through the float path.
         Value::Number(n) => n
             .as_i64()
             .map(CellValue::Int)
+            .or_else(|| n.as_u64().map(|_| CellValue::Numeric(n.to_string())))
             .or_else(|| n.as_f64().map(CellValue::Float))
             .unwrap_or_else(|| CellValue::Numeric(n.to_string())),
         Value::String(v) => CellValue::Text(v.clone()),
@@ -519,6 +526,17 @@ mod tests {
         let url = convex_base_url(&config()).expect("base url");
         assert_eq!(url.as_str(), "https://acoustic-panther-123.convex.cloud/");
         assert_eq!(deployment_name(&config()), "acoustic-panther-123");
+    }
+
+    #[test]
+    fn preserves_large_unsigned_integers() {
+        let value = json!(u64::MAX);
+        assert_eq!(
+            to_cell_value(&value),
+            CellValue::Numeric(u64::MAX.to_string())
+        );
+        assert_eq!(to_cell_value(&json!(42)), CellValue::Int(42));
+        assert_eq!(to_cell_value(&json!(1.5)), CellValue::Float(1.5));
     }
 
     #[test]
