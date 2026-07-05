@@ -17,6 +17,7 @@
   .bento { grid-template-columns: 1fr; }
   .cell.span2 { grid-column: span 1; }
   .cell.span2 .cell-shot { aspect-ratio: 16 / 9; }
+  .cell.span2 .cell-shot.ai-shot { aspect-ratio: 4 / 3; }
   .band { grid-template-columns: 1fr; gap: 32px; padding: 36px; }
   .kb-grid { grid-template-columns: 1fr; }
   .foot-grid { grid-template-columns: 1fr 1fr; }

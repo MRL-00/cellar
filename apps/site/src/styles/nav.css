@@ -1,6 +1,6 @@
 /* ──────────────────────────────────────────────────────────────
    Navigation — scroll-aware sticky header, scroll-spy links,
-   mobile disclosure menu, theme toggle.
+   mobile disclosure menu.
    ────────────────────────────────────────────────────────────── */
 
 /* Transparent over the hero; solidifies on scroll (paint-only). */
@@ -103,21 +103,3 @@
   transition: color 0.13s ease;
 }
 .ghost-link:hover { color: var(--fg-0); }
-
-.theme-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: 9px;
-  border: 1px solid var(--border-default);
-  background: transparent;
-  color: var(--fg-1);
-  cursor: pointer;
-  display: grid;
-  place-items: center;
-  transition: border-color 0.13s ease, color 0.13s ease, background 0.13s ease;
-}
-.theme-btn:hover { border-color: var(--border-strong); color: var(--fg-0); background: var(--bg-2); }
-.theme-btn svg { width: 16px; height: 16px; }
-.theme-btn .moon { display: none; }
-[data-theme="light"] .theme-btn .moon { display: block; }
-[data-theme="light"] .theme-btn .sun { display: none; }
