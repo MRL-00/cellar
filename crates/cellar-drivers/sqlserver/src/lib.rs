@@ -43,6 +43,22 @@ impl Default for SqlServerDriver {
     }
 }
 
+pub async fn commit_table_changes(
+    conn: &dyn Connection,
+    request: &cellar_diff::TableChangeRequest,
+) -> CellarResult<cellar_diff::TableCommitResult> {
+    let sql = connect::as_sqlserver(conn)?;
+    query::commit_table_changes(sql, request).await
+}
+
+pub async fn commit_table_import(
+    conn: &dyn Connection,
+    request: &cellar_diff::TableChangeRequest,
+) -> CellarResult<cellar_diff::TableCommitResult> {
+    let sql = connect::as_sqlserver(conn)?;
+    query::commit_table_import(sql, request).await
+}
+
 pub async fn browse_table(
     conn: &dyn Connection,
     request: &TableBrowseRequest,

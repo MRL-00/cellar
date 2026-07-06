@@ -474,6 +474,18 @@ impl ConnectionRegistry {
                     Err(err) => Err(self.handle_operation_error(id, err).await),
                 }
             }
+            Engine::Mssql => {
+                let conn = connection.as_ref();
+                let outcome = if import {
+                    cellar_driver_sqlserver::commit_table_import(conn, &request).await
+                } else {
+                    cellar_driver_sqlserver::commit_table_changes(conn, &request).await
+                };
+                match outcome {
+                    Ok(result) => Ok(result),
+                    Err(err) => Err(self.handle_operation_error(id, err).await),
+                }
+            }
             other => Err(CellarError::invalid_config(format!(
                 "engine {} does not support grid commits yet",
                 other.as_str()

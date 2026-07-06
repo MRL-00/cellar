@@ -168,9 +168,9 @@ async browseTable(request: TableBrowseRequest) : Promise<Result<QueryResult, Cel
     else return { status: "error", error: e  as any };
 }
 },
-async previewTableChanges(request: TableChangeRequest) : Promise<Result<TableCommitPreview, CellarError>> {
+async previewTableChanges(connectionId: string, request: TableChangeRequest) : Promise<Result<TableCommitPreview, CellarError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("preview_table_changes", { request }) };
+    return { status: "ok", data: await TAURI_INVOKE("preview_table_changes", { connectionId, request }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
