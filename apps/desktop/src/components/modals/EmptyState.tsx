@@ -1,6 +1,7 @@
 import { Icon } from "../icons";
 import { ENGINE_META, type Engine } from "../EngineBadge";
 import { EngineLogo } from "../EngineLogo";
+import { CellarMark } from "../CellarMark";
 
 const ENGINE_ORDER: Engine[] = [
   "postgres",
@@ -49,22 +50,10 @@ export function EmptyState({ onNew }: { onNew: () => void }) {
       />
       <div className="relative w-[540px] rounded-xl border border-border-default bg-bg-1 px-9 pt-9 pb-7 text-center shadow-md">
         <div className="mb-[18px] flex justify-center">
-          <span
-            className="relative h-9 w-9 rounded-lg"
-            style={{
-              background:
-                "linear-gradient(135deg, #c4b5fd 0%, #a78bfa 55%, #6d4ed1 100%)",
-              boxShadow: "0 0 24px rgba(167, 139, 250, 0.14)",
-            }}
-          >
-            <span
-              className="absolute inset-[5px] rounded bg-bg-1"
-              style={{
-                clipPath:
-                  "polygon(0 0, 100% 0, 100% 35%, 35% 35%, 35% 65%, 100% 65%, 100% 100%, 0 100%)",
-              }}
-            />
-          </span>
+          <CellarMark
+            accented
+            className="h-12 w-12 drop-shadow-[0_0_14px_var(--accent-soft)]"
+          />
         </div>
         <h1 className="m-0 mb-1 text-[21px] font-semibold tracking-[-0.01em] text-fg-0">
           Welcome to Cellar

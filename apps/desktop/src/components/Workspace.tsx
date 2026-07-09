@@ -19,6 +19,7 @@ import { SchemaComparePane } from "./SchemaComparePane";
 import { ErDiagram } from "./er/ErDiagram";
 import { ContextMenu, type ContextMenuState } from "./ContextMenu";
 import { TabBar } from "./TabBar";
+import { CellarMark } from "./CellarMark";
 import { Icon } from "./icons";
 import {
   useTabs,
@@ -594,22 +595,10 @@ function PaneMessage({ children }: { children: React.ReactNode }) {
 function EmptyWorkspace() {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-[14px] bg-bg-inset px-10 py-10 text-center text-sm text-fg-2">
-      <span
-        className="relative h-9 w-9 rounded-lg"
-        style={{
-          background:
-            "linear-gradient(135deg, #c4b5fd 0%, #a78bfa 55%, #6d4ed1 100%)",
-          boxShadow: "0 0 24px rgba(167, 139, 250, 0.14)",
-        }}
-      >
-        <span
-          className="absolute inset-[5px] rounded bg-bg-inset"
-          style={{
-            clipPath:
-              "polygon(0 0, 100% 0, 100% 35%, 35% 35%, 35% 65%, 100% 65%, 100% 100%, 0 100%)",
-          }}
-        />
-      </span>
+      <CellarMark
+        accented
+        className="h-11 w-11 drop-shadow-[0_0_14px_var(--accent-soft)]"
+      />
       <div>
         <div className="text-[15px] font-semibold text-fg-0">
           Open a table to begin

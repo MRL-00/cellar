@@ -1,417 +1,56 @@
 <!doctype html>
-<html lang="en" data-theme="dark">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Cellar — Open-source desktop database client</title>
-  <meta name="description" content="Cellar is a local-first desktop database client for browsing schemas, running SQL, and reviewing data changes. Supports PostgreSQL, SQL Server, Azure SQL, and Firestore." />
-
-  <link rel="canonical" href="https://cellar.run/" />
-
-  <link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon-128.png" />
-  <link rel="icon" type="image/svg+xml" href="/assets/cellar-mark.svg" />
-
-  <meta property="og:url" content="https://cellar.run/" />
-  <meta property="og:title" content="Cellar — Open-source desktop database client" />
-  <meta property="og:description" content="Cellar is a local-first desktop database client for browsing schemas, running SQL, and reviewing data changes." />
-  <meta property="og:type" content="website" />
-  <!-- og:image must be an absolute URL or crawlers (X, Slack, …) silently drop it and fall back to a placeholder card -->
-  <meta property="og:image" content="https://cellar.run/assets/cellar-main.png" />
-  <meta property="og:image:width" content="3040" />
-  <meta property="og:image:height" content="1786" />
-  <meta property="og:image:alt" content="Cellar desktop database client, main window" />
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:image" content="https://cellar.run/assets/cellar-main.png" />
-
-  <!-- Structured data: makes Cellar eligible for Google's rich app result (name, icon, description, screenshot) -->
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "SoftwareApplication",
-    "name": "Cellar",
-    "applicationCategory": "DeveloperApplication",
-    "operatingSystem": "macOS",
-    "url": "https://cellar.run/",
-    "downloadUrl": "https://github.com/MRL-00/cellar/releases",
-    "softwareHelp": "https://github.com/MRL-00/cellar",
-    "description": "Cellar is a local-first desktop database client for browsing schemas, running SQL, and reviewing data changes. Supports PostgreSQL, SQL Server, Azure SQL, and Firestore.",
-    "image": "https://cellar.run/assets/cellar-main.png",
-    "license": "https://opensource.org/licenses/MIT",
-    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
-  }
-  </script>
-
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-
-  <link
-    rel="preload"
-    as="image"
-    href="/assets/hero-scene-poster-2x.jpg"
-    imagesrcset="/assets/hero-scene-poster.jpg 1152w, /assets/hero-scene-poster-2x.jpg 2560w"
-    imagesizes="100vw"
-    fetchpriority="high"
-  />
-  <link rel="preload" as="image" href="/assets/cellar-main.png" fetchpriority="high" />
-
-</head>
-<body>
-
-<a class="skip-link" href="#top">Skip to content</a>
-
-<!-- ───────────── NAV ───────────── -->
-<header>
-<nav class="nav" id="siteNav" aria-label="Primary">
-  <div class="wrap nav-inner">
-    <a class="brand" href="#top" aria-label="Cellar home">
-      <img src="/assets/cellar-mark.svg" width="22" height="22" alt="" />
-      Cellar
-    </a>
-    <div class="nav-links">
-      <a href="#features">Features</a>
-      <a href="#keyboard">Keyboard</a>
-      <a href="#privacy">Privacy</a>
-      <a href="#open-source">Open source</a>
-      <a href="#faq">FAQ</a>
-    </div>
-    <div class="nav-right">
-      <a class="ghost-link nav-desktop" href="https://github.com/MRL-00/cellar" rel="noopener">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
-        <span>GitHub</span>
-      </a>
-      <a class="btn btn-primary nav-desktop" href="#download">Download</a>
-      <button class="nav-toggle" id="navToggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="navMobile">
-        <svg class="ic-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
-        <svg class="ic-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M6 18L18 6"/></svg>
-      </button>
-    </div>
-  </div>
-  <div class="nav-mobile" id="navMobile" hidden>
-    <a href="#features">Features</a>
-    <a href="#keyboard">Keyboard</a>
-    <a href="#privacy">Privacy</a>
-    <a href="#open-source">Open source</a>
-    <a href="#faq">FAQ</a>
-    <a class="nav-mobile-gh" href="https://github.com/MRL-00/cellar" rel="noopener">GitHub</a>
-    <a class="btn btn-primary" href="#download">Download for Mac</a>
-  </div>
-</nav>
-</header>
-
-<main id="top" tabindex="-1">
-
-<!-- ───────────── HERO ───────────── -->
-<section class="hero" id="download">
-  <div class="hero-bg" aria-hidden="true">
-    <picture>
-      <source
-        srcset="/assets/hero-scene-poster.jpg 1152w, /assets/hero-scene-poster-2x.jpg 2560w"
-        sizes="100vw"
-      />
-      <img
-        class="hero-image"
-        src="/assets/hero-scene-poster.jpg"
-        width="2560"
-        height="1600"
-        alt=""
-        fetchpriority="high"
-        decoding="async"
-      />
-    </picture>
-    <div class="hero-scrim"></div>
-  </div>
-  <div class="wrap hero-inner">
-    <span class="eyebrow"><span class="tick"></span>Open-source desktop database client</span>
-    <h1>The database client built for <span class="accent">fast SQL work</span>.</h1>
-    <p class="lede">
-      Browse schemas, run queries, and review every data change before it commits. A virtualized grid handles millions of rows, in a local-first desktop app.
-    </p>
-    <div class="cta-row">
-      <div class="download-picker">
-        <button
-          class="btn btn-primary btn-lg"
-          id="dlBtn"
-          type="button"
-          aria-haspopup="menu"
-          aria-expanded="false"
-          data-download-trigger
-        >
-          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.36 12.6c-.02-2.2 1.8-3.26 1.88-3.31-1.02-1.5-2.62-1.7-3.18-1.72-1.35-.14-2.64.8-3.32.8-.69 0-1.74-.78-2.86-.76-1.47.02-2.83.86-3.59 2.18-1.53 2.66-.39 6.6 1.1 8.76.73 1.06 1.6 2.25 2.74 2.2 1.1-.04 1.52-.71 2.85-.71 1.32 0 1.7.71 2.86.69 1.18-.02 1.93-1.08 2.65-2.14.84-1.23 1.18-2.42 1.2-2.48-.03-.01-2.3-.88-2.32-3.5zM14.19 5.8c.6-.74 1.01-1.76.9-2.78-.87.04-1.93.58-2.56 1.31-.56.65-1.05 1.69-.92 2.69.97.07 1.97-.49 2.58-1.22z"/></svg>
-          <span data-download-label>View releases</span>
-          <svg class="chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>
-        </button>
-        <div class="download-menu" role="menu" aria-label="Choose Mac download" hidden>
-          <a href="https://github.com/MRL-00/cellar/releases" data-download="macos-arm64" role="menuitem" rel="noopener">
-            <span>Apple Silicon</span>
-            <b>Mac with M1, M2, M3, or newer</b>
-          </a>
-          <a href="https://github.com/MRL-00/cellar/releases" data-download="macos-x64" role="menuitem" rel="noopener">
-            <span>Intel Mac</span>
-            <b>Older Mac with Intel processor</b>
-          </a>
-        </div>
-      </div>
-      <a class="btn btn-ghost btn-lg" href="https://github.com/MRL-00/cellar" rel="noopener">
-        <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
-        View source
-      </a>
-    </div>
-    <div class="dl-meta">
-      <span><b>macOS</b> · Apple Silicon or Intel</span>
-      <span class="sep">·</span>
-      <span><b data-release-size>GitHub Releases</b></span>
-      <span class="sep" data-download-count-sep hidden>·</span>
-      <span data-download-count hidden></span>
-    </div>
-
-    <div class="shot-wrap">
-      <div class="window">
-        <img src="/assets/cellar-main.png" alt="Cellar main window: table editing with the AI Assistant mid-conversation" width="3040" height="1786" fetchpriority="high" decoding="async" />
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ───────────── STAT BAND ───────────── -->
-<section class="stats">
-  <div class="wrap">
-    <div class="stat-grid">
-      <div class="stat reveal">
-        <div class="num tnum">$0</div>
-        <div class="lab">Free and open source, forever</div>
-      </div>
-      <div class="stat reveal">
-        <div class="num tnum">5</div>
-        <div class="lab">Database engines supported today</div>
-      </div>
-      <div class="stat reveal">
-        <div class="num tnum">0</div>
-        <div class="lab">Telemetry, accounts, or cloud sync</div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ───────────── ENGINES STRIP ───────────── -->
-<section class="engines" id="databases">
-  <div class="wrap">
-    <div class="lbl">Supported today, with more engines coming soon</div>
-    <div class="trust-row reveal" id="engRow"></div>
-  </div>
-</section>
-
-<!-- ───────────── FEATURES (bento) ───────────── -->
-<section class="section" id="features">
-  <div class="wrap">
-    <div class="section-head center">
-      <span class="eyebrow"><span class="tick"></span>Why Cellar</span>
-      <h2>A focused workspace for the loop you repeat all day.</h2>
-      <p>Connect, query, inspect, edit, review — every step tuned for speed and built to keep you in control.</p>
-    </div>
-
-    <div class="bento">
-      <article class="cell span2 reveal">
-        <div class="cell-body">
-          <span class="soon-pill">Coming soon</span>
-          <h3 style="margin-top:14px;">Ask in English. Review the SQL.</h3>
-          <p>Cellar's coming-soon AI is built around visible schema context, bring-your-own provider keys, and generated SQL you inspect before it runs — assistance inside the workflow, not a black box beside it.</p>
-        </div>
-        <div class="cell-shot cover ai-shot">
-          <img src="/assets/main.png" alt="Planned AI assistant drafting SQL with pinned schema context" width="748" height="1664" loading="lazy" decoding="async" />
-        </div>
-      </article>
-
-      <article class="cell reveal">
-        <div class="cell-body">
-          <span class="eyebrow"><span class="tick"></span>Connections</span>
-          <h3>Connect in seconds, safely.</h3>
-          <p>SSH tunnels and SSL/TLS built in. Credentials live in your OS keychain — never a config file, never synced.</p>
-        </div>
-        <div class="cell-shot cover">
-          <img src="/assets/connection.png" alt="New connection dialog with engine picker, host, auth and test connection" width="924" height="540" loading="lazy" decoding="async" />
-        </div>
-      </article>
-
-      <article class="cell metric reveal">
-        <span class="eyebrow"><span class="tick"></span>The grid</span>
-        <div>
-          <div class="big tnum">22<span class="unit">px</span> rows</div>
-          <p>A virtualized grid renders millions of cells without breaking a sweat. Edits stage as a reviewable diff before they ever touch the database.</p>
-        </div>
-      </article>
-
-      <article class="cell reveal">
-        <div class="cell-body">
-          <span class="eyebrow"><span class="tick"></span>Command palette</span>
-          <h3>⌘K to anything.</h3>
-          <p>Tables, columns, commands, and workspace actions — one fuzzy search away.</p>
-        </div>
-        <div class="cell-shot cover">
-          <img src="/assets/cmd.png" alt="Command palette searching tables, actions and navigation" width="3024" height="1770" loading="lazy" decoding="async" />
-        </div>
-      </article>
-
-      <article class="cell metric reveal">
-        <span class="eyebrow"><span class="tick"></span>Review before commit</span>
-        <div>
-          <div class="big">Stage <span class="unit">→</span> review <span class="unit">→</span> commit</div>
-          <p>Pending changes show as a diff you approve or revert. Production connections are color-coded so you never slip.</p>
-        </div>
-      </article>
-    </div>
-  </div>
-</section>
-
-<!-- ───────────── KEYBOARD ───────────── -->
-<section class="section kbd-band" id="keyboard">
-  <div class="wrap">
-    <div class="section-head reveal">
-      <span class="eyebrow"><span class="tick"></span>Built for the keyboard</span>
-      <h2>Your hands never leave home row.</h2>
-      <p>Everything is one fuzzy <span class="kbd">⌘</span><span class="kbd">K</span> away: tables, columns, commands, and workspace actions. Rebind anything, or ship with Cellar, VS Code, or DataGrip keymaps out of the box.</p>
-    </div>
-    <div class="kb-grid reveal">
-      <div class="kb-row"><span class="lab">Command palette</span><span class="keys"><span class="kbd">⌘</span><span class="kbd">K</span></span></div>
-      <div class="kb-row"><span class="lab">Run statement</span><span class="keys"><span class="kbd">⌘</span><span class="kbd">↵</span></span></div>
-      <div class="kb-row"><span class="lab">Commit changes</span><span class="keys"><span class="kbd">⌘</span><span class="kbd">S</span></span></div>
-      <div class="kb-row"><span class="lab">Revert staged</span><span class="keys"><span class="kbd">⌘</span><span class="kbd">Z</span></span></div>
-      <div class="kb-row"><span class="lab">Focus editor</span><span class="keys"><span class="kbd">⌘</span><span class="kbd">L</span></span></div>
-      <div class="kb-row"><span class="lab">Switch connection</span><span class="keys"><span class="kbd">⌘</span><span class="kbd">K</span><span class="kbd">C</span></span></div>
-    </div>
-  </div>
-</section>
-
-<!-- ───────────── PRIVACY ───────────── -->
-<section class="section" id="privacy">
-  <div class="wrap">
-    <div class="band reveal">
-      <div>
-        <span class="eyebrow"><span class="tick"></span>Privacy by default</span>
-        <h2>Your data stays on your machine.</h2>
-        <p>Cellar is a local-first desktop app. No account, no cloud sync, no phone-home. The only network calls are to your databases and, if you opt in, your own AI provider.</p>
-      </div>
-      <ul class="priv-list">
-        <li><b>BYO key, coming soon.</b> AI provider keys are designed to be stored in the OS keychain and used directly. Cellar must not proxy your prompts through a hosted service.</li>
-        <li><b>Inspectable context, coming soon.</b> AI context should be visible and controllable before it ever leaves your machine.</li>
-        <li><b>Telemetry off.</b> Analytics are opt-in and disabled by default. Inspect exactly what's stored locally.</li>
-      </ul>
-    </div>
-  </div>
-</section>
-
-<!-- ───────────── OPEN SOURCE ───────────── -->
-<section class="section" id="open-source" style="padding-top:0;">
-  <div class="wrap">
-    <div class="oss reveal">
-      <div class="oss-copy">
-        <span class="eyebrow"><span class="tick"></span>Open source · MIT</span>
-        <h2>Built in the open. Yours to audit.</h2>
-        <p>Read every line, file an issue, or ship a PR. No telemetry to trust — just the source.</p>
-        <div class="oss-facts">
-          <span class="fact"><span class="dot"></span>MIT licensed</span>
-          <span class="fact"><span class="dot"></span>Early access</span>
-          <span class="fact"><span class="dot"></span>macOS first</span>
-        </div>
-      </div>
-      <a class="btn btn-ghost btn-lg" href="https://github.com/MRL-00/cellar" rel="noopener">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
-        View on GitHub
-      </a>
-    </div>
-  </div>
-</section>
-
-<!-- ───────────── FAQ ───────────── -->
-<section class="section" id="faq" style="padding-top:0;">
-  <div class="wrap">
-    <div class="section-head center reveal">
-      <span class="eyebrow"><span class="tick"></span>FAQ</span>
-      <h2>Good questions.</h2>
-    </div>
-    <div class="faq reveal" id="faqList"></div>
-  </div>
-</section>
-
-<!-- ───────────── FINAL CTA ───────────── -->
-<section class="final">
-  <div class="wrap hero-inner reveal">
-    <img class="mark" src="/assets/cellar-mark.svg" width="48" height="48" alt="" />
-    <h2>Browse schemas, run SQL, review changes.</h2>
-    <p class="lede">Free, open source, and distributed from GitHub Releases.</p>
-    <div class="cta-row">
-      <div class="download-picker">
-        <button
-          class="btn btn-primary btn-lg"
-          type="button"
-          aria-haspopup="menu"
-          aria-expanded="false"
-          data-download-trigger
-        >
-          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.36 12.6c-.02-2.2 1.8-3.26 1.88-3.31-1.02-1.5-2.62-1.7-3.18-1.72-1.35-.14-2.64.8-3.32.8-.69 0-1.74-.78-2.86-.76-1.47.02-2.83.86-3.59 2.18-1.53 2.66-.39 6.6 1.1 8.76.73 1.06 1.6 2.25 2.74 2.2 1.1-.04 1.52-.71 2.85-.71 1.32 0 1.7.71 2.86.69 1.18-.02 1.93-1.08 2.65-2.14.84-1.23 1.18-2.42 1.2-2.48-.03-.01-2.3-.88-2.32-3.5zM14.19 5.8c.6-.74 1.01-1.76.9-2.78-.87.04-1.93.58-2.56 1.31-.56.65-1.05 1.69-.92 2.69.97.07 1.97-.49 2.58-1.22z"/></svg>
-          <span data-download-label>View releases</span>
-          <svg class="chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>
-        </button>
-        <div class="download-menu" role="menu" aria-label="Choose Mac download" hidden>
-          <a href="https://github.com/MRL-00/cellar/releases" data-download="macos-arm64" role="menuitem" rel="noopener">
-            <span>Apple Silicon</span>
-            <b>Mac with M1, M2, M3, or newer</b>
-          </a>
-          <a href="https://github.com/MRL-00/cellar/releases" data-download="macos-x64" role="menuitem" rel="noopener">
-            <span>Intel Mac</span>
-            <b>Older Mac with Intel processor</b>
-          </a>
-        </div>
-      </div>
-    </div>
-    <div class="dl-meta">
-      <span>Apple Silicon or Intel · macOS 13+</span>
-      <span class="sep">·</span>
-      <span>Other platforms coming soon</span>
-      <span class="sep" data-download-count-sep hidden>·</span>
-      <span data-download-count hidden></span>
-    </div>
-  </div>
-</section>
-
-</main>
-
-<!-- ───────────── FOOTER ───────────── -->
-<footer>
-  <div class="wrap">
-    <div class="foot-grid">
-      <div class="foot-brand">
-        <a class="brand" href="#top"><img src="/assets/cellar-mark.svg" width="22" height="22" alt="" /> Cellar</a>
-        <p>A local-first desktop database client for browsing schemas, running SQL, and reviewing data changes.</p>
-      </div>
-      <div class="foot-col">
-        <h4>Product</h4>
-        <a href="#features">Features</a>
-        <a href="#databases">Databases</a>
-        <a href="#keyboard">Keyboard</a>
-        <a href="#download">Download</a>
-      </div>
-      <div class="foot-col">
-        <h4>Resources</h4>
-        <a href="https://github.com/MRL-00/cellar" rel="noopener">Documentation</a>
-        <a href="https://github.com/MRL-00/cellar/releases" rel="noopener">Changelog</a>
-        <a href="#faq">FAQ</a>
-        <a href="#keyboard">Keymap</a>
-      </div>
-      <div class="foot-col">
-        <h4>Community</h4>
-        <a href="https://github.com/MRL-00/cellar" rel="noopener">GitHub</a>
-        <a href="https://github.com/MRL-00/cellar/issues" rel="noopener">Report an issue</a>
-        <a href="https://github.com/MRL-00/cellar/pulls" rel="noopener">Contribute</a>
-      </div>
-    </div>
-    <div class="foot-bottom">
-      <span>© 2026 Cellar · MIT License</span>
-      <span>Built for people who live in their database.</span>
-    </div>
-  </div>
-</footer>
-
-<script type="module" src="/src/main.ts"></script>
-</body>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#10100e" />
+    <title>Cellar | An open-source database client</title>
+    <meta
+      name="description"
+      content="Cellar is a fast, local-first desktop database client for browsing schemas, running SQL, and reviewing data changes before commit."
+    />
+    <link rel="canonical" href="https://cellar.run/" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16.png?v=3" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png?v=3" />
+    <link rel="icon" href="/favicon.ico?v=3" sizes="any" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png?v=3" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta property="og:url" content="https://cellar.run/" />
+    <meta property="og:title" content="Cellar | An open-source database client" />
+    <meta property="og:description" content="Move through schemas, SQL, and data changes without losing the thread." />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="https://cellar.run/assets/cellar-main.png" />
+    <meta property="og:image:width" content="3040" />
+    <meta property="og:image:height" content="1786" />
+    <meta property="og:image:alt" content="Cellar desktop database client showing a live table workspace" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://cellar.run/assets/cellar-main.png" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Cellar",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "macOS",
+        "url": "https://cellar.run/",
+        "downloadUrl": "https://github.com/MRL-00/cellar/releases",
+        "softwareHelp": "https://github.com/MRL-00/cellar",
+        "description": "Cellar is a local-first desktop database client for browsing schemas, running SQL, and reviewing data changes.",
+        "image": "https://cellar.run/assets/cellar-main.png",
+        "license": "https://opensource.org/licenses/MIT",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+      }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geologica:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="preload" as="image" href="/assets/cellar-main.png" fetchpriority="high" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>
