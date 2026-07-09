@@ -153,7 +153,7 @@ export function ImportDataModal({ onClose }: { onClose: () => void }) {
     const sample: ParsedCsv = { headers: csv.headers, rows: csv.rows.slice(0, 25) };
     try {
       const preview = await unwrap(
-        commands.previewTableChanges(buildImportRequest(sample, cfg)),
+        commands.previewTableChanges(tab.connectionId, buildImportRequest(sample, cfg)),
       );
       setPreviewSql(preview.sql);
     } catch (err) {

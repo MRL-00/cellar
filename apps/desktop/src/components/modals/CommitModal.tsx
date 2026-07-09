@@ -76,14 +76,17 @@ export function CommitModal({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     let cancelled = false;
     setCommitError(null);
-    if (!request) {
+    if (!request || !activeTable) {
       setPreviewState({ kind: "idle", preview: null, error: null });
       return;
     }
+    const connectionId = activeTable.connectionId;
     setPreviewState({ kind: "loading", preview: null, error: null });
     void (async () => {
       try {
-        const preview = await unwrap(commands.previewTableChanges(request));
+        const preview = await unwrap(
+          commands.previewTableChanges(connectionId, request),
+        );
         if (!cancelled) setPreviewState({ kind: "ready", preview, error: null });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -95,7 +98,7 @@ export function CommitModal({ onClose }: { onClose: () => void }) {
     return () => {
       cancelled = true;
     };
-  }, [request]);
+  }, [request, activeTable]);
 
   const preview = previewState.preview;
   const sqlText = preview?.sql ?? "";

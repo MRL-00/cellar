@@ -1,18 +1,34 @@
 use std::time::Instant;
 
+use cellar_core::driver::Engine;
 use cellar_core::error::CellarError;
-use cellar_diff::{build_postgres_plan, TableChangeRequest, TableCommitPreview, TableCommitResult};
+use cellar_diff::{
+    build_mssql_plan, build_postgres_plan, CommitPlan, DiffError, TableChangeRequest,
+    TableCommitPreview, TableCommitResult,
+};
 use tauri::State;
 
 use crate::history::{HistoryStore, NewQueryHistoryRecord};
 use crate::state::ConnectionRegistry;
 
+/// Build the commit plan in the connection's SQL dialect, so the reviewed
+/// preview matches what the driver will execute.
+fn plan_for(engine: Option<Engine>, request: &TableChangeRequest) -> Result<CommitPlan, DiffError> {
+    match engine.map(|e| e.family()) {
+        Some(Engine::Mssql) => build_mssql_plan(request),
+        _ => build_postgres_plan(request),
+    }
+}
+
 #[tauri::command]
 #[specta::specta]
-pub fn preview_table_changes(
+pub async fn preview_table_changes(
+    registry: State<'_, ConnectionRegistry>,
+    connection_id: String,
     request: TableChangeRequest,
 ) -> Result<TableCommitPreview, CellarError> {
-    build_postgres_plan(&request)
+    let engine = registry.engine_for(&connection_id).await;
+    plan_for(engine, &request)
         .map(|plan| plan.preview)
         .map_err(|e| CellarError::query(e.to_string()))
 }
@@ -52,7 +68,8 @@ async fn run_commit(
     import: bool,
 ) -> Result<TableCommitResult, CellarError> {
     let history_database = request.database.clone();
-    let history_sql = build_postgres_plan(&request)
+    let engine = registry.engine_for(&connection_id).await;
+    let history_sql = plan_for(engine, &request)
         .map(|plan| plan.preview.sql)
         .unwrap_or_else(|err| {
             format!(
