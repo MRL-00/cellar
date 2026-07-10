@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.3.4
+
+### Features
+
+- **SQLite support** — connect to local SQLite databases, browse schemas and
+  tables, and run queries through the new first-party driver.
+- **Hosted database providers** — Supabase, Neon, and PlanetScale now have
+  dedicated connection options, branding, and the correct SQL dialect support.
+- **Convex browsing** — connect to local, self-hosted, or cloud Convex
+  deployments and browse tables through the streaming export API.
+- **SQL Server grid commits** — review and commit grid edits and CSV imports on
+  SQL Server and Azure SQL with dialect-aware previews and transactional safety
+  checks.
+- **AI query answers** — safe, read-only SQL generated in the AI panel can be
+  inserted into the editor or run directly, with results shown inline.
+- **New Cellar identity** — refreshed desktop and platform icons, in-app marks,
+  browser favicons, and a downloadable logo pack with monochrome variants.
+- **Marketing site redesign** — rebuilt the site with React, TypeScript,
+  Tailwind CSS, responsive motion and parallax effects, refreshed screenshots,
+  and separate Apple Silicon and Intel downloads.
+
+### Bug fixes
+
+- **Dialect-aware SQL** — query history, commit previews, nullable-key matching,
+  and upserts now use the connected database's SQL dialect.
+- **AI workflow safety** — read-only execution is guarded by engine support and
+  protected from stale or overlapping assistant runs.
+- **Site accessibility** — added keyboard navigation, visible focus states,
+  reduced-motion support, and improved responsive behavior.
+
 ## 0.3.3
 
 ### Features
