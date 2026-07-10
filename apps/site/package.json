@@ -3,6 +3,9 @@
   "version": "0.1.0-alpha",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": "20"
+  },
   "description": "Cellar marketing and download site",
   "scripts": {
     "dev": "vite",
@@ -30,5 +33,8 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "tailwind-merge": "^3.6.0"
+  },
+  "optionalDependencies": {
+    "@tailwindcss/oxide-linux-x64-gnu": "4.3.0"
   }
 }
