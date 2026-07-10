@@ -1,4 +1,5 @@
 import { Icon } from "../icons";
+import { CellarMark } from "../CellarMark";
 import { Row, Section, StaticSegment, Toggle } from "./settingsPrimitives";
 import { useConnections } from "../../state/connections";
 import { useUpdater } from "../../lib/updater";
@@ -224,22 +225,10 @@ export function SettingsAbout() {
     <div className="flex-1 overflow-y-auto pb-6 pt-1">
       <Section title="About">
         <div className="flex items-start gap-4">
-          <span
-            className="relative h-12 w-12 shrink-0 rounded-[10px]"
-            style={{
-              background:
-                "linear-gradient(135deg, #c4b5fd 0%, #a78bfa 55%, #6d4ed1 100%)",
-              boxShadow: "0 0 24px rgba(167, 139, 250, 0.14)",
-            }}
-          >
-            <span
-              className="absolute inset-2 rounded-[4px] bg-bg-1"
-              style={{
-                clipPath:
-                  "polygon(0 0, 100% 0, 100% 35%, 35% 35%, 35% 65%, 100% 65%, 100% 100%, 0 100%)",
-              }}
-            />
-          </span>
+          <CellarMark
+            accented
+            className="h-12 w-12 shrink-0 drop-shadow-[0_0_14px_var(--accent-soft)]"
+          />
           <div>
             <div className="text-[19px] font-semibold tracking-[-0.01em] text-fg-0">
               Cellar

@@ -1,0 +1,21 @@
+{
+  "name": "Cellar",
+  "short_name": "Cellar",
+  "description": "An open-source desktop database client.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#111217",
+  "theme_color": "#111217",
+  "icons": [
+    {
+      "src": "/assets/favicon-192.png?v=3",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/assets/favicon-512.png?v=3",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
