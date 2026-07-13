@@ -192,9 +192,17 @@ async fn commit_plan(
     .await
 }
 
+/// Control statements (USE, BEGIN/COMMIT/ROLLBACK TRANSACTION) must run as a
+/// raw batch via `simple_query`, never `Client::execute`: tiberius `execute`
+/// wraps the SQL in `sp_executesql`, where changing @@TRANCOUNT raises error
+/// 266 ("mismatched number of BEGIN and COMMIT statements") — which failed
+/// every SQL Server grid commit — and where USE does not outlive the call.
 async fn run_control(client: &mut TdsClient, sql: &str) -> CellarResult<()> {
     client
-        .execute(sql, &[])
+        .simple_query(sql)
+        .await
+        .map_err(|e| map_tiberius_runtime_err(e, "table commit"))?
+        .into_results()
         .await
         .map(|_| ())
         .map_err(|e| map_tiberius_runtime_err(e, "table commit"))
@@ -203,7 +211,10 @@ async fn run_control(client: &mut TdsClient, sql: &str) -> CellarResult<()> {
 /// Best-effort rollback on the error path; the original error is what the
 /// caller needs to see, and XACT_ABORT may already have rolled back.
 async fn rollback(client: &mut TdsClient) {
-    let _ = client
-        .execute("IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION", &[])
-        .await;
+    if let Ok(stream) = client
+        .simple_query("IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION")
+        .await
+    {
+        let _ = stream.into_results().await;
+    }
 }

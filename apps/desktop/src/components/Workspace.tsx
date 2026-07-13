@@ -261,6 +261,13 @@ function TableTabPane({
   // pauses — keystrokes never re-render the grid.
   const [quickFilter, setQuickFilter] = useState("");
   const [quickColumn, setQuickColumn] = useState<string | null>(null);
+  // A table refresh (e.g. after committing a transaction) reloads rows under
+  // any open inline editor, so close it — otherwise the editor UI lingers over
+  // the freshly committed value.
+  const { setEditing } = grid;
+  useEffect(() => {
+    setEditing(null);
+  }, [refreshKey, setEditing]);
   // Saved presets snapshot the whole toolbar (quick filter, chips, order by)
   // per table, persisted to localStorage so they survive restarts.
   const presets = useFilterPresets((s) => s.presets[tab.id]);

@@ -154,7 +154,9 @@ function normalizeType(type: string):
   | "guid"
   | "unknown" {
   const t = type.toLowerCase().replace(/\(.+\)$/, "").trim();
-  if (["bool", "boolean"].includes(t)) return "bool";
+  // "bit" is SQL Server's boolean. (Postgres bit(n) strings also land here —
+  // acceptable until someone edits a pg bitstring column in the grid.)
+  if (["bool", "boolean", "bit"].includes(t)) return "bool";
   // Keep the hex-editing set in lockstep with the bytea renderer's detection so
   // every type shown as a hex blob is also validated as hex when edited.
   if (isByteaType(t)) return "bytea";
@@ -352,7 +354,21 @@ export function CellEditor({ col, value, onCommit, onCancel }: CellEditorProps) 
     onCommit(parsed.value);
   };
 
-  if (col.enum) {
+  // Boolean columns edit via the same single-select option UI as enums, so
+  // the only committable values are TRUE / FALSE (and NULL when allowed).
+  const boolEditor = !col.enum && normalizeType(col.type) === "bool";
+  const options =
+    col.enum ??
+    (boolEditor ? ["TRUE", "FALSE", ...(col.nullable ? ["NULL"] : [])] : null);
+  const selected = boolEditor
+    ? value == null
+      ? "NULL"
+      : String(value) === "true"
+        ? "TRUE"
+        : "FALSE"
+    : v;
+
+  if (options) {
     return (
       <div
         className="cell-edit-enum"
@@ -376,16 +392,18 @@ export function CellEditor({ col, value, onCommit, onCancel }: CellEditorProps) 
         // events, which lets the onBlur handler detect clicks outside.
         tabIndex={-1}
       >
-        {col.enum.map((opt) => (
+        {options.map((opt) => (
           <button
             key={opt}
-            className={"cell-edit-opt" + (opt === v ? " active" : "")}
+            className={"cell-edit-opt" + (opt === selected ? " active" : "")}
             onClick={() => {
               settledRef.current = true;
-              onCommit(opt);
+              onCommit(
+                boolEditor ? (opt === "NULL" ? null : opt === "TRUE") : opt,
+              );
             }}
           >
-            {col.key === "status" && (
+            {col.enum && col.key === "status" && (
               <span
                 className="dot"
                 style={{ background: statusDotColor(opt) }}

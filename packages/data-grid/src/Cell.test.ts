@@ -153,6 +153,17 @@ describe("parseCellInput", () => {
     });
   });
 
+  it("treats SQL Server bit columns as booleans", () => {
+    expect(parseCellInput(column("enabled", "bit"), "true")).toEqual({
+      ok: true,
+      value: true,
+    });
+    expect(parseCellInput(column("enabled", "bit"), "maybe")).toEqual({
+      ok: false,
+      message: "Enter TRUE or FALSE",
+    });
+  });
+
   it("rejects non-boolean values for boolean columns", () => {
     expect(parseCellInput(column("active", "bool"), "sometimes")).toEqual({
       ok: false,
