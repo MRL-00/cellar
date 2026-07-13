@@ -154,9 +154,7 @@ function normalizeType(type: string):
   | "guid"
   | "unknown" {
   const t = type.toLowerCase().replace(/\(.+\)$/, "").trim();
-  // "bit" is SQL Server's boolean. (Postgres bit(n) strings also land here —
-  // acceptable until someone edits a pg bitstring column in the grid.)
-  if (["bool", "boolean", "bit"].includes(t)) return "bool";
+  if (["bool", "boolean"].includes(t)) return "bool";
   // Keep the hex-editing set in lockstep with the bytea renderer's detection so
   // every type shown as a hex blob is also validated as hex when edited.
   if (isByteaType(t)) return "bytea";
@@ -242,6 +240,19 @@ export function nativeControl(
       : null;
   }
   return null;
+}
+
+/**
+ * Whether a cell edits with the TRUE/FALSE single-select editor. "bit" is
+ * ambiguous — SQL Server's boolean and Postgres's bitstring share the name —
+ * so it only counts as boolean when the stored value actually is one
+ * (SQL Server bit decodes to a JS boolean; pg bitstrings decode to "10101"
+ * strings). A NULL bit cell falls back to the plain text editor.
+ */
+export function usesBoolEditor(col: GridColumn, value: Value): boolean {
+  if (normalizeType(col.type) === "bool") return true;
+  const t = col.type.toLowerCase().replace(/\(.+\)$/, "").trim();
+  return t === "bit" && typeof value === "boolean";
 }
 
 export function CellValue({
@@ -356,7 +367,7 @@ export function CellEditor({ col, value, onCommit, onCancel }: CellEditorProps) 
 
   // Boolean columns edit via the same single-select option UI as enums, so
   // the only committable values are TRUE / FALSE (and NULL when allowed).
-  const boolEditor = !col.enum && normalizeType(col.type) === "bool";
+  const boolEditor = !col.enum && usesBoolEditor(col, value);
   const options =
     col.enum ??
     (boolEditor ? ["TRUE", "FALSE", ...(col.nullable ? ["NULL"] : [])] : null);
