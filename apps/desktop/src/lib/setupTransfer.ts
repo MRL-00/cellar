@@ -40,9 +40,11 @@ export interface SetupSources {
 /** Optional filters applied while building an export bundle. */
 export interface BuildBundleOptions {
   /**
-   * Subset of connection ids to include. When omitted, every connection is
-   * exported. When set, only matching connections (and, if table layouts are
-   * also selected, only layouts keyed to those connections) are included.
+   * Subset of connection ids to include. When omitted, every connection (and
+   * every table layout) is exported. When set, connections are filtered to the
+   * set, and — if table layouts are selected — layouts are filtered to keys
+   * belonging to those ids even when the connections section itself is off
+   * (e.g. the user checked Connections but unchecked every row).
    */
   connectionIds?: ReadonlySet<string>;
 }
@@ -97,9 +99,9 @@ export function buildBundle(
   }
   if (selection.tableLayouts) {
     let layouts = coerceTableLayouts(sources.tableLayouts);
-    // When the caller narrowed connections, keep layouts in sync so a partial
-    // export doesn't leak layouts for connections that weren't included.
-    if (connectionIds && selection.connections) {
+    // Honor connectionIds whenever provided so an empty selection (Connections
+    // section on, every checkbox off) can't leak layouts for deselected ids.
+    if (connectionIds) {
       layouts = Object.fromEntries(
         Object.entries(layouts).filter(([key]) =>
           connectionIds.has(connectionIdFromKey(key)),

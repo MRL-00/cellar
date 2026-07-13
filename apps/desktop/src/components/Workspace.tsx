@@ -281,6 +281,20 @@ function TableTabPane({
     [grid.setSort, rememberSort, setTableSort, tab.id],
   );
 
+  // `initialSort` only applies on mount. When remembering is toggled on for an
+  // already-open tab, either restore the saved sort or persist the in-session one.
+  const prevRememberSort = useRef(rememberSort);
+  useEffect(() => {
+    const wasOn = prevRememberSort.current;
+    prevRememberSort.current = rememberSort;
+    if (!rememberSort || wasOn) return;
+    if (grid.sort) {
+      setTableSort(tab.id, grid.sort);
+    } else if (savedSort) {
+      grid.setSort(savedSort);
+    }
+  }, [rememberSort, grid.sort, grid.setSort, savedSort, setTableSort, tab.id]);
+
   const savedFilters = useMemo(
     () => ({
       names: (presets ?? []).map((preset) => preset.name),
@@ -348,14 +362,16 @@ function TableTabPane({
     quickColumn,
     grid.sort,
   );
-  // Drop a remembered sort that no longer matches any column (renamed/dropped).
+  // Ignore a remembered sort that no longer matches any column for this open,
+  // but leave the persisted value alone — a transient schema/permission miss
+  // shouldn't erase the user's last sort permanently.
   useEffect(() => {
     if (!grid.sort || data.loading || data.columns.length === 0) return;
     if (data.columns.some((column) => column.key === grid.sort!.columnKey)) {
       return;
     }
-    handleSortChange(null);
-  }, [data.loading, data.columns, grid.sort, handleSortChange]);
+    grid.setSort(null);
+  }, [data.loading, data.columns, grid.sort, grid.setSort]);
   // Filters/sort apply to the whole table, so any change must jump back to the
   // first page (page size already resets in its own handler below).
   const filtersKey = JSON.stringify(grid.filters);

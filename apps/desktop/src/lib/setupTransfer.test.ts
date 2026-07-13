@@ -133,7 +133,7 @@ describe("buildBundle", () => {
     ]);
   });
 
-  it("keeps all table layouts when connections are not exported", () => {
+  it("keeps all table layouts when no connection filter is provided", () => {
     const bundle = buildBundle(
       { settings: false, connections: false, tableLayouts: true },
       {
@@ -147,10 +147,31 @@ describe("buildBundle", () => {
         },
       },
       { app: "0.1.0", exportedAt: "2026-06-09T00:00:00Z" },
-      { connectionIds: new Set(["staging-pg"]) },
     );
     expect(bundle.sections.connections).toBeUndefined();
     expect(Object.keys(bundle.sections.tableLayouts ?? {})).toHaveLength(2);
+  });
+
+  it("filters table layouts even when the connections section is omitted", () => {
+    // Mirrors Export setup with Connections checked but every row unchecked:
+    // connections are skipped, but layouts must still respect the empty filter.
+    const bundle = buildBundle(
+      { settings: false, connections: false, tableLayouts: true },
+      {
+        ...sources,
+        tableLayouts: {
+          "local-pg::app.public.orders": { order: ["id"], widths: { id: 80 } },
+          "staging-pg::staging.public.users": {
+            order: ["email"],
+            widths: { email: 120 },
+          },
+        },
+      },
+      { app: "0.1.0", exportedAt: "2026-06-09T00:00:00Z" },
+      { connectionIds: new Set() },
+    );
+    expect(bundle.sections.connections).toBeUndefined();
+    expect(Object.keys(bundle.sections.tableLayouts ?? {})).toHaveLength(0);
   });
 });
 
