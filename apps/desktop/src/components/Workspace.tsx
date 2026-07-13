@@ -3,6 +3,7 @@ import {
   useGridState,
   type GridRow,
   type PendingChanges,
+  type SortState,
 } from "@cellar/data-grid";
 import {
   useCallback,
@@ -246,15 +247,20 @@ function TableTabPane({
   onCommit?: () => void;
 }) {
   const { settings } = useSettings();
+  const rememberSort = settings.grid.rememberTableSort;
   const refreshKey = useTabs((s) => s.refreshKeys[tab.id] ?? 0);
   const changes = useTabs((s) => s.tableChanges[tab.id] ?? EMPTY_CHANGES);
   const columnLayout = useTabs((s) => s.tableLayouts[tab.id]);
+  const savedSort = useTabs((s) => s.tableSorts[tab.id] ?? null);
   const setTableChanges = useTabs((s) => s.setTableChanges);
   const setTableLayout = useTabs((s) => s.setTableLayout);
+  const setTableSort = useTabs((s) => s.setTableSort);
   const clearTableChanges = useTabs((s) => s.clearTableChanges);
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(500);
-  const grid = useGridState();
+  const grid = useGridState({
+    initialSort: rememberSort ? savedSort : null,
+  });
   // Quick filter is kept separate from the advanced chips (`grid.filters`) so
   // clearing one never disturbs the other. FilterBar owns the typed text and
   // debounces it, so `quickFilter` only updates (and re-queries) once the user
@@ -266,6 +272,15 @@ function TableTabPane({
   const presets = useFilterPresets((s) => s.presets[tab.id]);
   const savePreset = useFilterPresets((s) => s.savePreset);
   const deletePreset = useFilterPresets((s) => s.deletePreset);
+
+  const handleSortChange = useCallback(
+    (next: SortState) => {
+      grid.setSort(next);
+      if (rememberSort) setTableSort(tab.id, next);
+    },
+    [grid.setSort, rememberSort, setTableSort, tab.id],
+  );
+
   const savedFilters = useMemo(
     () => ({
       names: (presets ?? []).map((preset) => preset.name),
@@ -294,14 +309,14 @@ function TableTabPane({
         const preset = (presets ?? []).find((item) => item.name === name);
         if (!preset) return;
         grid.setFilters(preset.filters);
-        grid.setSort(preset.sort);
+        handleSortChange(preset.sort);
         setQuickFilter(preset.quickFilter);
         setQuickColumn(preset.quickColumn);
       },
       onDelete: (name: string) => deletePreset(tab.id, name),
       onClear: () => {
         grid.setFilters([]);
-        grid.setSort(null);
+        handleSortChange(null);
         setQuickFilter("");
         setQuickColumn(null);
       },
@@ -314,7 +329,7 @@ function TableTabPane({
       grid.filters,
       grid.sort,
       grid.setFilters,
-      grid.setSort,
+      handleSortChange,
       quickFilter,
       quickColumn,
     ],
@@ -333,6 +348,14 @@ function TableTabPane({
     quickColumn,
     grid.sort,
   );
+  // Drop a remembered sort that no longer matches any column (renamed/dropped).
+  useEffect(() => {
+    if (!grid.sort || data.loading || data.columns.length === 0) return;
+    if (data.columns.some((column) => column.key === grid.sort!.columnKey)) {
+      return;
+    }
+    handleSortChange(null);
+  }, [data.loading, data.columns, grid.sort, handleSortChange]);
   // Filters/sort apply to the whole table, so any change must jump back to the
   // first page (page size already resets in its own handler below).
   const filtersKey = JSON.stringify(grid.filters);
@@ -480,7 +503,7 @@ function TableTabPane({
         quickFilterColumn={quickColumn}
         onQuickFilterColumnChange={setQuickColumn}
         sort={grid.sort}
-        onSortChange={grid.setSort}
+        onSortChange={handleSortChange}
         savedFilters={savedFilters}
         columnLayout={columnLayout}
         onColumnLayoutChange={(next) => setTableLayout(tab.id, next)}

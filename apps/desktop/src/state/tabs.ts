@@ -1,11 +1,12 @@
 import { create } from "zustand";
-import type { GridColumnLayout, PendingChanges } from "@cellar/data-grid";
+import type { GridColumnLayout, PendingChanges, SortState } from "@cellar/data-grid";
 import { useNotices } from "./notices";
 import { useQueryMessages } from "./queryMessages";
 import { useTabResults } from "./tabResults";
 import { useSchemaCompare, type CompareConfig } from "./schemaCompare";
 
 const TABLE_LAYOUTS_STORAGE_KEY = "cellar.tableLayouts.v1";
+const TABLE_SORTS_STORAGE_KEY = "cellar.tableSorts.v1";
 
 export interface TableTab {
   id: string;
@@ -73,6 +74,8 @@ export function tabLabel(tab: WorkspaceTab): string {
 export type PaneIndex = 0 | 1;
 
 export type TableLayouts = Record<string, GridColumnLayout>;
+/** Last-used column sort per table id (`tableKey`). `null` means unsorted. */
+export type TableSorts = Record<string, SortState>;
 
 let queryTabSeq = 0;
 let schemaCompareSeq = 0;
@@ -94,6 +97,7 @@ interface TabsStore {
   draggingTabId: string | null;
   tableChanges: Record<string, PendingChanges>;
   tableLayouts: TableLayouts;
+  tableSorts: TableSorts;
   refreshKeys: Record<string, number>;
   openTable: (
     connectionId: string,
@@ -139,6 +143,8 @@ interface TabsStore {
   dropTabToSplit: (id: string, edge: SplitEdge) => void;
   setActive: (id: string) => void;
   setTableLayout: (id: string, layout: GridColumnLayout) => void;
+  /** Persist (or clear) the last-used sort for a table browse tab. */
+  setTableSort: (id: string, sort: SortState) => void;
   /** Merge imported per-table layouts over the current ones and persist. */
   importTableLayouts: (entries: TableLayouts) => void;
   setTableChanges: (id: string, changes: PendingChanges) => void;
@@ -193,6 +199,44 @@ function loadTableLayouts(): TableLayouts {
 function saveTableLayouts(layouts: TableLayouts) {
   if (typeof localStorage === "undefined") return;
   localStorage.setItem(TABLE_LAYOUTS_STORAGE_KEY, JSON.stringify(layouts));
+}
+
+function coerceSortState(raw: unknown): SortState | undefined {
+  if (raw === null) return null;
+  if (!raw || typeof raw !== "object") return undefined;
+  const sort = raw as { columnKey?: unknown; direction?: unknown };
+  if (typeof sort.columnKey !== "string") return undefined;
+  if (sort.direction !== "asc" && sort.direction !== "desc") return undefined;
+  return { columnKey: sort.columnKey, direction: sort.direction };
+}
+
+function loadTableSorts(): TableSorts {
+  if (typeof localStorage === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(TABLE_SORTS_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return {};
+    const sorts: TableSorts = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      const sort = coerceSortState(value);
+      // Skip malformed entries; keep explicit `null` (cleared sort).
+      if (sort === undefined) continue;
+      sorts[key] = sort;
+    }
+    return sorts;
+  } catch {
+    return {};
+  }
+}
+
+function saveTableSorts(sorts: TableSorts) {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(TABLE_SORTS_STORAGE_KEY, JSON.stringify(sorts));
+  } catch {
+    // Persistence failed (quota, private mode) — keep the in-memory update.
+  }
 }
 
 function dropTabScopedState(
@@ -321,6 +365,7 @@ export const useTabs = create<TabsStore>((set, get) => ({
   draggingTabId: null,
   tableChanges: {},
   tableLayouts: loadTableLayouts(),
+  tableSorts: loadTableSorts(),
   refreshKeys: {},
 
   openTable(connectionId, database, schema, table) {
@@ -647,6 +692,21 @@ export const useTabs = create<TabsStore>((set, get) => ({
       const tableLayouts = { ...s.tableLayouts, [id]: layout };
       saveTableLayouts(tableLayouts);
       return { tableLayouts };
+    });
+  },
+
+  setTableSort(id, sort) {
+    set((s) => {
+      const tableSorts = { ...s.tableSorts, [id]: sort };
+      // Drop cleared sorts so the map stays small; absence and null both mean
+      // "no remembered sort" when the setting is on.
+      if (sort === null) {
+        const { [id]: _removed, ...rest } = s.tableSorts;
+        saveTableSorts(rest);
+        return { tableSorts: rest };
+      }
+      saveTableSorts(tableSorts);
+      return { tableSorts };
     });
   },
 

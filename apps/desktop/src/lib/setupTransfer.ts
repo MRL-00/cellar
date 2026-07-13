@@ -37,6 +37,16 @@ export interface SetupSources {
   tableLayouts: TableLayouts;
 }
 
+/** Optional filters applied while building an export bundle. */
+export interface BuildBundleOptions {
+  /**
+   * Subset of connection ids to include. When omitted, every connection is
+   * exported. When set, only matching connections (and, if table layouts are
+   * also selected, only layouts keyed to those connections) are included.
+   */
+  connectionIds?: ReadonlySet<string>;
+}
+
 const ENGINES: Engine[] = [
   "postgres",
   "mysql",
@@ -67,8 +77,10 @@ export function buildBundle(
   selection: SetupSelection,
   sources: SetupSources,
   meta: { app: string; exportedAt: string },
+  options?: BuildBundleOptions,
 ): SetupBundle {
   const sections: SetupBundle["sections"] = {};
+  const connectionIds = options?.connectionIds;
   if (selection.settings) {
     sections.settings = sanitizeSettings({
       ...SETTINGS_DEFAULTS,
@@ -76,12 +88,25 @@ export function buildBundle(
     });
   }
   if (selection.connections) {
-    sections.connections = sources.connections
+    const picked = connectionIds
+      ? sources.connections.filter((c) => connectionIds.has(c.id))
+      : sources.connections;
+    sections.connections = picked
       .map(coerceConnection)
       .filter((c): c is ConnectionConfig => c !== null);
   }
   if (selection.tableLayouts) {
-    sections.tableLayouts = coerceTableLayouts(sources.tableLayouts);
+    let layouts = coerceTableLayouts(sources.tableLayouts);
+    // When the caller narrowed connections, keep layouts in sync so a partial
+    // export doesn't leak layouts for connections that weren't included.
+    if (connectionIds && selection.connections) {
+      layouts = Object.fromEntries(
+        Object.entries(layouts).filter(([key]) =>
+          connectionIds.has(connectionIdFromKey(key)),
+        ),
+      );
+    }
+    sections.tableLayouts = layouts;
   }
   return {
     format: SETUP_FORMAT,
@@ -241,6 +266,9 @@ function coerceSettings(raw: Record<string, unknown>): Settings {
       gridPicked.nullDisplay = g.nullDisplay as Settings["grid"]["nullDisplay"];
     }
     if (typeof g.stripeRows === "boolean") gridPicked.stripeRows = g.stripeRows;
+    if (typeof g.rememberTableSort === "boolean") {
+      gridPicked.rememberTableSort = g.rememberTableSort;
+    }
     picked.grid = { ...SETTINGS_DEFAULTS.grid, ...gridPicked };
   }
 

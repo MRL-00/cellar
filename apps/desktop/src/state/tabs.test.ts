@@ -31,6 +31,7 @@ describe("tab workspace state", () => {
       focusedPane: 0,
       tableChanges: {},
       tableLayouts: {},
+      tableSorts: {},
       refreshKeys: {},
     });
     if (typeof localStorage !== "undefined") localStorage.clear();
@@ -370,5 +371,23 @@ describe("tab workspace state", () => {
     if (typeof localStorage !== "undefined") {
       expect(localStorage.getItem("cellar.tableLayouts.v1")).toContain("status");
     }
+  });
+
+  it("persists the last-used table sort across tab close", () => {
+    const id = "conn-1::app.public.orders";
+    useTabs.getState().openTable("conn-1", "app", "public", "orders");
+    useTabs.getState().setTableSort(id, { columnKey: "created_at", direction: "desc" });
+    useTabs.getState().closeTab(id);
+
+    expect(useTabs.getState().tableSorts[id]).toEqual({
+      columnKey: "created_at",
+      direction: "desc",
+    });
+    if (typeof localStorage !== "undefined") {
+      expect(localStorage.getItem("cellar.tableSorts.v1")).toContain("created_at");
+    }
+
+    useTabs.getState().setTableSort(id, null);
+    expect(useTabs.getState().tableSorts[id]).toBeUndefined();
   });
 });
