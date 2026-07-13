@@ -37,6 +37,18 @@ export interface SetupSources {
   tableLayouts: TableLayouts;
 }
 
+/** Optional filters applied while building an export bundle. */
+export interface BuildBundleOptions {
+  /**
+   * Subset of connection ids to include. When omitted, every connection (and
+   * every table layout) is exported. When set, connections are filtered to the
+   * set, and — if table layouts are selected — layouts are filtered to keys
+   * belonging to those ids even when the connections section itself is off
+   * (e.g. the user checked Connections but unchecked every row).
+   */
+  connectionIds?: ReadonlySet<string>;
+}
+
 const ENGINES: Engine[] = [
   "postgres",
   "mysql",
@@ -67,8 +79,10 @@ export function buildBundle(
   selection: SetupSelection,
   sources: SetupSources,
   meta: { app: string; exportedAt: string },
+  options?: BuildBundleOptions,
 ): SetupBundle {
   const sections: SetupBundle["sections"] = {};
+  const connectionIds = options?.connectionIds;
   if (selection.settings) {
     sections.settings = sanitizeSettings({
       ...SETTINGS_DEFAULTS,
@@ -76,12 +90,25 @@ export function buildBundle(
     });
   }
   if (selection.connections) {
-    sections.connections = sources.connections
+    const picked = connectionIds
+      ? sources.connections.filter((c) => connectionIds.has(c.id))
+      : sources.connections;
+    sections.connections = picked
       .map(coerceConnection)
       .filter((c): c is ConnectionConfig => c !== null);
   }
   if (selection.tableLayouts) {
-    sections.tableLayouts = coerceTableLayouts(sources.tableLayouts);
+    let layouts = coerceTableLayouts(sources.tableLayouts);
+    // Honor connectionIds whenever provided so an empty selection (Connections
+    // section on, every checkbox off) can't leak layouts for deselected ids.
+    if (connectionIds) {
+      layouts = Object.fromEntries(
+        Object.entries(layouts).filter(([key]) =>
+          connectionIds.has(connectionIdFromKey(key)),
+        ),
+      );
+    }
+    sections.tableLayouts = layouts;
   }
   return {
     format: SETUP_FORMAT,
@@ -241,6 +268,9 @@ function coerceSettings(raw: Record<string, unknown>): Settings {
       gridPicked.nullDisplay = g.nullDisplay as Settings["grid"]["nullDisplay"];
     }
     if (typeof g.stripeRows === "boolean") gridPicked.stripeRows = g.stripeRows;
+    if (typeof g.rememberTableSort === "boolean") {
+      gridPicked.rememberTableSort = g.rememberTableSort;
+    }
     picked.grid = { ...SETTINGS_DEFAULTS.grid, ...gridPicked };
   }
 

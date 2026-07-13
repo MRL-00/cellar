@@ -40,6 +40,11 @@ export type EditorSettings = {
 export type GridSettings = {
   nullDisplay: NullDisplay;
   stripeRows: boolean;
+  /**
+   * When true, the last column sort applied on a table browse tab is restored
+   * the next time that table is opened.
+   */
+  rememberTableSort: boolean;
 };
 
 export type Settings = {
@@ -69,6 +74,7 @@ export const DEFAULTS: Settings = {
   grid: {
     nullDisplay: "NULL",
     stripeRows: false,
+    rememberTableSort: true,
   },
 };
 
@@ -111,6 +117,10 @@ export function sanitize(s: Settings): Settings {
   const grid: GridSettings = {
     nullDisplay: NULL_DISPLAYS.includes(s.grid?.nullDisplay) ? s.grid.nullDisplay : DEFAULTS.grid.nullDisplay,
     stripeRows: typeof s.grid?.stripeRows === "boolean" ? s.grid.stripeRows : DEFAULTS.grid.stripeRows,
+    rememberTableSort:
+      typeof s.grid?.rememberTableSort === "boolean"
+        ? s.grid.rememberTableSort
+        : DEFAULTS.grid.rememberTableSort,
   };
   return {
     ...s,

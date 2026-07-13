@@ -61,6 +61,7 @@ describe("buildBundle", () => {
       grid: {
         nullDisplay: "NULL" as const,
         stripeRows: false,
+        rememberTableSort: true,
       },
     },
     connections: [conn()],
@@ -90,6 +91,88 @@ describe("buildBundle", () => {
     expect(json).not.toContain("password");
     expect(json).not.toContain("secret");
   });
+
+  it("exports only the selected connection ids", () => {
+    const other = conn({
+      id: "staging-pg",
+      name: "Staging",
+      database: "staging",
+      env_tag: "staging",
+    });
+    const bundle = buildBundle(
+      { settings: false, connections: true, tableLayouts: false },
+      { ...sources, connections: [conn(), other] },
+      { app: "0.1.0", exportedAt: "2026-06-09T00:00:00Z" },
+      { connectionIds: new Set(["staging-pg"]) },
+    );
+    expect(bundle.sections.connections).toHaveLength(1);
+    expect(bundle.sections.connections?.[0]?.id).toBe("staging-pg");
+  });
+
+  it("omits table layouts for connections that were not selected", () => {
+    const other = conn({ id: "staging-pg", name: "Staging", database: "staging" });
+    const bundle = buildBundle(
+      { settings: false, connections: true, tableLayouts: true },
+      {
+        ...sources,
+        connections: [conn(), other],
+        tableLayouts: {
+          "local-pg::app.public.orders": { order: ["id"], widths: { id: 80 } },
+          "staging-pg::staging.public.users": {
+            order: ["email"],
+            widths: { email: 120 },
+          },
+        },
+      },
+      { app: "0.1.0", exportedAt: "2026-06-09T00:00:00Z" },
+      { connectionIds: new Set(["staging-pg"]) },
+    );
+    expect(bundle.sections.connections?.map((c) => c.id)).toEqual(["staging-pg"]);
+    expect(Object.keys(bundle.sections.tableLayouts ?? {})).toEqual([
+      "staging-pg::staging.public.users",
+    ]);
+  });
+
+  it("keeps all table layouts when no connection filter is provided", () => {
+    const bundle = buildBundle(
+      { settings: false, connections: false, tableLayouts: true },
+      {
+        ...sources,
+        tableLayouts: {
+          "local-pg::app.public.orders": { order: ["id"], widths: { id: 80 } },
+          "staging-pg::staging.public.users": {
+            order: ["email"],
+            widths: { email: 120 },
+          },
+        },
+      },
+      { app: "0.1.0", exportedAt: "2026-06-09T00:00:00Z" },
+    );
+    expect(bundle.sections.connections).toBeUndefined();
+    expect(Object.keys(bundle.sections.tableLayouts ?? {})).toHaveLength(2);
+  });
+
+  it("filters table layouts even when the connections section is omitted", () => {
+    // Mirrors Export setup with Connections checked but every row unchecked:
+    // connections are skipped, but layouts must still respect the empty filter.
+    const bundle = buildBundle(
+      { settings: false, connections: false, tableLayouts: true },
+      {
+        ...sources,
+        tableLayouts: {
+          "local-pg::app.public.orders": { order: ["id"], widths: { id: 80 } },
+          "staging-pg::staging.public.users": {
+            order: ["email"],
+            widths: { email: 120 },
+          },
+        },
+      },
+      { app: "0.1.0", exportedAt: "2026-06-09T00:00:00Z" },
+      { connectionIds: new Set() },
+    );
+    expect(bundle.sections.connections).toBeUndefined();
+    expect(Object.keys(bundle.sections.tableLayouts ?? {})).toHaveLength(0);
+  });
 });
 
 describe("parseBundle", () => {
@@ -114,6 +197,7 @@ describe("parseBundle", () => {
             grid: {
               nullDisplay: "NULL" as const,
               stripeRows: false,
+              rememberTableSort: true,
             },
           },
           connections: [conn()],
@@ -175,7 +259,7 @@ describe("parseBundle", () => {
             interfaceFont: "Geist",
             monoFont: "JetBrains Mono",
             editor: { tabSize: 2, softWrap: true, lineNumbers: false, bracketMatching: false },
-            grid: { nullDisplay: "∅", stripeRows: true },
+            grid: { nullDisplay: "∅", stripeRows: true, rememberTableSort: true },
           },
           connections: [],
           tableLayouts: {},
@@ -192,6 +276,7 @@ describe("parseBundle", () => {
       expect(s.editor.lineNumbers).toBe(false);
       expect(s.grid.nullDisplay).toBe("∅");
       expect(s.grid.stripeRows).toBe(true);
+      expect(s.grid.rememberTableSort).toBe(true);
     }
   });
 
@@ -221,7 +306,7 @@ describe("computeImportPlan", () => {
         interfaceFont: "Geist",
         monoFont: "JetBrains Mono",
         editor: { tabSize: 4, softWrap: false, lineNumbers: true, bracketMatching: true },
-        grid: { nullDisplay: "NULL", stripeRows: false },
+        grid: { nullDisplay: "NULL", stripeRows: false, rememberTableSort: true },
       },
     },
   };
@@ -277,7 +362,7 @@ describe("applyImportPlan", () => {
             interfaceFont: "Geist",
             monoFont: "JetBrains Mono",
             editor: { tabSize: 4 as const, softWrap: false, lineNumbers: true, bracketMatching: true },
-            grid: { nullDisplay: "NULL" as const, stripeRows: false },
+            grid: { nullDisplay: "NULL" as const, stripeRows: false, rememberTableSort: true },
           },
         },
       },

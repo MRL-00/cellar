@@ -282,6 +282,16 @@ export function SettingsGrid() {
             ariaLabel="Stripe alternating rows"
           />
         </Row>
+        <Row
+          label="Remember table sort"
+          hint="Restore the last column sort when you reopen a table. Column order and widths are always remembered."
+        >
+          <Toggle
+            on={grid.rememberTableSort}
+            onChange={(v) => setGrid({ rememberTableSort: v })}
+            ariaLabel="Remember table sort"
+          />
+        </Row>
       </Section>
     </div>
   );
