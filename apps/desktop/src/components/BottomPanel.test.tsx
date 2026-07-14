@@ -28,6 +28,11 @@ describe("MessagesView", () => {
     expect(html).toContain("Loaded public.orders");
     expect(html).toContain("12 ms");
     expect(html).toContain("2 rows");
+    expect(html).toContain("Resize time column");
+    expect(html).toContain("Resize level column");
+    expect(html).toContain("Resize source column");
+    expect(html).toContain("Resize message column");
+    expect(html).toContain("Resize metrics column");
   });
 });
 
