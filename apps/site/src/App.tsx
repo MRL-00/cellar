@@ -25,13 +25,12 @@ const RELEASE_API = "https://api.github.com/repos/MRL-00/cellar/releases";
 type ReleaseAsset = { name: string; size: number; browser_download_url: string };
 type Release = { draft?: boolean; tag_name: string; assets: ReleaseAsset[] };
 type Installer = { href: string; meta: string };
-type DownloadInfo = { label: string; meta: string; silicon: Installer; intel: Installer };
+type DownloadInfo = { label: string; meta: string; installer: Installer };
 
 const defaultDownload: DownloadInfo = {
-  label: "Choose Mac version",
-  meta: "macOS 13+",
-  silicon: { href: RELEASES, meta: "M1 or newer" },
-  intel: { href: RELEASES, meta: "Intel processor" },
+  label: "Download for Mac",
+  meta: "Apple Silicon · macOS 13+",
+  installer: { href: RELEASES, meta: "M1 or newer" },
 };
 let downloadRequest: Promise<DownloadInfo> | undefined;
 
@@ -70,20 +69,13 @@ function lookupDownload() {
         const silicon = release.assets.find(
           ({ name }) => name === "Cellar-mac-arm64.dmg" || /^Cellar_.+_aarch64\.dmg$/.test(name),
         );
-        const intel = release.assets.find(
-          ({ name }) => name === "Cellar-mac-x64.dmg" || /^Cellar_.+_x64\.dmg$/.test(name),
-        );
-        if (!silicon && !intel) continue;
+        if (!silicon) continue;
         return {
           label: "Download for Mac",
-          meta: `${release.tag_name} · macOS 13+`,
-          silicon: {
-            href: silicon?.browser_download_url ?? RELEASES,
-            meta: silicon ? `M1 or newer · ${formatSize(silicon.size)}` : "M1 or newer · View releases",
-          },
-          intel: {
-            href: intel?.browser_download_url ?? RELEASES,
-            meta: intel ? `Intel processor · ${formatSize(intel.size)}` : "Intel processor · View releases",
+          meta: `${release.tag_name} · Apple Silicon · macOS 13+`,
+          installer: {
+            href: silicon.browser_download_url,
+            meta: `M1 or newer · ${formatSize(silicon.size)}`,
           },
         };
       }
@@ -160,64 +152,24 @@ function usePageMotion() {
   }, []);
 }
 
-function DownloadPicker({
+function DownloadButton({
   className,
   compact = false,
-  align = "left",
-  side = "bottom",
 }: {
   className?: string;
   compact?: boolean;
-  align?: "left" | "center" | "right";
-  side?: "bottom" | "top";
 }) {
   const download = useDownload();
-  const alignment = {
-    left: "left-0",
-    center: "left-1/2 -translate-x-1/2",
-    right: "right-0",
-  }[align];
   return (
-    <details className={cn("group relative z-30 inline-block", className)}>
-      <summary
-        className={cn(
-          buttonVariants({ size: compact ? "default" : "lg" }),
-          "w-full cursor-pointer list-none marker:hidden [&::-webkit-details-marker]:hidden",
-        )}
-      >
-        <Download className="size-4" aria-hidden="true" />
-        {compact ? "Download" : download.label}
-        <ChevronDown className="size-4 transition-transform duration-300 ease-out-quint group-open:rotate-180" aria-hidden="true" />
-      </summary>
-      <div
-        className={cn(
-          "absolute z-50 w-[min(19rem,calc(100vw-2.5rem))] rounded-2xl border border-line bg-oxide p-2 text-left text-paper shadow-[0_24px_70px_oklch(0.03_0.003_255/0.65)]",
-          side === "bottom" ? "top-full mt-2" : "bottom-full mb-2",
-          alignment,
-        )}
-        aria-label="Choose Mac installer"
-      >
-        {([
-          ["M", "Apple Silicon", download.silicon],
-          ["I", "Intel Mac", download.intel],
-        ] as const).map(([mark, label, installer]) => (
-          <a
-            key={label}
-            href={installer.href}
-            className="flex items-center gap-3 rounded-xl px-3 py-3 transition-colors hover:bg-paper/7 focus-visible:bg-paper/7 focus-visible:outline-none"
-            rel="noopener"
-          >
-            <span className="grid size-9 shrink-0 place-items-center rounded-full border border-line bg-paper/5 font-mono text-xs text-paper-muted">
-              {mark}
-            </span>
-            <span className="grid gap-0.5">
-              <strong className="text-sm font-medium text-paper">{label}</strong>
-              <span className="font-mono text-[10px] uppercase tracking-[0.06em] text-paper-dim">{installer.meta}</span>
-            </span>
-          </a>
-        ))}
-      </div>
-    </details>
+    <a
+      href={download.installer.href}
+      className={cn(buttonVariants({ size: compact ? "default" : "lg" }), className)}
+      rel="noopener"
+      title={download.installer.meta}
+    >
+      <Download className="size-4" aria-hidden="true" />
+      {compact ? "Download" : download.label}
+    </a>
   );
 }
 
@@ -254,7 +206,7 @@ function Nav() {
           <a href={GITHUB} className="text-sm text-paper-muted transition-colors hover:text-paper" rel="noopener">
             GitHub
           </a>
-          <DownloadPicker compact align="right" />
+          <DownloadButton compact />
         </div>
         <button
           className="ml-auto grid size-10 place-items-center rounded-full border border-line text-paper md:hidden"
@@ -277,7 +229,7 @@ function Nav() {
             <a href={GITHUB} className="py-3 text-lg" rel="noopener">
               GitHub
             </a>
-            <DownloadPicker className="mt-3 w-full" compact align="right" />
+            <DownloadButton className="mt-3 w-full" compact />
           </div>
         </div>
       )}
@@ -312,7 +264,7 @@ function Hero() {
             A fast desktop database client for people who live in SQL. Browse schemas, edit data, and review every change before it commits.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-3">
-            <DownloadPicker />
+            <DownloadButton />
             <a href="#product" className={buttonVariants({ variant: "outline", size: "lg" })}>
               See it move <ArrowDown className="size-4" aria-hidden="true" />
             </a>
@@ -544,7 +496,7 @@ function FinalCta() {
         <p className="section-kicker text-coral">Free · Open source · macOS</p>
         <h2 className="mt-8 text-[clamp(4rem,9vw,10rem)] font-medium leading-[0.78] tracking-[-0.08em]">Meet your data.</h2>
         <p className="mt-8 max-w-[38rem] text-lg leading-relaxed text-paper-muted">Download the early-access build, connect a database, and get back to the work.</p>
-        <DownloadPicker className="mt-10" align="center" side="top" />
+        <DownloadButton className="mt-10" />
       </div>
     </section>
   );

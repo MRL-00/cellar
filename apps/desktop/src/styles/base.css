@@ -95,3 +95,64 @@
   background: transparent;
   color: var(--fg-2);
 }
+
+/* The moving edge marks an update as ready without making the compact settings
+   toolbar louder or changing its layout. */
+.update-download-cta {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid transparent;
+  background: var(--accent-soft);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 18%, transparent);
+  transition: color 160ms, box-shadow 160ms;
+}
+
+.update-download-cta::before,
+.update-download-cta::after {
+  position: absolute;
+  content: "";
+  pointer-events: none;
+}
+
+.update-download-cta::before {
+  z-index: -2;
+  inset: -90%;
+  background: conic-gradient(
+    from 20deg,
+    transparent 0 34%,
+    var(--accent) 43%,
+    var(--info) 50%,
+    var(--accent) 57%,
+    transparent 66% 100%
+  );
+  animation: update-download-border 2.4s linear infinite;
+}
+
+.update-download-cta::after {
+  z-index: -1;
+  inset: 1px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--bg-2) 86%, var(--accent) 14%);
+}
+
+.update-download-cta:hover {
+  color: var(--fg-0);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+.update-download-cta:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@keyframes update-download-border {
+  to { transform: rotate(1turn); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .update-download-cta::before {
+    animation: none;
+    transform: rotate(120deg);
+  }
+}
