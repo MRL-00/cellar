@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import { isMarkerColor } from "../lib/markerSwatches";
 import { deferredStorage } from "./deferredStorage";
 
 /**
@@ -15,6 +16,8 @@ export type SidebarFolderItem = {
   collapsed: boolean;
   /** Connection ids in display order. */
   children: string[];
+  /** Optional left-edge accent marker (opaque hex). */
+  color?: string | null;
 };
 
 export type SidebarItem = { kind: "connection"; id: string } | SidebarFolderItem;
@@ -33,6 +36,7 @@ interface SidebarLayoutStore {
   /** Remove the folder, releasing its connections to the root at its slot. */
   removeFolder: (folderId: string) => void;
   toggleFolder: (folderId: string) => void;
+  setFolderColor: (folderId: string, color: string | null) => void;
   moveConnection: (
     connectionId: string,
     container: SidebarContainer,
@@ -62,11 +66,13 @@ function sanitizeItems(raw: unknown): SidebarItem[] {
       name?: unknown;
       collapsed?: unknown;
       children?: unknown;
+      color?: unknown;
     };
     if (typeof it.id !== "string" || it.id.length === 0) continue;
     if (it.kind === "connection") {
       out.push({ kind: "connection", id: it.id });
     } else if (it.kind === "folder") {
+      const color = isMarkerColor(it.color) ? it.color : null;
       out.push({
         kind: "folder",
         id: it.id,
@@ -75,10 +81,33 @@ function sanitizeItems(raw: unknown): SidebarItem[] {
         children: Array.isArray(it.children)
           ? it.children.filter((c): c is string => typeof c === "string")
           : [],
+        ...(color ? { color } : {}),
       });
     }
   }
   return out;
+}
+
+/** True when sanitize repaired fields on this item (so we must not keep `rawItems`). */
+function sanitizeChangedItem(raw: unknown, clean: SidebarItem): boolean {
+  if (!raw || typeof raw !== "object") return true;
+  const it = raw as {
+    kind?: unknown;
+    id?: unknown;
+    name?: unknown;
+    collapsed?: unknown;
+    children?: unknown;
+    color?: unknown;
+  };
+  if (it.kind !== clean.kind || it.id !== clean.id) return true;
+  if (clean.kind === "connection") return false;
+  return (
+    it.name !== clean.name ||
+    Boolean(it.collapsed) !== clean.collapsed ||
+    (it.color ?? null) !== (clean.color ?? null) ||
+    !Array.isArray(it.children) ||
+    it.children.some((c) => typeof c !== "string")
+  );
 }
 
 export function reconcileItems(
@@ -90,6 +119,15 @@ export function reconcileItems(
   const seen = new Set<string>();
   const out: SidebarItem[] = [];
   let changed = items.length !== rawItems.length;
+  if (!changed) {
+    for (let i = 0; i < items.length; i++) {
+      const clean = items[i];
+      if (!clean || sanitizeChangedItem(rawItems[i], clean)) {
+        changed = true;
+        break;
+      }
+    }
+  }
 
   for (const item of items) {
     if (item.kind === "connection") {
@@ -257,6 +295,21 @@ export const useSidebarLayout = create<SidebarLayoutStore>()(
               ? { ...it, collapsed: !it.collapsed }
               : it,
           ),
+        }));
+      },
+
+      setFolderColor(folderId, color) {
+        if (color !== null && !isMarkerColor(color)) return;
+        set((s) => ({
+          items: s.items.map((it) => {
+            if (!isFolder(it) || it.id !== folderId) return it;
+            if (color === null) {
+              if (!it.color) return it;
+              const { color: _removed, ...rest } = it;
+              return rest;
+            }
+            return it.color === color ? it : { ...it, color };
+          }),
         }));
       },
 

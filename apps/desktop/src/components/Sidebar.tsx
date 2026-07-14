@@ -30,6 +30,7 @@ import {
 import { useTabs } from "../state/tabs";
 import { useFindUsages } from "../state/findUsages";
 import { useConfirm } from "../state/confirm";
+import { MARKER_SWATCHES } from "../lib/markerSwatches";
 import { qualifiedName, selectAllStatement } from "../lib/sqlIdent";
 
 export interface SidebarProps {
@@ -96,6 +97,7 @@ export function Sidebar({
   const renameFolder = useSidebarLayout((s) => s.renameFolder);
   const removeFolder = useSidebarLayout((s) => s.removeFolder);
   const toggleFolder = useSidebarLayout((s) => s.toggleFolder);
+  const setFolderColor = useSidebarLayout((s) => s.setFolderColor);
   const moveConnection = useSidebarLayout((s) => s.moveConnection);
   const moveFolder = useSidebarLayout((s) => s.moveFolder);
   const moveToFolder = useSidebarLayout((s) => s.moveToFolder);
@@ -410,14 +412,51 @@ export function Sidebar({
   const openFolderMenu = (e: React.MouseEvent, folder: SidebarFolderItem) => {
     e.preventDefault();
     e.stopPropagation();
+    // ponytail: second-page menu for colors (same pattern as Move to folder…)
+    const x = e.clientX;
+    const y = e.clientY;
     setMenu({
-      x: e.clientX,
-      y: e.clientY,
+      x,
+      y,
       items: [
         {
           label: "Rename folder",
           icon: <Icon.edit size={12} />,
           onClick: () => setRenamingFolderId(folder.id),
+        },
+        {
+          label: "Set color…",
+          icon: folder.color ? (
+            <span
+              className="h-2.5 w-2.5 rounded-full"
+              style={{ background: folder.color }}
+            />
+          ) : (
+            <Icon.folder size={12} />
+          ),
+          onClick: () =>
+            setMenu({
+              x,
+              y,
+              items: [
+                ...MARKER_SWATCHES.map(({ color: c, label }) => ({
+                  label: c === folder.color ? `${label} (current)` : label,
+                  icon: (
+                    <span
+                      className="h-2.5 w-2.5 rounded-full"
+                      style={{ background: c }}
+                    />
+                  ),
+                  onClick: () => setFolderColor(folder.id, c),
+                })),
+                {
+                  label: "Clear color",
+                  icon: <Icon.close size={12} />,
+                  disabled: !folder.color,
+                  onClick: () => setFolderColor(folder.id, null),
+                },
+              ],
+            }),
         },
         {
           label:
