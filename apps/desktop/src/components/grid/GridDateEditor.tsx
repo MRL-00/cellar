@@ -9,7 +9,10 @@
  */
 import { nativeControl, type CellEditorProps } from "@cellar/data-grid";
 import { useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { DayPicker } from "react-day-picker";
+
+const VIEWPORT_MARGIN = 8;
 
 const pad = (n: number) => String(n).padStart(2, "0");
 // Format from local components, NOT toISOString(), so a date picked in the
@@ -116,10 +119,59 @@ function GridDateEditor({
 }
 
 /**
+ * Collision bounds for the date popover. Prefer the grid's scroll viewport so
+ * we flip above the cell when the pending/pagination bars (or an open bottom
+ * panel) would otherwise clip a downward open. Fall back to the window.
+ */
+function collisionBounds(anchor: HTMLElement): {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+} {
+  const scroll = anchor.closest(".grid-scroll") as HTMLElement | null;
+  if (scroll) {
+    const r = scroll.getBoundingClientRect();
+    return {
+      top: r.top + VIEWPORT_MARGIN,
+      bottom: r.bottom - VIEWPORT_MARGIN,
+      left: VIEWPORT_MARGIN,
+      right: window.innerWidth - VIEWPORT_MARGIN,
+    };
+  }
+  return {
+    top: VIEWPORT_MARGIN,
+    bottom: window.innerHeight - VIEWPORT_MARGIN,
+    left: VIEWPORT_MARGIN,
+    right: window.innerWidth - VIEWPORT_MARGIN,
+  };
+}
+
+/** Pure placement math — exported for unit tests. */
+export function placeCalendarPopover(
+  cell: { top: number; left: number; bottom: number },
+  panel: { width: number; height: number },
+  bounds: { top: number; bottom: number; left: number; right: number },
+): { top: number; left: number } {
+  const left = Math.max(
+    bounds.left,
+    Math.min(cell.left, bounds.right - panel.width),
+  );
+  // Prefer below; flip above when a downward open would hit the scroll
+  // viewport bottom (pending bar / pagination / bottom panel edge).
+  const fitsBelow = cell.bottom + panel.height <= bounds.bottom;
+  const top = fitsBelow
+    ? cell.bottom
+    : Math.max(bounds.top, cell.top - panel.height);
+  return { top, left };
+}
+
+/**
  * A fixed-position popover anchored under the editing cell. Escape cancels;
  * clicking away or scrolling commits (the usual "click-off applies" behaviour
- * of a picker). Uses `position: fixed` with a one-pass correction so it escapes
- * the grid cell's `overflow: hidden` and any transformed layout ancestor.
+ * of a picker). Portaled to `document.body` so `.grid-scroll`'s overflow and
+ * the pending bar can't clip it; flips above the cell when there isn't room
+ * below inside the grid viewport.
  */
 function CalendarPopover({
   anchorRef,
@@ -133,43 +185,34 @@ function CalendarPopover({
   children: React.ReactNode;
 }) {
   const panelRef = useRef<HTMLDivElement | null>(null);
-  const targetRef = useRef<{ top: number; left: number } | null>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const [settled, setSettled] = useState(false);
 
-  // Pass 1 — intended viewport position from the cell box.
   useLayoutEffect(() => {
     const cell =
       (anchorRef.current?.closest(".grid-cell") as HTMLElement | null) ??
       anchorRef.current;
-    if (!cell) return;
-    const r = cell.getBoundingClientRect();
-    const h = panelRef.current?.offsetHeight ?? 0;
-    const w = panelRef.current?.offsetWidth ?? 300;
-    const left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8));
-    const below = r.bottom;
-    const top =
-      below + h <= window.innerHeight - 8 ? below : Math.max(8, r.top - h);
-    targetRef.current = { top, left };
-    setSettled(false);
-    setPos({ top, left });
-  }, [anchorRef]);
-
-  // Pass 2 — fixed is resolved against the nearest transformed ancestor (not
-  // the viewport here), so nudge by the delta between intended and actual.
-  useLayoutEffect(() => {
     const panel = panelRef.current;
-    const target = targetRef.current;
-    if (!panel || !target || !pos) return;
-    const actual = panel.getBoundingClientRect();
-    const dx = target.left - actual.left;
-    const dy = target.top - actual.top;
-    if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) {
-      if (!settled) setSettled(true);
-      return;
-    }
-    setPos({ top: pos.top + dy, left: pos.left + dx });
-  }, [pos, settled]);
+    if (!cell || !panel) return;
+
+    const place = (markSettled: boolean) => {
+      const r = cell.getBoundingClientRect();
+      setPos(
+        placeCalendarPopover(
+          { top: r.top, left: r.left, bottom: r.bottom },
+          { width: panel.offsetWidth || 300, height: panel.offsetHeight },
+          collisionBounds(cell),
+        ),
+      );
+      if (markSettled) setSettled(true);
+    };
+
+    // First pass positions with whatever height is available; a second pass on
+    // the next frame re-flips once DayPicker's month grid has real dimensions.
+    place(false);
+    const raf = requestAnimationFrame(() => place(true));
+    return () => cancelAnimationFrame(raf);
+  }, [anchorRef]);
 
   useLayoutEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -198,7 +241,7 @@ function CalendarPopover({
     };
   }, [onOutside, onEscape]);
 
-  return (
+  return createPortal(
     <div
       ref={panelRef}
       className="grid-date-popover"
@@ -210,6 +253,7 @@ function CalendarPopover({
       }
     >
       {children}
-    </div>
+    </div>,
+    document.body,
   );
 }

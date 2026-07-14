@@ -6,7 +6,9 @@
 
 .grid-date-popover {
   position: fixed;
-  z-index: 200;
+  /* Match other grid overlays (menus / rich-cell popovers) so the calendar
+     stays above the pending bar and bottom panel after portaling to body. */
+  z-index: 1000;
   display: flex;
   flex-direction: column;
   gap: 8px;
