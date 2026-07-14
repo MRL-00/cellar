@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.3.5
+
+### Features
+
+- **Selective setup exports** — choose which saved connections to include in a
+  setup bundle, with table layouts filtered to the selected connections.
+- **Remembered table sorts** — optionally restore each table's last column sort
+  when it is reopened; enabled by default in Data grid settings.
+- **Generate GUID values** — right-click UUID, GUID, or `uniqueidentifier` cells
+  to generate a new value through the normal pending-edit workflow.
+
+### Bug fixes
+
+- **SQL Server grid editing** — fixed transaction handling for grid commits,
+  added TRUE/FALSE selection for `bit` columns, and reliably close inline
+  editors after refresh without misclassifying Postgres bit strings.
+- **Date picker placement** — date and datetime editors now flip above cells or
+  clamp horizontally when needed instead of being clipped by grid controls.
+- **Resizable Messages columns** — message metadata no longer overlaps, and
+  every column can be resized from its header.
+- **Website delivery and sharing** — fixed Tailwind availability in production
+  site builds and added a purpose-built social preview card with complete Open
+  Graph and X metadata.
+
 ## 0.3.4
 
 ### Features
