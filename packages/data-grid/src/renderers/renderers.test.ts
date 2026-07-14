@@ -17,7 +17,14 @@ import {
   sniffImageMime,
 } from "./bytes";
 import { geometryRenderer, geometryLabel } from "./geometry";
-import { arrayElementType, isArrayType, isByteaType, isGeometryType, isJsonType } from "./typeMatch";
+import {
+  arrayElementType,
+  isArrayType,
+  isByteaType,
+  isGeometryType,
+  isGuidType,
+  isJsonType,
+} from "./typeMatch";
 
 function col(type: string): GridColumn {
   return { key: "c", name: "c", type, width: 120 };
@@ -28,6 +35,13 @@ describe("type predicates", () => {
     expect(isJsonType("json")).toBe(true);
     expect(isJsonType("JSONB")).toBe(true);
     expect(isJsonType("text")).toBe(false);
+  });
+
+  it("detects guid types", () => {
+    expect(isGuidType("uuid")).toBe(true);
+    expect(isGuidType("GUID")).toBe(true);
+    expect(isGuidType("uniqueidentifier")).toBe(true);
+    expect(isGuidType("text")).toBe(false);
   });
 
   it("detects array types and element types", () => {

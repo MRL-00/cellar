@@ -13,6 +13,12 @@ export function isJsonType(type: string): boolean {
   return t === "json" || t === "jsonb";
 }
 
+/** True for UUID / GUID / uniqueidentifier columns (Postgres + SQL Server). */
+export function isGuidType(type: string): boolean {
+  const t = baseType(type);
+  return t === "uuid" || t === "guid" || t === "uniqueidentifier";
+}
+
 /**
  * True for native array types. Postgres reports these as `int4[]` / `text[]`
  * via the public name, or as the internal element type `_int4`; other engines

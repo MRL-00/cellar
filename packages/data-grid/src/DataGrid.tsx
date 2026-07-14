@@ -8,6 +8,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type UIEvent,
 } from "react";
+import { applyCellChange } from "./changes";
 import {
   emptyColumnLayout,
   layoutForColumns,
@@ -31,7 +32,6 @@ import type {
   GridColumn,
   GridColumnLayout,
   GridRow,
-  PendingChange,
   PendingChanges,
   SortState,
 } from "./types";
@@ -540,27 +540,8 @@ export function DataGrid({
 
   const handleCellEdit = useCallback(
     (rowId: string, colKey: string, prev: CellChange["from"], next: CellChange["to"]) => {
-      if (prev === next) return;
-      const existing: PendingChange = changes[rowId] ?? { kind: "update", edits: {} };
-      const baseEdit = existing.edits[colKey];
-      const fromValue = baseEdit ? baseEdit.from : prev;
-
-      // If the user edited back to the original value, drop the per-cell change.
-      const nextEdits = { ...existing.edits };
-      if (fromValue === next) {
-        delete nextEdits[colKey];
-      } else {
-        nextEdits[colKey] = { from: fromValue, to: next };
-      }
-
-      const updated: PendingChanges = { ...changes };
-      const editKeys = Object.keys(nextEdits);
-      if (editKeys.length === 0 && existing.kind === "update") {
-        delete updated[rowId];
-      } else {
-        updated[rowId] = { kind: existing.kind, edits: nextEdits };
-      }
-      onChange(updated);
+      const updated = applyCellChange(changes, rowId, colKey, prev, next);
+      if (updated !== changes) onChange(updated);
     },
     [changes, onChange],
   );

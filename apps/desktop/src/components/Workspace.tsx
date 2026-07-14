@@ -1,5 +1,7 @@
 import {
+  applyCellChange,
   DataGrid,
+  isGuidType,
   useGridState,
   type GridRow,
   type PendingChanges,
@@ -18,7 +20,11 @@ import { SqlEditor } from "./SqlEditor";
 import { renderGridEditor } from "./grid/GridDateEditor";
 import { SchemaComparePane } from "./SchemaComparePane";
 import { ErDiagram } from "./er/ErDiagram";
-import { ContextMenu, type ContextMenuState } from "./ContextMenu";
+import {
+  ContextMenu,
+  type ContextMenuState,
+  type MenuItem,
+} from "./ContextMenu";
 import { TabBar } from "./TabBar";
 import { CellarMark } from "./CellarMark";
 import { Icon } from "./icons";
@@ -388,6 +394,7 @@ function TableTabPane({
   }, [filtersKey, sortKey, quickFilter, quickColumn]);
   const [rowMenu, setRowMenu] = useState<ContextMenuState | null>(null);
   const [headerMenu, setHeaderMenu] = useState<ContextMenuState | null>(null);
+  const [cellMenu, setCellMenu] = useState<ContextMenuState | null>(null);
   const findUsages = useFindUsages((s) => s.findUsages);
   // The grid hands back the row object on selection, so copy never has to
   // re-derive the grid's filter/sort/insert order.
@@ -623,9 +630,40 @@ function TableTabPane({
             ],
           });
         }}
+        onCellContextMenu={(event, row, column) => {
+          event.preventDefault();
+          const pending = changes[row.id]?.edits?.[column.key];
+          const displayed = pending ? pending.to : (row[column.key] ?? null);
+          const items: MenuItem[] = [
+            {
+              label: "Copy cell",
+              icon: <Icon.copy size={12} />,
+              onClick: () =>
+                copyText(displayed == null ? "" : String(displayed)),
+            },
+          ];
+          if (isGuidType(column.type) && changes[row.id]?.kind !== "delete") {
+            items.unshift({
+              label: "Generate new GUID",
+              onClick: () => {
+                grid.setEditing(null);
+                const guid = crypto.randomUUID();
+                handleGridChange(
+                  applyCellChange(changes, row.id, column.key, displayed, guid),
+                );
+              },
+            });
+          }
+          setCellMenu({
+            x: event.clientX,
+            y: event.clientY,
+            items,
+          });
+        }}
       />
       <ContextMenu state={rowMenu} onClose={() => setRowMenu(null)} />
       <ContextMenu state={headerMenu} onClose={() => setHeaderMenu(null)} />
+      <ContextMenu state={cellMenu} onClose={() => setCellMenu(null)} />
     </div>
   );
 }
