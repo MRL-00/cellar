@@ -26,11 +26,6 @@ jobs:
             args: --target aarch64-apple-darwin
             rust-targets: aarch64-apple-darwin
             stable-asset-name: Cellar-mac-arm64.dmg
-          - label: macOS Intel
-            platform: macos-latest
-            args: --target x86_64-apple-darwin
-            rust-targets: x86_64-apple-darwin
-            stable-asset-name: Cellar-mac-x64.dmg
 
     steps:
       - name: Checkout
@@ -200,11 +195,7 @@ jobs:
           tarball="$(find "$macos_dir" -name "*.app.tar.gz" -type f -print -quit 2>/dev/null || true)"
 
           if [[ -n "$tarball" ]]; then
-            if [[ "$TARGET_TRIPLE" == "aarch64-apple-darwin" ]]; then
-              stable_sig_name="Cellar_aarch64.app.tar.gz.sig"
-            else
-              stable_sig_name="Cellar_x64.app.tar.gz.sig"
-            fi
+            stable_sig_name="Cellar_aarch64.app.tar.gz.sig"
 
             echo "Signing updater bundle: $tarball"
             npx @tauri-apps/cli signer sign \
@@ -286,47 +277,30 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Download the .sig files from the release to build latest.json.
+          # Download the Apple Silicon signature to build latest.json. Cellar
+          # 0.3.5 is the final Intel release; later manifests intentionally
+          # omit darwin-x86_64 so those installations remain on 0.3.5.
           tmpdir="$(mktemp -d)"
           gh release download "$RELEASE_TAG" \
             --pattern 'Cellar_aarch64.app.tar.gz.sig' \
-            --pattern 'Cellar_x64.app.tar.gz.sig' \
-            --dir "$tmpdir" || true
+            --dir "$tmpdir"
 
-          aarch64_sig=""
-          x64_sig=""
-          [[ -f "$tmpdir/Cellar_aarch64.app.tar.gz.sig" ]] && aarch64_sig="$(cat "$tmpdir/Cellar_aarch64.app.tar.gz.sig")"
-          [[ -f "$tmpdir/Cellar_x64.app.tar.gz.sig" ]] && x64_sig="$(cat "$tmpdir/Cellar_x64.app.tar.gz.sig")"
+          aarch64_sig="$(cat "$tmpdir/Cellar_aarch64.app.tar.gz.sig")"
+          base_url="https://github.com/${GH_REPO}/releases/download/${RELEASE_TAG}"
+          pub_date="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-          if [[ -z "$aarch64_sig" && -z "$x64_sig" ]]; then
-            echo "No signature files found — skipping latest.json generation" >&2
-          else
-            base_url="https://github.com/${GH_REPO}/releases/download/${RELEASE_TAG}"
-            pub_date="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          jq -n \
+            --arg version "$RELEASE_TAG" \
+            --rawfile notes "$RUNNER_TEMP/changelog-full.md" \
+            --arg pub_date "$pub_date" \
+            --arg signature "$aarch64_sig" \
+            --arg url "$base_url/Cellar_aarch64.app.tar.gz" \
+            '{version: $version, notes: ($notes | rtrimstr("\n")), pub_date: $pub_date, platforms: {"darwin-aarch64": {signature: $signature, url: $url}}}' \
+            > "$tmpdir/latest.json"
 
-            # Use jq to build valid JSON with properly escaped signatures.
-            platforms='{}'
-            if [[ -n "$aarch64_sig" ]]; then
-              platforms="$(jq --arg sig "$aarch64_sig" --arg url "$base_url/Cellar_aarch64.app.tar.gz" \
-                '. + {"darwin-aarch64": {signature: $sig, url: $url}}' <<<"$platforms")"
-            fi
-            if [[ -n "$x64_sig" ]]; then
-              platforms="$(jq --arg sig "$x64_sig" --arg url "$base_url/Cellar_x64.app.tar.gz" \
-                '. + {"darwin-x86_64": {signature: $sig, url: $url}}' <<<"$platforms")"
-            fi
-
-            jq -n \
-              --arg version "$RELEASE_TAG" \
-              --rawfile notes "$RUNNER_TEMP/changelog-full.md" \
-              --arg pub_date "$pub_date" \
-              --argjson platforms "$platforms" \
-              '{version: $version, notes: ($notes | rtrimstr("\n")), pub_date: $pub_date, platforms: $platforms}' \
-              > "$tmpdir/latest.json"
-
-            echo "Generated latest.json:"
-            cat "$tmpdir/latest.json"
-            gh release upload "$RELEASE_TAG" "$tmpdir/latest.json" --clobber
-          fi
+          echo "Generated latest.json:"
+          cat "$tmpdir/latest.json"
+          gh release upload "$RELEASE_TAG" "$tmpdir/latest.json" --clobber
 
       - name: Publish GitHub Release
         env:

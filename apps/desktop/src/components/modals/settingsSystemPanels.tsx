@@ -169,7 +169,7 @@ export function SettingsUpdates() {
                 type="button"
                 onClick={downloadAndInstall}
                 disabled={isBusy}
-                className="inline-flex h-[26px] items-center gap-1 rounded-[4px] border border-accent-line bg-accent-soft px-2 text-[12px] font-medium text-accent hover:bg-accent/20"
+                className="update-download-cta inline-flex h-[26px] items-center gap-1 rounded-[4px] px-2 text-[12px] font-medium text-accent"
               >
                 <Icon.download size={11} />
                 <span>Download &amp; install</span>

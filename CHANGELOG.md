@@ -4,25 +4,39 @@
 
 ### Features
 
-- **Selective setup exports** — choose which saved connections to include in a
-  setup bundle, with table layouts filtered to the selected connections.
-- **Remembered table sorts** — optionally restore each table's last column sort
-  when it is reopened; enabled by default in Data grid settings.
+- **Selective setup exports** — choose exactly which saved connections to
+  include, use Select all or Unselect all for quick changes, and export only
+  the table layouts belonging to those connections.
+- **Remembered table sorts** — restore each table's last column sort when it is
+  reopened. The behavior is enabled by default and can be changed in Data grid
+  settings.
 - **Generate GUID values** — right-click UUID, GUID, or `uniqueidentifier` cells
   to generate a new value through the normal pending-edit workflow.
+- **Copy cells from the context menu** — table cells now offer the same Copy
+  cell action as query results.
 
 ### Bug fixes
 
-- **SQL Server grid editing** — fixed transaction handling for grid commits,
-  added TRUE/FALSE selection for `bit` columns, and reliably close inline
-  editors after refresh without misclassifying Postgres bit strings.
+- **SQL Server grid commits** — transaction control and database switching now
+  run as raw batches, fixing failed commits caused by mismatched transaction
+  counts.
+- **Boolean cell editing** — SQL Server `bit` columns now use a TRUE, FALSE, and
+  optional NULL selector instead of free text.
+- **Editor cleanup after commits** — inline cell editors close when refreshed
+  after a commit and no longer reopen from the same double-click.
+- **Postgres bit strings** — Postgres `bit` and `bit(n)` values keep their text
+  editor instead of being mistaken for SQL Server booleans.
 - **Date picker placement** — date and datetime editors now flip above cells or
   clamp horizontally when needed instead of being clipped by grid controls.
 - **Resizable Messages columns** — message metadata no longer overlaps, and
   every column can be resized from its header.
-- **Website delivery and sharing** — fixed Tailwind availability in production
-  site builds and added a purpose-built social preview card with complete Open
-  Graph and X metadata.
+- **Export and sort edge cases** — empty connection selections no longer leak
+  table layouts into setup exports, saved sorts apply as soon as remembering is
+  enabled, and temporarily missing columns no longer erase persisted sorts.
+- **Production website styles** — Tailwind is now available during Nixpacks
+  builds, preventing missing production styles.
+- **Social link previews** — links now use a purpose-built Cellar social card
+  with explicit Open Graph and X metadata, dimensions, format, and alt text.
 
 ## 0.3.4
 

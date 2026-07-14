@@ -34,10 +34,12 @@ Before tagging, make sure the package metadata in `package.json`,
 `apps/desktop/package.json`, `apps/desktop/src-tauri/tauri.conf.json`,
 `Cargo.toml`, and `Cargo.lock` matches the tag.
 
-The `Release` workflow currently builds macOS Apple Silicon and macOS Intel
-artifacts only. It signs and notarizes the app with Developer ID, creates a
-draft GitHub Release while the matrix jobs upload installers, then publishes
-the release after both macOS jobs finish successfully. Tags with prerelease
+The `Release` workflow builds macOS Apple Silicon artifacts only. Cellar 0.3.5
+is the final Intel release; its installers remain available from that GitHub
+Release, but Intel Macs do not receive later updates. The workflow signs and
+notarizes the app with Developer ID, creates a draft GitHub Release while the
+installer uploads, then publishes the release after the build finishes
+successfully. Tags with prerelease
 suffixes, such as `0.1.0-alpha.1`, are marked as prereleases.
 
 To publish an already-created draft manually:
@@ -79,8 +81,9 @@ Release signing and notarization require these GitHub Actions secrets:
 Release. The app fetches it from
 `https://github.com/MRL-00/cellar/releases/latest/download/latest.json`.
 Prereleases are excluded from the `/releases/latest` redirect, so only stable
-releases are served to the updater. The manifest maps each platform target
-(`aarch64-apple-darwin`, `x86_64-apple-darwin`) to its signed bundle URL.
+releases are served to the updater. The manifest maps `darwin-aarch64` to its
+signed Apple Silicon bundle and intentionally omits `darwin-x86_64` after
+0.3.5.
 
 ### Rotating or losing the signing key
 
@@ -92,21 +95,18 @@ the public key is swapped in `tauri.conf.json`.
 
 ## Website downloads
 
-The website presents separate Apple Silicon and Intel Mac buttons instead of
-assuming the visitor's CPU architecture. It falls back to the GitHub Releases
-page, then upgrades the buttons to direct DMG links when the public GitHub
-Releases API returns matching assets.
+The website presents a direct Apple Silicon download. It falls back to the
+GitHub Releases page, then upgrades the button to the latest direct DMG link
+when the public GitHub Releases API returns a matching asset. Intel users can
+continue using the preserved 0.3.5 release.
 
-The release workflow attempts to upload stable aliases for the Tauri-generated
-DMGs:
+The release workflow uploads a stable alias for the Tauri-generated DMG:
 
 - `Cellar-mac-arm64.dmg` for Apple Silicon.
-- `Cellar-mac-x64.dmg` for Intel.
 
-The website also recognizes Tauri's versioned DMG names, such as
-`Cellar_0.1.0_aarch64.dmg` and `Cellar_0.1.0_x64.dmg`. This keeps downloads
-working for prereleases and early releases where GitHub's `/releases/latest`
-endpoint may not resolve.
+The website also recognizes versioned names such as
+`Cellar_0.1.0_aarch64.dmg`. This keeps downloads working for prereleases and
+early releases where GitHub's `/releases/latest` endpoint may not resolve.
 
 ## Before public distribution
 
