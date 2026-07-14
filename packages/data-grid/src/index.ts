@@ -20,6 +20,7 @@ export type {
   SortState,
 } from "./types";
 
+export { applyCellChange } from "./changes";
 export { countChanges, statusDotColor, statusTextColor } from "./status";
 export {
   FILTER_OPERATORS,
@@ -94,6 +95,7 @@ export {
   geometryLabel,
   baseType,
   isJsonType,
+  isGuidType,
   isArrayType,
   arrayElementType,
   isByteaType,

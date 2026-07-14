@@ -40,6 +40,7 @@ export { geometryRenderer, geometryLabel } from "./geometry";
 export {
   baseType,
   isJsonType,
+  isGuidType,
   isArrayType,
   arrayElementType,
   isByteaType,
