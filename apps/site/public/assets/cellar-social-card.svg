@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <pattern id="grid" width="64" height="64" patternUnits="userSpaceOnUse">
+      <path d="M 64 0 L 0 0 0 64" fill="none" stroke="#f1f1ee" stroke-opacity="0.045" />
+    </pattern>
+    <linearGradient id="fade" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#1b1b19" stop-opacity="0" />
+      <stop offset="1" stop-color="#1b1b19" stop-opacity="0.94" />
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-30%" width="150%" height="170%">
+      <feDropShadow dx="-18" dy="28" stdDeviation="30" flood-color="#080809" flood-opacity="0.75" />
+    </filter>
+    <clipPath id="app-clip">
+      <rect x="572" y="105" width="760" height="448" rx="18" />
+    </clipPath>
+  </defs>
+
+  <rect width="1200" height="630" fill="#1b1b19" />
+  <rect width="1200" height="630" fill="url(#grid)" />
+  <circle cx="1120" cy="95" r="370" fill="none" stroke="#f1f1ee" stroke-opacity="0.07" />
+  <circle cx="1120" cy="95" r="235" fill="none" stroke="#f1f1ee" stroke-opacity="0.12" />
+
+  <g filter="url(#shadow)">
+    <rect x="572" y="105" width="760" height="448" rx="18" fill="#111210" stroke="#f1f1ee" stroke-opacity="0.2" />
+    <g clip-path="url(#app-clip)">
+      <image x="572" y="105" width="760" height="446.5" preserveAspectRatio="xMidYMid slice" xlink:href="cellar-main.png" />
+      <rect x="572" y="105" width="250" height="448" fill="url(#fade)" transform="translate(1394 0) scale(-1 1)" />
+    </g>
+  </g>
+
+  <g transform="translate(68 62)">
+    <image width="48" height="48" xlink:href="cellar-mark-mono-white.svg" />
+    <text x="63" y="33" fill="#f1f1ee" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="24" font-weight="600" letter-spacing="-0.5">CELLAR</text>
+  </g>
+
+  <g transform="translate(68 198)">
+    <text fill="#f1f1ee" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="74" font-weight="500" letter-spacing="-4.5">
+      <tspan x="0" y="0">Data,</tspan>
+      <tspan x="0" y="70">without</tspan>
+      <tspan x="0" y="140">the drag.</tspan>
+    </text>
+    <text x="2" y="206" fill="#b9b9b5" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="20" font-weight="400">
+      Open-source desktop database client.
+    </text>
+  </g>
+
+  <g transform="translate(68 548)">
+    <circle cx="5" cy="5" r="5" fill="#dfdfdb" />
+    <text x="22" y="10" fill="#898985" font-family="JetBrains Mono, SFMono-Regular, monospace" font-size="12" font-weight="500" letter-spacing="1.4">LOCAL-FIRST  ·  EARLY ACCESS</text>
+  </g>
+
+  <g transform="translate(815 496)">
+    <rect width="318" height="42" rx="21" fill="#242421" stroke="#f1f1ee" stroke-opacity="0.2" />
+    <text x="18" y="26" fill="#b9b9b5" font-family="JetBrains Mono, SFMono-Regular, monospace" font-size="11" font-weight="500">
+      <tspan fill="#dfdfdb">SELECT</tspan> customer_id, status <tspan fill="#dfdfdb">FROM</tspan> orders
+    </text>
+  </g>
+</svg>
