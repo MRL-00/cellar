@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useRef } from "react";
 import { CellEditor, CellValue, type CellEditorProps } from "./Cell";
 import type { CellEditorRenderer, DataGridProps } from "./DataGridProps";
 import type { RendererRegistry, SaveBlob } from "./renderers/types";
@@ -65,6 +65,11 @@ export const GridRowView = memo(function GridRowView({
   onRowContextMenu,
 }: GridRowViewProps) {
   const kind = change?.kind;
+  // Set when an inline editor commits/cancels. A double-click on an option
+  // button (TRUE/FALSE, enum chips) closes the editor on the first click; the
+  // second click would land on the cell and instantly reopen it, so cell
+  // double-clicks are ignored for a beat after the editor settles.
+  const editorSettledAt = useRef(0);
   // A single selected cell gives the row a faint tint; clicking the row-number
   // gutter selects the whole row (a stronger highlight). The two are mutually
   // exclusive — selecting one clears the other in the handlers below.
@@ -181,7 +186,9 @@ export const GridRowView = memo(function GridRowView({
               onSelect({ row: rowIndex, col: ci });
             }}
             onDoubleClick={() => {
-              if (!readOnly) onEdit({ row: rowIndex, col: ci });
+              if (readOnly) return;
+              if (Date.now() - editorSettledAt.current < 350) return;
+              onEdit({ row: rowIndex, col: ci });
             }}
             onContextMenu={
               onCellContextMenu &&
@@ -198,6 +205,7 @@ export const GridRowView = memo(function GridRowView({
                   col: c,
                   value: displayed,
                   onCommit: (v) => {
+                    editorSettledAt.current = Date.now();
                     onCellEdit(
                       row.id,
                       c.key,
@@ -206,7 +214,10 @@ export const GridRowView = memo(function GridRowView({
                     );
                     onEdit(null);
                   },
-                  onCancel: () => onEdit(null),
+                  onCancel: () => {
+                    editorSettledAt.current = Date.now();
+                    onEdit(null);
+                  },
                 };
                 // Host-supplied editor wins when it claims the cell; otherwise
                 // fall back to the built-in text/number/native-picker editor.

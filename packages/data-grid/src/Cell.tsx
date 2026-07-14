@@ -242,6 +242,19 @@ export function nativeControl(
   return null;
 }
 
+/**
+ * Whether a cell edits with the TRUE/FALSE single-select editor. "bit" is
+ * ambiguous — SQL Server's boolean and Postgres's bitstring share the name —
+ * so it only counts as boolean when the stored value actually is one
+ * (SQL Server bit decodes to a JS boolean; pg bitstrings decode to "10101"
+ * strings). A NULL bit cell falls back to the plain text editor.
+ */
+export function usesBoolEditor(col: GridColumn, value: Value): boolean {
+  if (normalizeType(col.type) === "bool") return true;
+  const t = col.type.toLowerCase().replace(/\(.+\)$/, "").trim();
+  return t === "bit" && typeof value === "boolean";
+}
+
 export function CellValue({
   col,
   value,
@@ -352,7 +365,21 @@ export function CellEditor({ col, value, onCommit, onCancel }: CellEditorProps) 
     onCommit(parsed.value);
   };
 
-  if (col.enum) {
+  // Boolean columns edit via the same single-select option UI as enums, so
+  // the only committable values are TRUE / FALSE (and NULL when allowed).
+  const boolEditor = !col.enum && usesBoolEditor(col, value);
+  const options =
+    col.enum ??
+    (boolEditor ? ["TRUE", "FALSE", ...(col.nullable ? ["NULL"] : [])] : null);
+  const selected = boolEditor
+    ? value == null
+      ? "NULL"
+      : String(value) === "true"
+        ? "TRUE"
+        : "FALSE"
+    : v;
+
+  if (options) {
     return (
       <div
         className="cell-edit-enum"
@@ -376,16 +403,18 @@ export function CellEditor({ col, value, onCommit, onCancel }: CellEditorProps) 
         // events, which lets the onBlur handler detect clicks outside.
         tabIndex={-1}
       >
-        {col.enum.map((opt) => (
+        {options.map((opt) => (
           <button
             key={opt}
-            className={"cell-edit-opt" + (opt === v ? " active" : "")}
+            className={"cell-edit-opt" + (opt === selected ? " active" : "")}
             onClick={() => {
               settledRef.current = true;
-              onCommit(opt);
+              onCommit(
+                boolEditor ? (opt === "NULL" ? null : opt === "TRUE") : opt,
+              );
             }}
           >
-            {col.key === "status" && (
+            {col.enum && col.key === "status" && (
               <span
                 className="dot"
                 style={{ background: statusDotColor(opt) }}

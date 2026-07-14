@@ -13,6 +13,7 @@ import {
   parseCellInput,
   resolveBlurAction,
   resolveEnterAction,
+  usesBoolEditor,
 } from "./Cell";
 
 // ---------------------------------------------------------------------------
@@ -347,3 +348,21 @@ function column(name: string, type: string, nullable = true) {
     nullable,
   };
 }
+
+describe("usesBoolEditor", () => {
+  it("always claims bool/boolean columns", () => {
+    expect(usesBoolEditor(column("active", "bool"), null)).toBe(true);
+    expect(usesBoolEditor(column("active", "boolean"), "true")).toBe(true);
+  });
+
+  it("claims SQL Server bit cells only when the value is a boolean", () => {
+    expect(usesBoolEditor(column("enabled", "bit"), true)).toBe(true);
+    expect(usesBoolEditor(column("enabled", "bit"), false)).toBe(true);
+  });
+
+  it("leaves Postgres bitstring cells to the text editor", () => {
+    expect(usesBoolEditor(column("mask", "bit"), "1")).toBe(false);
+    expect(usesBoolEditor(column("mask", "bit(5)"), "10101")).toBe(false);
+    expect(usesBoolEditor(column("mask", "bit"), null)).toBe(false);
+  });
+});
