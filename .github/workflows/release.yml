@@ -187,7 +187,8 @@ jobs:
           cp "$dmg_path" "/tmp/$STABLE_ASSET_NAME"
           gh release upload "$RELEASE_TAG" "/tmp/$STABLE_ASSET_NAME" --clobber
 
-          # Sign the .app.tar.gz updater bundle and upload the signature.
+          # Sign the .app.tar.gz updater bundle and upload both files under
+          # stable names that match the URLs emitted in latest.json.
           # tauri-action@v0 doesn't correctly handle Tauri v2 updater artifacts,
           # so we sign the bundle ourselves using the tauri CLI.
           bundle_root="$(dirname "$(dirname "$dmg_path")")"
@@ -195,25 +196,31 @@ jobs:
           tarball="$(find "$macos_dir" -name "*.app.tar.gz" -type f -print -quit 2>/dev/null || true)"
 
           if [[ -n "$tarball" ]]; then
-            stable_sig_name="Cellar_aarch64.app.tar.gz.sig"
+            stable_bundle_name="Cellar_aarch64.app.tar.gz"
+            stable_sig_name="${stable_bundle_name}.sig"
 
             echo "Signing updater bundle: $tarball"
             npx @tauri-apps/cli signer sign \
               -k "$TAURI_SIGNING_PRIVATE_KEY" \
               -p "" \
-              "$tarball" || true
+              "$tarball"
 
             sig_file="${tarball}.sig"
             if [[ -f "$sig_file" ]]; then
+              cp "$tarball" "/tmp/$stable_bundle_name"
               cp "$sig_file" "/tmp/$stable_sig_name"
+              echo "Uploading updater bundle as $stable_bundle_name"
+              gh release upload "$RELEASE_TAG" "/tmp/$stable_bundle_name" --clobber
               echo "Uploading signature as $stable_sig_name"
               gh release upload "$RELEASE_TAG" "/tmp/$stable_sig_name" --clobber
             else
               echo "Sign command did not produce $sig_file" >&2
               ls -la "$macos_dir"
+              exit 1
             fi
           else
             echo "No .app.tar.gz found under $macos_dir" >&2
+            exit 1
           fi
 
   publish-release:
