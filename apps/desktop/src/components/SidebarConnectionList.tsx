@@ -283,6 +283,13 @@ export function SidebarConnectionList({
         <div
           key={`children:${item.id}`}
           className="ml-[13px] border-l border-border-default"
+          style={
+            item.color
+              ? {
+                  borderColor: `color-mix(in oklab, ${item.color} 45%, transparent)`,
+                }
+              : undefined
+          }
         >
           {visibleChildren.length === 0 ? (
             <div
@@ -403,6 +410,12 @@ function FolderRow({
           style={{ background: "var(--accent)" }}
         />
       )}
+      {folder.color && (
+        <span
+          className="pointer-events-none absolute left-0 top-0 h-full w-0.5 rounded-r-[1px]"
+          style={{ background: folder.color }}
+        />
+      )}
       <button
         type="button"
         className={TWISTY}
@@ -418,7 +431,10 @@ function FolderRow({
           <Icon.chevronRight size={10} />
         )}
       </button>
-      <span className={ICON_SLOT} style={{ color: "var(--fg-2)" }}>
+      <span
+        className={ICON_SLOT}
+        style={{ color: folder.color ?? "var(--fg-2)" }}
+      >
         {expanded ? <Icon.folderOpen size={12} /> : <Icon.folder size={12} />}
       </span>
       {renaming ? (

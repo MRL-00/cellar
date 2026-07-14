@@ -13,13 +13,14 @@ const conn = (id: string): SidebarItem => ({ kind: "connection", id });
 const folder = (
   id: string,
   children: string[],
-  extra?: Partial<{ name: string; collapsed: boolean }>,
+  extra?: Partial<{ name: string; collapsed: boolean; color: string | null }>,
 ): SidebarItem => ({
   kind: "folder",
   id,
   name: extra?.name ?? id,
   collapsed: extra?.collapsed ?? false,
   children,
+  ...(extra?.color ? { color: extra.color } : {}),
 });
 
 describe("reconcileItems", () => {
@@ -59,6 +60,26 @@ describe("reconcileItems", () => {
     ] as unknown as SidebarItem[];
     const out = reconcileItems(junk, ["a", "b"]);
     expect(out).toEqual([conn("a"), folder("f", ["b"], { name: "Folder" })]);
+  });
+
+  it("keeps valid folder colors and drops invalid ones", () => {
+    const junk = [
+      {
+        kind: "folder",
+        id: "f",
+        name: "f",
+        children: ["a"],
+        color: "#4f8ff7",
+      },
+      { kind: "folder", id: "g", name: "g", children: ["b"], color: "red" },
+      { kind: "folder", id: "h", name: "h", children: [], color: "#fff" },
+    ] as unknown as SidebarItem[];
+    const out = reconcileItems(junk, ["a", "b"]);
+    expect(out).toEqual([
+      folder("f", ["a"], { color: "#4f8ff7" }),
+      folder("g", ["b"]),
+      folder("h", []),
+    ]);
   });
 });
 
@@ -194,5 +215,25 @@ describe("useSidebarLayout store", () => {
       conn("b"),
       conn("a"),
     ]);
+  });
+
+  it("sets and clears folder color accents", () => {
+    useSidebarLayout.setState({
+      items: [folder("f", ["a"])],
+    });
+    const store = useSidebarLayout.getState();
+
+    store.setFolderColor("f", "#4ade80");
+    expect(useSidebarLayout.getState().items[0]).toMatchObject({
+      color: "#4ade80",
+    });
+
+    store.setFolderColor("f", "not-a-color");
+    expect(useSidebarLayout.getState().items[0]).toMatchObject({
+      color: "#4ade80",
+    });
+
+    store.setFolderColor("f", null);
+    expect(useSidebarLayout.getState().items[0]).toEqual(folder("f", ["a"]));
   });
 });

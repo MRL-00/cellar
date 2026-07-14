@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { ConnectionConfig, DriverInfo, EnvTag, SslMode } from "@cellar/ipc";
 import { commands, unwrap } from "@cellar/ipc";
 
+import { MARKER_SWATCHES } from "../../lib/markerSwatches";
 import { Icon } from "../icons";
 import { ENGINE_META, type Engine } from "../EngineBadge";
 import { EngineLogo } from "../EngineLogo";
@@ -32,8 +33,6 @@ const ENGINE_HEX: Record<Engine, string> = {
   neon: "#00e599",
   planetscale: "#c8ccd4",
 };
-
-const SWATCH_COLORS = ["#4f8ff7", "#f6a44a", "#d97a5a", "#5bb8e0", "#a78bfa", "#4ade80", "#f87171"];
 
 const DEFAULT_PORT: Record<Engine, number> = {
   postgres: 5432,
@@ -462,11 +461,11 @@ export function ConnectionDialog({
 
             <FormRow label="Accent" hint="Visual marker — protects against running on prod by mistake">
               <div className="flex gap-1">
-                {SWATCH_COLORS.map((c) => (
+                {MARKER_SWATCHES.map(({ color: c, label }) => (
                   <button
                     key={c}
                     onClick={() => setSwatch(c)}
-                    title={c}
+                    title={label}
                     className={
                       "h-[18px] w-[18px] rounded-[4px] border border-white/10 p-0 transition-transform hover:scale-110 " +
                       (c === swatch
