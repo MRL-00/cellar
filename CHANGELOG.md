@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.6
 
 ### Features
 
@@ -11,6 +11,8 @@
   tree with copy). Grid filters run server-side; sorts are applied locally to
   the current page. `contains` on a JSON column searches inside the document
   blob.
+- **Folder color accents** — tag sidebar folders from the context menu with a
+  left-edge color marker so related connections are easier to spot.
 
 ## 0.3.5
 
