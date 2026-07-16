@@ -4,6 +4,7 @@ members = [
     "apps/desktop/src-tauri",
     "crates/cellar-core",
     "crates/cellar-drivers/convex",
+    "crates/cellar-drivers/cosmos",
     "crates/cellar-drivers/firestore",
     "crates/cellar-drivers/mysql",
     "crates/cellar-drivers/postgres",

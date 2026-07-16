@@ -10,6 +10,7 @@ use cellar_core::driver::{ConnectionConfig, Driver, Engine};
 use cellar_core::error::{CellarError, CellarResult};
 use cellar_core::schema::{Database, Table};
 use cellar_driver_convex::ConvexDriver;
+use cellar_driver_cosmos::CosmosDriver;
 use cellar_driver_firestore::FirestoreDriver;
 use cellar_driver_mysql::MySqlDriver;
 use cellar_driver_postgres::PostgresDriver;
@@ -71,6 +72,7 @@ pub(super) fn find_table(
 pub(super) fn driver_for(engine: Engine) -> CellarResult<Box<dyn Driver>> {
     match engine {
         Engine::Convex => Ok(Box::new(ConvexDriver::default())),
+        Engine::Cosmos => Ok(Box::new(CosmosDriver::default())),
         Engine::Firestore => Ok(Box::new(FirestoreDriver::default())),
         // Supabase and Neon speak the Postgres wire protocol; PlanetScale
         // speaks MySQL's. They share the base engine's driver, which reports

@@ -170,11 +170,12 @@ function normalizeType(type: string):
   ) {
     return "integer";
   }
-  if (["json", "jsonb"].includes(t)) return "json";
+  if (["json", "jsonb", "object", "array", "map"].includes(t)) return "json";
   if (["numeric", "decimal", "money", "smallmoney"].includes(t)) return "numeric";
   if (
-    // Postgres text/varchar/...; MSSQL nvarchar/nchar/ntext/sysname/xml; MySQL *text
-    ["text", "varchar", "char", "bpchar", "citext", "name", "character varying", "character",
+    // Postgres text/varchar/...; MSSQL nvarchar/nchar/ntext/sysname/xml; MySQL *text;
+    // document drivers (Cosmos/Convex/Firestore) report plain `string`.
+    ["text", "string", "varchar", "char", "bpchar", "citext", "name", "character varying", "character",
      "nvarchar", "nchar", "ntext", "sysname", "xml", "tinytext", "mediumtext", "longtext"].includes(
       t,
     )

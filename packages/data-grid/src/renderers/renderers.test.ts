@@ -34,6 +34,9 @@ describe("type predicates", () => {
   it("detects json types", () => {
     expect(isJsonType("json")).toBe(true);
     expect(isJsonType("JSONB")).toBe(true);
+    expect(isJsonType("object")).toBe(true);
+    expect(isJsonType("array")).toBe(true);
+    expect(isJsonType("map")).toBe(true);
     expect(isJsonType("text")).toBe(false);
   });
 
@@ -49,6 +52,8 @@ describe("type predicates", () => {
     expect(isArrayType("_text")).toBe(true);
     expect(isArrayType("integer array")).toBe(true);
     expect(isArrayType("jsonb")).toBe(false);
+    // Document-store `array` is JSON, not a Postgres array literal.
+    expect(isArrayType("array")).toBe(false);
     expect(isArrayType("text")).toBe(false);
     expect(arrayElementType("int4[]")).toBe("int4");
     expect(arrayElementType("_text")).toBe("text");
@@ -69,6 +74,9 @@ describe("type predicates", () => {
 describe("registry resolution", () => {
   it("routes each complex type to its renderer", () => {
     expect(defaultRendererRegistry.resolve(col("jsonb"), "{}")?.id).toBe(jsonRenderer.id);
+    expect(defaultRendererRegistry.resolve(col("object"), '{"a":1}')?.id).toBe(
+      jsonRenderer.id,
+    );
     expect(defaultRendererRegistry.resolve(col("int4[]"), "{1,2}")?.id).toBe(arrayRenderer.id);
     expect(defaultRendererRegistry.resolve(col("bytea"), "\\x00")?.id).toBe(byteaRenderer.id);
     expect(defaultRendererRegistry.resolve(col("geometry"), "POINT(0 0)")?.id).toBe(

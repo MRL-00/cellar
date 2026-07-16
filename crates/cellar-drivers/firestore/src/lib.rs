@@ -564,8 +564,9 @@ impl FirestoreValue {
             Self::BytesValue(_) => "bytes",
             Self::ReferenceValue(_) => "reference",
             Self::GeoPointValue(_) => "geopoint",
-            Self::ArrayValue(_) => "array",
-            Self::MapValue(_) => "map",
+            // Nested maps/arrays surface as `json` so the desktop rich JSON
+            // cell renderer applies (same as Postgres jsonb / Cosmos).
+            Self::ArrayValue(_) | Self::MapValue(_) => "json",
         }
     }
 

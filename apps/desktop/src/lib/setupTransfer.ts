@@ -57,6 +57,7 @@ const ENGINES: Engine[] = [
   "azure",
   "firestore",
   "convex",
+  "cosmos",
 ];
 const SSL_MODES: SslMode[] = [
   "disable",

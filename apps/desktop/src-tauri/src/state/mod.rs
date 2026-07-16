@@ -311,6 +311,9 @@ impl ConnectionRegistry {
             Engine::Convex => {
                 cellar_driver_convex::browse_table(connection.as_ref(), &request, &table).await
             }
+            Engine::Cosmos => {
+                cellar_driver_cosmos::browse_table(connection.as_ref(), &request, &table).await
+            }
             Engine::MySql => {
                 match cellar_driver_mysql::browse_table(connection.as_ref(), &request, &table).await
                 {

@@ -18,6 +18,7 @@ const ENGINE_ORDER: Engine[] = [
   "planetscale",
   "firestore",
   "convex",
+  "cosmos",
   "mssql",
 ];
 
@@ -29,6 +30,7 @@ const ENGINE_HEX: Record<Engine, string> = {
   sqlite: "#a78bfa",
   firestore: "#f4c542",
   convex: "#f25c4d",
+  cosmos: "#6b5ce7",
   supabase: "#3ecf8e",
   neon: "#00e599",
   planetscale: "#c8ccd4",
@@ -42,6 +44,7 @@ const DEFAULT_PORT: Record<Engine, number> = {
   sqlite: 0,
   firestore: 443,
   convex: 443,
+  cosmos: 443,
   supabase: 5432,
   neon: 5432,
   planetscale: 3306,
@@ -49,8 +52,8 @@ const DEFAULT_PORT: Record<Engine, number> = {
 
 // Default catalog to target when the user first picks an engine. MySQL has no
 // "postgres"-style user database, so we use the always-present `mysql` system
-// schema as a connectable starting point. Firestore/SQLite carry no SQL
-// catalog (project id / file path), so they default to empty.
+// schema as a connectable starting point. Firestore/SQLite/Cosmos carry no SQL
+// catalog (project id / file path / optional DB scope), so they default empty.
 const DEFAULT_DATABASE: Record<Engine, string> = {
   postgres: "postgres",
   mysql: "mysql",
@@ -59,6 +62,7 @@ const DEFAULT_DATABASE: Record<Engine, string> = {
   sqlite: "",
   firestore: "",
   convex: "",
+  cosmos: "",
   supabase: "postgres",
   neon: "neondb",
   planetscale: "",
@@ -163,6 +167,11 @@ export function ConnectionDialog({
       setUser("");
       setSsl(true);
       setSslMode("require");
+    } else if (engine === "cosmos") {
+      setHost("");
+      setUser("");
+      setSsl(true);
+      setSslMode("require");
     } else if (engine === "mssql") {
       setHost("localhost");
       setSsl(true);
@@ -191,9 +200,20 @@ export function ConnectionDialog({
   );
   const id = isEdit && initial ? initial.id : derivedId;
 
+  const sqliteOnly = engine === "sqlite";
+  const isFirestore = engine === "firestore";
+  const isConvex = engine === "convex";
+  const isCosmos = engine === "cosmos";
+
   const buildConfig = (): ConnectionConfig => ({
     id,
-    name: name || (sqliteOnly ? database : `${user || "user"}@${host}/${database}`),
+    name:
+      name ||
+      (sqliteOnly
+        ? database
+        : isCosmos
+          ? host
+          : `${user || "user"}@${host}/${database}`),
     engine: engine as ConnectionConfig["engine"],
     host,
     port,
@@ -234,35 +254,40 @@ export function ConnectionDialog({
     }
   };
 
-  const sqliteOnly = engine === "sqlite";
-  const isFirestore = engine === "firestore";
-  const isConvex = engine === "convex";
   const hostLabel = isFirestore
     ? "API host"
     : isConvex
       ? "Deployment host"
-      : "Host";
+      : isCosmos
+        ? "Account endpoint"
+        : "Host";
   const databaseLabel = sqliteOnly
     ? "Database file"
     : isFirestore
       ? "Project ID"
-      : "Database";
+      : isCosmos
+        ? "Database"
+        : "Database";
   const hostPlaceholder =
     engine === "convex"
       ? "acoustic-panther-123.convex.cloud"
-      : engine === "supabase"
-        ? "db.abcdefghijkl.supabase.co"
-        : engine === "neon"
-          ? "ep-cool-name-123456.us-east-1.aws.neon.tech"
-          : engine === "planetscale"
-            ? "aws.connect.psdb.cloud"
-            : undefined;
+      : engine === "cosmos"
+        ? "myaccount.documents.azure.com"
+        : engine === "supabase"
+          ? "db.abcdefghijkl.supabase.co"
+          : engine === "neon"
+            ? "ep-cool-name-123456.us-east-1.aws.neon.tech"
+            : engine === "planetscale"
+              ? "aws.connect.psdb.cloud"
+              : undefined;
   const userLabel = isFirestore ? "Database ID" : "User";
   const passwordLabel = isFirestore
     ? "Credentials"
     : isConvex
       ? "Deploy key"
-      : "Password";
+      : isCosmos
+        ? "Primary key"
+        : "Password";
   const passwordHint = isFirestore
     ? isEdit
       ? "Leave blank to keep saved JSON/token"
@@ -271,12 +296,18 @@ export function ConnectionDialog({
       ? isEdit
         ? "Leave blank to keep the saved deploy key"
         : "Leave blank for a local backend; stored in OS keychain"
-      : isEdit
-        ? "Leave blank to keep the saved password"
-        : "Stored in OS keychain";
+      : isCosmos
+        ? isEdit
+          ? "Leave blank to keep the saved account key"
+          : "Account primary key from the Azure portal; stored in OS keychain"
+        : isEdit
+          ? "Leave blank to keep the saved password"
+          : "Stored in OS keychain";
   const canSave = sqliteOnly
     ? Boolean(database)
-    : Boolean(host && (isConvex || (database && (isFirestore || user))));
+    : isCosmos
+      ? Boolean(host)
+      : Boolean(host && (isConvex || (database && (isFirestore || user))));
 
   return (
     <Modal onClose={onClose} width={760}>
@@ -383,7 +414,9 @@ export function ConnectionDialog({
                     ? "prod-firestore"
                     : isConvex
                       ? "prod-convex"
-                      : `local-${engine}`
+                      : isCosmos
+                        ? "prod-cosmos"
+                        : `local-${engine}`
                 }
               />
             </FormRow>
@@ -408,19 +441,26 @@ export function ConnectionDialog({
             )}
 
             {!isConvex && (
-              <FormRow label={databaseLabel}>
+              <FormRow
+                label={databaseLabel}
+                hint={isCosmos ? "Optional — leave blank to list every database" : undefined}
+              >
                 <input
                   className={CD_INPUT + " font-mono"}
                   value={database}
                   onChange={(e) => setDatabase(e.target.value)}
                   placeholder={
-                    isFirestore ? "my-gcp-project" : undefined
+                    isFirestore
+                      ? "my-gcp-project"
+                      : isCosmos
+                        ? "mydb (optional)"
+                        : undefined
                   }
                 />
               </FormRow>
             )}
 
-            {!sqliteOnly && !isConvex && (
+            {!sqliteOnly && !isConvex && !isCosmos && (
               <FormRow label={userLabel}>
                 <input
                   className={CD_INPUT + " font-mono"}
@@ -449,7 +489,9 @@ export function ConnectionDialog({
                         ? "{ service_account_json }"
                         : isConvex
                           ? "prod:acoustic-panther-123|…"
-                          : ""
+                          : isCosmos
+                            ? "Account primary key"
+                            : ""
                   }
                   style={{ flex: 1 }}
                   autoComplete="new-password"

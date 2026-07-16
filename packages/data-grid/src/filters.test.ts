@@ -195,4 +195,29 @@ describe("evaluateFilterClause", () => {
     };
     expect(operatorsForColumn(guidColumn)).toContain("contains");
   });
+
+  it("offers text operators for document-driver string and json columns", () => {
+    const stringColumn: GridColumn = {
+      key: "IbisServerCode",
+      name: "IbisServerCode",
+      type: "string",
+      width: 120,
+    };
+    const jsonColumn: GridColumn = {
+      key: "Data",
+      name: "Data",
+      type: "json",
+      width: 260,
+    };
+    expect(operatorsForColumn(stringColumn)).toEqual(
+      expect.arrayContaining([
+        "contains",
+        "notContains",
+        "startsWith",
+        "endsWith",
+        "like",
+      ]),
+    );
+    expect(operatorsForColumn(jsonColumn)).toContain("contains");
+  });
 });

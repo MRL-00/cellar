@@ -7,6 +7,7 @@ const ENGINE_ORDER: Engine[] = [
   "postgres",
   "firestore",
   "convex",
+  "cosmos",
   "mssql",
   "mysql",
   "sqlite",
@@ -20,6 +21,7 @@ const ENGINE_HEX: Record<Engine, string> = {
   sqlite: "#a78bfa",
   firestore: "#f4c542",
   convex: "#f25c4d",
+  cosmos: "#6b5ce7",
   supabase: "#3ecf8e",
   neon: "#00e599",
   planetscale: "#c8ccd4",
@@ -33,6 +35,7 @@ const SHORT: Record<Engine, string> = {
   sqlite: "SQLite",
   firestore: "Firestore",
   convex: "Convex",
+  cosmos: "Cosmos",
   supabase: "Supabase",
   neon: "Neon",
   planetscale: "PlanetScale",
@@ -107,6 +110,7 @@ export function EmptyState({ onNew }: { onNew: () => void }) {
               e === "mssql" ||
               e === "firestore" ||
               e === "convex" ||
+              e === "cosmos" ||
               e === "mysql";
             return (
               <button
