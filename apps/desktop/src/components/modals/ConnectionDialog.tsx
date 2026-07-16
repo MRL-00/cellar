@@ -306,7 +306,7 @@ export function ConnectionDialog({
   const canSave = sqliteOnly
     ? Boolean(database)
     : isCosmos
-      ? Boolean(host)
+      ? Boolean(host && (isEdit || password.trim()))
       : Boolean(host && (isConvex || (database && (isFirestore || user))));
 
   return (
