@@ -26,7 +26,13 @@ export function TypeIcon({ col }: { col: GridColumn }) {
   )
     Comp = GridIcon.cal;
   else if (type.includes("bool")) Comp = GridIcon.bool;
-  else if (type.includes("json")) Comp = GridIcon.json;
+  else if (
+    type.includes("json") ||
+    type === "object" ||
+    type === "array" ||
+    type === "map"
+  )
+    Comp = GridIcon.json;
   else if (col.enum) Comp = GridIcon.enum;
 
   const color = col.pk ? "var(--update)" : col.fk ? "var(--accent)" : "var(--fg-3)";

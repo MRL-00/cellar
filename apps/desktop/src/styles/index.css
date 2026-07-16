@@ -65,6 +65,7 @@
   --color-eng-sqlite: var(--eng-sqlite);
   --color-eng-firestore: var(--eng-firestore);
   --color-eng-convex: var(--eng-convex);
+  --color-eng-cosmos: var(--eng-cosmos);
   --color-eng-supabase: var(--eng-supabase);
   --color-eng-neon: var(--eng-neon);
   --color-eng-planetscale: var(--eng-planetscale);

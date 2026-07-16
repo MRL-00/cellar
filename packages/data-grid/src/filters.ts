@@ -51,6 +51,7 @@ const DATE_TYPES = ["date", "time", "timestamp", "timestamptz", "timetz"];
 const BOOL_TYPES = ["bool", "boolean"];
 const TEXT_TYPES = [
   "text",
+  "string", // document drivers (Cosmos / Convex / Firestore)
   "char",
   "varchar",
   "citext",
@@ -59,6 +60,10 @@ const TEXT_TYPES = [
   "uniqueidentifier",
   "json",
   "jsonb",
+  "object",
+  "array",
+  "map",
+  "reference", // Firestore doc refs — searchable as text
 ];
 
 function operatorMeta(operator: FilterOperator) {

@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- **Azure Cosmos DB** — connect with an account endpoint and primary key, browse
+  databases and containers in the sidebar, and open documents in the grid.
+  Read-only for now; Cosmos SQL in the editor lands later. Nested document
+  fields use the existing JSON cell viewer (summary in the grid, expandable
+  tree with copy). Grid filters run server-side; sorts are applied locally to
+  the current page. `contains` on a JSON column searches inside the document
+  blob.
+
 ## 0.3.5
 
 ### Features

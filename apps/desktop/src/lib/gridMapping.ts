@@ -27,6 +27,9 @@ export function isMonoType(type: string): boolean {
     t === "uuid" ||
     t === "json" ||
     t === "jsonb" ||
+    t === "object" ||
+    t === "array" ||
+    t === "string" ||
     t === "bytea" ||
     t === "date" ||
     t === "time" ||
@@ -42,7 +45,14 @@ export function gridWidthFor(type: string): number {
   if (t === "uuid") return 290;
   if (t === "timestamptz" || t === "timestamp") return 210;
   if (t === "date") return 110;
-  if (t === "json" || t === "jsonb" || t === "bytea") return 260;
+  if (
+    t === "json" ||
+    t === "jsonb" ||
+    t === "object" ||
+    t === "array" ||
+    t === "bytea"
+  )
+    return 260;
   if (isNumericType(t)) return 110;
   if (t === "bool") return 80;
   return 180;

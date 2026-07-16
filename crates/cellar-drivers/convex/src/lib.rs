@@ -405,8 +405,9 @@ fn json_type_name(value: &Value) -> &'static str {
         Value::Number(n) if n.is_i64() || n.is_u64() => "integer",
         Value::Number(_) => "double",
         Value::String(_) => "string",
-        Value::Array(_) => "array",
-        Value::Object(_) => "object",
+        // Nested documents/arrays use `json` so the desktop rich JSON cell
+        // renderer applies (same as Postgres jsonb / Cosmos).
+        Value::Array(_) | Value::Object(_) => "json",
     }
 }
 

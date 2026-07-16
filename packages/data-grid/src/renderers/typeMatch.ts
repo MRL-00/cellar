@@ -10,7 +10,16 @@ export function baseType(type: string): string {
 
 export function isJsonType(type: string): boolean {
   const t = baseType(type);
-  return t === "json" || t === "jsonb";
+  // `object` / `array` / `map` are type names document drivers have used for
+  // nested JSON values. Treat them like Postgres json/jsonb so the rich JSON
+  // cell renderer kicks in.
+  return (
+    t === "json" ||
+    t === "jsonb" ||
+    t === "object" ||
+    t === "array" ||
+    t === "map"
+  );
 }
 
 /** True for UUID / GUID / uniqueidentifier columns (Postgres + SQL Server). */

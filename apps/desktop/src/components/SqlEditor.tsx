@@ -38,6 +38,7 @@ const DIALECTS: Record<Engine, string> = {
   azure: "Azure SQL",
   firestore: "Firestore",
   convex: "Convex",
+  cosmos: "Cosmos DB",
   supabase: "Supabase",
   neon: "Neon",
   planetscale: "PlanetScale",
@@ -90,7 +91,8 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
     engine === "supabase" ||
     engine === "neon" ||
     engine === undefined;
-  const supportsSql = engine !== "firestore" && engine !== "convex";
+  const supportsSql =
+    engine !== "firestore" && engine !== "convex" && engine !== "cosmos";
 
   const statements = useMemo(() => splitStatements(sql), [sql]);
   const current = useMemo(

@@ -1,0 +1,19 @@
+[package]
+name = "cellar-driver-cosmos"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Cellar — Azure Cosmos DB (NoSQL) driver via the REST data plane"
+publish = false
+
+[dependencies]
+cellar-core = { path = "../../cellar-core" }
+async-trait = "0.1"
+base64 = "0.22"
+hmac = "0.12"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = "0.10"
+tokio = { workspace = true }
+urlencoding = "2"

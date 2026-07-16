@@ -1,6 +1,7 @@
 import type { Engine } from "./EngineBadge";
 import azure from "../assets/engines/azure.svg";
 import convex from "../assets/engines/convex.svg";
+import cosmos from "../assets/engines/cosmos.svg";
 import firestore from "../assets/engines/firestore.svg";
 import mssql from "../assets/engines/mssql.svg";
 import mysql from "../assets/engines/mysql.svg";
@@ -21,6 +22,7 @@ const LOGOS: Record<Engine, string> = {
   azure,
   firestore,
   convex,
+  cosmos,
   supabase,
   neon,
   planetscale,
