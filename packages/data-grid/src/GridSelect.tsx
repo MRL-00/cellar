@@ -65,13 +65,21 @@ export const GridSelect = forwardRef<HTMLButtonElement, GridSelectProps>(
         if (buttonRef.current?.contains(target)) return;
         setOpen(false);
       };
+      // Capture phase catches scrolls on the grid's inner `.grid-scroll` (which
+      // never reach `window` via bubbling) so the menu doesn't float away from
+      // its trigger. Scrolling *inside* the menu (long column lists) must not
+      // dismiss it — same pattern as the cell Popover.
+      const onScroll = (e: Event) => {
+        if (menuRef.current?.contains(e.target as Node | null)) return;
+        setOpen(false);
+      };
       const close = () => setOpen(false);
       window.addEventListener("mousedown", onPointerDown);
-      window.addEventListener("scroll", close, true);
+      window.addEventListener("scroll", onScroll, true);
       window.addEventListener("resize", close);
       return () => {
         window.removeEventListener("mousedown", onPointerDown);
-        window.removeEventListener("scroll", close, true);
+        window.removeEventListener("scroll", onScroll, true);
         window.removeEventListener("resize", close);
       };
     }, [open]);

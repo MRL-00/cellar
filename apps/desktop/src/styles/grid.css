@@ -176,6 +176,7 @@
   z-index: 1000;
   max-height: 260px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 3px;
   border: 1px solid var(--border-strong);
   border-radius: 5px;
@@ -237,6 +238,7 @@
   min-width: 180px;
   max-height: 300px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 4px;
   border: 1px solid var(--border-strong);
   border-radius: 6px;
