@@ -34,6 +34,7 @@ export {
   TOPICS,
   ORDERED_TOPICS,
   buildUserPrompt,
+  formatTodayContext,
   type TopicMeta,
 } from "./prompts";
 
@@ -42,4 +43,5 @@ export {
   type SchemaContextInput,
   type ContextTable,
   type ContextColumn,
+  type ContextForeignKey,
 } from "./context";

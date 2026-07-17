@@ -492,8 +492,13 @@ function TableTabPane({
   if (data.loading) {
     return (
       <PaneMessage>
-        <span className="animate-sb-pulse">
-          loading {tab.schema}.{tab.table}…
+        <span className="inline-flex items-center gap-2">
+          <span className="inline-flex text-accent animate-spinner" aria-hidden>
+            <Icon.spinner size={14} sw={1.8} />
+          </span>
+          <span>
+            Loading {tab.schema}.{tab.table}…
+          </span>
         </span>
       </PaneMessage>
     );

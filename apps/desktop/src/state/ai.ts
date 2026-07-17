@@ -88,7 +88,12 @@ interface AiStore {
   /** Remove the key from the keychain and reset discovered models. */
   clearKey: () => Promise<void>;
   refreshModels: () => Promise<void>;
-  send: (topic: AiTopic, text: string, context?: string) => Promise<void>;
+  send: (
+    topic: AiTopic,
+    text: string,
+    context?: string,
+    lookupHits?: string,
+  ) => Promise<void>;
   newThread: () => void;
 }
 
@@ -166,7 +171,7 @@ export const useAi = create<AiStore>((set, get) => ({
     }
   },
 
-  async send(topic, text, context) {
+  async send(topic, text, context, lookupHits) {
     if (get().sending) return;
     const provider = get().providerId;
     const model = get().modelId;
@@ -176,7 +181,7 @@ export const useAi = create<AiStore>((set, get) => ({
       role: "user",
       topic,
       content: text.trim(),
-      apiContent: buildUserPrompt(topic, text, context),
+      apiContent: buildUserPrompt(topic, text, context, lookupHits),
     };
     set((s) => ({ messages: [...s.messages, userEntry], sending: true }));
 
