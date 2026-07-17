@@ -13,6 +13,10 @@ use crate::decode::decode_cell;
 const DEFAULT_MAX_ROWS: u32 = 500;
 
 pub async fn execute_query(conn: &SqlServerConnection, query: &Query) -> CellarResult<QueryResult> {
+    if query.read_only {
+        return execute_read_only_query(conn, query).await;
+    }
+
     let max_rows = query.max_rows.unwrap_or(DEFAULT_MAX_ROWS) as usize;
     let offset = query.offset.unwrap_or(0) as usize;
     let started = Instant::now();
@@ -25,6 +29,39 @@ pub async fn execute_query(conn: &SqlServerConnection, query: &Query) -> CellarR
             }
         }
         execute_sql(client, &query.sql, max_rows, offset, started).await
+    })
+    .await
+}
+
+/// SQL Server has no `SET TRANSACTION READ ONLY` (Postgres does). The strongest
+/// guard available here is to run inside a transaction and always roll back so
+/// AI-generated SQL cannot commit writes even if a mutating statement slips
+/// past the frontend allow-list.
+async fn execute_read_only_query(
+    conn: &SqlServerConnection,
+    query: &Query,
+) -> CellarResult<QueryResult> {
+    let max_rows = query.max_rows.unwrap_or(DEFAULT_MAX_ROWS) as usize;
+    let offset = query.offset.unwrap_or(0) as usize;
+    let started = Instant::now();
+
+    conn.with_client(async |client| {
+        if let Some(database) = query.database.as_deref() {
+            if database != conn.config().database {
+                run_control(client, &format!("USE {}", quote_ident(database))).await?;
+            }
+        }
+
+        run_control(client, "BEGIN TRANSACTION").await?;
+        let result = match execute_sql(client, &query.sql, max_rows, offset, started).await {
+            Ok(result) => result,
+            Err(err) => {
+                rollback(client).await;
+                return Err(err);
+            }
+        };
+        rollback(client).await;
+        Ok(result)
     })
     .await
 }
@@ -201,11 +238,11 @@ async fn run_control(client: &mut TdsClient, sql: &str) -> CellarResult<()> {
     client
         .simple_query(sql)
         .await
-        .map_err(|e| map_tiberius_runtime_err(e, "table commit"))?
+        .map_err(|e| map_tiberius_runtime_err(e, "control statement"))?
         .into_results()
         .await
         .map(|_| ())
-        .map_err(|e| map_tiberius_runtime_err(e, "table commit"))
+        .map_err(|e| map_tiberius_runtime_err(e, "control statement"))
 }
 
 /// Best-effort rollback on the error path; the original error is what the

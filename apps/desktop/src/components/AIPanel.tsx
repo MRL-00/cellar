@@ -149,10 +149,11 @@ export function AIPanel({
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-      e.preventDefault();
-      submit();
-    }
+    if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
+    // Enter sends; Shift+Enter inserts a newline. ⌘/Ctrl+Enter also send.
+    if (e.shiftKey) return;
+    e.preventDefault();
+    submit();
   };
 
   const pickTopic = (t: AiTopic) => {
@@ -451,7 +452,7 @@ export function AIPanel({
             ref={textareaRef}
             placeholder={
               ready
-                ? "Ask, generate, or paste an error…  ⌘⏎ to send"
+                ? "Ask, generate, or paste an error…  ⏎ to send, ⇧⏎ for newline"
                 : "Configure a provider in AI settings to start…"
             }
             value={draft}
