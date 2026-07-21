@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.3.7
+
+### Features
+
+- **Enter to send in AI chat** — press Enter to send a message; Shift+Enter
+  inserts a newline.
+- **SQL Server AI query answers** — AI-generated read-only SQL can now run on
+  SQL Server and Azure SQL inside a transaction that always rolls back.
+- **Richer AI schema context** — the assistant resolves relevant tables,
+  relationships, and named entities before answering, with clearer loading
+  states while it prepares.
+
+### Bug fixes
+
+- **Filter dropdown scrolling** — column and preset filter menus stay open
+  while you scroll their lists; only scrolling the grid dismisses them.
+- **SQL Server read-only sessions** — failed read-only AI runs no longer leave
+  the connection in a contaminated transaction state.
+- **macOS app icon padding** — the Dock icon mark sits further from the tile
+  edges for better optical sizing.
+
 ## 0.3.6
 
 ### Features
