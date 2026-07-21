@@ -73,8 +73,16 @@ async fn introspect_schemas(client: &mut crate::connect::TdsClient) -> CellarRes
 async fn list_schemas(client: &mut crate::connect::TdsClient) -> CellarResult<Vec<String>> {
     let rows = client
         .simple_query(
+            // Exclude fixed database-role schemas and guest. They sort first
+            // alphabetically (db_accessadmin, …) and have no user tables, so
+            // leaving them in made AI context / schema pickers land on noise.
             "SELECT name FROM sys.schemas \
-             WHERE name NOT IN ('sys', 'INFORMATION_SCHEMA') \
+             WHERE name NOT IN ( \
+               'sys', 'INFORMATION_SCHEMA', 'guest', \
+               'db_accessadmin', 'db_backupoperator', 'db_datareader', \
+               'db_datawriter', 'db_ddladmin', 'db_denydatareader', \
+               'db_denydatawriter', 'db_owner', 'db_securityadmin' \
+             ) \
              ORDER BY name",
         )
         .await

@@ -17,6 +17,7 @@ import {
 import { useSettings } from "../lib/settings";
 import { toCsv, toJson, toSqlInserts, toTsv } from "../lib/export";
 import { ContextMenu, type ContextMenuState } from "./ContextMenu";
+import { Icon } from "./icons";
 import { useTabs, type TableTab } from "../state/tabs";
 import { maxRowsLabel, resultContextLabel, rowCountLabel, type TabResult } from "../state/tabResults";
 
@@ -149,12 +150,7 @@ export function ResultsBody({
   }
 
   if (result.status === "loading") {
-    return (
-      <EmptyPanel
-        title="Loading rows"
-        detail={`Running ${result.source.statement}`}
-      />
-    );
+    return <EmptyPanel busy title="Loading rows" />;
   }
 
   if (result.status === "error") {
@@ -431,13 +427,20 @@ function EmptyPanel({
   title,
   detail,
   tone = "muted",
+  busy = false,
 }: {
   title: string;
-  detail: string;
+  detail?: string;
   tone?: "muted" | "warn";
+  busy?: boolean;
 }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-1.5 bg-bg-inset p-6 text-center text-[11.5px] text-fg-3">
+    <div className="flex h-full flex-col items-center justify-center gap-2 bg-bg-inset p-6 text-center text-[11.5px] text-fg-3">
+      {busy && (
+        <span className="mb-0.5 inline-flex text-accent animate-spinner" aria-hidden>
+          <Icon.spinner size={20} sw={1.6} />
+        </span>
+      )}
       <div
         className={
           "text-[12px] font-medium " +
@@ -446,9 +449,11 @@ function EmptyPanel({
       >
         {title}
       </div>
-      <div className="max-w-[460px] text-[10.5px] leading-[1.5] text-fg-3">
-        {detail}
-      </div>
+      {detail ? (
+        <div className="max-w-[460px] line-clamp-4 text-[10.5px] leading-[1.5] text-fg-3">
+          {detail}
+        </div>
+      ) : null}
     </div>
   );
 }

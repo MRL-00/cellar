@@ -13,7 +13,9 @@ pub(crate) type TdsClient = Client<Compat<TcpStream>>;
 pub struct SqlServerConnection {
     info: DriverInfo,
     config: ConnectionConfig,
-    client: Mutex<TdsClient>,
+    /// `None` after the session is poisoned (failed restore / rollback) so the
+    /// shared TDS client cannot be reused in an unknown database or tran state.
+    client: Mutex<Option<TdsClient>>,
 }
 
 impl SqlServerConnection {
@@ -25,9 +27,35 @@ impl SqlServerConnection {
         &self,
         f: impl AsyncFnOnce(&mut TdsClient) -> CellarResult<T>,
     ) -> CellarResult<T> {
-        let mut client = self.client.lock().await;
-        f(&mut client).await
+        let mut guard = self.client.lock().await;
+        let client = guard.as_mut().ok_or_else(|| {
+            CellarError::NotConnected(
+                "SQL Server connection is closed; reconnect and retry".into(),
+            )
+        })?;
+        let result = f(client).await;
+        if matches!(&result, Err(err) if is_session_poison(err)) {
+            // Drop the TDS client so later ops cannot run on a contaminated session.
+            *guard = None;
+        }
+        result
     }
+}
+
+/// Errors that mean the shared session must not be reused. Chosen so the app
+/// registry's `should_evict_connection` closes the open connection.
+pub(crate) fn session_invalidated(detail: impl Into<String>) -> CellarError {
+    CellarError::NotConnected(format!(
+        "SQL Server session invalidated; reconnect and retry. {}",
+        detail.into()
+    ))
+}
+
+pub(crate) fn is_session_poison(err: &CellarError) -> bool {
+    matches!(
+        err,
+        CellarError::NotConnected(msg) if msg.contains("session invalidated")
+    )
 }
 
 #[async_trait]
@@ -80,7 +108,7 @@ pub async fn open_client(
     Ok(SqlServerConnection {
         info: DriverInfo { engine, version },
         config: config.clone(),
-        client: Mutex::new(client),
+        client: Mutex::new(Some(client)),
     })
 }
 

@@ -13,6 +13,7 @@ import { useAi } from "../state/ai";
 import { useTabs } from "../state/tabs";
 import { noteConnectionIssue, useConnections } from "../state/connections";
 import { buildActiveContext, type AiContextChip } from "../lib/aiContext";
+import { runEntityLookups } from "../lib/aiLookup";
 import { AIMessage, firstRunnableSql } from "./AIMessage";
 import { QUERY_ROW_LIMIT } from "../hooks/useQueryRunner";
 import { cellValueToGrid, queryResultToGrid } from "../lib/gridMapping";
@@ -99,6 +100,7 @@ export function AIPanel({
 }) {
   const [draft, setDraft] = useState("");
   const [topic, setTopic] = useState<AiTopic>("ask");
+  const [preparing, setPreparing] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const init = useAi((s) => s.init);
@@ -117,13 +119,21 @@ export function AIPanel({
   const mounted = useRef(true);
   const runSeq = useRef(0);
 
-  // Recompute context whenever the active tab or its schema changes.
+  // Recompute context whenever the active tab, its SQL, or schema changes.
   const activeId = useTabs((s) => s.activeId);
+  const activeSql = useTabs((s) => {
+    const tab = s.tabs.find((t) => t.id === s.activeId);
+    return tab?.kind === "query" ? tab.sql : "";
+  });
+  const activeTableKey = useTabs((s) => {
+    const tab = s.tabs.find((t) => t.id === s.activeId);
+    return tab?.kind === "table" ? `${tab.schema}.${tab.table}` : "";
+  });
   const byId = useConnections((s) => s.byId);
   const context = useMemo(
     () => buildActiveContext(),
-    // byId carries introspected schema; activeId switches scope.
-    [activeId, byId],
+    // byId carries introspected schema; activeId/SQL/table pin scope.
+    [activeId, activeSql, activeTableKey, byId],
   );
 
   useEffect(() => {
@@ -139,20 +149,34 @@ export function AIPanel({
   }, []);
 
   const ready = keyConfigured && !!modelId;
-  const canSend = ready && draft.trim().length > 0 && !sending;
+  const canSend = ready && draft.trim().length > 0 && !sending && !preparing;
 
   const submit = () => {
     if (!canSend) return;
     const text = draft;
     setDraft("");
-    void send(topic, text, context.text);
+    // Resolve company/tenant names against live lookup tables first so the
+    // model gets real TenantId values instead of guessing with LIKE.
+    void (async () => {
+      setPreparing(true);
+      let lookupHits = "";
+      try {
+        lookupHits = await runEntityLookups(text);
+      } catch {
+        lookupHits = "";
+      } finally {
+        setPreparing(false);
+      }
+      await send(topic, text, context.text, lookupHits);
+    })();
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-      e.preventDefault();
-      submit();
-    }
+    if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
+    // Enter sends; Shift+Enter inserts a newline. ⌘/Ctrl+Enter also send.
+    if (e.shiftKey) return;
+    e.preventDefault();
+    submit();
   };
 
   const pickTopic = (t: AiTopic) => {
@@ -409,10 +433,12 @@ export function AIPanel({
             />
           ))
         )}
-        {sending && (
+        {(preparing || sending) && (
           <div className="flex items-center gap-2 px-1 text-[12px] text-fg-3">
-            <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-accent" />
-            <span>thinking…</span>
+            <span className="inline-flex text-accent animate-spinner" aria-hidden>
+              <Icon.spinner size={13} sw={1.8} />
+            </span>
+            <span>{preparing ? "looking up…" : "thinking…"}</span>
           </div>
         )}
       </div>
@@ -451,7 +477,7 @@ export function AIPanel({
             ref={textareaRef}
             placeholder={
               ready
-                ? "Ask, generate, or paste an error…  ⌘⏎ to send"
+                ? "Ask, generate, or paste an error…  ⏎ to send, ⇧⏎ for newline"
                 : "Configure a provider in AI settings to start…"
             }
             value={draft}

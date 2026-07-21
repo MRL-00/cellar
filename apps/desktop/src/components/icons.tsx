@@ -329,6 +329,13 @@ export const Icon = {
       <path d="M10 11v6M14 11v6" />
     </I>
   ),
+  /** Arc spinner — pair with `animate-spin` (or `animate-spinner`). */
+  spinner: (p: IconProps) => (
+    <I {...p}>
+      <circle cx="12" cy="12" r="9" opacity="0.2" />
+      <path d="M21 12a9 9 0 00-9-9" />
+    </I>
+  ),
 };
 
 export type IconName = keyof typeof Icon;

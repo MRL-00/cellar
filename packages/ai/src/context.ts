@@ -9,10 +9,19 @@ export interface ContextColumn {
   is_primary_key: boolean;
 }
 
+export interface ContextForeignKey {
+  columns: string[];
+  referenced_schema: string;
+  referenced_table: string;
+  referenced_columns: string[];
+}
+
 export interface ContextTable {
   schema: string;
   name: string;
   columns: ContextColumn[];
+  /** Outgoing foreign keys — lets the model join lookup/dimension tables. */
+  foreign_keys?: ContextForeignKey[];
 }
 
 export interface SchemaContextInput {
@@ -32,10 +41,20 @@ function renderColumn(c: ContextColumn): string {
   return `  ${c.name} ${c.data_type}${suffix}`;
 }
 
+function renderForeignKey(fk: ContextForeignKey, fromSchema: string, fromTable: string): string {
+  const local = fk.columns.join(", ");
+  const remote = fk.referenced_columns.join(", ");
+  return `  FK ${fromSchema}.${fromTable}(${local}) -> ${fk.referenced_schema}.${fk.referenced_table}(${remote})`;
+}
+
 function renderTable(t: ContextTable): string {
   const head = `${t.schema}.${t.name} (`;
   const cols = t.columns.map(renderColumn).join(",\n");
-  return `${head}\n${cols}\n)`;
+  const fks = (t.foreign_keys ?? [])
+    .map((fk) => renderForeignKey(fk, t.schema, t.name))
+    .join("\n");
+  if (!fks) return `${head}\n${cols}\n)`;
+  return `${head}\n${cols}\n\n${fks}\n)`;
 }
 
 /** Produce a terse, deterministic context block. Returns an empty string when

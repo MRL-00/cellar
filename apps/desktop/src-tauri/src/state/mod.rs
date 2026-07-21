@@ -256,7 +256,14 @@ impl ConnectionRegistry {
                 .ok_or_else(|| CellarError::NotConnected(format!("no open connection for {id}")))?;
             (open.config.engine, Arc::clone(&open.connection))
         };
-        if query.read_only && engine != cellar_core::driver::Engine::Postgres {
+        // Postgres (incl. Supabase/Neon) and SQL Server (incl. Azure) enforce
+        // a driver-level read-only guard for AI-generated answer queries.
+        if query.read_only
+            && !matches!(
+                engine.family(),
+                cellar_core::driver::Engine::Postgres | cellar_core::driver::Engine::Mssql
+            )
+        {
             return Err(CellarError::query(format!(
                 "read-only AI query execution is not available for {} yet",
                 engine.as_str()

@@ -109,6 +109,7 @@
   --animate-modal-in: modal-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   --animate-modal-in-fast: modal-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
   --animate-sb-pulse: sb-pulse 1.4s ease-in-out infinite;
+  --animate-spinner: spinner-rotate 0.7s linear infinite;
 }
 
 @keyframes scrim-in {
@@ -122,4 +123,7 @@
 @keyframes sb-pulse {
   0%, 100% { opacity: 0.4; }
   50% { opacity: 1; }
+}
+@keyframes spinner-rotate {
+  to { transform: rotate(360deg); }
 }
