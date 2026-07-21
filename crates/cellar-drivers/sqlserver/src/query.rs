@@ -33,37 +33,250 @@ pub async fn execute_query(conn: &SqlServerConnection, query: &Query) -> CellarR
     .await
 }
 
-/// SQL Server has no `SET TRANSACTION READ ONLY` (Postgres does). The strongest
-/// guard available here is to run inside a transaction and always roll back so
-/// AI-generated SQL cannot commit writes even if a mutating statement slips
-/// past the frontend allow-list.
+/// SQL Server has no `SET TRANSACTION READ ONLY` (Postgres does). Guard AI
+/// queries by (1) rejecting non-read-only / session-mutating SQL up front,
+/// (2) running inside a transaction that must still be open afterward,
+/// (3) requiring a successful rollback, and (4) restoring the home database
+/// so a `USE` cannot leak across the shared TDS session.
 async fn execute_read_only_query(
     conn: &SqlServerConnection,
     query: &Query,
 ) -> CellarResult<QueryResult> {
+    assert_read_only_sql(&query.sql)?;
+
     let max_rows = query.max_rows.unwrap_or(DEFAULT_MAX_ROWS) as usize;
     let offset = query.offset.unwrap_or(0) as usize;
     let started = Instant::now();
+    let home_db = conn.config().database.clone();
+    let target_db = query
+        .database
+        .as_deref()
+        .filter(|db| !db.is_empty())
+        .unwrap_or(home_db.as_str());
+    let switch_db = target_db != home_db.as_str();
 
     conn.with_client(async |client| {
-        if let Some(database) = query.database.as_deref() {
-            if database != conn.config().database {
-                run_control(client, &format!("USE {}", quote_ident(database))).await?;
+        if switch_db {
+            run_control(client, &format!("USE {}", quote_ident(target_db))).await?;
+        }
+
+        let outcome = run_read_only_batch(client, &query.sql, max_rows, offset, started).await;
+
+        if switch_db {
+            // Always restore — a leaked USE would point later queries at the
+            // wrong database on this shared connection.
+            if let Err(restore_err) =
+                run_control(client, &format!("USE {}", quote_ident(&home_db))).await
+            {
+                return match outcome {
+                    Ok(_) => Err(restore_err),
+                    Err(err) => Err(err),
+                };
             }
         }
 
-        run_control(client, "BEGIN TRANSACTION").await?;
-        let result = match execute_sql(client, &query.sql, max_rows, offset, started).await {
-            Ok(result) => result,
-            Err(err) => {
-                rollback(client).await;
-                return Err(err);
-            }
-        };
-        rollback(client).await;
-        Ok(result)
+        outcome
     })
     .await
+}
+
+async fn run_read_only_batch(
+    client: &mut TdsClient,
+    sql: &str,
+    max_rows: usize,
+    offset: usize,
+    started: Instant,
+) -> CellarResult<QueryResult> {
+    let baseline = tran_count(client).await?;
+    run_control(client, "BEGIN TRANSACTION").await?;
+
+    let result = match execute_sql(client, sql, max_rows, offset, started).await {
+        Ok(result) => result,
+        Err(err) => {
+            let _ = rollback_to_baseline(client, baseline).await;
+            return Err(err);
+        }
+    };
+
+    let after = match tran_count(client).await {
+        Ok(n) => n,
+        Err(err) => {
+            let _ = rollback_to_baseline(client, baseline).await;
+            return Err(err);
+        }
+    };
+    // A nested COMMIT (or full ROLLBACK) drops @@TRANCOUNT below baseline+1
+    // and would leave writes durable — refuse and unwind what we can.
+    if after != baseline + 1 {
+        let _ = rollback_to_baseline(client, baseline).await;
+        return Err(CellarError::query(
+            "read-only AI query altered transaction state (COMMIT/ROLLBACK is not allowed)",
+        ));
+    }
+
+    rollback_to_baseline(client, baseline).await?;
+    Ok(result)
+}
+
+async fn tran_count(client: &mut TdsClient) -> CellarResult<i32> {
+    let row = client
+        .simple_query("SELECT CONVERT(int, @@TRANCOUNT) AS tc")
+        .await
+        .map_err(|e| map_tiberius_runtime_err(e, "transaction state"))?
+        .into_row()
+        .await
+        .map_err(|e| map_tiberius_runtime_err(e, "transaction state"))?
+        .ok_or_else(|| CellarError::query("SQL Server did not return @@TRANCOUNT"))?;
+    row.try_get::<i32, _>("tc")
+        .map_err(|e| CellarError::decode(e.to_string()))?
+        .ok_or_else(|| CellarError::decode("SQL Server returned NULL for @@TRANCOUNT"))
+}
+
+/// Roll back until @@TRANCOUNT is at or below `baseline`. Unlike the
+/// best-effort [`rollback`] used on grid-commit errors, failures here surface
+/// so a shared session cannot keep an open AI transaction.
+async fn rollback_to_baseline(client: &mut TdsClient, baseline: i32) -> CellarResult<()> {
+    // Unnamed ROLLBACK clears the whole stack to zero; if we nested under an
+    // unexpected outer transaction, fall back to rolling until baseline.
+    let current = tran_count(client).await?;
+    if current <= baseline {
+        return Ok(());
+    }
+    if baseline == 0 {
+        run_control(client, "IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION").await?;
+    } else {
+        // Should be rare on the single-client mutex path; unwind one level at
+        // a time with a named savepoint-free rollback when possible.
+        run_control(client, "IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION").await?;
+    }
+    let after = tran_count(client).await?;
+    if after > baseline {
+        return Err(CellarError::query(format!(
+            "failed to roll back read-only AI transaction (@@TRANCOUNT={after}, expected ≤ {baseline})"
+        )));
+    }
+    if after < baseline {
+        return Err(CellarError::query(format!(
+            "read-only AI rollback cleared an unexpected outer transaction (@@TRANCOUNT={after}, expected {baseline})"
+        )));
+    }
+    Ok(())
+}
+
+/// Strip comments and string literals so keyword checks cannot be fooled by
+/// `'INSERT'` or `-- COMMIT` noise.
+fn strip_sql_noise(sql: &str) -> String {
+    let bytes = sql.as_bytes();
+    let mut out = String::with_capacity(sql.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        let c = bytes[i] as char;
+        let next = bytes.get(i + 1).map(|&b| b as char);
+        if c == '-' && next == Some('-') {
+            i += 2;
+            while i < bytes.len() && bytes[i] as char != '\n' {
+                i += 1;
+            }
+            continue;
+        }
+        if c == '/' && next == Some('*') {
+            i += 2;
+            while i + 1 < bytes.len() && !(bytes[i] as char == '*' && bytes[i + 1] as char == '/') {
+                i += 1;
+            }
+            i = (i + 2).min(bytes.len());
+            out.push(' ');
+            continue;
+        }
+        if c == '\'' {
+            i += 1;
+            while i < bytes.len() {
+                if bytes[i] as char == '\'' {
+                    if bytes.get(i + 1).map(|&b| b as char) == Some('\'') {
+                        i += 2;
+                        continue;
+                    }
+                    i += 1;
+                    break;
+                }
+                i += 1;
+            }
+            out.push(' ');
+            continue;
+        }
+        out.push(c);
+        i += 1;
+    }
+    out
+}
+
+/// Backend allow-list for AI read-only runs. Transaction control, session SETs,
+/// and DML/DDL are rejected because a batch can otherwise `COMMIT` out of our
+/// wrapper transaction or leave lasting session side effects.
+fn assert_read_only_sql(sql: &str) -> CellarResult<()> {
+    let clean = strip_sql_noise(sql);
+    let trimmed = clean.trim();
+    if trimmed.is_empty() {
+        return Err(CellarError::query("read-only AI query is empty"));
+    }
+
+    let head = trimmed
+        .split_whitespace()
+        .next()
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    const ALLOWED_HEAD: &[&str] = &["select", "with"];
+    if !ALLOWED_HEAD.contains(&head.as_str()) {
+        return Err(CellarError::query(format!(
+            "read-only AI queries must be SELECT/WITH (found leading `{head}`)"
+        )));
+    }
+
+    // Normalize whitespace so tokens still match across newlines.
+    let lower = format!(
+        " {} ",
+        trimmed
+            .to_ascii_lowercase()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+    );
+    const FORBIDDEN: &[&str] = &[
+        " insert ",
+        " update ",
+        " delete ",
+        " merge ",
+        " drop ",
+        " truncate ",
+        " alter ",
+        " create ",
+        " grant ",
+        " revoke ",
+        " exec ",
+        " execute ",
+        " commit ",
+        " rollback ",
+        " begin ",
+        " save ",
+        " use ",
+        " set ",
+        " into ", // SELECT INTO creates a table
+        " next value ",
+        " backup ",
+        " restore ",
+        " openrowset ",
+        " opendatasource ",
+        " bulk ",
+    ];
+    for token in FORBIDDEN {
+        if lower.contains(token) {
+            let name = token.trim();
+            return Err(CellarError::query(format!(
+                "read-only AI queries cannot contain `{name}`"
+            )));
+        }
+    }
+    Ok(())
 }
 
 async fn execute_sql(
@@ -253,5 +466,69 @@ async fn rollback(client: &mut TdsClient) {
         .await
     {
         let _ = stream.into_results().await;
+    }
+}
+
+#[cfg(test)]
+mod read_only_tests {
+    use super::{assert_read_only_sql, strip_sql_noise};
+
+    #[test]
+    fn allows_plain_select_and_with() {
+        assert_read_only_sql("SELECT Id FROM epiczone.Customers").unwrap();
+        assert_read_only_sql(
+            "WITH x AS (SELECT 1 AS n)\nSELECT * FROM x WHERE n > 0",
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn rejects_commit_escape_and_dml() {
+        let err = assert_read_only_sql(
+            "SELECT 1;\nINSERT INTO t VALUES (1);\nCOMMIT TRANSACTION",
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(
+            err.contains("insert") || err.contains("commit"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn rejects_session_mutating_statements() {
+        assert!(assert_read_only_sql("SELECT 1; SET LOCK_TIMEOUT 1000")
+            .unwrap_err()
+            .to_string()
+            .contains("set"));
+        assert!(assert_read_only_sql("USE otherdb; SELECT 1")
+            .unwrap_err()
+            .to_string()
+            .contains("use"));
+        assert!(assert_read_only_sql("SELECT NEXT VALUE FOR dbo.seq")
+            .unwrap_err()
+            .to_string()
+            .contains("next value"));
+    }
+
+    #[test]
+    fn ignores_forbidden_words_inside_strings_and_comments() {
+        assert_read_only_sql(
+            "SELECT Id FROM t -- COMMIT TRANSACTION\nWHERE note = 'please INSERT quietly'",
+        )
+        .unwrap();
+        let stripped = strip_sql_noise(
+            "SELECT 1 -- COMMIT\nWHERE x = 'INSERT'",
+        );
+        assert!(!stripped.to_ascii_lowercase().contains("commit"));
+        assert!(!stripped.to_ascii_lowercase().contains("insert"));
+    }
+
+    #[test]
+    fn rejects_non_select_heads() {
+        assert!(assert_read_only_sql("DELETE FROM t")
+            .unwrap_err()
+            .to_string()
+            .contains("SELECT/WITH"));
     }
 }
