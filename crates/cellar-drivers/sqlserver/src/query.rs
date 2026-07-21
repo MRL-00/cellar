@@ -7,7 +7,9 @@ use cellar_diff::{build_mssql_plan, TableChangeRequest, TableCommitResult};
 use futures_util::TryStreamExt;
 use tiberius::QueryItem;
 
-use crate::connect::{map_tiberius_runtime_err, SqlServerConnection, TdsClient};
+use crate::connect::{
+    map_tiberius_runtime_err, session_invalidated, SqlServerConnection, TdsClient,
+};
 use crate::decode::decode_cell;
 
 const DEFAULT_MAX_ROWS: u32 = 500;
@@ -68,10 +70,15 @@ async fn execute_read_only_query(
             if let Err(restore_err) =
                 run_control(client, &format!("USE {}", quote_ident(&home_db))).await
             {
-                return match outcome {
-                    Ok(_) => Err(restore_err),
-                    Err(err) => Err(err),
-                };
+                // Poison the session so the contaminated client is dropped.
+                return Err(match outcome {
+                    Ok(_) => session_invalidated(format!(
+                        "could not restore database [{home_db}] after read-only AI query: {restore_err}"
+                    )),
+                    Err(err) => session_invalidated(format!(
+                        "{err}; also could not restore database [{home_db}]: {restore_err}"
+                    )),
+                });
             }
         }
 
@@ -93,29 +100,50 @@ async fn run_read_only_batch(
     let result = match execute_sql(client, sql, max_rows, offset, started).await {
         Ok(result) => result,
         Err(err) => {
-            let _ = rollback_to_baseline(client, baseline).await;
-            return Err(err);
+            return Err(finish_with_rollback(client, baseline, err).await);
         }
     };
 
     let after = match tran_count(client).await {
         Ok(n) => n,
         Err(err) => {
-            let _ = rollback_to_baseline(client, baseline).await;
-            return Err(err);
+            return Err(finish_with_rollback(client, baseline, err).await);
         }
     };
     // A nested COMMIT (or full ROLLBACK) drops @@TRANCOUNT below baseline+1
     // and would leave writes durable — refuse and unwind what we can.
     if after != baseline + 1 {
-        let _ = rollback_to_baseline(client, baseline).await;
-        return Err(CellarError::query(
-            "read-only AI query altered transaction state (COMMIT/ROLLBACK is not allowed)",
-        ));
+        return Err(finish_with_rollback(
+            client,
+            baseline,
+            CellarError::query(
+                "read-only AI query altered transaction state (COMMIT/ROLLBACK is not allowed)",
+            ),
+        )
+        .await);
     }
 
-    rollback_to_baseline(client, baseline).await?;
+    if let Err(err) = rollback_to_baseline(client, baseline).await {
+        return Err(session_invalidated(format!(
+            "read-only AI rollback failed after a successful query: {err}"
+        )));
+    }
     Ok(result)
+}
+
+/// Roll back after a failure. If cleanup itself fails, poison the session so
+/// the shared client cannot keep an open transaction.
+async fn finish_with_rollback(
+    client: &mut TdsClient,
+    baseline: i32,
+    primary: CellarError,
+) -> CellarError {
+    match rollback_to_baseline(client, baseline).await {
+        Ok(()) => primary,
+        Err(cleanup) => session_invalidated(format!(
+            "{primary}; rollback also failed: {cleanup}"
+        )),
+    }
 }
 
 async fn tran_count(client: &mut TdsClient) -> CellarResult<i32> {
@@ -214,69 +242,119 @@ fn strip_sql_noise(sql: &str) -> String {
 /// and DML/DDL are rejected because a batch can otherwise `COMMIT` out of our
 /// wrapper transaction or leave lasting session side effects.
 fn assert_read_only_sql(sql: &str) -> CellarResult<()> {
-    let clean = strip_sql_noise(sql);
-    let trimmed = clean.trim();
-    if trimmed.is_empty() {
+    let tokens = sql_tokens(&strip_sql_noise(sql));
+    if tokens.is_empty() {
         return Err(CellarError::query("read-only AI query is empty"));
     }
 
-    let head = trimmed
-        .split_whitespace()
-        .next()
-        .unwrap_or("")
-        .to_ascii_lowercase();
     const ALLOWED_HEAD: &[&str] = &["select", "with"];
-    if !ALLOWED_HEAD.contains(&head.as_str()) {
+    if !ALLOWED_HEAD.contains(&tokens[0].as_str()) {
         return Err(CellarError::query(format!(
-            "read-only AI queries must be SELECT/WITH (found leading `{head}`)"
+            "read-only AI queries must be SELECT/WITH (found leading `{}`)",
+            tokens[0]
         )));
     }
 
-    // Normalize whitespace so tokens still match across newlines.
-    let lower = format!(
-        " {} ",
-        trimmed
-            .to_ascii_lowercase()
-            .split_whitespace()
-            .collect::<Vec<_>>()
-            .join(" ")
-    );
     const FORBIDDEN: &[&str] = &[
-        " insert ",
-        " update ",
-        " delete ",
-        " merge ",
-        " drop ",
-        " truncate ",
-        " alter ",
-        " create ",
-        " grant ",
-        " revoke ",
-        " exec ",
-        " execute ",
-        " commit ",
-        " rollback ",
-        " begin ",
-        " save ",
-        " use ",
-        " set ",
-        " into ", // SELECT INTO creates a table
-        " next value ",
-        " backup ",
-        " restore ",
-        " openrowset ",
-        " opendatasource ",
-        " bulk ",
+        "insert",
+        "update",
+        "delete",
+        "merge",
+        "drop",
+        "truncate",
+        "alter",
+        "create",
+        "grant",
+        "revoke",
+        "exec",
+        "execute",
+        "commit",
+        "rollback",
+        "begin",
+        "save",
+        "use",
+        "set",
+        "into", // SELECT INTO creates a table
+        "backup",
+        "restore",
+        "openrowset",
+        "opendatasource",
+        "bulk",
+        // Dynamic SQL entry points — their string bodies are stripped, so we
+        // must reject the procedure name itself.
+        "sp_executesql",
+        "sp_execute",
+        "sp_prepexec",
+        "sp_cursoropen",
     ];
-    for token in FORBIDDEN {
-        if lower.contains(token) {
-            let name = token.trim();
+    for (i, token) in tokens.iter().enumerate() {
+        if FORBIDDEN.contains(&token.as_str()) {
             return Err(CellarError::query(format!(
-                "read-only AI queries cannot contain `{name}`"
+                "read-only AI queries cannot contain `{token}`"
             )));
+        }
+        if token.starts_with("xp_") || token.starts_with("sp_exec") {
+            return Err(CellarError::query(format!(
+                "read-only AI queries cannot call `{token}`"
+            )));
+        }
+        // NEXT VALUE FOR …
+        if token == "next" && tokens.get(i + 1).map(String::as_str) == Some("value") {
+            return Err(CellarError::query(
+                "read-only AI queries cannot contain `next value`",
+            ));
         }
     }
     Ok(())
+}
+
+/// Split stripped SQL into identifier tokens. Punctuation (`;`, commas, parens)
+/// is a boundary so `SELECT 1;SET …` and `SELECT 1;EXEC …` still surface
+/// forbidden keywords.
+fn sql_tokens(sql: &str) -> Vec<String> {
+    let chars: Vec<char> = sql.chars().collect();
+    let mut tokens = Vec::new();
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        if c.is_whitespace() {
+            i += 1;
+            continue;
+        }
+        // Bracketed / quoted identifiers → one token (contents only).
+        if c == '[' || c == '"' || c == '`' {
+            let close = if c == '[' { ']' } else { c };
+            i += 1;
+            let start = i;
+            while i < chars.len() && chars[i] != close {
+                i += 1;
+            }
+            if start < i {
+                tokens.push(chars[start..i].iter().collect::<String>().to_ascii_lowercase());
+            }
+            if i < chars.len() {
+                i += 1;
+            }
+            continue;
+        }
+        if c.is_ascii_alphanumeric() || c == '_' || c == '@' || c == '#' || c == '$' {
+            let start = i;
+            i += 1;
+            while i < chars.len() {
+                let n = chars[i];
+                if n.is_ascii_alphanumeric() || n == '_' || n == '@' || n == '#' || n == '$' {
+                    i += 1;
+                } else {
+                    break;
+                }
+            }
+            tokens.push(chars[start..i].iter().collect::<String>().to_ascii_lowercase());
+            continue;
+        }
+        // Punctuation is only a separator.
+        i += 1;
+    }
+    tokens
 }
 
 async fn execute_sql(
@@ -471,7 +549,7 @@ async fn rollback(client: &mut TdsClient) {
 
 #[cfg(test)]
 mod read_only_tests {
-    use super::{assert_read_only_sql, strip_sql_noise};
+    use super::{assert_read_only_sql, sql_tokens, strip_sql_noise};
 
     #[test]
     fn allows_plain_select_and_with() {
@@ -497,7 +575,8 @@ mod read_only_tests {
 
     #[test]
     fn rejects_session_mutating_statements() {
-        assert!(assert_read_only_sql("SELECT 1; SET LOCK_TIMEOUT 1000")
+        // No space after `;` — punctuation must still be a token boundary.
+        assert!(assert_read_only_sql("SELECT 1;SET LOCK_TIMEOUT 1000")
             .unwrap_err()
             .to_string()
             .contains("set"));
@@ -509,6 +588,20 @@ mod read_only_tests {
             .unwrap_err()
             .to_string()
             .contains("next value"));
+    }
+
+    #[test]
+    fn rejects_dynamic_sql_even_when_body_is_stripped() {
+        let err = assert_read_only_sql(
+            "SELECT 1;EXEC sp_executesql N'INSERT INTO dbo.t VALUES (1); COMMIT'",
+        )
+        .unwrap_err()
+        .to_string()
+        .to_ascii_lowercase();
+        assert!(
+            err.contains("exec") || err.contains("sp_executesql"),
+            "unexpected error: {err}"
+        );
     }
 
     #[test]
@@ -530,5 +623,13 @@ mod read_only_tests {
             .unwrap_err()
             .to_string()
             .contains("SELECT/WITH"));
+    }
+
+    #[test]
+    fn tokens_split_on_semicolons() {
+        assert_eq!(
+            sql_tokens("SELECT 1;SET LOCK_TIMEOUT 1000"),
+            vec!["select", "1", "set", "lock_timeout", "1000"]
+        );
     }
 }
