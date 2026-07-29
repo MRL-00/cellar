@@ -63,7 +63,9 @@ export function revealBottomPanel(quarterHeight = true): void {
   if (panels.bottom) return;
   setPanel("bottom", true);
   if (!quarterHeight || typeof window === "undefined") return;
-  const target = Math.round(window.innerHeight / 4);
-  const max = Math.round(window.innerHeight * 0.7);
-  setBottomHeight(Math.max(BOTTOM_MIN_HEIGHT, Math.min(target, max)));
+  const viewportHeight = Math.max(0, window.innerHeight);
+  const max = Math.round(viewportHeight * 0.7);
+  const min = Math.min(BOTTOM_MIN_HEIGHT, max);
+  const target = Math.round(viewportHeight / 4);
+  setBottomHeight(Math.min(max, Math.max(min, target)));
 }

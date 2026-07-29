@@ -171,11 +171,31 @@ export function BottomPanel({ onClose }: { onClose: () => void }) {
                       columns: exportable.columns,
                       rows: exportable.rows,
                     };
-                    void saveText(
-                      exportFilename(label, format),
-                      format,
-                      exportText(format, view.columns, view.rows),
-                    );
+                    void (async () => {
+                      try {
+                        await saveText(
+                          exportFilename(label, format),
+                          format,
+                          exportText(format, view.columns, view.rows),
+                        );
+                      } catch (err) {
+                        const text =
+                          err instanceof Error ? err.message : String(err);
+                        if (!activeTab) {
+                          console.error("Export failed:", err);
+                          return;
+                        }
+                        useQueryMessages.getState().addMessage({
+                          tabId: activeTab.id,
+                          connectionId: activeTab.connectionId,
+                          database: activeTab.database || undefined,
+                          severity: "error",
+                          source: "client",
+                          text: `Export failed: ${text}`,
+                        });
+                        setActive("messages");
+                      }
+                    })();
                   },
                 })),
               });
