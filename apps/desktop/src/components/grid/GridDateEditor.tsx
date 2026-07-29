@@ -1,14 +1,27 @@
 /**
- * A calendar-based inline editor for date / datetime grid cells, injected into
- * the data-grid via its `renderEditor` prop. The grid package is deliberately
- * dependency-free, so the heavier UI (react-day-picker — the library shadcn/ui
- * wraps) lives here in the desktop app where Tailwind and the design tokens are.
+ * A calendar-based picker for date / datetime / time values, injected into the
+ * data-grid via `renderEditor` (cells) and `renderFilterValue` (where-clause).
+ * The grid package is deliberately dependency-free, so the heavier UI
+ * (react-day-picker — the library shadcn/ui wraps) lives here in the desktop
+ * app where Tailwind and the design tokens are.
  *
  * It only claims date and timestamp columns; time/number/text fall back to the
- * grid's built-in editor (`renderGridEditor` returns null for those).
+ * grid's built-in controls (`renderGridEditor` / `renderFilterValue` return
+ * null for those).
  */
-import { nativeControl, type CellEditorProps } from "@cellar/data-grid";
-import { useLayoutEffect, useRef, useState } from "react";
+import {
+  nativeControl,
+  type CellEditorProps,
+  type FilterValueInputProps,
+  type GridColumn,
+} from "@cellar/data-grid";
+import {
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type Ref,
+} from "react";
 import { createPortal } from "react-dom";
 import { DayPicker } from "react-day-picker";
 
@@ -38,19 +51,42 @@ export function parseTime(raw: string): string {
 
 type Kind = "date" | "datetime" | "time";
 
+function kindForColumn(column: GridColumn): Kind | null {
+  // Probe with an empty value so a stale/unparseable draft still gets the
+  // calendar — same idea as the filter bar's native fallback.
+  const control = nativeControl(column, "");
+  if (control?.type === "date") return "date";
+  if (control?.type === "datetime-local") return "datetime";
+  if (control?.type === "time") return "time";
+  return null;
+}
+
+function formatCommitted(kind: Kind, date: Date | undefined, time: string): string | null {
+  if (kind === "time") return time;
+  if (!date) return null;
+  return kind === "datetime" ? `${ymd(date)}T${time}` : ymd(date);
+}
+
 /**
  * Returns the editor element when this column is a date/datetime/time, else
  * null so the grid uses its built-in editor. Wire as
  * `<DataGrid renderEditor={renderGridEditor} />`.
  */
 export function renderGridEditor(props: CellEditorProps) {
-  const initial = props.value == null ? "" : String(props.value);
-  const control = nativeControl(props.col, initial);
-  if (control?.type === "date") return <GridDateEditor {...props} kind="date" />;
-  if (control?.type === "datetime-local")
-    return <GridDateEditor {...props} kind="datetime" />;
-  if (control?.type === "time") return <GridDateEditor {...props} kind="time" />;
-  return null;
+  const kind = kindForColumn(props.col);
+  if (!kind) return null;
+  return <GridDateEditor {...props} kind={kind} />;
+}
+
+/**
+ * Same calendar for the filter-bar value slot. Wire as
+ * `<DataGrid renderFilterValue={renderFilterValue} />`.
+ */
+export function renderFilterValue(props: FilterValueInputProps): ReactNode {
+  const kind = kindForColumn(props.column);
+  if (!kind) return null;
+  // Key on column so switching date fields remounts a fresh picker state.
+  return <FilterDateValueInput key={props.column.key} {...props} kind={kind} />;
 }
 
 function GridDateEditor({
@@ -65,16 +101,13 @@ function GridDateEditor({
   const anchorRef = useRef<HTMLDivElement | null>(null);
 
   const commit = () => {
-    if (kind === "time") {
-      onCommit(time);
-      return;
-    }
-    if (!date) {
+    const next = formatCommitted(kind, date, time);
+    if (next == null) {
       // Nothing chosen — leave the cell unchanged.
       onCancel();
       return;
     }
-    onCommit(kind === "datetime" ? `${ymd(date)}T${time}` : ymd(date));
+    onCommit(next);
   };
 
   return (
@@ -83,39 +116,151 @@ function GridDateEditor({
         {initial || "—"}
       </div>
       <CalendarPopover anchorRef={anchorRef} onOutside={commit} onEscape={onCancel}>
-        {kind !== "time" && (
-          <DayPicker
-            mode="single"
-            selected={date}
-            onSelect={setDate}
-            defaultMonth={date}
-            showOutsideDays
-            autoFocus
-          />
-        )}
-        {kind !== "date" && (
-          <label className="grid-date-popover-time">
-            Time
-            <input
-              type="time"
-              step={1}
-              value={time}
-              autoFocus={kind === "time"}
-              onChange={(e) => setTime(e.target.value || "00:00:00")}
-            />
-          </label>
-        )}
-        <div className="grid-date-popover-actions">
-          <button type="button" className="gdp-cancel" onClick={onCancel}>
-            Cancel
-          </button>
-          <button type="button" className="gdp-apply" onClick={commit}>
-            Apply
-          </button>
-        </div>
+        <DatePickerBody
+          kind={kind}
+          date={date}
+          time={time}
+          onDateChange={setDate}
+          onTimeChange={setTime}
+          onCommit={commit}
+          onCancel={onCancel}
+        />
       </CalendarPopover>
     </>
   );
+}
+
+function FilterDateValueInput({
+  value,
+  onChange,
+  anchorRef: externalAnchorRef,
+  kind,
+}: FilterValueInputProps & { kind: Kind }) {
+  const [open, setOpen] = useState(true);
+  const [date, setDate] = useState<Date | undefined>(() => parseDate(value));
+  const [time, setTime] = useState(() => parseTime(value));
+  const localAnchorRef = useRef<HTMLButtonElement | null>(null);
+
+  const setAnchorRefs = (node: HTMLButtonElement | null) => {
+    localAnchorRef.current = node;
+    assignRef(externalAnchorRef, node);
+  };
+
+  const openPicker = () => {
+    setDate(parseDate(value));
+    setTime(parseTime(value));
+    setOpen(true);
+  };
+
+  const commit = () => {
+    const next = formatCommitted(kind, date, time);
+    if (next != null) onChange(next);
+    setOpen(false);
+  };
+
+  const cancel = () => setOpen(false);
+
+  const placeholder =
+    kind === "time" ? "time" : kind === "datetime" ? "date & time" : "date";
+
+  return (
+    <>
+      <button
+        ref={setAnchorRefs}
+        type="button"
+        className={`grid-filter-input mono grid-filter-date-trigger grid-filter-input-${
+          kind === "datetime" ? "datetime-local" : kind
+        }`}
+        onClick={openPicker}
+        aria-label="Filter value"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+      >
+        <span className={value ? undefined : "grid-filter-date-placeholder"}>
+          {value || placeholder}
+        </span>
+      </button>
+      {open && (
+        <CalendarPopover
+          anchorRef={localAnchorRef}
+          onOutside={commit}
+          onEscape={cancel}
+        >
+          <DatePickerBody
+            kind={kind}
+            date={date}
+            time={time}
+            onDateChange={setDate}
+            onTimeChange={setTime}
+            onCommit={commit}
+            onCancel={cancel}
+          />
+        </CalendarPopover>
+      )}
+    </>
+  );
+}
+
+function DatePickerBody({
+  kind,
+  date,
+  time,
+  onDateChange,
+  onTimeChange,
+  onCommit,
+  onCancel,
+}: {
+  kind: Kind;
+  date: Date | undefined;
+  time: string;
+  onDateChange: (next: Date | undefined) => void;
+  onTimeChange: (next: string) => void;
+  onCommit: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <>
+      {kind !== "time" && (
+        <DayPicker
+          mode="single"
+          selected={date}
+          onSelect={onDateChange}
+          defaultMonth={date}
+          showOutsideDays
+          autoFocus
+        />
+      )}
+      {kind !== "date" && (
+        <label className="grid-date-popover-time">
+          Time
+          <input
+            type="time"
+            step={1}
+            value={time}
+            autoFocus={kind === "time"}
+            onChange={(e) => onTimeChange(e.target.value || "00:00:00")}
+          />
+        </label>
+      )}
+      <div className="grid-date-popover-actions">
+        <button type="button" className="gdp-cancel" onClick={onCancel}>
+          Cancel
+        </button>
+        <button type="button" className="gdp-apply" onClick={onCommit}>
+          Apply
+        </button>
+      </div>
+    </>
+  );
+}
+
+function assignRef<T>(ref: Ref<T> | undefined, value: T) {
+  if (!ref) return;
+  if (typeof ref === "function") {
+    ref(value);
+    return;
+  }
+  (ref as { current: T }).current = value;
 }
 
 /**

@@ -1,6 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type Ref,
+} from "react";
+import { nativeControl } from "./Cell";
+import {
+  columnCategory,
   createFilterId,
+  defaultFilterValue,
   filterNeedsValue,
   filterOperatorLabel,
   filterValuePreview,
@@ -18,6 +28,55 @@ import type {
   GridColumn,
   SortState,
 } from "./types";
+
+const BOOL_FILTER_OPTIONS = [
+  { value: "true", label: "true" },
+  { value: "false", label: "false" },
+] as const;
+
+/**
+ * Props for a host-supplied filter value control. Return an element to take over
+ * the value slot (e.g. the app calendar picker), or `null` to use the built-in
+ * control for that column.
+ */
+export type FilterValueInputProps = {
+  column: GridColumn;
+  value: string;
+  onChange: (value: string) => void;
+  /** Attach to the focusable trigger so the composer can focus the value slot. */
+  anchorRef?: Ref<HTMLElement | null>;
+};
+
+export type FilterValueRenderer = (
+  props: FilterValueInputProps,
+) => ReactNode | null;
+
+/**
+ * Native date/time control for the filter composer. Always returns a picker for
+ * temporal columns (even when the current draft value isn't parseable — the
+ * input shows empty until the user picks). Used when the host does not supply
+ * {@link FilterBarProps.renderFilterValue}.
+ */
+function filterTemporalControl(
+  column: GridColumn,
+  value: string,
+): { type: "date" | "datetime-local" | "time"; step?: string; value: string } | null {
+  const blank = nativeControl(column, "");
+  if (
+    !blank ||
+    (blank.type !== "date" &&
+      blank.type !== "datetime-local" &&
+      blank.type !== "time")
+  ) {
+    return null;
+  }
+  const parsed = nativeControl(column, value);
+  return {
+    type: blank.type,
+    step: blank.step,
+    value: parsed?.value ?? "",
+  };
+}
 
 type ComposerDraft = {
   id: string | null;
@@ -64,6 +123,12 @@ export type FilterBarProps = {
   onSortChange?: (next: SortState) => void;
   /** Saved filter presets. Hidden when omitted. */
   savedFilters?: SavedFilterControls;
+  /**
+   * Optional override for the filter value control. Same idea as the grid's
+   * `renderEditor`: return an element to take over (e.g. the app calendar), or
+   * `null` to keep the built-in bool/native-date/text control.
+   */
+  renderFilterValue?: FilterValueRenderer;
 };
 
 export function FilterBar({
@@ -80,10 +145,13 @@ export function FilterBar({
   sort,
   onSortChange,
   savedFilters,
+  renderFilterValue,
 }: FilterBarProps) {
   const [draft, setDraft] = useState<ComposerDraft | null>(null);
   const columnRef = useRef<HTMLButtonElement | null>(null);
   const valueRef = useRef<HTMLInputElement | null>(null);
+  const valueSelectRef = useRef<HTMLButtonElement | null>(null);
+  const valueAnchorRef = useRef<HTMLElement | null>(null);
   const columnsByKey = useMemo(
     () => new Map(columns.map((column) => [column.key, column])),
     [columns],
@@ -97,8 +165,21 @@ export function FilterBar({
     if (!draft) return;
     const column = columnsByKey.get(draft.columnKey);
     if (column && filterNeedsValue(draft.operator)) {
+      if (columnCategory(column) === "bool") {
+        valueSelectRef.current?.focus();
+        return;
+      }
+      if (valueAnchorRef.current) {
+        valueAnchorRef.current.focus();
+        return;
+      }
       valueRef.current?.focus();
-      valueRef.current?.select();
+      // select() throws on date/time/number inputs — same guard as CellEditor.
+      try {
+        valueRef.current?.select();
+      } catch {
+        /* non-text native control */
+      }
       return;
     }
     columnRef.current?.focus();
@@ -112,7 +193,7 @@ export function FilterBar({
       id: null,
       columnKey: first.key,
       operator,
-      value: "",
+      value: defaultFilterValue(first),
       logic: "and",
     });
   };
@@ -134,7 +215,13 @@ export function FilterBar({
     if (!column) return;
     const operator = nextOperatorForColumn(column, draft.operator);
     const needsValue = filterNeedsValue(operator);
-    const value = draft.value.trim();
+    // Bool picker always resolves to true/false; other controls use the trimmed draft.
+    const value =
+      columnCategory(column) === "bool"
+        ? draft.value === "false"
+          ? "false"
+          : "true"
+        : draft.value.trim();
     if (needsValue && value.length === 0) return;
 
     const clause: FilterClause = {
@@ -175,8 +262,26 @@ export function FilterBar({
   const draftColumn = draft ? columnsByKey.get(draft.columnKey) : null;
   const draftOperators = draftColumn ? operatorsForColumn(draftColumn) : [];
   const needsValue = draft ? filterNeedsValue(draft.operator) : false;
+  const draftCategory = draftColumn ? columnCategory(draftColumn) : null;
+  const customValue =
+    needsValue && draft && draftColumn && renderFilterValue
+      ? renderFilterValue({
+          column: draftColumn,
+          value: draft.value,
+          onChange: (next) => setDraft({ ...draft, value: next }),
+          anchorRef: valueAnchorRef,
+        })
+      : null;
+  const temporalControl =
+    !customValue && draftColumn && draftCategory === "date"
+      ? filterTemporalControl(draftColumn, draft?.value ?? "")
+      : null;
   const canApply =
-    !!draft && !!draftColumn && (!needsValue || draft.value.trim().length > 0);
+    !!draft &&
+    !!draftColumn &&
+    (!needsValue ||
+      draftCategory === "bool" ||
+      draft.value.trim().length > 0);
 
   // Quick filter targets a single text-ish column (one that accepts `contains`).
   const textColumns = useMemo(
@@ -348,7 +453,14 @@ export function FilterBar({
                 const nextColumn = columnsByKey.get(next);
                 if (!nextColumn) return;
                 const operator = nextOperatorForColumn(nextColumn, draft.operator);
-                setDraft({ ...draft, columnKey: nextColumn.key, operator });
+                setDraft({
+                  ...draft,
+                  columnKey: nextColumn.key,
+                  operator,
+                  // Column type drives the value control — reset so stale text
+                  // doesn't linger in a bool/date picker.
+                  value: defaultFilterValue(nextColumn),
+                });
               }}
               aria-label="Filter column"
             />
@@ -370,7 +482,32 @@ export function FilterBar({
               }
               aria-label="Filter operator"
             />
-            {needsValue && (
+            {needsValue && draftCategory === "bool" && (
+              <GridSelect
+                ref={valueSelectRef}
+                className="grid-filter-bool-select"
+                value={draft.value === "false" ? "false" : "true"}
+                options={BOOL_FILTER_OPTIONS}
+                onChange={(next) => setDraft({ ...draft, value: next })}
+                aria-label="Filter value"
+              />
+            )}
+            {needsValue && draftCategory !== "bool" && customValue}
+            {needsValue && draftCategory !== "bool" && !customValue && temporalControl && (
+              <input
+                ref={valueRef}
+                className={`grid-filter-input mono grid-filter-input-${temporalControl.type}`}
+                type={temporalControl.type}
+                step={temporalControl.step}
+                value={temporalControl.value}
+                onChange={(e) => setDraft({ ...draft, value: e.target.value })}
+                aria-label="Filter value"
+              />
+            )}
+            {needsValue &&
+              draftCategory !== "bool" &&
+              !customValue &&
+              !temporalControl && (
               <input
                 ref={valueRef}
                 className="grid-filter-input mono"

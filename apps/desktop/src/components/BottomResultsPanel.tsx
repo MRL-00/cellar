@@ -17,6 +17,7 @@ import {
 import { useSettings } from "../lib/settings";
 import { toCsv, toJson, toSqlInserts, toTsv } from "../lib/export";
 import { ContextMenu, type ContextMenuState } from "./ContextMenu";
+import { renderFilterValue, renderGridEditor } from "./grid/GridDateEditor";
 import { Icon } from "./icons";
 import { useTabs, type TableTab } from "../state/tabs";
 import { maxRowsLabel, resultContextLabel, rowCountLabel, type TabResult } from "../state/tabResults";
@@ -292,6 +293,8 @@ function ReadOnlyResultGrid({
           onFiltersChange={grid.setFilters}
           sort={grid.sort}
           onSortChange={grid.setSort}
+          renderEditor={renderGridEditor}
+          renderFilterValue={renderFilterValue}
           readOnly
           nullDisplay={settings.grid.nullDisplay}
           stripeRows={settings.grid.stripeRows}
