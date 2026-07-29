@@ -47,6 +47,7 @@ describe("@cellar/ipc", () => {
         "saveConnection",
         "saveQueryTemplate",
         "saveSchemaSnapshot",
+        "saveTextFile",
         "testConnection",
       ].sort(),
     );

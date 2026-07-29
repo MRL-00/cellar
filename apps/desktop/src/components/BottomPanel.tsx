@@ -1,9 +1,9 @@
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import {
-  downloadText,
   exportFilename,
   exportText,
   EXPORT_FORMATS,
+  saveText,
 } from "../lib/export";
 import { ContextMenu, type ContextMenuState } from "./ContextMenu";
 
@@ -147,9 +147,9 @@ export function BottomPanel({ onClose }: { onClose: () => void }) {
           <div className="mx-1.5 h-[18px] w-px self-center bg-border-divider" />
           <HeaderMeta activeTab={activeTab} result={result} />
         </div>
-        <div className="flex items-center gap-px">
+        <div className="flex items-center gap-0.5 pr-0.5">
           <button
-            className={"icon-btn" + (exportable ? "" : " opacity-45")}
+            className="inline-flex h-6 w-6 items-center justify-center rounded-[4px] text-fg-2 transition-[background,color] duration-150 hover:bg-bg-3 hover:text-fg-0 disabled:cursor-default disabled:opacity-45 disabled:hover:bg-transparent disabled:hover:text-fg-2"
             disabled={!exportable}
             title={
               exportable
@@ -171,7 +171,7 @@ export function BottomPanel({ onClose }: { onClose: () => void }) {
                       columns: exportable.columns,
                       rows: exportable.rows,
                     };
-                    downloadText(
+                    void saveText(
                       exportFilename(label, format),
                       format,
                       exportText(format, view.columns, view.rows),
@@ -181,13 +181,21 @@ export function BottomPanel({ onClose }: { onClose: () => void }) {
               });
             }}
           >
-            <Icon.fileText size={11} />
+            <Icon.fileText size={15} />
           </button>
-          <button className="icon-btn opacity-45" disabled title="Pop out not implemented yet">
-            <Icon.expand size={11} />
+          <button
+            className="inline-flex h-6 w-6 items-center justify-center rounded-[4px] text-fg-2 opacity-45"
+            disabled
+            title="Pop out not implemented yet"
+          >
+            <Icon.expand size={15} />
           </button>
-          <button className="icon-btn" onClick={onClose} title="Hide">
-            <Icon.chevronsDown size={12} />
+          <button
+            className="inline-flex h-6 w-6 items-center justify-center rounded-[4px] text-fg-2 transition-[background,color] duration-150 hover:bg-bg-3 hover:text-fg-0"
+            onClick={onClose}
+            title="Hide"
+          >
+            <Icon.chevronsDown size={15} />
           </button>
         </div>
       </div>

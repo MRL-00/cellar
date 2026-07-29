@@ -50,3 +50,20 @@ export const useLayout = create<LayoutStore>()(
     },
   ),
 );
+
+const BOTTOM_MIN_HEIGHT = 140;
+
+/**
+ * Open the bottom panel at ~1/4 of the window height when it is currently
+ * closed. Used when a query run starts so results are visible without a
+ * manual toggle. Leaves an already-open panel's height alone.
+ */
+export function revealBottomPanel(quarterHeight = true): void {
+  const { panels, setPanel, setBottomHeight } = useLayout.getState();
+  if (panels.bottom) return;
+  setPanel("bottom", true);
+  if (!quarterHeight || typeof window === "undefined") return;
+  const target = Math.round(window.innerHeight / 4);
+  const max = Math.round(window.innerHeight * 0.7);
+  setBottomHeight(Math.max(BOTTOM_MIN_HEIGHT, Math.min(target, max)));
+}
