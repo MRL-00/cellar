@@ -17,7 +17,7 @@ import {
 } from "react";
 
 import { SqlEditor } from "./SqlEditor";
-import { renderGridEditor } from "./grid/GridDateEditor";
+import { renderFilterValue, renderGridEditor } from "./grid/GridDateEditor";
 import { SchemaComparePane } from "./SchemaComparePane";
 import { ErDiagram } from "./er/ErDiagram";
 import {
@@ -531,6 +531,7 @@ function TableTabPane({
         editing={grid.editing}
         onEdit={grid.setEditing}
         renderEditor={renderGridEditor}
+        renderFilterValue={renderFilterValue}
         filters={grid.filters}
         onFiltersChange={grid.setFilters}
         quickFilter={quickFilter}

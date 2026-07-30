@@ -346,6 +346,33 @@
   width: 132px;
   padding: 0 6px;
 }
+.grid-filter-input-date,
+.grid-filter-input-time {
+  width: 132px;
+  color-scheme: inherit;
+}
+.grid-filter-input-datetime-local {
+  width: 196px;
+  color-scheme: inherit;
+}
+.grid-filter-bool-select {
+  width: 72px;
+  max-width: 72px;
+}
+.grid-filter-date-trigger {
+  display: inline-flex;
+  align-items: center;
+  cursor: default;
+  text-align: left;
+}
+.grid-filter-date-trigger:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-line);
+  outline: none;
+}
+.grid-filter-date-placeholder {
+  color: var(--fg-3);
+}
 .grid-filter-select:focus,
 .grid-filter-input:focus {
   border-color: var(--accent);

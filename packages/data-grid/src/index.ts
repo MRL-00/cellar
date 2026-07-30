@@ -24,7 +24,9 @@ export { applyCellChange } from "./changes";
 export { countChanges, statusDotColor, statusTextColor } from "./status";
 export {
   FILTER_OPERATORS,
+  columnCategory,
   createFilterId,
+  defaultFilterValue,
   evaluateFilterClause,
   filterNeedsValue,
   filterOperatorLabel,
@@ -34,6 +36,7 @@ export {
   normalizeLikePattern,
   operatorsForColumn,
   rowMatchesFilters,
+  type ColumnCategory,
 } from "./filters";
 export { compareGridValues, cycleSortState, sortGridRows } from "./sort";
 export {
@@ -52,6 +55,8 @@ export {
 export {
   FilterBar,
   type FilterBarProps,
+  type FilterValueInputProps,
+  type FilterValueRenderer,
   type SavedFilterControls,
 } from "./FilterBar";
 export { PendingBar, type PendingBarProps } from "./PendingBar";

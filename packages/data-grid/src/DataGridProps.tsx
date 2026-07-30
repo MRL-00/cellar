@@ -3,7 +3,10 @@ import type {
   ReactNode,
 } from "react";
 import type { CellEditorProps } from "./Cell";
-import type { SavedFilterControls } from "./FilterBar";
+import type {
+  FilterValueRenderer,
+  SavedFilterControls,
+} from "./FilterBar";
 import type { RendererRegistry, SaveBlob } from "./renderers/types";
 import type {
   CellAddress,
@@ -21,6 +24,8 @@ import type {
  * built-in editor. See {@link DataGridProps.renderEditor}.
  */
 export type CellEditorRenderer = (props: CellEditorProps) => ReactNode | null;
+
+export type { FilterValueRenderer };
 
 export type DataGridProps = {
   columns: readonly GridColumn[];
@@ -92,6 +97,13 @@ export type DataGridProps = {
    * its UI dependencies into this dependency-free package.
    */
   renderEditor?: CellEditorRenderer;
+
+  /**
+   * Optional override for the filter-bar value control. Same calendar/host
+   * injection pattern as {@link renderEditor}; return `null` to keep the
+   * built-in bool select / native date / text input.
+   */
+  renderFilterValue?: FilterValueRenderer;
 
   /** Override how a renderer persists binary payloads (e.g. a native dialog). */
   saveBlob?: SaveBlob;

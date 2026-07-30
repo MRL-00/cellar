@@ -206,7 +206,7 @@ function displayValue(
 function compareOrdered(
   value: GridRow[string],
   needle: string,
-  category: ReturnType<typeof columnCategory>,
+  category: ColumnCategory,
   operator: "greaterThan" | "greaterThanOrEqual" | "lessThan" | "lessThanOrEqual",
 ): boolean {
   if (value === null || value === undefined) return false;
@@ -254,9 +254,9 @@ function likeMatch(value: string, pattern: string): boolean {
   return new RegExp(`^${regex}$`).test(value);
 }
 
-function columnCategory(
-  column: GridColumn,
-): "text" | "number" | "date" | "bool" | "unknown" {
+export type ColumnCategory = "text" | "number" | "date" | "bool" | "unknown";
+
+export function columnCategory(column: GridColumn): ColumnCategory {
   if (column.enum) return "text";
   const type = column.type.toLowerCase();
   if (BOOL_TYPES.some((t) => type.includes(t))) return "bool";
@@ -264,6 +264,11 @@ function columnCategory(
   if (DATE_TYPES.some((t) => type.includes(t))) return "date";
   if (TEXT_TYPES.some((t) => type.includes(t))) return "text";
   return "unknown";
+}
+
+/** Initial composer value when the user picks a column (or opens Add). */
+export function defaultFilterValue(column: GridColumn): string {
+  return columnCategory(column) === "bool" ? "true" : "";
 }
 
 function normalizeString(value: GridRow[string]): string {

@@ -41,7 +41,11 @@ import {
   shouldVirtualizeRows,
 } from "./virtualRows";
 
-export type { CellEditorRenderer, DataGridProps } from "./DataGridProps";
+export type {
+  CellEditorRenderer,
+  DataGridProps,
+  FilterValueRenderer,
+} from "./DataGridProps";
 export { calculateVirtualRows, shouldVirtualizeRows } from "./virtualRows";
 export { useGridState, type UseGridStateOptions } from "./useGridState";
 
@@ -106,6 +110,7 @@ export function DataGrid({
   nullDisplay = "NULL",
   renderers = defaultRendererRegistry,
   renderEditor,
+  renderFilterValue,
   saveBlob,
   stripeRows = false,
   onCellContextMenu,
@@ -599,6 +604,7 @@ export function DataGrid({
         sort={activeSort}
         onSortChange={applySort}
         savedFilters={savedFilters}
+        renderFilterValue={renderFilterValue}
       />
 
       <div

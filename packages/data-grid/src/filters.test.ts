@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  columnCategory,
+  defaultFilterValue,
   evaluateFilterClause,
   filterRows,
   operatorsForColumn,
@@ -120,6 +122,26 @@ describe("operatorsForColumn", () => {
   it("adds null operators only for nullable columns", () => {
     expect(operatorsForColumn(columns[2]!)).toContain("isNull");
     expect(operatorsForColumn(columns[0]!)).not.toContain("isNull");
+  });
+});
+
+describe("columnCategory / defaultFilterValue", () => {
+  it("classifies bool and temporal columns for typed value controls", () => {
+    expect(columnCategory(columns[4]!)).toBe("bool");
+    expect(columnCategory(columns[3]!)).toBe("date");
+    expect(columnCategory({ key: "d", name: "d", type: "date", width: 80 })).toBe(
+      "date",
+    );
+    expect(
+      columnCategory({ key: "t", name: "t", type: "datetime2", width: 80 }),
+    ).toBe("date");
+    expect(columnCategory(columns[0]!)).toBe("text");
+  });
+
+  it("defaults bool filters to true and others to empty", () => {
+    expect(defaultFilterValue(columns[4]!)).toBe("true");
+    expect(defaultFilterValue(columns[3]!)).toBe("");
+    expect(defaultFilterValue(columns[0]!)).toBe("");
   });
 });
 
