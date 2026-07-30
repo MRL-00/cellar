@@ -7,6 +7,7 @@
 
 pub mod ai;
 pub mod connection;
+pub mod export;
 pub mod history;
 pub mod query;
 pub mod schema;
@@ -52,6 +53,7 @@ pub fn builder() -> Builder<tauri::Wry> {
         templates::list_query_templates,
         templates::save_query_template,
         templates::delete_query_template,
+        export::save_text_file,
         ai::ai_store_key,
         ai::ai_load_key,
         ai::ai_delete_key,

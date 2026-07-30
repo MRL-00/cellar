@@ -303,6 +303,18 @@ async deleteQueryTemplate(name: string) : Promise<Result<null, CellarError>> {
 }
 },
 /**
+ * Show a platform save dialog prefilled with `default_name`, then write
+ * `contents` to the chosen path. Returns `Ok(None)` when the user cancels.
+ */
+async saveTextFile(defaultName: string, contents: string, filterName: string, filterExt: string) : Promise<Result<string | null, CellarError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("save_text_file", { defaultName, contents, filterName, filterExt }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * Persist the API key for `provider` in the OS keychain, overwriting any
  * existing entry.
  */

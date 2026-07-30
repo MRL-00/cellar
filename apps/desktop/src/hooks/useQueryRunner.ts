@@ -12,9 +12,11 @@ import {
   buildRunStartedMessage,
   type QueryRunContext,
 } from "../lib/queryMessages";
+import { useBottomPanel } from "../state/bottomPanel";
 import { useNotices } from "../state/notices";
 import { useQueryMessages } from "../state/queryMessages";
 import { noteConnectionIssue } from "../state/connections";
+import { revealBottomPanel } from "../state/layout";
 import { useStatus } from "../state/status";
 import type { QueryTab } from "../state/tabs";
 import { useTabs } from "../state/tabs";
@@ -145,6 +147,8 @@ export function useQueryRunner(tab: QueryTab): QueryRunner {
       setCancelRequested(false);
       setErrorLine(null);
       if (!append) {
+        revealBottomPanel();
+        useBottomPanel.getState().setActive("results");
         useTabResults.getState().setLoading(tab.id, source);
         useQueryMessages
           .getState()

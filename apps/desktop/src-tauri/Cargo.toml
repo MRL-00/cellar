@@ -40,6 +40,7 @@ tauri-specta = { version = "=2.0.0-rc.21", features = ["derive", "typescript"] }
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 tauri-plugin-opener = "2"
+rfd = "0.15"
 cellar-core = { path = "../../../crates/cellar-core" }
 cellar-driver-convex = { path = "../../../crates/cellar-drivers/convex" }
 cellar-driver-cosmos = { path = "../../../crates/cellar-drivers/cosmos" }

@@ -26,6 +26,7 @@ import {
 import { useQueryMessages } from "../state/queryMessages";
 import { queryResultSource, useTabResults } from "../state/tabResults";
 import { useBottomPanel } from "../state/bottomPanel";
+import { revealBottomPanel } from "../state/layout";
 import { useStatus } from "../state/status";
 
 const chipMeta: Record<AiContextChip["kind"], { icon: ReactNode; color: string }> = {
@@ -261,6 +262,7 @@ export function AIPanel({
     setRunningSql(true);
     const token = ++runSeq.current;
     if (!opts?.answerInPanel) {
+      revealBottomPanel();
       setBottomTab("results");
       useTabResults.getState().setLoading(scope.tabId, source);
       useQueryMessages

@@ -1,8 +1,10 @@
 import type { GridColumn, GridRow, GridValue } from "@cellar/data-grid";
+import { commands, isTauri, unwrap } from "@cellar/ipc";
 
 // Pure exporters from the grid's column/row shapes into portable text formats.
-// Shared by the bottom-panel "Export" button (file download) and the result
-// grid's "Copy as" context menu (clipboard), per SPEC §9.1.
+// Shared by the bottom-panel "Export" button (native save dialog / file
+// download) and the result grid's "Copy as" context menu (clipboard), per
+// SPEC §9.1.
 
 export type ExportFormat = "csv" | "tsv" | "json" | "sql";
 
@@ -167,7 +169,39 @@ export function exportFilename(label: string, format: ExportFormat): string {
   return `${base}.${EXTENSIONS[format]}`;
 }
 
-/** Trigger a browser-style download — same pattern as ExportSetupModal. */
+const FILTER_NAMES: Record<ExportFormat, string> = {
+  csv: "CSV",
+  tsv: "TSV",
+  json: "JSON",
+  sql: "SQL",
+};
+
+/**
+ * Ask where to save (native dialog in Tauri), then write the file. Falls back
+ * to a browser download in `pnpm dev:web`. Returns `false` if the user
+ * cancelled the dialog.
+ */
+export async function saveText(
+  filename: string,
+  format: ExportFormat,
+  contents: string,
+): Promise<boolean> {
+  if (isTauri) {
+    const path = await unwrap(
+      commands.saveTextFile(
+        filename,
+        contents,
+        FILTER_NAMES[format],
+        EXTENSIONS[format],
+      ),
+    );
+    return path != null;
+  }
+  downloadText(filename, format, contents);
+  return true;
+}
+
+/** Trigger a browser-style download — used by web mode and ExportSetupModal. */
 export function downloadText(
   filename: string,
   format: ExportFormat,

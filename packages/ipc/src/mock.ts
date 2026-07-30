@@ -320,6 +320,14 @@ export const mockCommands = {
     mockTemplates.delete(name);
     return ok(null);
   },
+
+  // No native save dialog in web mode — callers fall back to a browser download.
+  saveTextFile: async (
+    _defaultName: string,
+    _contents: string,
+    _filterName: string,
+    _filterExt: string,
+  ): Promise<Result<string | null, CellarError>> => ok(null),
 };
 
 const mockAiKeys = new Map<string, string>();
