@@ -79,7 +79,7 @@ Cellar is **not** aimed at non-technical business users. The UI assumes you unde
 | DB drivers | `sqlx` (Postgres, MySQL, SQLite), `tiberius` (SQL Server) | Mature, async, dialect-aware |
 | IPC type generation | `specta` + `tauri-specta` | End hand-syncing types between Rust and TS |
 | Credential storage | OS keychain via `keyring` crate, fallback to encrypted file | Standard, secure |
-| AI SDKs (frontend) | Anthropic SDK, OpenAI SDK, Ollama HTTP | HTTP from the frontend is simpler than going through Rust |
+| AI providers | Provider adapters plus typed Tauri IPC for privileged auth | Most providers can use direct HTTP; OpenAI keys and ChatGPT OAuth stay out of the webview |
 | Telemetry | None by default. Opt-in only, self-hosted endpoint configurable. | Trust |
 | Package management | pnpm workspaces + Cargo workspaces | Two ecosystems, two tools |
 | Monorepo orchestration | Turborepo | Just enough, no Nx complexity |
@@ -364,7 +364,14 @@ AI is a first-class feature, not an afterthought. It lives in the right panel an
 - Ollama (any local model)
 - Custom OpenAI-compatible endpoints (Together, Groq, etc.)
 
-All providers are BYO API key. Keys are stored in `cellar-secrets`. Cellar never proxies AI requests through a hosted service.
+Providers are local and bring-your-own-credential. Keys are stored in `cellar-secrets`, and Cellar never proxies AI requests through a hosted service.
+
+OpenAI supports two authentication modes:
+
+- **Platform API key** — usage-based access through the Responses API. The Rust backend loads the key from `cellar-secrets`; it is never returned to the renderer.
+- **ChatGPT sign-in** — subscription access through a local Codex app-server browser or device-code OAuth flow. Codex owns token storage and refresh in the OS keychain.
+
+See `docs/architecture/adr/0002-openai-auth.md` for the trust boundary and runtime constraints.
 
 #### Modes
 
@@ -416,7 +423,7 @@ Settings are stored in `~/.cellar/settings.json`. Categories:
 - **General** — theme (system / light / dark), font size, dense mode
 - **Editor** — font family, tab size, format on save, autocomplete behaviour
 - **Grid** — default page size, date format, NULL display, max cell preview length
-- **AI** — provider, model, API key (stored in keychain), default context behaviour
+- **AI** — provider, authentication mode, model, credential status, default context behaviour
 - **Connections** — default timeout, default SSL mode
 - **Keymap** — full keymap is configurable; presets for VS Code, DataGrip, Vim
 - **Plugins** — installed plugins, enable/disable, settings
@@ -450,7 +457,7 @@ A command palette (`⌘K`) provides search-driven access to every action.
 ### Security
 
 - Credentials never written to plain-text config files. Always in OS keychain or encrypted with a derived key.
-- AI requests never include credentials, only schema and query content.
+- AI requests never include database credentials. Provider credentials stay in the OS keychain and outside the renderer where the provider supports a backend transport.
 - AI requests are inspectable before sending.
 - No telemetry without explicit opt-in.
 - Tauri allowlist locked down: only the IPC commands defined in `commands/` are callable; no arbitrary shell access from the frontend.
@@ -535,7 +542,7 @@ Driver authoring guide: `docs/drivers/writing-a-driver.md`.
 
 #### AI providers
 
-An AI provider implements the `AiProvider` interface from `packages/ai`. First-party: Anthropic, OpenAI, Ollama. Community providers register via the plugin SDK.
+An AI provider implements the `AiProvider` interface from `packages/ai`. First-party: Anthropic, OpenAI, Ollama. Community providers register via the plugin SDK. A first-party provider may use typed Rust IPC when its credentials or supported authentication flow should not enter the renderer; OpenAI is the first such provider.
 
 #### Exporters
 

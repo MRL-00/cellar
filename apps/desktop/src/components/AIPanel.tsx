@@ -106,7 +106,7 @@ export function AIPanel({
 
   const init = useAi((s) => s.init);
   const modelId = useAi((s) => s.modelId);
-  const keyConfigured = useAi((s) => s.keyConfigured);
+  const configured = useAi((s) => s.configured);
   const messages = useAi((s) => s.messages);
   const sending = useAi((s) => s.sending);
   const send = useAi((s) => s.send);
@@ -149,7 +149,7 @@ export function AIPanel({
     };
   }, []);
 
-  const ready = keyConfigured && !!modelId;
+  const ready = configured && !!modelId;
   const canSend = ready && draft.trim().length > 0 && !sending && !preparing;
 
   const submit = () => {
@@ -419,7 +419,7 @@ export function AIPanel({
               >
                 <Icon.settings size={11} />
                 <span>
-                  {keyConfigured ? "Select a model" : "Configure a provider"}
+                  {configured ? "Select a model" : "Configure a provider"}
                 </span>
               </button>
             )}

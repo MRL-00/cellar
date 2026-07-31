@@ -2,6 +2,7 @@ pub mod commands;
 pub mod datagrip;
 pub mod history;
 pub mod menu;
+pub mod openai;
 pub mod state;
 
 use history::HistoryStore;
@@ -18,6 +19,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(registry)
         .manage(history)
+        .manage(openai::OpenAiService::default())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_opener::init())

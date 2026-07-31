@@ -608,6 +608,7 @@ dependencies = [
  "cellar-sql",
  "dirs 5.0.1",
  "quick-xml 0.39.4",
+ "reqwest 0.12.28",
  "rfd",
  "serde",
  "serde_json",

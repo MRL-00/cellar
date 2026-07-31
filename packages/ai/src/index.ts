@@ -1,10 +1,11 @@
 // AI providers, prompts, and context building.
 //
-// Today this wires Gemini (Google Generative Language API) end-to-end; other
-// providers are declared in `providers.ts` but disabled until implemented.
+// Gemini runs directly from the renderer. OpenAI runs behind typed desktop IPC
+// so API keys and ChatGPT OAuth tokens never enter the webview.
 
 export type {
   AiProviderId,
+  OpenAiAuthMode,
   AiTopic,
   AiModel,
   ChatMessage,

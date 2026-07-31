@@ -17,7 +17,7 @@ vi.mock("@cellar/ai", async (importOriginal) => {
   };
 });
 
-import { commands } from "@cellar/ipc";
+import { commands, unwrap } from "@cellar/ipc";
 import * as ai from "@cellar/ai";
 import { useAi } from "./ai";
 
@@ -25,10 +25,16 @@ function reset() {
   useAi.setState({
     providerId: "google",
     modelId: null,
+    openAiAuthMode: "apiKey",
     models: [],
     modelsLoading: false,
     modelsError: null,
     keyConfigured: false,
+    configured: false,
+    oauthStatus: null,
+    login: null,
+    authLoading: false,
+    openAiThreadId: null,
     messages: [],
     sending: false,
     initialized: false,
@@ -37,6 +43,8 @@ function reset() {
 
 beforeEach(async () => {
   await commands.aiDeleteKey("google");
+  await commands.aiDeleteKey("openai");
+  await commands.aiOpenaiLogout();
   reset();
   vi.clearAllMocks();
 });
@@ -104,8 +112,45 @@ describe("useAi store", () => {
   });
 
   it("newThread clears the conversation", () => {
-    useAi.setState({ messages: [{ id: "x", role: "user", content: "hi" }] });
+    useAi.setState({
+      messages: [{ id: "x", role: "user", content: "hi" }],
+      openAiThreadId: "thread-1",
+    });
     useAi.getState().newThread();
     expect(useAi.getState().messages).toEqual([]);
+    expect(useAi.getState().openAiThreadId).toBeNull();
+  });
+
+  it("keeps an OpenAI API key out of the renderer generation path", async () => {
+    useAi.setState({ providerId: "openai", openAiAuthMode: "apiKey" });
+    const loadKey = vi.spyOn(commands, "aiLoadKey");
+
+    await useAi.getState().saveKey("sk-test");
+    await useAi.getState().send("ask", "write a query");
+
+    expect(loadKey).not.toHaveBeenCalled();
+    expect(useAi.getState().modelId).toBe("gpt-5.6-sol");
+    expect(useAi.getState().messages.at(-1)).toMatchObject({
+      role: "model",
+    });
+    expect(useAi.getState().messages.at(-1)?.error).toBeFalsy();
+  });
+
+  it("rejects direct renderer reads of the OpenAI key", async () => {
+    await commands.aiStoreKey("openai", "sk-test");
+    await expect(unwrap(commands.aiLoadKey("openai"))).rejects.toThrow(
+      "backend-only",
+    );
+  });
+
+  it("connects ChatGPT OAuth and retains the app-server thread id", async () => {
+    useAi.setState({ providerId: "openai", openAiAuthMode: "chatgpt" });
+    await useAi.getState().startOpenAiLogin("browser");
+    const status = await useAi.getState().refreshOAuthStatus();
+    expect(status.signed_in).toBe(true);
+
+    await useAi.getState().refreshModels();
+    await useAi.getState().send("ask", "hello");
+    expect(useAi.getState().openAiThreadId).toBe("mock-openai-thread");
   });
 });
