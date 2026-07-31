@@ -55,7 +55,11 @@
   --color-delete-bg: var(--delete-bg);
   --color-delete-line: var(--delete-line);
   --color-warn: var(--warn);
+  --color-warn-bg: var(--warn-bg);
+  --color-warn-line: var(--warn-line);
   --color-info: var(--info);
+  --color-info-bg: var(--info-bg);
+  --color-info-line: var(--info-line);
 
   /* Engine */
   --color-eng-postgres: var(--eng-postgres);

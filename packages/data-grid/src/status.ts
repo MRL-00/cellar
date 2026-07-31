@@ -2,13 +2,13 @@ import type { PendingChanges, GridStatusCounts } from "./types";
 
 // ponytail: two near-identical maps collapsed; pending has intentionally different dot/text values
 const STATUS_COLORS: Record<string, { dot: string; text: string }> = {
-  pending:   { dot: "var(--warn)", text: "#fbbf24" },
+  pending:   { dot: "var(--warn)", text: "var(--warn)" },
   paid:      { dot: "var(--accent)", text: "var(--accent)" },
-  fulfilled: { dot: "#60a5fa", text: "#60a5fa" },
-  shipped:   { dot: "#a78bfa", text: "#a78bfa" },
-  delivered: { dot: "#34d399", text: "#34d399" },
-  cancelled: { dot: "#f87171", text: "#f87171" },
-  refunded:  { dot: "#fb7185", text: "#fb7185" },
+  fulfilled: { dot: "var(--fg-2)", text: "var(--fg-1)" },
+  shipped:   { dot: "var(--fg-2)", text: "var(--fg-1)" },
+  delivered: { dot: "var(--insert)", text: "var(--insert)" },
+  cancelled: { dot: "var(--delete)", text: "var(--delete)" },
+  refunded:  { dot: "var(--delete)", text: "var(--delete)" },
 };
 
 /** Color for the dot rendered next to a status enum value. */

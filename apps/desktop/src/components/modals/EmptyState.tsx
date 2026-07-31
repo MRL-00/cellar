@@ -14,17 +14,17 @@ const ENGINE_ORDER: Engine[] = [
 ];
 
 const ENGINE_HEX: Record<Engine, string> = {
-  postgres: "#4f8ff7",
-  mysql: "#f6a44a",
-  mssql: "#d97a5a",
-  azure: "#5bb8e0",
-  sqlite: "#a78bfa",
-  firestore: "#f4c542",
-  convex: "#f25c4d",
-  cosmos: "#6b5ce7",
-  supabase: "#3ecf8e",
-  neon: "#00e599",
-  planetscale: "#c8ccd4",
+  postgres: "#a1a1a1",
+  mysql: "#a1a1a1",
+  mssql: "#a1a1a1",
+  azure: "#a1a1a1",
+  sqlite: "#a1a1a1",
+  firestore: "#a1a1a1",
+  convex: "#a1a1a1",
+  cosmos: "#a1a1a1",
+  supabase: "#a1a1a1",
+  neon: "#a1a1a1",
+  planetscale: "#a1a1a1",
 };
 
 const SHORT: Record<Engine, string> = {
@@ -44,14 +44,7 @@ const SHORT: Record<Engine, string> = {
 export function EmptyState({ onNew }: { onNew: () => void }) {
   return (
     <div className="relative flex flex-1 items-center justify-center overflow-hidden bg-bg-0">
-      <div
-        className="pointer-events-none absolute inset-0 opacity-60"
-        style={{
-          backgroundImage:
-            "radial-gradient(circle at 30% 20%, var(--accent-soft), transparent 40%), radial-gradient(circle at 70% 80%, color-mix(in oklab, var(--syn-kw) 10%, transparent), transparent 50%)",
-        }}
-      />
-      <div className="relative w-[540px] rounded-xl border border-border-default bg-bg-1 px-9 pt-9 pb-7 text-center shadow-md">
+      <div className="relative w-[540px] rounded-lg border border-border-default bg-bg-1 px-9 pt-9 pb-7 text-center shadow-md">
         <div className="mb-[18px] flex justify-center">
           <CellarMark
             accented
@@ -74,7 +67,7 @@ export function EmptyState({ onNew }: { onNew: () => void }) {
             className="flex h-8 items-center justify-center gap-2 whitespace-nowrap rounded-[6px] border px-3 text-sm font-medium text-accent-fg transition-[filter] duration-[120ms] hover:brightness-[1.07]"
             style={{
               background: "var(--accent)",
-              borderColor: "color-mix(in oklab, var(--accent) 40%, black)",
+              borderColor: "var(--accent-line)",
             }}
           >
             <Icon.plus size={12} />

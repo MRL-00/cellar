@@ -5,7 +5,8 @@
   /* Render native controls (date/time pickers, spinners) in dark mode so they
      stay legible against the dark surfaces instead of defaulting to light. */
   color-scheme: dark;
-  /* Surfaces — neutral dark grays (no hue tint, so the accent is the only color) */
+
+  /* Surfaces — neutral dark grays, so the accent is the only color. */
   --bg-0: #0e0e0e;
   --bg-1: #161616;
   --bg-2: #1a1a1a;
@@ -13,23 +14,17 @@
   --bg-4: #262626;
   --bg-inset: #0a0a0a;
   --bg-overlay: rgba(8, 8, 8, 0.72);
-  /* Selected row / list item background */
   --bg-selected: #212121;
 
-  /* Borders — default is pure white at 4% per design */
+  /* Borders */
   --border-subtle: rgba(255, 255, 255, 0.03);
   --border-default: rgba(255, 255, 255, 0.04);
   --border-strong: rgba(255, 255, 255, 0.13);
   --border-divider: rgba(255, 255, 255, 0.05);
-  /* Resizable pane separators: a dark seam (darker than the surfaces) rather
-     than a light hairline, so the divider reads clearly on the dark theme. */
   --border-separator: rgba(0, 0, 0, 0.32);
-  /* Vertical separator between grid columns: stronger than the row divider so
-     columns read as distinct. */
   --grid-column-line: rgba(255, 255, 255, 0.08);
 
-  /* Text — neutral ramp anchored on the design's three named values:
-     strong #FFF, default #EEE, subtle #B5B5B5. */
+  /* Text */
   --fg-strong: #ffffff;
   --fg-0: #eeeeee;
   --fg-1: #cccccc;
@@ -37,11 +32,11 @@
   --fg-3: #6a6a6a;
   --fg-4: #484848;
 
-  /* Accent — violet (default per design) */
-  --accent: #a78bfa;
-  --accent-soft: rgba(167, 139, 250, 0.14);
-  --accent-line: rgba(167, 139, 250, 0.32);
-  --accent-fg: #0a0b0e;
+  /* Accent — neutral by default; users can choose color in settings. */
+  --accent: #e5e5e5;
+  --accent-soft: rgba(229, 229, 229, 0.12);
+  --accent-line: rgba(229, 229, 229, 0.28);
+  --accent-fg: #1c1c1c;
 
   /* Semantic */
   --insert: #4ade80;
@@ -54,20 +49,24 @@
   --delete-bg: rgba(248, 113, 113, 0.09);
   --delete-line: rgba(248, 113, 113, 0.22);
   --warn: #fbbf24;
+  --warn-bg: rgba(251, 191, 36, 0.09);
+  --warn-line: rgba(251, 191, 36, 0.24);
   --info: #60a5fa;
+  --info-bg: rgba(96, 165, 250, 0.09);
+  --info-line: rgba(96, 165, 250, 0.24);
 
-  /* Engine colors */
-  --eng-postgres: #4f8ff7;
-  --eng-mysql: #f6a44a;
-  --eng-mssql: #d97a5a;
-  --eng-azure: #5bb8e0;
-  --eng-sqlite: #a78bfa;
-  --eng-firestore: #f4c542;
-  --eng-convex: #f25c4d;
-  --eng-cosmos: #6b5ce7;
-  --eng-supabase: #3ecf8e;
-  --eng-neon: #00e599;
-  --eng-planetscale: #c8ccd4;
+  /* Engine colors stay neutral by default; connection accents are user-chosen. */
+  --eng-postgres: var(--fg-2);
+  --eng-mysql: var(--fg-2);
+  --eng-mssql: var(--fg-2);
+  --eng-azure: var(--fg-2);
+  --eng-sqlite: var(--fg-2);
+  --eng-firestore: var(--fg-2);
+  --eng-convex: var(--fg-2);
+  --eng-cosmos: var(--fg-2);
+  --eng-supabase: var(--fg-2);
+  --eng-neon: var(--fg-2);
+  --eng-planetscale: var(--fg-2);
 
   /* Syntax (SQL) */
   --syn-kw: #b794f6;
@@ -78,7 +77,7 @@
   --syn-comment: #5e6068;
   --syn-op: #c2c4c9;
   --syn-tbl: #f59e9e;
-  --syn-ghost: rgba(167, 139, 250, 0.55);
+  --syn-ghost: rgba(229, 229, 229, 0.55);
   --syn-error: #f87171;
 
   /* Shadows */
@@ -105,8 +104,6 @@
   --font-mono: "JetBrains Mono", "Geist Mono", ui-monospace, "SF Mono", "Menlo", "Consolas", monospace;
   --font-interface: var(--font-sans);
   --font-data: var(--font-mono);
-  /* Size scale: 13, 14 (base), 15, 17, 19, 25. Base lives on --fs-sm, which the
-     body uses (see base.css). */
   --fs-xs: 13px;
   --fs-sm: 14px;
   --fs-md: 15px;
@@ -140,12 +137,12 @@
   --fg-3: #9a9a9a;
   --fg-4: #c4c4c4;
 
-  --accent: #7c3aed;
-  --accent-soft: rgba(124, 58, 237, 0.10);
-  --accent-line: rgba(124, 58, 237, 0.28);
-  --accent-fg: #ffffff;
+  --accent: #1c1c1c;
+  --accent-soft: rgba(28, 28, 28, 0.08);
+  --accent-line: rgba(28, 28, 28, 0.24);
+  --accent-fg: #e5e5e5;
 
-  /* Semantic — darker than the dark-theme values so they read on light surfaces */
+  /* Semantic — darker than the dark-theme values so they read on light surfaces. */
   --insert: #16a34a;
   --insert-bg: rgba(22, 163, 74, 0.10);
   --insert-line: rgba(22, 163, 74, 0.25);
@@ -158,13 +155,14 @@
   --syn-comment: #9a9da4;
   --syn-op: #43464d;
   --syn-tbl: #b91c1c;
-  --syn-ghost: rgba(124, 58, 237, 0.55);
+  --syn-ghost: rgba(28, 28, 28, 0.45);
 }
 
 [data-density="compact"] {
   --row-h: 25px;
   --tab-h: 30px;
 }
+
 [data-density="comfortable"] {
   --row-h: 28px;
   --tab-h: 34px;

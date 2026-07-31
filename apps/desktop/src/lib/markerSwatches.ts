@@ -1,5 +1,6 @@
 /** Shared accent markers for connections and sidebar folders. */
 export const MARKER_SWATCHES = [
+  { color: "#a1a1a1", label: "Neutral" },
   { color: "#4f8ff7", label: "Blue" },
   { color: "#f6a44a", label: "Orange" },
   { color: "#d97a5a", label: "Coral" },

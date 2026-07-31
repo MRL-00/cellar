@@ -1,0 +1,18 @@
+<svg width="240" height="240" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" aria-label="Cellar">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="240" y2="240" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#c4b5fd"></stop>
+      <stop offset="55%" stop-color="#a78bfa"></stop>
+      <stop offset="100%" stop-color="#6d4ed1"></stop>
+    </linearGradient>
+    <linearGradient id="b" x1="120" y1="0" x2="120" y2="240" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="rgba(255,255,255,0.22)"></stop>
+      <stop offset="40%" stop-color="rgba(255,255,255,0)"></stop>
+    </linearGradient>
+    <clipPath id="r"><rect width="240" height="240" rx="48"></rect></clipPath>
+  </defs>
+  <g clip-path="url(#r)">
+    <path d="M 0 0 H 240 V 240 H 0 Z M 40 40 H 200 V 96 H 96 V 144 H 200 V 200 H 40 Z" fill-rule="evenodd" fill="url(#g)"></path>
+    <path d="M 0 0 H 240 V 240 H 0 Z M 40 40 H 200 V 96 H 96 V 144 H 200 V 200 H 40 Z" fill-rule="evenodd" fill="url(#b)"></path>
+  </g>
+</svg>

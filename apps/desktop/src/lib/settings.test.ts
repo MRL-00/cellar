@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DEFAULTS, applySettingsSideEffects } from "./settings";
+import { DEFAULTS, applySettingsSideEffects, sanitize } from "./settings";
 
 describe("applySettingsSideEffects", () => {
   let originalDocument: typeof globalThis.document;
@@ -94,7 +94,36 @@ describe("applySettingsSideEffects", () => {
     // Black has no contrast against the dark theme bg → brightened to a gray.
     expect(accentVar("#000000")).not.toBe("#000000");
     // A vivid accent already clears the threshold → left untouched.
-    expect(accentVar("#a78bfa")).toBe("#a78bfa");
+    expect(accentVar("#60a5fa")).toBe("#60a5fa");
+  });
+
+  it("applies a neutral dark accent by default", () => {
+    applySettingsSideEffects(DEFAULTS);
+
+    expect(document.documentElement.style.getPropertyValue("--font-sans")).toContain(
+      '"SF Pro Text"',
+    );
+    expect(document.documentElement.style.getPropertyValue("--accent")).toBe(
+      "#e5e5e5",
+    );
+    expect(document.documentElement.style.getPropertyValue("--accent-fg")).toBe(
+      "#0a0b0e",
+    );
+  });
+
+  it("inverts the neutral accent in light mode", () => {
+    applySettingsSideEffects({ ...DEFAULTS, theme: "light" });
+
+    expect(document.documentElement.style.getPropertyValue("--accent")).toBe(
+      "#1c1c1c",
+    );
+    expect(document.documentElement.style.getPropertyValue("--accent-fg")).toBe(
+      "#ffffff",
+    );
+  });
+
+  it("migrates the old purple default accent to neutral", () => {
+    expect(sanitize({ ...DEFAULTS, accent: "#a78bfa" }).accent).toBe("neutral");
   });
 });
 

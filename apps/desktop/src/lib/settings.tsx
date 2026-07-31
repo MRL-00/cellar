@@ -12,7 +12,15 @@ export type Theme = "system" | "dark" | "light";
 export type Density = "compact" | "comfortable";
 export type NullDisplay = "NULL" | "∅" | "(empty)";
 
+export const DEFAULT_ACCENT = "neutral";
+const LEGACY_DEFAULT_ACCENT = "#a78bfa";
+const NEUTRAL_ACCENT = {
+  dark: "#e5e5e5",
+  light: "#1c1c1c",
+} as const;
+
 export const ACCENT_SWATCHES = [
+  DEFAULT_ACCENT,
   "#4ade80",
   "#60a5fa",
   "#a78bfa",
@@ -61,7 +69,7 @@ export type Settings = {
 export const DEFAULTS: Settings = {
   theme: "dark",
   density: "compact",
-  accent: "#a78bfa",
+  accent: DEFAULT_ACCENT,
   fontSizePx: 13.5,
   interfaceFont: "SF Pro Text",
   monoFont: "JetBrains Mono",
@@ -124,6 +132,7 @@ export function sanitize(s: Settings): Settings {
   };
   return {
     ...s,
+    accent: s.accent === LEGACY_DEFAULT_ACCENT ? DEFAULT_ACCENT : s.accent,
     fontSizePx: clamp(s.fontSizePx, FONT_SIZE_MIN, FONT_SIZE_MAX),
     editor,
     grid,
@@ -143,8 +152,6 @@ export function applySettingsSideEffects(s: Settings) {
   html.setAttribute("data-theme", resolvedTheme);
   html.setAttribute("data-density", s.density);
 
-  // User-selected fonts override the leading family; the rest of the stack in
-  // tokens.css remains as graceful fallback for anything not installed.
   // The user-selected family leads; the rest is a graceful fallback only used
   // when that font isn't installed.
   const interfaceStack = `"${s.interfaceFont}", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif`;
@@ -154,10 +161,11 @@ export function applySettingsSideEffects(s: Settings) {
   html.style.setProperty("--font-mono", monoStack);
   html.style.setProperty("--font-data", monoStack);
 
+  const resolvedAccent = resolveAccent(s.accent, resolvedTheme);
   // Use an accent that's guaranteed visible against the theme background, so a
-  // dark/neutral pick doesn't render accent-colored UI (tabs, selection, icons)
+  // dark pick doesn't render accent-colored UI (tabs, selection, icons)
   // invisible. The raw value stays in settings (and drives the swatch picker).
-  const accent = visibleAccent(s.accent, resolvedTheme !== "light");
+  const accent = visibleAccent(resolvedAccent, resolvedTheme !== "light");
   html.style.setProperty("--accent", accent);
   html.style.setProperty(
     "--accent-soft",
@@ -183,6 +191,14 @@ export function applySettingsSideEffects(s: Settings) {
 
 function clamp(n: number, min: number, max: number) {
   return Math.min(Math.max(n, min), max);
+}
+
+function resolveAccent(accent: string, theme: "dark" | "light") {
+  return accent === DEFAULT_ACCENT
+    ? NEUTRAL_ACCENT[theme]
+    : accent === LEGACY_DEFAULT_ACCENT
+      ? NEUTRAL_ACCENT[theme]
+      : accent;
 }
 
 function parseHex(hex: string): [number, number, number] | null {

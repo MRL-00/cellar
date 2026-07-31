@@ -23,19 +23,18 @@ const ENGINE_ORDER: Engine[] = [
 ];
 
 const ENGINE_HEX: Record<Engine, string> = {
-  postgres: "#4f8ff7",
-  mysql: "#f6a44a",
-  mssql: "#d97a5a",
-  azure: "#5bb8e0",
-  sqlite: "#a78bfa",
-  firestore: "#f4c542",
-  convex: "#f25c4d",
-  cosmos: "#6b5ce7",
-  supabase: "#3ecf8e",
-  neon: "#00e599",
-  planetscale: "#c8ccd4",
+  postgres: "#a1a1a1",
+  mysql: "#a1a1a1",
+  mssql: "#a1a1a1",
+  azure: "#a1a1a1",
+  sqlite: "#a1a1a1",
+  firestore: "#a1a1a1",
+  convex: "#a1a1a1",
+  cosmos: "#a1a1a1",
+  supabase: "#a1a1a1",
+  neon: "#a1a1a1",
+  planetscale: "#a1a1a1",
 };
-
 const DEFAULT_PORT: Record<Engine, number> = {
   postgres: 5432,
   mysql: 3306,

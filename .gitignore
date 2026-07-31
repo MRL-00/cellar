@@ -6,7 +6,9 @@ node_modules/
 dist/
 build/
 target/
+apps/video/out/
 .turbo/
+**/.turbo/
 .clawpatch/
 .superset/
 

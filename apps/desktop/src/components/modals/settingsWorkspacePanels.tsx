@@ -1,6 +1,7 @@
 import { Icon } from "../icons";
 import {
   ACCENT_SWATCHES,
+  DEFAULT_ACCENT,
   FONT_SIZE_MAX,
   FONT_SIZE_MIN,
   useSettings,
@@ -20,8 +21,8 @@ import {
 // Curated, broadly-available fonts. Picking one not installed locally falls
 // through the stack in applySettingsSideEffects, so it stays safe.
 const SANS_FONTS = [
-  "Geist",
   "Inter",
+  "Geist",
   "SF Pro Text",
   "Helvetica Neue",
   "Arial",
@@ -88,19 +89,24 @@ export function SettingsAppearance() {
           <div className="flex flex-wrap gap-1">
             {ACCENT_SWATCHES.map((c) => {
               const active = settings.accent.toLowerCase() === c.toLowerCase();
+              const neutral = c === DEFAULT_ACCENT;
               return (
                 <button
                   type="button"
                   key={c}
                   onClick={() => set("accent", c)}
                   className={
-                    "h-[18px] w-[18px] rounded-[4px] border border-white/10 transition-transform hover:scale-110 " +
+                    "h-[18px] w-[18px] rounded-[6px] border border-border-default transition-transform hover:scale-110 " +
                     (active
                       ? "shadow-[0_0_0_2px_var(--bg-1),0_0_0_3px_var(--fg-0)]"
                       : "")
                   }
-                  style={{ background: c }}
-                  title={c}
+                  style={{
+                    background: neutral
+                      ? "linear-gradient(135deg, #e5e5e5 0 50%, #1c1c1c 50% 100%)"
+                      : c,
+                  }}
+                  title={neutral ? "Minimal neutral" : c}
                 />
               );
             })}
