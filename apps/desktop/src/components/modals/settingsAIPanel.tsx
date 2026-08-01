@@ -35,6 +35,7 @@ export function SettingsAI() {
   const [keyDraft, setKeyDraft] = useState("");
   const [saving, setSaving] = useState(false);
   const [reveal, setReveal] = useState(false);
+  const [browserError, setBrowserError] = useState<string | null>(null);
 
   const current = getProvider(providerId);
   const isOpenAi = providerId === "openai";
@@ -69,10 +70,28 @@ export function SettingsAI() {
 
   const onStartLogin = async (method: "browser" | "deviceCode") => {
     try {
+      setBrowserError(null);
       const started = await startOpenAiLogin(method);
-      openExternal(started.auth_url);
-    } catch {
+      await openExternal(started.auth_url);
+    } catch (error) {
+      if (useAi.getState().login) {
+        setBrowserError(
+          error instanceof Error ? error.message : "Cellar could not open your default browser.",
+        );
+      }
       // The store exposes the typed IPC error in the settings panel.
+    }
+  };
+
+  const onOpenLogin = async () => {
+    if (!login) return;
+    try {
+      setBrowserError(null);
+      await openExternal(login.auth_url);
+    } catch (error) {
+      setBrowserError(
+        error instanceof Error ? error.message : "Cellar could not open your default browser.",
+      );
     }
   };
 
@@ -297,6 +316,11 @@ export function SettingsAI() {
                   {login && (
                     <div className="rounded-[4px] border border-accent-line bg-accent-soft px-2.5 py-2 text-[11.5px] text-fg-1">
                       <div>Complete sign-in in your browser.</div>
+                      {browserError && (
+                        <div className="mt-1 text-delete" role="alert">
+                          Could not open the browser: {browserError}
+                        </div>
+                      )}
                       {login.user_code && (
                         <div className="mt-1 font-mono text-sm text-accent">
                           code: {login.user_code}
@@ -305,7 +329,7 @@ export function SettingsAI() {
                       <div className="mt-1 flex gap-2">
                         <button
                           type="button"
-                          onClick={() => openExternal(login.auth_url)}
+                          onClick={() => void onOpenLogin()}
                           className="text-accent hover:underline"
                         >
                           open again
