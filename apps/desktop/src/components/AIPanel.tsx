@@ -28,6 +28,7 @@ import { queryResultSource, useTabResults } from "../state/tabResults";
 import { useBottomPanel } from "../state/bottomPanel";
 import { revealBottomPanel } from "../state/layout";
 import { useStatus } from "../state/status";
+import { ContextMenu, type ContextMenuState } from "./ContextMenu";
 
 const chipMeta: Record<AiContextChip["kind"], { icon: ReactNode; color: string }> = {
   schema: { icon: <Icon.schema size={9} />, color: "var(--fg-1)" },
@@ -102,14 +103,18 @@ export function AIPanel({
   const [draft, setDraft] = useState("");
   const [topic, setTopic] = useState<AiTopic>("ask");
   const [preparing, setPreparing] = useState(false);
+  const [modelMenu, setModelMenu] = useState<ContextMenuState | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const init = useAi((s) => s.init);
   const modelId = useAi((s) => s.modelId);
-  const keyConfigured = useAi((s) => s.keyConfigured);
+  const models = useAi((s) => s.models);
+  const modelsLoading = useAi((s) => s.modelsLoading);
+  const configured = useAi((s) => s.configured);
   const messages = useAi((s) => s.messages);
   const sending = useAi((s) => s.sending);
   const send = useAi((s) => s.send);
+  const setModel = useAi((s) => s.setModel);
   const newThread = useAi((s) => s.newThread);
   const setQuerySql = useTabs((s) => s.setQuerySql);
   const newQueryTab = useTabs((s) => s.newQueryTab);
@@ -149,7 +154,7 @@ export function AIPanel({
     };
   }, []);
 
-  const ready = keyConfigured && !!modelId;
+  const ready = configured && !!modelId;
   const canSend = ready && draft.trim().length > 0 && !sending && !preparing;
 
   const submit = () => {
@@ -183,6 +188,23 @@ export function AIPanel({
   const pickTopic = (t: AiTopic) => {
     setTopic((cur) => (cur === t ? "ask" : t));
     textareaRef.current?.focus();
+  };
+
+  const openModelMenu = (event: React.MouseEvent<HTMLButtonElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    setModelMenu({
+      x: rect.left,
+      y: rect.bottom + 4,
+      items: models.map((model) => ({
+        label: model.id,
+        icon: (
+          <span style={{ color: model.id === modelId ? "var(--accent)" : "var(--fg-3)" }}>
+            {model.id === modelId ? "●" : "○"}
+          </span>
+        ),
+        onClick: () => setModel(model.id),
+      })),
+    });
   };
 
   const insertSql = useCallback((sql: string): SqlScope | null => {
@@ -419,7 +441,7 @@ export function AIPanel({
               >
                 <Icon.settings size={11} />
                 <span>
-                  {keyConfigured ? "Select a model" : "Configure a provider"}
+                  {configured ? "Select a model" : "Configure a provider"}
                 </span>
               </button>
             )}
@@ -498,11 +520,27 @@ export function AIPanel({
               >
                 <Icon.paperclip size={11} />
               </button>
-              <span className="ml-1 inline-flex items-center gap-[3px] text-[11.5px]">
+              <span className="ml-1 inline-flex min-w-0 items-center gap-[3px] text-[11.5px]">
                 {ready ? (
-                  <span style={{ color: "var(--fg-3)" }}>
-                    {topic} · {modelId}
-                  </span>
+                  <>
+                    <span className="shrink-0 text-fg-3">{topic}</span>
+                    <span className="shrink-0 text-fg-3">·</span>
+                    <button
+                      type="button"
+                      aria-label="Change AI model"
+                      aria-haspopup="menu"
+                      aria-expanded={modelMenu !== null}
+                      title="Change AI model"
+                      disabled={sending || preparing || modelsLoading || models.length < 2}
+                      onClick={openModelMenu}
+                      className="inline-flex h-[22px] min-w-0 max-w-[180px] items-center gap-1 rounded-[4px] px-1.5 font-mono text-[11.5px] text-fg-3 transition-colors hover:bg-bg-2 hover:text-fg-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent-line disabled:pointer-events-none disabled:opacity-70"
+                    >
+                      <span className="truncate">{modelId}</span>
+                      {models.length > 1 && (
+                        <Icon.chevronDown size={9} style={{ opacity: 0.65 }} />
+                      )}
+                    </button>
+                  </>
                 ) : (
                   <button
                     onClick={onOpenSettings}
@@ -524,6 +562,7 @@ export function AIPanel({
           </div>
         </div>
       </div>
+      <ContextMenu state={modelMenu} onClose={() => setModelMenu(null)} />
     </div>
   );
 }

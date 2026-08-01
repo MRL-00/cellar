@@ -11,6 +11,7 @@
     "core:window:allow-toggle-maximize",
     "updater:default",
     "process:default",
-    "opener:allow-open-url"
+    "opener:allow-open-url",
+    "opener:allow-default-urls"
   ]
 }

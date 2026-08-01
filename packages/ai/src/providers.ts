@@ -1,8 +1,7 @@
 import type { AiProviderId } from "./types";
 
 /** Static metadata for the provider picker. `enabled` gates whether a provider
- * can be selected — only Google/Gemini is wired today; everything else renders
- * with a "coming soon" tag and is non-interactive. */
+ * can be selected; unavailable providers render with a "coming soon" tag. */
 export interface ProviderMeta {
   id: AiProviderId;
   label: string;
@@ -26,7 +25,7 @@ export const PROVIDERS: ProviderMeta[] = [
   },
   // ponytail: disabled providers keep full shape (getProvider returns ProviderMeta), just compacted
   { id: "anthropic", label: "Anthropic", sub: "claude-* family",      enabled: false, keyPrefix: "sk-ant-", endpoint: "https://api.anthropic.com/v1" },
-  { id: "openai",    label: "OpenAI",    sub: "gpt-* family",          enabled: false, keyPrefix: "sk-",     endpoint: "https://api.openai.com/v1" },
+  { id: "openai",    label: "OpenAI",    sub: "GPT + ChatGPT",          enabled: true,  keyPrefix: "sk-",     endpoint: "https://api.openai.com/v1" },
   { id: "local",     label: "Local",     sub: "Ollama, LM Studio",     enabled: false, keyPrefix: "none",    endpoint: "http://localhost:11434/v1" },
   { id: "custom",    label: "Custom",    sub: "OpenAI-compatible URL", enabled: false, keyPrefix: "key",     endpoint: "https://example.invalid/v1" },
 ];
@@ -37,5 +36,5 @@ export function getProvider(id: AiProviderId): ProviderMeta {
   return p;
 }
 
-/** The provider Cellar defaults to and the only one wired end-to-end. */
+/** The provider Cellar defaults to. */
 export const DEFAULT_PROVIDER: AiProviderId = "google";

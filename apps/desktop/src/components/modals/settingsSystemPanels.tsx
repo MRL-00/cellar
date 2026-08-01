@@ -250,7 +250,7 @@ export function SettingsAbout() {
               built by{" "}
               <button
                 type="button"
-                onClick={() => openExternal("https://x.com/codermatt")}
+                onClick={() => void openExternal("https://x.com/codermatt")}
                 className="text-fg-1 underline underline-offset-2 hover:text-fg-0"
               >
                 Matt List
@@ -268,7 +268,7 @@ export function SettingsAbout() {
               <span className="text-fg-3">·</span>
               <button
                 type="button"
-                onClick={() => openExternal("https://github.com/MRL-00/cellar")}
+                onClick={() => void openExternal("https://github.com/MRL-00/cellar")}
                 className="text-fg-2 underline underline-offset-2 hover:text-fg-0"
               >
                 github
@@ -277,7 +277,7 @@ export function SettingsAbout() {
               <button
                 type="button"
                 onClick={() =>
-                  openExternal("https://github.com/MRL-00/cellar/releases")
+                  void openExternal("https://github.com/MRL-00/cellar/releases")
                 }
                 className="text-fg-2 underline underline-offset-2 hover:text-fg-0"
               >

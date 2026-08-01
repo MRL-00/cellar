@@ -30,6 +30,13 @@ import type {
   MigrationApplyResult,
   SchemaSnapshotMeta,
   Dialect,
+  OpenAiAuthMode,
+  OpenAiGenerateRequest,
+  OpenAiGenerateResult,
+  OpenAiLoginMethod,
+  OpenAiLoginStart,
+  OpenAiModel,
+  OpenAiOAuthStatus,
 } from "./generated";
 
 function sourceLabel(source: SchemaSource): string {
@@ -290,7 +297,15 @@ export const mockCommands = {
   },
 
   aiLoadKey: async (provider: string): Promise<Result<string | null, CellarError>> =>
-    ok(mockAiKeys.get(provider) ?? null),
+    provider === "openai"
+      ? {
+          status: "error",
+          error: {
+            kind: "InvalidConfig",
+            detail: "OpenAI credentials are backend-only and cannot be loaded by the renderer.",
+          },
+        }
+      : ok(mockAiKeys.get(provider) ?? null),
 
   aiDeleteKey: async (provider: string): Promise<Result<null, CellarError>> => {
     mockAiKeys.delete(provider);
@@ -299,6 +314,57 @@ export const mockCommands = {
 
   aiHasKey: async (provider: string): Promise<Result<boolean, CellarError>> =>
     ok(mockAiKeys.has(provider)),
+
+  aiOpenaiOauthStatus: async (): Promise<
+    Result<OpenAiOAuthStatus, CellarError>
+  > =>
+    ok({
+      signed_in: mockOpenAiSignedIn,
+      email: mockOpenAiSignedIn ? "demo@example.com" : null,
+      plan_type: mockOpenAiSignedIn ? "plus" : null,
+    }),
+
+  aiOpenaiStartLogin: async (
+    method: OpenAiLoginMethod,
+  ): Promise<Result<OpenAiLoginStart, CellarError>> => {
+    mockOpenAiSignedIn = true;
+    return ok({
+      login_id: "mock-openai-login",
+      auth_url: "https://chatgpt.com/",
+      user_code: method === "deviceCode" ? "CELLAR" : null,
+    });
+  },
+
+  aiOpenaiCancelLogin: async (
+    _loginId: string,
+  ): Promise<Result<null, CellarError>> => ok(null),
+
+  aiOpenaiLogout: async (): Promise<Result<null, CellarError>> => {
+    mockOpenAiSignedIn = false;
+    return ok(null);
+  },
+
+  aiOpenaiListModels: async (
+    _authMode: OpenAiAuthMode,
+  ): Promise<Result<OpenAiModel[], CellarError>> =>
+    ok([
+      {
+        id: "gpt-5.6-sol",
+        label: "GPT-5.6 Sol",
+        description: "Mock OpenAI model",
+        is_default: true,
+      },
+    ]),
+
+  aiOpenaiGenerate: async (
+    _authMode: OpenAiAuthMode,
+    _request: OpenAiGenerateRequest,
+  ): Promise<Result<OpenAiGenerateResult, CellarError>> =>
+    ok({
+      text: "```sql\nSELECT 1;\n```",
+      usage: { prompt_tokens: 1, completion_tokens: 2, total_tokens: 3 },
+      thread_id: "mock-openai-thread",
+    }),
 
   // Query templates: in web mode there is no `~/.cellar/queries`, so hold them
   // in memory for the session — enough to drive the save/list/delete flow.
@@ -331,4 +397,5 @@ export const mockCommands = {
 };
 
 const mockAiKeys = new Map<string, string>();
+let mockOpenAiSignedIn = false;
 const mockTemplates = new Map<string, QueryTemplate>();

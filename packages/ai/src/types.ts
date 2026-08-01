@@ -1,9 +1,13 @@
 // Shared AI types. This package is provider-agnostic at the type level: the
-// concrete provider client (currently Gemini) lives alongside in its own file.
+// concrete provider clients live either alongside it (Gemini) or behind typed
+// desktop IPC when credentials must stay out of the renderer (OpenAI).
 
-/** Providers Cellar knows about. Only `google` is wired today; the rest are
- * surfaced in the UI as "coming soon" and are not selectable. */
+/** Providers Cellar knows about. */
 export type AiProviderId = "google" | "anthropic" | "openai" | "local" | "custom";
+
+/** OpenAI supports usage-based Platform API keys and ChatGPT subscription
+ * access. The latter is implemented by the local Codex app-server OAuth flow. */
+export type OpenAiAuthMode = "apiKey" | "chatgpt";
 
 /** The four task presets the AI panel exposes, plus the free-form `ask`. These
  * map 1:1 to the bottom-bar buttons in the right-hand AI panel. */

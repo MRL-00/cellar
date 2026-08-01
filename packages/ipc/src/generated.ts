@@ -360,6 +360,54 @@ async aiHasKey(provider: string) : Promise<Result<boolean, CellarError>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async aiOpenaiOauthStatus() : Promise<Result<OpenAiOAuthStatus, CellarError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("ai_openai_oauth_status") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async aiOpenaiStartLogin(method: OpenAiLoginMethod) : Promise<Result<OpenAiLoginStart, CellarError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("ai_openai_start_login", { method }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async aiOpenaiCancelLogin(loginId: string) : Promise<Result<null, CellarError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("ai_openai_cancel_login", { loginId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async aiOpenaiLogout() : Promise<Result<null, CellarError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("ai_openai_logout") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async aiOpenaiListModels(authMode: OpenAiAuthMode) : Promise<Result<OpenAiModel[], CellarError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("ai_openai_list_models", { authMode }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async aiOpenaiGenerate(authMode: OpenAiAuthMode, request: OpenAiGenerateRequest) : Promise<Result<OpenAiGenerateResult, CellarError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("ai_openai_generate", { authMode, request }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -623,6 +671,15 @@ object: string; description: string;
 destructive: boolean; sql: string }
 export type NoticeCapture = { supported: boolean; reason: string | null }
 export type NoticeSeverity = "panic" | "fatal" | "error" | "warning" | "notice" | "info" | "log" | "debug" | "unknown"
+export type OpenAiAuthMode = "apiKey" | "chatgpt"
+export type OpenAiChatMessage = { role: string; content: string }
+export type OpenAiGenerateRequest = { model: string; messages: OpenAiChatMessage[]; system_instruction: string | null; thread_id: string | null }
+export type OpenAiGenerateResult = { text: string; usage: OpenAiTokenUsage | null; thread_id: string | null }
+export type OpenAiLoginMethod = "browser" | "deviceCode"
+export type OpenAiLoginStart = { login_id: string; auth_url: string; user_code: string | null }
+export type OpenAiModel = { id: string; label: string; description: string | null; is_default: boolean }
+export type OpenAiOAuthStatus = { signed_in: boolean; email: string | null; plan_type: string | null }
+export type OpenAiTokenUsage = { prompt_tokens: number; completion_tokens: number; total_tokens: number }
 /**
  * Whether a detected placeholder was written as a named (`:name`) or
  * positional (`$N`) parameter.
