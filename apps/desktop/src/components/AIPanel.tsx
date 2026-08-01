@@ -28,6 +28,7 @@ import { queryResultSource, useTabResults } from "../state/tabResults";
 import { useBottomPanel } from "../state/bottomPanel";
 import { revealBottomPanel } from "../state/layout";
 import { useStatus } from "../state/status";
+import { ContextMenu, type ContextMenuState } from "./ContextMenu";
 
 const chipMeta: Record<AiContextChip["kind"], { icon: ReactNode; color: string }> = {
   schema: { icon: <Icon.schema size={9} />, color: "var(--fg-1)" },
@@ -102,6 +103,7 @@ export function AIPanel({
   const [draft, setDraft] = useState("");
   const [topic, setTopic] = useState<AiTopic>("ask");
   const [preparing, setPreparing] = useState(false);
+  const [modelMenu, setModelMenu] = useState<ContextMenuState | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const init = useAi((s) => s.init);
@@ -186,6 +188,23 @@ export function AIPanel({
   const pickTopic = (t: AiTopic) => {
     setTopic((cur) => (cur === t ? "ask" : t));
     textareaRef.current?.focus();
+  };
+
+  const openModelMenu = (event: React.MouseEvent<HTMLButtonElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    setModelMenu({
+      x: rect.left,
+      y: rect.bottom + 4,
+      items: models.map((model) => ({
+        label: model.id,
+        icon: (
+          <span style={{ color: model.id === modelId ? "var(--accent)" : "var(--fg-3)" }}>
+            {model.id === modelId ? "●" : "○"}
+          </span>
+        ),
+        onClick: () => setModel(model.id),
+      })),
+    });
   };
 
   const insertSql = useCallback((sql: string): SqlScope | null => {
@@ -506,27 +525,21 @@ export function AIPanel({
                   <>
                     <span className="shrink-0 text-fg-3">{topic}</span>
                     <span className="shrink-0 text-fg-3">·</span>
-                    <span className="relative min-w-0">
-                      <select
-                        aria-label="AI model"
-                        title="Change AI model"
-                        value={modelId ?? ""}
-                        disabled={sending || preparing || modelsLoading || models.length < 2}
-                        onChange={(event) => setModel(event.target.value)}
-                        className="h-[22px] max-w-[180px] appearance-none truncate rounded-[4px] border border-transparent bg-transparent py-0 pl-1 pr-5 font-mono text-[11.5px] text-fg-3 outline-none transition-colors hover:border-border-default hover:bg-bg-2 hover:text-fg-1 focus:border-accent-line focus:bg-bg-2 focus:text-fg-1 disabled:pointer-events-none disabled:opacity-70"
-                      >
-                        {models.map((model) => (
-                          <option key={model.id} value={model.id}>
-                            {model.id}
-                          </option>
-                        ))}
-                      </select>
+                    <button
+                      type="button"
+                      aria-label="Change AI model"
+                      aria-haspopup="menu"
+                      aria-expanded={modelMenu !== null}
+                      title="Change AI model"
+                      disabled={sending || preparing || modelsLoading || models.length < 2}
+                      onClick={openModelMenu}
+                      className="inline-flex h-[22px] min-w-0 max-w-[180px] items-center gap-1 rounded-[4px] px-1.5 font-mono text-[11.5px] text-fg-3 transition-colors hover:bg-bg-2 hover:text-fg-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent-line disabled:pointer-events-none disabled:opacity-70"
+                    >
+                      <span className="truncate">{modelId}</span>
                       {models.length > 1 && (
-                        <span className="pointer-events-none absolute right-1.5 top-1/2 inline-flex -translate-y-1/2 text-fg-3">
-                          <Icon.chevronDown size={9} />
-                        </span>
+                        <Icon.chevronDown size={9} style={{ opacity: 0.65 }} />
                       )}
-                    </span>
+                    </button>
                   </>
                 ) : (
                   <button
@@ -549,6 +562,7 @@ export function AIPanel({
           </div>
         </div>
       </div>
+      <ContextMenu state={modelMenu} onClose={() => setModelMenu(null)} />
     </div>
   );
 }
