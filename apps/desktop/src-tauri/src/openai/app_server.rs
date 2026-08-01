@@ -8,8 +8,8 @@ use tokio::process::{Child, ChildStdin, ChildStdout, Command};
 use tokio::time::timeout;
 
 use super::{
-    OpenAiGenerateRequest, OpenAiGenerateResult, OpenAiLoginMethod, OpenAiLoginStart, OpenAiModel,
-    OpenAiOAuthStatus, OpenAiTokenUsage,
+    OpenAiChatMessage, OpenAiGenerateRequest, OpenAiGenerateResult, OpenAiLoginMethod,
+    OpenAiLoginStart, OpenAiModel, OpenAiOAuthStatus, OpenAiTokenUsage,
 };
 use crate::state::cellar_dir;
 
@@ -213,6 +213,7 @@ impl CodexAppServer {
             .ok_or_else(|| CellarError::invalid_config("the OpenAI request has no user message"))?
             .to_string();
         let model = request.model.clone();
+        let starting_new_thread = request.thread_id.is_none();
         let thread_id = match request.thread_id {
             Some(id) => id,
             None => {
@@ -243,6 +244,16 @@ impl CodexAppServer {
                     .to_string()
             }
         };
+        if starting_new_thread {
+            let items = history_items(&request.messages[..request.messages.len() - 1]);
+            if !items.is_empty() {
+                self.request(
+                    "thread/inject_items",
+                    json!({ "threadId": thread_id, "items": items }),
+                )
+                .await?;
+            }
+        }
         let result = self
             .request(
                 "turn/start",
@@ -259,9 +270,21 @@ impl CodexAppServer {
             .and_then(Value::as_str)
             .ok_or_else(|| CellarError::decode("Codex did not return a turn id"))?
             .to_string();
-        let (text, usage) = timeout(TURN_TIMEOUT, self.collect_turn(&thread_id, &turn_id))
-            .await
-            .map_err(|_| CellarError::Timeout("The ChatGPT turn timed out".into()))??;
+        let (text, usage) =
+            match timeout(TURN_TIMEOUT, self.collect_turn(&thread_id, &turn_id)).await {
+                Ok(result) => result?,
+                Err(_) => {
+                    let cleanup = timeout(
+                        REQUEST_TIMEOUT,
+                        self.interrupt_turn_and_drain(&thread_id, &turn_id),
+                    )
+                    .await;
+                    if !matches!(cleanup, Ok(Ok(()))) {
+                        let _ = self.child.kill().await;
+                    }
+                    return Err(CellarError::Timeout("The ChatGPT turn timed out".into()));
+                }
+            };
         Ok(OpenAiGenerateResult {
             text,
             usage,
@@ -341,6 +364,34 @@ impl CodexAppServer {
         }
     }
 
+    async fn interrupt_turn_and_drain(
+        &mut self,
+        thread_id: &str,
+        turn_id: &str,
+    ) -> CellarResult<()> {
+        let interrupt_id = self
+            .send_without_wait(
+                "turn/interrupt",
+                json!({ "threadId": thread_id, "turnId": turn_id }),
+            )
+            .await?;
+        let mut acknowledged = false;
+        let mut completed = false;
+        while !acknowledged || !completed {
+            let message = self.read_message().await?;
+            if message.get("id").and_then(Value::as_u64) == Some(interrupt_id) {
+                if let Some(error) = message.get("error") {
+                    return Err(rpc_error(error));
+                }
+                acknowledged = true;
+            }
+            if is_turn_completed(&message, thread_id, turn_id) {
+                completed = true;
+            }
+        }
+        Ok(())
+    }
+
     async fn request(&mut self, method: &str, params: Value) -> CellarResult<Value> {
         timeout(REQUEST_TIMEOUT, self.request_inner(method, params))
             .await
@@ -406,6 +457,37 @@ fn value_u64(value: &Value, field: &str) -> u64 {
     value.get(field).and_then(Value::as_u64).unwrap_or(0)
 }
 
+fn history_items(messages: &[OpenAiChatMessage]) -> Vec<Value> {
+    messages
+        .iter()
+        .filter_map(|message| {
+            let text = message.content.trim();
+            if text.is_empty() {
+                return None;
+            }
+            match message.role.as_str() {
+                "user" => Some(json!({
+                    "type": "message",
+                    "role": "user",
+                    "content": [{ "type": "input_text", "text": text }]
+                })),
+                "model" | "assistant" => Some(json!({
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [{ "type": "output_text", "text": text }]
+                })),
+                _ => None,
+            }
+        })
+        .collect()
+}
+
+fn is_turn_completed(message: &Value, thread_id: &str, turn_id: &str) -> bool {
+    message.get("method").and_then(Value::as_str) == Some("turn/completed")
+        && message.pointer("/params/threadId").and_then(Value::as_str) == Some(thread_id)
+        && message.pointer("/params/turn/id").and_then(Value::as_str) == Some(turn_id)
+}
+
 fn is_blocked_item(item_type: &str) -> bool {
     matches!(
         item_type,
@@ -448,7 +530,8 @@ fn rpc_error(error: &Value) -> CellarError {
 
 #[cfg(test)]
 mod tests {
-    use super::{completed_agent_text, is_blocked_item};
+    use super::{completed_agent_text, history_items, is_blocked_item, is_turn_completed};
+    use crate::openai::OpenAiChatMessage;
     use serde_json::json;
 
     #[test]
@@ -464,5 +547,44 @@ mod tests {
             "turn": { "items": [{"type": "agentMessage", "text": "done"}] }
         });
         assert_eq!(completed_agent_text(&params), "done");
+    }
+
+    #[test]
+    fn converts_existing_chat_history_to_response_items() {
+        let messages = vec![
+            OpenAiChatMessage {
+                role: "user".into(),
+                content: "first question".into(),
+            },
+            OpenAiChatMessage {
+                role: "model".into(),
+                content: "first answer".into(),
+            },
+        ];
+        assert_eq!(
+            history_items(&messages),
+            vec![
+                json!({
+                    "type": "message",
+                    "role": "user",
+                    "content": [{ "type": "input_text", "text": "first question" }]
+                }),
+                json!({
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [{ "type": "output_text", "text": "first answer" }]
+                }),
+            ]
+        );
+    }
+
+    #[test]
+    fn identifies_only_the_requested_turn_completion() {
+        let message = json!({
+            "method": "turn/completed",
+            "params": { "threadId": "thread-1", "turn": { "id": "turn-1" } }
+        });
+        assert!(is_turn_completed(&message, "thread-1", "turn-1"));
+        assert!(!is_turn_completed(&message, "thread-1", "turn-2"));
     }
 }

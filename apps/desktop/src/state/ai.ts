@@ -74,6 +74,8 @@ function persist(value: Persisted) {
 }
 
 let entrySeq = 0;
+let modelDiscoverySeq = 0;
+
 function nextId(): string {
   entrySeq += 1;
   return `ai-${entrySeq}`;
@@ -174,6 +176,7 @@ export const useAi = create<AiStore>((set, get) => ({
   },
 
   setProvider(id) {
+    modelDiscoverySeq += 1;
     set({
       providerId: id,
       modelId: null,
@@ -184,6 +187,7 @@ export const useAi = create<AiStore>((set, get) => ({
       login: null,
       openAiThreadId: null,
       models: [],
+      modelsLoading: false,
       modelsError: null,
     });
     persist({
@@ -195,6 +199,7 @@ export const useAi = create<AiStore>((set, get) => ({
   },
 
   setOpenAiAuthMode(mode) {
+    modelDiscoverySeq += 1;
     set({
       openAiAuthMode: mode,
       modelId: null,
@@ -205,6 +210,7 @@ export const useAi = create<AiStore>((set, get) => ({
       login: null,
       openAiThreadId: null,
       models: [],
+      modelsLoading: false,
       modelsError: null,
     });
     persist({ providerId: get().providerId, modelId: null, openAiAuthMode: mode });
@@ -229,11 +235,13 @@ export const useAi = create<AiStore>((set, get) => ({
 
   async clearKey() {
     const provider = get().providerId;
+    modelDiscoverySeq += 1;
     await unwrap(commands.aiDeleteKey(provider));
     set({
       keyConfigured: false,
       configured: false,
       models: [],
+      modelsLoading: false,
       modelId: null,
       modelsError: null,
       openAiThreadId: null,
@@ -277,19 +285,30 @@ export const useAi = create<AiStore>((set, get) => ({
   },
 
   async logoutOpenAi() {
+    modelDiscoverySeq += 1;
     await unwrap(commands.aiOpenaiLogout());
     set({
       oauthStatus: null,
       login: null,
       configured: false,
       models: [],
+      modelsLoading: false,
       modelId: null,
       openAiThreadId: null,
     });
   },
 
   async refreshModels() {
+    const discoveryId = ++modelDiscoverySeq;
     const { providerId, openAiAuthMode } = get();
+    const isCurrentDiscovery = () => {
+      const state = get();
+      return (
+        discoveryId === modelDiscoverySeq &&
+        state.providerId === providerId &&
+        state.openAiAuthMode === openAiAuthMode
+      );
+    };
     set({ modelsLoading: true, modelsError: null });
     try {
       let models: AiModel[];
@@ -297,6 +316,7 @@ export const useAi = create<AiStore>((set, get) => ({
       if (providerId === "google") {
         const key = await unwrap(commands.aiLoadKey(providerId));
         if (!key) {
+          if (!isCurrentDiscovery()) return;
           set({ modelsLoading: false, models: [], keyConfigured: false, configured: false });
           return;
         }
@@ -311,6 +331,7 @@ export const useAi = create<AiStore>((set, get) => ({
       } else {
         throw new Error("This AI provider is not implemented yet.");
       }
+      if (!isCurrentDiscovery()) return;
       const current = get().modelId;
       const modelId =
         current && models.some((model) => model.id === current)
@@ -319,6 +340,7 @@ export const useAi = create<AiStore>((set, get) => ({
       set({ models, modelsLoading: false, configured: true, modelId });
       persist({ providerId, modelId, openAiAuthMode });
     } catch (error) {
+      if (!isCurrentDiscovery()) return;
       set({ modelsLoading: false, modelsError: describeError(error) });
     }
   },

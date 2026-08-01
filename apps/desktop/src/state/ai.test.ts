@@ -111,6 +111,31 @@ describe("useAi store", () => {
     expect(await commands.aiHasKey("google")).toMatchObject({ data: false });
   });
 
+  it("ignores model discovery that finishes after the provider changes", async () => {
+    await commands.aiStoreKey("google", "AIzaTEST");
+    let finishDiscovery!: (models: ai.AiModel[]) => void;
+    vi.mocked(ai.listGeminiModels).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishDiscovery = resolve;
+        }),
+    );
+
+    const discovery = useAi.getState().refreshModels();
+    await vi.waitFor(() => expect(ai.listGeminiModels).toHaveBeenCalledOnce());
+    useAi.getState().setProvider("openai");
+    finishDiscovery([{ id: "stale-model", label: "Stale model" }]);
+    await discovery;
+
+    expect(useAi.getState()).toMatchObject({
+      providerId: "openai",
+      modelId: null,
+      models: [],
+      modelsLoading: false,
+      configured: false,
+    });
+  });
+
   it("newThread clears the conversation", () => {
     useAi.setState({
       messages: [{ id: "x", role: "user", content: "hi" }],
