@@ -17,19 +17,7 @@ pub(super) async fn list_models(
         .send()
         .await
         .map_err(|error| network_error(config, error))?;
-    let status = response.status();
-    let body = response
-        .json::<Value>()
-        .await
-        .map_err(|error| network_error(config, error))?;
-    if !status.is_success() {
-        return Err(provider_error(
-            config,
-            status.as_u16(),
-            &body,
-            "Failed to list models",
-        ));
-    }
+    let body = response_json(response, config, "Failed to list models").await?;
     parse_models(&body)
 }
 
@@ -47,20 +35,35 @@ pub(super) async fn generate(
         .send()
         .await
         .map_err(|error| network_error(config, error))?;
+    let body = response_json(response, config, "Generation failed").await?;
+    parse_generation(config, &body)
+}
+
+async fn response_json(
+    response: reqwest::Response,
+    config: ProviderConfig,
+    failure_fallback: &str,
+) -> CellarResult<Value> {
     let status = response.status();
-    let body = response
-        .json::<Value>()
+    let text = response
+        .text()
         .await
         .map_err(|error| network_error(config, error))?;
     if !status.is_success() {
+        let body = serde_json::from_str::<Value>(&text).ok();
         return Err(provider_error(
             config,
             status.as_u16(),
-            &body,
-            "Generation failed",
+            body.as_ref(),
+            failure_fallback,
         ));
     }
-    parse_generation(config, &body)
+    serde_json::from_str(&text).map_err(|error| {
+        CellarError::decode(format!(
+            "Could not decode the {} response: {error}",
+            config.label
+        ))
+    })
 }
 
 fn chat_payload(config: ProviderConfig, request: &BackendAiGenerateRequest) -> Value {
@@ -158,11 +161,11 @@ fn network_error(config: ProviderConfig, error: reqwest::Error) -> CellarError {
 fn provider_error(
     config: ProviderConfig,
     status: u16,
-    body: &Value,
+    body: Option<&Value>,
     fallback: &str,
 ) -> CellarError {
     let message = body
-        .pointer("/error/message")
+        .and_then(|body| body.pointer("/error/message"))
         .and_then(Value::as_str)
         .unwrap_or(fallback);
     match status {
@@ -174,10 +177,11 @@ fn provider_error(
 
 #[cfg(test)]
 mod tests {
-    use super::{chat_payload, parse_generation, parse_models};
+    use super::{chat_payload, parse_generation, parse_models, provider_error};
     use crate::ai_backend::{
         AiThinkingMode, BackendAiChatMessage, BackendAiGenerateRequest, BackendAiProvider,
     };
+    use cellar_core::error::CellarError;
     use serde_json::json;
 
     #[test]
@@ -238,5 +242,22 @@ mod tests {
         .unwrap();
         assert_eq!(result.text, "SELECT 1");
         assert_eq!(result.usage.unwrap().total_tokens, 6);
+    }
+
+    #[test]
+    fn preserves_status_when_provider_error_is_not_json() {
+        let config = BackendAiProvider::Deepseek.config();
+        let authentication = provider_error(config, 401, None, "Generation failed");
+        assert!(matches!(
+            authentication,
+            CellarError::Authentication(message) if message == "Generation failed"
+        ));
+
+        let provider = provider_error(config, 502, None, "Generation failed");
+        assert!(matches!(
+            provider,
+            CellarError::Query(message)
+                if message == "DeepSeek: Generation failed (HTTP 502)"
+        ));
     }
 }
