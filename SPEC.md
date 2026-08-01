@@ -79,7 +79,7 @@ Cellar is **not** aimed at non-technical business users. The UI assumes you unde
 | DB drivers | `sqlx` (Postgres, MySQL, SQLite), `tiberius` (SQL Server) | Mature, async, dialect-aware |
 | IPC type generation | `specta` + `tauri-specta` | End hand-syncing types between Rust and TS |
 | Credential storage | OS keychain via `keyring` crate, fallback to encrypted file | Standard, secure |
-| AI providers | Provider adapters plus typed Tauri IPC for privileged auth | Most providers can use direct HTTP; OpenAI keys and ChatGPT OAuth stay out of the webview |
+| AI providers | Provider adapters plus typed Tauri IPC for privileged auth | Backend providers keep API keys and OAuth credentials out of the webview |
 | Telemetry | None by default. Opt-in only, self-hosted endpoint configurable. | Trust |
 | Package management | pnpm workspaces + Cargo workspaces | Two ecosystems, two tools |
 | Monorepo orchestration | Turborepo | Just enough, no Nx complexity |
@@ -361,6 +361,7 @@ AI is a first-class feature, not an afterthought. It lives in the right panel an
 
 - Anthropic (Claude models)
 - OpenAI (GPT models)
+- DeepSeek (V4 models)
 - Ollama (any local model)
 - Custom OpenAI-compatible endpoints (Together, Groq, etc.)
 
@@ -372,6 +373,10 @@ OpenAI supports two authentication modes:
 - **ChatGPT sign-in** — subscription access through a local Codex app-server browser or device-code OAuth flow. Codex owns token storage and refresh in the OS keychain.
 
 See `docs/architecture/adr/0002-openai-auth.md` for the trust boundary and runtime constraints.
+
+DeepSeek uses a backend-only API key and the provider's OpenAI-compatible Chat
+Completions API. Models are discovered live, and thinking mode is an explicit
+provider setting. See `docs/architecture/adr/0003-deepseek-provider.md`.
 
 #### Modes
 
@@ -542,7 +547,7 @@ Driver authoring guide: `docs/drivers/writing-a-driver.md`.
 
 #### AI providers
 
-An AI provider implements the `AiProvider` interface from `packages/ai`. First-party: Anthropic, OpenAI, Ollama. Community providers register via the plugin SDK. A first-party provider may use typed Rust IPC when its credentials or supported authentication flow should not enter the renderer; OpenAI is the first such provider.
+An AI provider implements the `AiProvider` interface from `packages/ai`. First-party: Anthropic, OpenAI, DeepSeek, Ollama. Community providers register via the plugin SDK. A first-party provider may use typed Rust IPC when its credentials or supported authentication flow should not enter the renderer; OpenAI and DeepSeek use this boundary today.
 
 #### Exporters
 

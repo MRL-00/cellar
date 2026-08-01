@@ -152,9 +152,9 @@ describe("buildSchemaContext", () => {
 });
 
 describe("providers", () => {
-  it("enables google and openai", () => {
+  it("enables the implemented providers", () => {
     const enabled = PROVIDERS.filter((p) => p.enabled).map((p) => p.id);
-    expect(enabled).toEqual(["google", "openai"]);
+    expect(enabled).toEqual(["google", "openai", "deepseek"]);
   });
   it("getProvider throws on unknown", () => {
     // @ts-expect-error testing the runtime guard

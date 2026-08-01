@@ -16,6 +16,8 @@ describe("@cellar/ipc", () => {
     expect(Object.keys(commands).sort()).toEqual(
       [
         "aiDeleteKey",
+        "aiBackendGenerate",
+        "aiBackendListModels",
         "aiHasKey",
         "aiLoadKey",
         "aiOpenaiCancelLogin",

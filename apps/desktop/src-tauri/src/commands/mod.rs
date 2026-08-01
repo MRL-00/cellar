@@ -58,6 +58,8 @@ pub fn builder() -> Builder<tauri::Wry> {
         ai::ai_load_key,
         ai::ai_delete_key,
         ai::ai_has_key,
+        ai::ai_backend_list_models,
+        ai::ai_backend_generate,
         ai::ai_openai_oauth_status,
         ai::ai_openai_start_login,
         ai::ai_openai_cancel_login,

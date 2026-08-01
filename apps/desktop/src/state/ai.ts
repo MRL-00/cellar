@@ -16,6 +16,7 @@ import {
 import {
   commands,
   unwrap,
+  type AiThinkingMode,
   type OpenAiLoginMethod,
   type OpenAiLoginStart,
   type OpenAiOAuthStatus,
@@ -37,6 +38,7 @@ interface Persisted {
   providerId: AiProviderId;
   modelId: string | null;
   openAiAuthMode: OpenAiAuthMode;
+  deepSeekThinking: boolean;
 }
 
 const STORAGE_KEY = "cellar.ai.v2";
@@ -47,6 +49,7 @@ function defaults(): Persisted {
     providerId: DEFAULT_PROVIDER,
     modelId: null,
     openAiAuthMode: DEFAULT_OPENAI_AUTH,
+    deepSeekThinking: true,
   };
 }
 
@@ -59,6 +62,7 @@ function loadPersisted(): Persisted {
       providerId: parsed.providerId ?? DEFAULT_PROVIDER,
       modelId: parsed.modelId ?? null,
       openAiAuthMode: parsed.openAiAuthMode ?? DEFAULT_OPENAI_AUTH,
+      deepSeekThinking: parsed.deepSeekThinking ?? true,
     };
   } catch {
     return defaults();
@@ -109,6 +113,7 @@ interface AiStore {
   providerId: AiProviderId;
   modelId: string | null;
   openAiAuthMode: OpenAiAuthMode;
+  deepSeekThinking: boolean;
   models: AiModel[];
   modelsLoading: boolean;
   modelsError: string | null;
@@ -125,6 +130,7 @@ interface AiStore {
   init: () => Promise<void>;
   setProvider: (id: AiProviderId) => void;
   setOpenAiAuthMode: (mode: OpenAiAuthMode) => void;
+  setDeepSeekThinking: (enabled: boolean) => void;
   setModel: (id: string) => void;
   saveKey: (key: string) => Promise<void>;
   clearKey: () => Promise<void>;
@@ -194,6 +200,7 @@ export const useAi = create<AiStore>((set, get) => ({
       providerId: id,
       modelId: null,
       openAiAuthMode: get().openAiAuthMode,
+      deepSeekThinking: get().deepSeekThinking,
     });
     void get().init();
   },
@@ -213,8 +220,23 @@ export const useAi = create<AiStore>((set, get) => ({
       modelsLoading: false,
       modelsError: null,
     });
-    persist({ providerId: get().providerId, modelId: null, openAiAuthMode: mode });
+    persist({
+      providerId: get().providerId,
+      modelId: null,
+      openAiAuthMode: mode,
+      deepSeekThinking: get().deepSeekThinking,
+    });
     void get().init();
+  },
+
+  setDeepSeekThinking(enabled) {
+    set({ deepSeekThinking: enabled });
+    persist({
+      providerId: get().providerId,
+      modelId: get().modelId,
+      openAiAuthMode: get().openAiAuthMode,
+      deepSeekThinking: enabled,
+    });
   },
 
   setModel(id) {
@@ -223,6 +245,7 @@ export const useAi = create<AiStore>((set, get) => ({
       providerId: get().providerId,
       modelId: id,
       openAiAuthMode: get().openAiAuthMode,
+      deepSeekThinking: get().deepSeekThinking,
     });
   },
 
@@ -328,6 +351,13 @@ export const useAi = create<AiStore>((set, get) => ({
           id: model.id,
           label: model.label,
         }));
+      } else if (providerId === "deepseek") {
+        const discovered = await unwrap(commands.aiBackendListModels("deepseek"));
+        preferred = discovered.find((model) => model.is_default)?.id;
+        models = discovered.map((model) => ({
+          id: model.id,
+          label: model.label,
+        }));
       } else {
         throw new Error("This AI provider is not implemented yet.");
       }
@@ -338,7 +368,12 @@ export const useAi = create<AiStore>((set, get) => ({
           ? current
           : (preferred ?? models[0]?.id ?? null);
       set({ models, modelsLoading: false, configured: true, modelId });
-      persist({ providerId, modelId, openAiAuthMode });
+      persist({
+        providerId,
+        modelId,
+        openAiAuthMode,
+        deepSeekThinking: get().deepSeekThinking,
+      });
     } catch (error) {
       if (!isCurrentDiscovery()) return;
       set({ modelsLoading: false, modelsError: describeError(error) });
@@ -396,6 +431,26 @@ export const useAi = create<AiStore>((set, get) => ({
             }
           : undefined;
         set({ openAiThreadId: result.thread_id });
+      } else if (providerId === "deepseek") {
+        const thinking: AiThinkingMode = get().deepSeekThinking
+          ? "enabled"
+          : "disabled";
+        const result = await unwrap(
+          commands.aiBackendGenerate("deepseek", {
+            model,
+            messages: history,
+            system_instruction: SYSTEM_PROMPT,
+            thinking,
+          }),
+        );
+        content = result.text;
+        usage = result.usage
+          ? {
+              promptTokens: result.usage.prompt_tokens,
+              completionTokens: result.usage.completion_tokens,
+              totalTokens: result.usage.total_tokens,
+            }
+          : undefined;
       } else {
         throw new Error("This AI provider is not implemented yet.");
       }

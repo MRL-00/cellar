@@ -361,6 +361,22 @@ async aiHasKey(provider: string) : Promise<Result<boolean, CellarError>> {
     else return { status: "error", error: e  as any };
 }
 },
+async aiBackendListModels(provider: BackendAiProvider) : Promise<Result<BackendAiModel[], CellarError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("ai_backend_list_models", { provider }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async aiBackendGenerate(provider: BackendAiProvider, request: BackendAiGenerateRequest) : Promise<Result<BackendAiGenerateResult, CellarError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("ai_backend_generate", { provider, request }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async aiOpenaiOauthStatus() : Promise<Result<OpenAiOAuthStatus, CellarError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_openai_oauth_status") };
@@ -421,6 +437,13 @@ async aiOpenaiGenerate(authMode: OpenAiAuthMode, request: OpenAiGenerateRequest)
 
 /** user-defined types **/
 
+export type AiThinkingMode = "enabled" | "disabled"
+export type BackendAiChatMessage = { role: string; content: string }
+export type BackendAiGenerateRequest = { model: string; messages: BackendAiChatMessage[]; system_instruction: string | null; thinking: AiThinkingMode | null }
+export type BackendAiGenerateResult = { text: string; usage: BackendAiTokenUsage | null }
+export type BackendAiModel = { id: string; label: string; description: string | null; is_default: boolean }
+export type BackendAiProvider = "deepseek"
+export type BackendAiTokenUsage = { prompt_tokens: number; completion_tokens: number; total_tokens: number }
 export type CellAssignment = { column: string; value: DiffValue }
 /**
  * One cell value, tagged so the frontend can render the right editor and

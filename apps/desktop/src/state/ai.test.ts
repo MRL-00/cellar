@@ -26,6 +26,7 @@ function reset() {
     providerId: "google",
     modelId: null,
     openAiAuthMode: "apiKey",
+    deepSeekThinking: true,
     models: [],
     modelsLoading: false,
     modelsError: null,
@@ -44,6 +45,7 @@ function reset() {
 beforeEach(async () => {
   await commands.aiDeleteKey("google");
   await commands.aiDeleteKey("openai");
+  await commands.aiDeleteKey("deepseek");
   await commands.aiOpenaiLogout();
   reset();
   vi.clearAllMocks();
@@ -164,6 +166,38 @@ describe("useAi store", () => {
   it("rejects direct renderer reads of the OpenAI key", async () => {
     await commands.aiStoreKey("openai", "sk-test");
     await expect(unwrap(commands.aiLoadKey("openai"))).rejects.toThrow(
+      "backend-only",
+    );
+  });
+
+  it("discovers DeepSeek models and sends thinking mode through backend IPC", async () => {
+    useAi.setState({ providerId: "deepseek" });
+    const generate = vi.spyOn(commands, "aiBackendGenerate");
+    const loadKey = vi.spyOn(commands, "aiLoadKey");
+
+    await useAi.getState().saveKey("sk-deepseek-test");
+    useAi.getState().setDeepSeekThinking(false);
+    await useAi.getState().send("ask", "write a query");
+
+    expect(useAi.getState().models.map((model) => model.id)).toEqual([
+      "deepseek-v4-flash",
+      "deepseek-v4-pro",
+    ]);
+    expect(generate).toHaveBeenCalledWith(
+      "deepseek",
+      expect.objectContaining({
+        model: "deepseek-v4-flash",
+        thinking: "disabled",
+      }),
+    );
+    expect(loadKey).not.toHaveBeenCalled();
+    expect(useAi.getState().messages.at(-1)).toMatchObject({ role: "model" });
+    expect(useAi.getState().messages.at(-1)?.error).toBeFalsy();
+  });
+
+  it("rejects direct renderer reads of the DeepSeek key", async () => {
+    await commands.aiStoreKey("deepseek", "sk-deepseek-test");
+    await expect(unwrap(commands.aiLoadKey("deepseek"))).rejects.toThrow(
       "backend-only",
     );
   });
