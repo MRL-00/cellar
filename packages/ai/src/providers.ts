@@ -8,7 +8,7 @@ export interface ProviderMeta {
   /** Short mono subtitle, e.g. `gemini-* family`. */
   sub: string;
   enabled: boolean;
-  /** Leading hint shown next to the API-key input. */
+  /** Example prefix shown in the API-key input placeholder. */
   keyPrefix: string;
   /** Base endpoint, shown read-only in settings. */
   endpoint: string;

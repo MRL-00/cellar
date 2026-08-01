@@ -231,11 +231,8 @@ export function SettingsAI() {
         {!isChatGpt && <Row label="API key" hint="stored in OS keychain, never written to disk">
           <div className="flex min-w-0 flex-1 flex-col gap-1.5">
             <div className="inline-flex min-w-0 items-center gap-1">
-              <span className="inline-flex h-[26px] items-center rounded-l-[4px] border border-r-0 border-border-default bg-bg-inset px-1.5 font-mono text-sm text-fg-2">
-                {current.keyPrefix}
-              </span>
               <input
-                className="-ml-px h-[26px] min-w-0 flex-1 border border-border-default bg-bg-inset px-2 font-mono text-sm text-fg-0 outline-none focus:border-accent-line focus:bg-bg-2"
+                className="h-[26px] min-w-0 flex-1 rounded-[4px] border border-border-default bg-bg-inset px-2 font-mono text-sm text-fg-0 outline-none focus:border-accent-line focus:bg-bg-2"
                 type={reveal ? "text" : "password"}
                 aria-label={`${current.label} API key`}
                 value={keyDraft}
@@ -244,7 +241,7 @@ export function SettingsAI() {
                   if (e.key === "Enter") void onSaveKey();
                 }}
                 placeholder={
-                  keyConfigured ? "key stored, paste to replace" : "paste your API key"
+                  keyConfigured ? "key stored, paste to replace" : `${current.keyPrefix}…`
                 }
                 spellCheck={false}
                 autoComplete="off"
