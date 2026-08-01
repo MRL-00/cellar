@@ -13,6 +13,10 @@
 use cellar_core::error::CellarError;
 use tauri::State;
 
+use crate::ai_backend::{
+    BackendAiGenerateRequest, BackendAiGenerateResult, BackendAiModel, BackendAiProvider,
+    BackendAiService,
+};
 use crate::openai::{
     OpenAiAuthMode, OpenAiGenerateRequest, OpenAiGenerateResult, OpenAiLoginMethod,
     OpenAiLoginStart, OpenAiModel, OpenAiOAuthStatus, OpenAiService,
@@ -36,10 +40,10 @@ pub async fn ai_store_key(provider: String, key: String) -> Result<(), CellarErr
 #[tauri::command]
 #[specta::specta]
 pub async fn ai_load_key(provider: String) -> Result<Option<String>, CellarError> {
-    if provider == "openai" {
-        return Err(CellarError::InvalidConfig(
-            "OpenAI credentials are backend-only and cannot be loaded by the renderer.".into(),
-        ));
+    if matches!(provider.as_str(), "openai" | "deepseek") {
+        return Err(CellarError::InvalidConfig(format!(
+            "{provider} credentials are backend-only and cannot be loaded by the renderer."
+        )));
     }
     Ok(cellar_secrets::load(&entry_name(&provider))?)
 }
@@ -58,6 +62,25 @@ pub async fn ai_delete_key(provider: String) -> Result<(), CellarError> {
 #[specta::specta]
 pub async fn ai_has_key(provider: String) -> Result<bool, CellarError> {
     Ok(cellar_secrets::load(&entry_name(&provider))?.is_some())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn ai_backend_list_models(
+    service: State<'_, BackendAiService>,
+    provider: BackendAiProvider,
+) -> Result<Vec<BackendAiModel>, CellarError> {
+    service.list_models(provider).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn ai_backend_generate(
+    service: State<'_, BackendAiService>,
+    provider: BackendAiProvider,
+    request: BackendAiGenerateRequest,
+) -> Result<BackendAiGenerateResult, CellarError> {
+    service.generate(provider, request).await
 }
 
 #[tauri::command]

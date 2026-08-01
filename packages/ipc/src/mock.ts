@@ -30,6 +30,10 @@ import type {
   MigrationApplyResult,
   SchemaSnapshotMeta,
   Dialect,
+  BackendAiGenerateRequest,
+  BackendAiGenerateResult,
+  BackendAiModel,
+  BackendAiProvider,
   OpenAiAuthMode,
   OpenAiGenerateRequest,
   OpenAiGenerateResult,
@@ -297,12 +301,12 @@ export const mockCommands = {
   },
 
   aiLoadKey: async (provider: string): Promise<Result<string | null, CellarError>> =>
-    provider === "openai"
+    provider === "openai" || provider === "deepseek"
       ? {
           status: "error",
           error: {
             kind: "InvalidConfig",
-            detail: "OpenAI credentials are backend-only and cannot be loaded by the renderer.",
+            detail: `${provider} credentials are backend-only and cannot be loaded by the renderer.`,
           },
         }
       : ok(mockAiKeys.get(provider) ?? null),
@@ -314,6 +318,33 @@ export const mockCommands = {
 
   aiHasKey: async (provider: string): Promise<Result<boolean, CellarError>> =>
     ok(mockAiKeys.has(provider)),
+
+  aiBackendListModels: async (
+    _provider: BackendAiProvider,
+  ): Promise<Result<BackendAiModel[], CellarError>> =>
+    ok([
+      {
+        id: "deepseek-v4-flash",
+        label: "deepseek-v4-flash",
+        description: null,
+        is_default: true,
+      },
+      {
+        id: "deepseek-v4-pro",
+        label: "deepseek-v4-pro",
+        description: null,
+        is_default: false,
+      },
+    ]),
+
+  aiBackendGenerate: async (
+    _provider: BackendAiProvider,
+    _request: BackendAiGenerateRequest,
+  ): Promise<Result<BackendAiGenerateResult, CellarError>> =>
+    ok({
+      text: "```sql\nSELECT 1;\n```",
+      usage: { prompt_tokens: 1, completion_tokens: 2, total_tokens: 3 },
+    }),
 
   aiOpenaiOauthStatus: async (): Promise<
     Result<OpenAiOAuthStatus, CellarError>

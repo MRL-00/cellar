@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { PROVIDERS, getProvider, type AiProviderId } from "@cellar/ai";
 import { Icon } from "../icons";
-import { CD_INPUT, ED_RUN_DANGER, Row, Section } from "./settingsPrimitives";
+import { CD_INPUT, ED_RUN_DANGER, Row, Section, Toggle } from "./settingsPrimitives";
 import { useAi } from "../../state/ai";
 import { openExternal } from "../../lib/openExternal";
 
@@ -14,6 +14,7 @@ export function SettingsAI() {
   const keyConfigured = useAi((s) => s.keyConfigured);
   const configured = useAi((s) => s.configured);
   const openAiAuthMode = useAi((s) => s.openAiAuthMode);
+  const deepSeekThinking = useAi((s) => s.deepSeekThinking);
   const oauthStatus = useAi((s) => s.oauthStatus);
   const login = useAi((s) => s.login);
   const authLoading = useAi((s) => s.authLoading);
@@ -22,6 +23,7 @@ export function SettingsAI() {
   const init = useAi((s) => s.init);
   const setProvider = useAi((s) => s.setProvider);
   const setOpenAiAuthMode = useAi((s) => s.setOpenAiAuthMode);
+  const setDeepSeekThinking = useAi((s) => s.setDeepSeekThinking);
   const setModel = useAi((s) => s.setModel);
   const saveKey = useAi((s) => s.saveKey);
   const clearKey = useAi((s) => s.clearKey);
@@ -39,6 +41,7 @@ export function SettingsAI() {
 
   const current = getProvider(providerId);
   const isOpenAi = providerId === "openai";
+  const isDeepSeek = providerId === "deepseek";
   const isChatGpt = isOpenAi && openAiAuthMode === "chatgpt";
 
   useEffect(() => {
@@ -119,9 +122,9 @@ export function SettingsAI() {
               Local credentials, by design
             </div>
             <div className="text-sm leading-[1.45] text-fg-1">
-              Provider keys stay in the OS keychain. OpenAI requests run in the
-              Rust backend, and ChatGPT OAuth tokens are owned by a local Codex
-              app-server process rather than the webview.
+              Provider keys stay in the OS keychain. OpenAI and DeepSeek
+              requests run in the Rust backend, and ChatGPT OAuth tokens are
+              owned by a local Codex app-server process rather than the webview.
             </div>
           </div>
         </div>
@@ -129,7 +132,7 @@ export function SettingsAI() {
 
       <Section title="Provider">
         <Row label="Provider">
-          <div className="grid w-full grid-cols-5 gap-1.5">
+          <div className="grid w-full grid-cols-3 gap-1.5">
             {PROVIDERS.map((p) => {
               const active = providerId === p.id;
               const disabled = !p.enabled;
@@ -206,6 +209,22 @@ export function SettingsAI() {
                 );
               })}
             </div>
+          </Row>
+        )}
+
+        {isDeepSeek && (
+          <Row
+            label="Thinking mode"
+            hint="use DeepSeek's reasoning mode for more complex requests"
+          >
+            <Toggle
+              on={deepSeekThinking}
+              onChange={setDeepSeekThinking}
+              ariaLabel="DeepSeek thinking mode"
+            />
+            <span className="text-[11.5px] text-fg-2">
+              {deepSeekThinking ? "enabled" : "disabled"}
+            </span>
           </Row>
         )}
 

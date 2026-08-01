@@ -1,7 +1,7 @@
 // AI providers, prompts, and context building.
 //
-// Gemini runs directly from the renderer. OpenAI runs behind typed desktop IPC
-// so API keys and ChatGPT OAuth tokens never enter the webview.
+// Gemini runs directly from the renderer. OpenAI and DeepSeek run behind typed
+// desktop IPC so their API credentials never enter the webview.
 
 export type {
   AiProviderId,

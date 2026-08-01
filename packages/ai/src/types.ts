@@ -1,9 +1,15 @@
 // Shared AI types. This package is provider-agnostic at the type level: the
 // concrete provider clients live either alongside it (Gemini) or behind typed
-// desktop IPC when credentials must stay out of the renderer (OpenAI).
+// desktop IPC when credentials must stay out of the renderer (OpenAI and DeepSeek).
 
 /** Providers Cellar knows about. */
-export type AiProviderId = "google" | "anthropic" | "openai" | "local" | "custom";
+export type AiProviderId =
+  | "google"
+  | "anthropic"
+  | "openai"
+  | "deepseek"
+  | "local"
+  | "custom";
 
 /** OpenAI supports usage-based Platform API keys and ChatGPT subscription
  * access. The latter is implemented by the local Codex app-server OAuth flow. */

@@ -1,3 +1,4 @@
+pub mod ai_backend;
 pub mod commands;
 pub mod datagrip;
 pub mod history;
@@ -19,6 +20,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(registry)
         .manage(history)
+        .manage(ai_backend::BackendAiService::default())
         .manage(openai::OpenAiService::default())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())

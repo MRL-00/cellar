@@ -26,6 +26,7 @@ export const PROVIDERS: ProviderMeta[] = [
   // ponytail: disabled providers keep full shape (getProvider returns ProviderMeta), just compacted
   { id: "anthropic", label: "Anthropic", sub: "claude-* family",      enabled: false, keyPrefix: "sk-ant-", endpoint: "https://api.anthropic.com/v1" },
   { id: "openai",    label: "OpenAI",    sub: "GPT + ChatGPT",          enabled: true,  keyPrefix: "sk-",     endpoint: "https://api.openai.com/v1" },
+  { id: "deepseek", label: "DeepSeek", sub: "V4 Flash + Pro", enabled: true, keyPrefix: "sk-", endpoint: "https://api.deepseek.com" },
   { id: "local",     label: "Local",     sub: "Ollama, LM Studio",     enabled: false, keyPrefix: "none",    endpoint: "http://localhost:11434/v1" },
   { id: "custom",    label: "Custom",    sub: "OpenAI-compatible URL", enabled: false, keyPrefix: "key",     endpoint: "https://example.invalid/v1" },
 ];
