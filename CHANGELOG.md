@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.3.8
+
+### Features
+
+- **OpenAI and ChatGPT authentication** — connect the AI assistant with an
+  OpenAI API key or sign in with a ChatGPT subscription. Requests go directly
+  to OpenAI without passing through a hosted Cellar service.
+- **DeepSeek support** — use DeepSeek models with credentials stored in the OS
+  keychain, automatic model discovery, and an optional thinking mode for more
+  complex requests.
+- **Inline AI model switching** — change models directly from the AI composer
+  without returning to Settings.
+- **Type-aware table filters** — boolean columns now use a true/false selector,
+  while date and time columns use the shared calendar and time picker.
+- **Improved result exports** — choose the destination and filename using the
+  native save dialog. Export controls are larger, and query results
+  automatically open at a useful panel height.
+
+### Bug fixes
+
+- **Safer export writes** — exported files are written atomically to reduce the
+  risk of incomplete files, and failures are now reported in the Messages
+  panel.
+- **More reliable AI sign-in** — ChatGPT authentication opens in the system
+  browser and handles provider configuration more consistently.
+- **Clearer DeepSeek failures** — provider error details and HTTP status codes
+  are preserved instead of being replaced with generic messages.
+
 ## 0.3.7
 
 ### Features
