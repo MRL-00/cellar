@@ -106,10 +106,13 @@ export function AIPanel({
 
   const init = useAi((s) => s.init);
   const modelId = useAi((s) => s.modelId);
+  const models = useAi((s) => s.models);
+  const modelsLoading = useAi((s) => s.modelsLoading);
   const configured = useAi((s) => s.configured);
   const messages = useAi((s) => s.messages);
   const sending = useAi((s) => s.sending);
   const send = useAi((s) => s.send);
+  const setModel = useAi((s) => s.setModel);
   const newThread = useAi((s) => s.newThread);
   const setQuerySql = useTabs((s) => s.setQuerySql);
   const newQueryTab = useTabs((s) => s.newQueryTab);
@@ -498,11 +501,33 @@ export function AIPanel({
               >
                 <Icon.paperclip size={11} />
               </button>
-              <span className="ml-1 inline-flex items-center gap-[3px] text-[11.5px]">
+              <span className="ml-1 inline-flex min-w-0 items-center gap-[3px] text-[11.5px]">
                 {ready ? (
-                  <span style={{ color: "var(--fg-3)" }}>
-                    {topic} · {modelId}
-                  </span>
+                  <>
+                    <span className="shrink-0 text-fg-3">{topic}</span>
+                    <span className="shrink-0 text-fg-3">·</span>
+                    <span className="relative min-w-0">
+                      <select
+                        aria-label="AI model"
+                        title="Change AI model"
+                        value={modelId ?? ""}
+                        disabled={sending || preparing || modelsLoading || models.length < 2}
+                        onChange={(event) => setModel(event.target.value)}
+                        className="h-[22px] max-w-[180px] appearance-none truncate rounded-[4px] border border-transparent bg-transparent py-0 pl-1 pr-5 font-mono text-[11.5px] text-fg-3 outline-none transition-colors hover:border-border-default hover:bg-bg-2 hover:text-fg-1 focus:border-accent-line focus:bg-bg-2 focus:text-fg-1 disabled:pointer-events-none disabled:opacity-70"
+                      >
+                        {models.map((model) => (
+                          <option key={model.id} value={model.id}>
+                            {model.id}
+                          </option>
+                        ))}
+                      </select>
+                      {models.length > 1 && (
+                        <span className="pointer-events-none absolute right-1.5 top-1/2 inline-flex -translate-y-1/2 text-fg-3">
+                          <Icon.chevronDown size={9} />
+                        </span>
+                      )}
+                    </span>
+                  </>
                 ) : (
                   <button
                     onClick={onOpenSettings}
