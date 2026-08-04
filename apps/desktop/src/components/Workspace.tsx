@@ -240,8 +240,8 @@ function renderTab(tab: WorkspaceTab, onCommit?: () => void) {
     // `key` resets zoom/pan and node positions per diagram tab.
     return <ErDiagram key={tab.id} tab={tab} />;
   }
-  // `key` resets the grid's local state (filters/selection) when the user
-  // switches to a different table tab.
+  // `key` resets ephemeral grid state (selection/editing) when the user
+  // switches table tabs. Filters restore from `useTabs.tableFilters`.
   return <TableTabPane key={tab.id} tab={tab} onCommit={onCommit} />;
 }
 
@@ -258,21 +258,39 @@ function TableTabPane({
   const changes = useTabs((s) => s.tableChanges[tab.id] ?? EMPTY_CHANGES);
   const columnLayout = useTabs((s) => s.tableLayouts[tab.id]);
   const savedSort = useTabs((s) => s.tableSorts[tab.id] ?? null);
+  // Session toolbar state — kept in the tabs store so remounting after a tab
+  // swap restores chips / quick filter (named presets live in filterPresets).
+  const savedFiltersState = useTabs((s) => s.tableFilters[tab.id]);
   const setTableChanges = useTabs((s) => s.setTableChanges);
   const setTableLayout = useTabs((s) => s.setTableLayout);
   const setTableSort = useTabs((s) => s.setTableSort);
+  const setTableFilters = useTabs((s) => s.setTableFilters);
   const clearTableChanges = useTabs((s) => s.clearTableChanges);
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(500);
   const grid = useGridState({
     initialSort: rememberSort ? savedSort : null,
+    initialFilters: savedFiltersState?.filters ?? [],
   });
   // Quick filter is kept separate from the advanced chips (`grid.filters`) so
   // clearing one never disturbs the other. FilterBar owns the typed text and
   // debounces it, so `quickFilter` only updates (and re-queries) once the user
   // pauses — keystrokes never re-render the grid.
-  const [quickFilter, setQuickFilter] = useState("");
-  const [quickColumn, setQuickColumn] = useState<string | null>(null);
+  const [quickFilter, setQuickFilter] = useState(
+    () => savedFiltersState?.quickFilter ?? "",
+  );
+  const [quickColumn, setQuickColumn] = useState<string | null>(
+    () => savedFiltersState?.quickColumn ?? null,
+  );
+
+  // Keep the tabs store in sync so the next remount (tab swap) rehydrates.
+  useEffect(() => {
+    setTableFilters(tab.id, {
+      filters: grid.filters,
+      quickFilter,
+      quickColumn,
+    });
+  }, [tab.id, grid.filters, quickFilter, quickColumn, setTableFilters]);
   // A table refresh (e.g. after committing a transaction) reloads rows under
   // any open inline editor, so close it — otherwise the editor UI lingers over
   // the freshly committed value.

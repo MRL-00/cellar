@@ -1,5 +1,10 @@
 import { create } from "zustand";
-import type { GridColumnLayout, PendingChanges, SortState } from "@cellar/data-grid";
+import type {
+  ColumnFilters,
+  GridColumnLayout,
+  PendingChanges,
+  SortState,
+} from "@cellar/data-grid";
 import { useNotices } from "./notices";
 import { useQueryMessages } from "./queryMessages";
 import { useTabResults } from "./tabResults";
@@ -77,6 +82,19 @@ export type TableLayouts = Record<string, GridColumnLayout>;
 /** Last-used column sort per table id (`tableKey`). `null` means unsorted. */
 export type TableSorts = Record<string, SortState>;
 
+/**
+ * Active filter toolbar for an open table tab (chips + quick filter).
+ * Session-scoped — survives tab swaps while the tab stays open, cleared on close.
+ * Named presets live separately in `useFilterPresets`.
+ */
+export type TableFilterState = {
+  filters: ColumnFilters;
+  quickFilter: string;
+  quickColumn: string | null;
+};
+
+export type TableFilters = Record<string, TableFilterState>;
+
 let queryTabSeq = 0;
 let schemaCompareSeq = 0;
 
@@ -98,6 +116,8 @@ interface TabsStore {
   tableChanges: Record<string, PendingChanges>;
   tableLayouts: TableLayouts;
   tableSorts: TableSorts;
+  /** Active filter toolbar per open table tab id. */
+  tableFilters: TableFilters;
   refreshKeys: Record<string, number>;
   openTable: (
     connectionId: string,
@@ -149,7 +169,17 @@ interface TabsStore {
   importTableLayouts: (entries: TableLayouts) => void;
   setTableChanges: (id: string, changes: PendingChanges) => void;
   clearTableChanges: (id: string) => void;
+  /** Remember (or clear) the active filter toolbar for an open table tab. */
+  setTableFilters: (id: string, state: TableFilterState) => void;
   refreshTable: (id: string) => void;
+}
+
+function isEmptyFilterState(state: TableFilterState): boolean {
+  return (
+    state.filters.length === 0 &&
+    state.quickFilter === "" &&
+    state.quickColumn === null
+  );
 }
 
 function tableKey(
@@ -242,15 +272,20 @@ function saveTableSorts(sorts: TableSorts) {
 function dropTabScopedState(
   ids: string[],
   tableChanges: Record<string, PendingChanges>,
+  tableFilters: TableFilters,
   refreshKeys: Record<string, number>,
 ): {
   tableChanges: Record<string, PendingChanges>;
+  tableFilters: TableFilters;
   refreshKeys: Record<string, number>;
 } {
   const closed = new Set(ids);
   return {
     tableChanges: Object.fromEntries(
       Object.entries(tableChanges).filter(([id]) => !closed.has(id)),
+    ),
+    tableFilters: Object.fromEntries(
+      Object.entries(tableFilters).filter(([id]) => !closed.has(id)),
     ),
     refreshKeys: Object.fromEntries(
       Object.entries(refreshKeys).filter(([id]) => !closed.has(id)),
@@ -366,6 +401,7 @@ export const useTabs = create<TabsStore>((set, get) => ({
   tableChanges: {},
   tableLayouts: loadTableLayouts(),
   tableSorts: loadTableSorts(),
+  tableFilters: {},
   refreshKeys: {},
 
   openTable(connectionId, database, schema, table) {
@@ -477,15 +513,17 @@ export const useTabs = create<TabsStore>((set, get) => ({
     set((s) => {
       const closed = s.tabs.find((t) => t.id === id);
       const tabs = s.tabs.filter((t) => t.id !== id);
-      const { tableChanges, refreshKeys } = dropTabScopedState(
+      const { tableChanges, tableFilters, refreshKeys } = dropTabScopedState(
         [id],
         s.tableChanges,
+        s.tableFilters,
         s.refreshKeys,
       );
       return {
         tabs,
         closedTabs: closed ? [closed, ...s.closedTabs].slice(0, 12) : s.closedTabs,
         tableChanges,
+        tableFilters,
         refreshKeys,
         ...reconcile({ ...s, tabs }),
       };
@@ -501,15 +539,17 @@ export const useTabs = create<TabsStore>((set, get) => ({
     set((s) => {
       const tabs = s.tabs.filter((t) => t.id === id);
       const closed = s.tabs.filter((t) => t.id !== id);
-      const { tableChanges, refreshKeys } = dropTabScopedState(
+      const { tableChanges, tableFilters, refreshKeys } = dropTabScopedState(
         closedIds,
         s.tableChanges,
+        s.tableFilters,
         s.refreshKeys,
       );
       return {
         tabs,
         closedTabs: stackClosedTabs(closed, s.closedTabs),
         tableChanges,
+        tableFilters,
         refreshKeys,
         ...reconcile({ ...s, tabs }),
       };
@@ -526,15 +566,17 @@ export const useTabs = create<TabsStore>((set, get) => ({
     set((s) => {
       const tabs = s.tabs.slice(0, tabIndex + 1);
       const closed = s.tabs.slice(tabIndex + 1);
-      const { tableChanges, refreshKeys } = dropTabScopedState(
+      const { tableChanges, tableFilters, refreshKeys } = dropTabScopedState(
         closedIds,
         s.tableChanges,
+        s.tableFilters,
         s.refreshKeys,
       );
       return {
         tabs,
         closedTabs: stackClosedTabs(closed, s.closedTabs),
         tableChanges,
+        tableFilters,
         refreshKeys,
         ...reconcile({ ...s, tabs }),
       };
@@ -549,9 +591,10 @@ export const useTabs = create<TabsStore>((set, get) => ({
     set((s) => {
       const removed = new Set(removedIds);
       const tabs = s.tabs.filter((t) => !removed.has(t.id));
-      const { tableChanges, refreshKeys } = dropTabScopedState(
+      const { tableChanges, tableFilters, refreshKeys } = dropTabScopedState(
         removedIds,
         s.tableChanges,
+        s.tableFilters,
         s.refreshKeys,
       );
       return {
@@ -562,6 +605,7 @@ export const useTabs = create<TabsStore>((set, get) => ({
           (t) => t.connectionId !== connectionId,
         ),
         tableChanges,
+        tableFilters,
         refreshKeys,
         ...reconcile({ ...s, tabs }),
       };
@@ -726,6 +770,18 @@ export const useTabs = create<TabsStore>((set, get) => ({
     set((s) => {
       const { [id]: _changes, ...tableChanges } = s.tableChanges;
       return { tableChanges };
+    });
+  },
+
+  setTableFilters(id, state) {
+    set((s) => {
+      // Drop empty toolbars so the map stays small while a tab is idle.
+      if (isEmptyFilterState(state)) {
+        if (!(id in s.tableFilters)) return s;
+        const { [id]: _removed, ...rest } = s.tableFilters;
+        return { tableFilters: rest };
+      }
+      return { tableFilters: { ...s.tableFilters, [id]: state } };
     });
   },
 
