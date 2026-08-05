@@ -775,6 +775,10 @@ export const useTabs = create<TabsStore>((set, get) => ({
 
   setTableFilters(id, state) {
     set((s) => {
+      // closeTab drops session filters before React unmounts the pane. The
+      // FilterBar then flushes its quick-filter draft on cleanup — ignore that
+      // write so closed tabs don't come back with resurrected toolbar state.
+      if (!s.tabs.some((t) => t.id === id)) return s;
       // Drop empty toolbars so the map stays small while a tab is idle.
       if (isEmptyFilterState(state)) {
         if (!(id in s.tableFilters)) return s;

@@ -445,5 +445,13 @@ describe("tab workspace state", () => {
     });
     useTabs.getState().closeTab(orders);
     expect(useTabs.getState().tableFilters[orders]).toBeUndefined();
+
+    // FilterBar unmount flush runs after closeTab — must not resurrect state.
+    useTabs.getState().setTableFilters(orders, {
+      filters: [],
+      quickFilter: "kept-until-close",
+      quickColumn: null,
+    });
+    expect(useTabs.getState().tableFilters[orders]).toBeUndefined();
   });
 });
