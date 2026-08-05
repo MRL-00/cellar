@@ -284,6 +284,13 @@ function TableTabPane({
   );
 
   // Keep the tabs store in sync so the next remount (tab swap) rehydrates.
+  // Quick-filter updates also write here synchronously: FilterBar may flush a
+  // pending draft during unmount, when a React setState alone would not re-run
+  // this effect before the pane is gone.
+  const filtersRef = useRef(grid.filters);
+  filtersRef.current = grid.filters;
+  const quickColumnRef = useRef(quickColumn);
+  quickColumnRef.current = quickColumn;
   useEffect(() => {
     setTableFilters(tab.id, {
       filters: grid.filters,
@@ -291,6 +298,17 @@ function TableTabPane({
       quickColumn,
     });
   }, [tab.id, grid.filters, quickFilter, quickColumn, setTableFilters]);
+  const handleQuickFilterChange = useCallback(
+    (next: string) => {
+      setQuickFilter(next);
+      setTableFilters(tab.id, {
+        filters: filtersRef.current,
+        quickFilter: next,
+        quickColumn: quickColumnRef.current,
+      });
+    },
+    [tab.id, setTableFilters],
+  );
   // A table refresh (e.g. after committing a transaction) reloads rows under
   // any open inline editor, so close it — otherwise the editor UI lingers over
   // the freshly committed value.
@@ -553,7 +571,7 @@ function TableTabPane({
         filters={grid.filters}
         onFiltersChange={grid.setFilters}
         quickFilter={quickFilter}
-        onQuickFilterChange={setQuickFilter}
+        onQuickFilterChange={handleQuickFilterChange}
         quickFilterColumn={quickColumn}
         onQuickFilterColumnChange={setQuickColumn}
         sort={grid.sort}
