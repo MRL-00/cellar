@@ -300,10 +300,19 @@ export function FilterBar({
   }, [quickFilter]);
   const onQuickRef = useRef(onQuickFilterChange);
   onQuickRef.current = onQuickFilterChange;
+  const quickDraftRef = useRef(quickDraft);
+  quickDraftRef.current = quickDraft;
   useEffect(() => {
     const handle = setTimeout(() => onQuickRef.current?.(quickDraft.trim()), 250);
     return () => clearTimeout(handle);
   }, [quickDraft]);
+  // Tab swaps unmount this bar and cancel the debounce above — flush so the
+  // parent can persist the in-progress draft before the pane is torn down.
+  useEffect(() => {
+    return () => {
+      onQuickRef.current?.(quickDraftRef.current.trim());
+    };
+  }, []);
   // Saved presets: the "presets" word is the dropdown (apply / hover-× delete);
   // the save button swaps it for a small name input. No selected-preset state —
   // applying is a one-shot action, not a mode.

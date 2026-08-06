@@ -32,6 +32,7 @@ describe("tab workspace state", () => {
       tableChanges: {},
       tableLayouts: {},
       tableSorts: {},
+      tableFilters: {},
       refreshKeys: {},
     });
     if (typeof localStorage !== "undefined") localStorage.clear();
@@ -389,5 +390,68 @@ describe("tab workspace state", () => {
 
     useTabs.getState().setTableSort(id, null);
     expect(useTabs.getState().tableSorts[id]).toBeUndefined();
+  });
+
+  it("keeps active table filters across tab swaps and clears them on close", () => {
+    const orders = "conn-1::app.public.orders";
+    const users = "conn-1::app.public.users";
+    const store = useTabs.getState();
+    store.openTable("conn-1", "app", "public", "orders");
+    store.openTable("conn-1", "app", "public", "users");
+
+    useTabs.getState().setTableFilters(orders, {
+      filters: [
+        {
+          id: "f1",
+          columnKey: "status",
+          operator: "equals",
+          value: "open",
+          logic: "and",
+        },
+      ],
+      quickFilter: "rush",
+      quickColumn: "name",
+    });
+
+    // Swap away and back — filters must still be in the store for remount.
+    useTabs.getState().setActive(users);
+    useTabs.getState().setActive(orders);
+    expect(useTabs.getState().tableFilters[orders]).toEqual({
+      filters: [
+        {
+          id: "f1",
+          columnKey: "status",
+          operator: "equals",
+          value: "open",
+          logic: "and",
+        },
+      ],
+      quickFilter: "rush",
+      quickColumn: "name",
+    });
+
+    // Empty toolbar drops the entry; close drops any remaining session state.
+    useTabs.getState().setTableFilters(orders, {
+      filters: [],
+      quickFilter: "",
+      quickColumn: null,
+    });
+    expect(useTabs.getState().tableFilters[orders]).toBeUndefined();
+
+    useTabs.getState().setTableFilters(orders, {
+      filters: [],
+      quickFilter: "kept-until-close",
+      quickColumn: null,
+    });
+    useTabs.getState().closeTab(orders);
+    expect(useTabs.getState().tableFilters[orders]).toBeUndefined();
+
+    // FilterBar unmount flush runs after closeTab — must not resurrect state.
+    useTabs.getState().setTableFilters(orders, {
+      filters: [],
+      quickFilter: "kept-until-close",
+      quickColumn: null,
+    });
+    expect(useTabs.getState().tableFilters[orders]).toBeUndefined();
   });
 });
