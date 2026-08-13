@@ -1,4 +1,4 @@
-import { memo, useRef, type ReactNode } from "react";
+import { memo, useEffect, useState, type ReactNode } from "react";
 
 import type { WorkspaceTab } from "../state/tabs";
 
@@ -8,6 +8,10 @@ import type { WorkspaceTab } from "../state/tabs";
  * A tab is mounted the first time it becomes active and stays mounted (hidden)
  * until it is closed. Never-visited tabs are not pre-mounted so opening many
  * tables doesn't fire a query for each of them.
+ *
+ * `previouslyMounted` is the last *committed* visit set. Callers must not
+ * write this during render — an interrupted concurrent render would otherwise
+ * keep a tab that was never actually shown.
  */
 export function nextMountedTabIds(
   previouslyMounted: readonly string[],
@@ -26,6 +30,10 @@ export function nextMountedTabIds(
     next.push(activeId);
   }
   return next;
+}
+
+function sameIds(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((id, i) => id === b[i]);
 }
 
 /**
@@ -60,14 +68,20 @@ export function KeepAlivePanes({
   activeId: string | null;
   children: (tab: WorkspaceTab) => ReactNode;
 }) {
+  // Committed after paint so a discarded concurrent render cannot leak an
+  // unvisited tab into the mount set (and kick off its table query).
+  const [visited, setVisited] = useState<string[]>([]);
   const openIds = tabs.map((tab) => tab.id);
-  const mountedRef = useRef<string[]>([]);
-  const mountedIds = nextMountedTabIds(
-    mountedRef.current,
-    activeId,
-    openIds,
-  );
-  mountedRef.current = mountedIds;
+  const mountedIds = nextMountedTabIds(visited, activeId, openIds);
+
+  useEffect(() => {
+    const open = tabs.map((tab) => tab.id);
+    setVisited((prev) => {
+      const next = nextMountedTabIds(prev, activeId, open);
+      return sameIds(prev, next) ? prev : next;
+    });
+  }, [activeId, tabs]);
+
   const byId = new Map(tabs.map((tab) => [tab.id, tab]));
 
   return (

@@ -130,6 +130,7 @@ export function App() {
 
   const openModal = useCallback((m: ModalId) => setModal(m), []);
   const closeModal = useCallback(() => setModal(null), []);
+  const openCommit = useCallback(() => openModal("commit"), [openModal]);
   const openSchemaCompare = useCallback((preset?: ComparePreset) => {
     setComparePreset(preset ?? null);
     setModal("schemaCompare");
@@ -241,7 +242,7 @@ export function App() {
           ) : (
             <>
               <TabBar />
-              <Workspace onCommit={() => openModal("commit")} />
+              <Workspace onCommit={openCommit} />
               {panels.bottom && (
                 <>
                   <ResizeHandle

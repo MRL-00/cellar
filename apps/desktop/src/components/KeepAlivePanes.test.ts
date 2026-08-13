@@ -58,6 +58,19 @@ describe("nextMountedTabIds", () => {
   it("returns an empty list when nothing is open", () => {
     expect(nextMountedTabIds(["orders"], null, [])).toEqual([]);
   });
+
+  it("does not keep a tab that was only active in a discarded render", () => {
+    const committed = ["orders"];
+    const open = ["orders", "users"];
+    // Speculative switch to users — derived, but not written back.
+    expect(nextMountedTabIds(committed, "users", open)).toEqual([
+      "orders",
+      "users",
+    ]);
+    // The committed snapshot is unchanged, so landing back on orders must
+    // not mount users or start its table query.
+    expect(nextMountedTabIds(committed, "orders", open)).toEqual(["orders"]);
+  });
 });
 
 describe("KeepAlivePanes", () => {
