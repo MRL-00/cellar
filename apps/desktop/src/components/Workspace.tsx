@@ -25,6 +25,7 @@ import {
   type ContextMenuState,
   type MenuItem,
 } from "./ContextMenu";
+import { KeepAlivePanes } from "./KeepAlivePanes";
 import { TabBar } from "./TabBar";
 import { CellarMark } from "./CellarMark";
 import { Icon } from "./icons";
@@ -48,9 +49,15 @@ export function Workspace({ onCommit }: { onCommit?: () => void } = {}) {
   const tabs = useTabs((s) => s.tabs);
   const activeId = useTabs((s) => s.activeId);
   const split = useTabs((s) => s.split);
+  const tabPane = useTabs((s) => s.tabPane);
   const paneActive = useTabs((s) => s.paneActive);
   const focusedPane = useTabs((s) => s.focusedPane);
   const active = tabs.find((t) => t.id === activeId) ?? null;
+  // Stable across tab swaps so KeepAlivePanes can skip re-rendering hidden grids.
+  const renderPane = useCallback(
+    (tab: WorkspaceTab) => renderTab(tab, onCommit),
+    [onCommit],
+  );
   // Fraction of the split given to the primary pane; dragging the divider moves it.
   const [ratio, setRatio] = useState(0.5);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -100,6 +107,7 @@ export function Workspace({ onCommit }: { onCommit?: () => void } = {}) {
         <SplitPane
           pane={0}
           tab={primary}
+          tabs={tabs.filter((t) => (tabPane[t.id] ?? 0) === 0)}
           focused={focusedPane === 0}
           grow={ratio}
           onCommit={onCommit}
@@ -126,15 +134,16 @@ export function Workspace({ onCommit }: { onCommit?: () => void } = {}) {
         <SplitPane
           pane={1}
           tab={secondary}
+          tabs={tabs.filter((t) => (tabPane[t.id] ?? 0) === 1)}
           focused={focusedPane === 1}
           grow={1 - ratio}
           onCommit={onCommit}
         />
       </div>
     ) : (
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        {renderTab(active, onCommit)}
-      </div>
+      <KeepAlivePanes tabs={tabs} activeId={active.id}>
+        {renderPane}
+      </KeepAlivePanes>
     );
 
   return (
@@ -148,17 +157,23 @@ export function Workspace({ onCommit }: { onCommit?: () => void } = {}) {
 function SplitPane({
   pane,
   tab,
+  tabs,
   focused,
   grow,
   onCommit,
 }: {
   pane: PaneIndex;
   tab: WorkspaceTab;
+  tabs: WorkspaceTab[];
   focused: boolean;
   grow: number;
   onCommit?: () => void;
 }) {
   const focusPane = useTabs((s) => s.focusPane);
+  const renderPane = useCallback(
+    (paneTab: WorkspaceTab) => renderTab(paneTab, onCommit),
+    [onCommit],
+  );
   return (
     <section
       style={{ flexGrow: grow }}
@@ -169,9 +184,9 @@ function SplitPane({
       onMouseDown={() => focusPane(pane)}
     >
       <TabBar pane={pane} />
-      <div className="flex min-h-0 flex-1 overflow-hidden">
-        {renderTab(tab, onCommit)}
-      </div>
+      <KeepAlivePanes tabs={tabs} activeId={tab.id}>
+        {renderPane}
+      </KeepAlivePanes>
     </section>
   );
 }
@@ -240,8 +255,8 @@ function renderTab(tab: WorkspaceTab, onCommit?: () => void) {
     // `key` resets zoom/pan and node positions per diagram tab.
     return <ErDiagram key={tab.id} tab={tab} />;
   }
-  // `key` resets ephemeral grid state (selection/editing) when the user
-  // switches table tabs. Filters restore from `useTabs.tableFilters`.
+  // KeepAlivePanes keeps this mounted (hidden) across tab swaps so filters
+  // and loaded rows survive. `key` still resets state if the tab remounts.
   return <TableTabPane key={tab.id} tab={tab} onCommit={onCommit} />;
 }
 
