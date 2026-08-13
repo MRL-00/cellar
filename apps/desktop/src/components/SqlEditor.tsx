@@ -51,6 +51,9 @@ const EMPTY_DATABASES: Database[] = [];
 
 export function SqlEditor({ tab }: { tab: QueryTab }) {
   const setQuerySql = useTabs((s) => s.setQuerySql);
+  // Keep-alive leaves this editor mounted while hidden; the window-level
+  // cancel shortcut must only fire for the focused tab.
+  const isActiveTab = useTabs((s) => s.activeId === tab.id);
   const connectionState = useConnections((s) => s.byId[tab.connectionId]);
   const status = connectionState?.status;
   const databases = connectionState?.databases ?? EMPTY_DATABASES;
@@ -240,9 +243,10 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
   }, [clearError, closePanel, errorLine, setQuerySql, tab.id]);
 
   // ⌘. / Ctrl+. cancels the in-flight statement, matching the toolbar button.
-  // Window-level so it works while focus sits inside the code editor.
+  // Window-level so it works while focus sits inside the code editor. Skip
+  // hidden keep-alive editors so the shortcut cannot cancel another tab.
   useEffect(() => {
-    if (!running) return;
+    if (!running || !isActiveTab) return;
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === ".") {
         e.preventDefault();
@@ -251,7 +255,7 @@ export function SqlEditor({ tab }: { tab: QueryTab }) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [running, cancel]);
+  }, [running, cancel, isActiveTab]);
 
   useEffect(() => {
     if (!connected || loadingSchema || databases.length > 0) return;
