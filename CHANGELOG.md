@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.9
+
+### Bug fixes
+
+- **Table filters survive tab switches** — filter chips and the quick-filter
+  text stay in place when you move between tables, including values you were
+  still typing.
+- **Tables stay loaded when you switch away** — visited table panes remain
+  mounted, so switching back is instant and no longer reloads rows or resets
+  the grid.
+
 ## 0.3.8
 
 ### Features
