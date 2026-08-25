@@ -3,12 +3,7 @@
 //! The frontend formats CSV/TSV/JSON/SQL in TypeScript; this command only
 //! prompts for a destination and writes the bytes the user already approved.
 
-use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
-
 use cellar_core::error::CellarError;
-use tokio::fs;
-use tokio::io::AsyncWriteExt;
 use tokio::task::spawn_blocking;
 
 /// Show a platform save dialog prefilled with `default_name`, then write
@@ -34,44 +29,12 @@ pub async fn save_text_file(
         return Ok(None);
     };
 
-    write_atomically(&path, contents.as_bytes()).await?;
+    let written_path = path.clone();
+    spawn_blocking(move || {
+        cellar_runtime::export::write_atomically(&written_path, contents.as_bytes())
+    })
+    .await
+    .map_err(|error| CellarError::Internal(format!("export task failed: {error}")))??;
 
     Ok(Some(path.to_string_lossy().into_owned()))
-}
-
-/// Write `contents` via a same-directory temp file, sync, then rename over
-/// `path` so a failed overwrite cannot leave a truncated destination.
-async fn write_atomically(path: &Path, contents: &[u8]) -> Result<(), CellarError> {
-    let tmp = temp_sibling(path);
-    let io = |e: std::io::Error| {
-        CellarError::Io(format!("failed to write {}: {e}", path.display()))
-    };
-
-    let write_result = async {
-        let mut file = fs::File::create(&tmp).await.map_err(&io)?;
-        file.write_all(contents).await.map_err(&io)?;
-        file.sync_all().await.map_err(&io)?;
-        drop(file);
-        fs::rename(&tmp, path).await.map_err(&io)?;
-        Ok(())
-    }
-    .await;
-
-    if write_result.is_err() {
-        let _ = fs::remove_file(&tmp).await;
-    }
-    write_result
-}
-
-fn temp_sibling(path: &Path) -> PathBuf {
-    let parent = path.parent().unwrap_or_else(|| Path::new("."));
-    let stem = path
-        .file_name()
-        .map(|n| n.to_string_lossy())
-        .unwrap_or_else(|| "export".into());
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    parent.join(format!(".{stem}.{}.{nanos}.tmp", std::process::id()))
 }

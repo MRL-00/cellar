@@ -28,7 +28,6 @@ tokio = { workspace = true }
 thiserror = { workspace = true }
 async-trait = "0.1"
 dirs = "5"
-quick-xml = "0.39"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 sqlx = { version = "0.8", default-features = false, features = [
     "runtime-tokio",
@@ -43,6 +42,8 @@ tauri-plugin-process = "2"
 tauri-plugin-opener = "2"
 rfd = "0.15"
 cellar-core = { path = "../../../crates/cellar-core" }
+cellar-ai = { path = "../../../crates/cellar-ai" }
+cellar-runtime = { path = "../../../crates/cellar-runtime" }
 cellar-driver-convex = { path = "../../../crates/cellar-drivers/convex" }
 cellar-driver-cosmos = { path = "../../../crates/cellar-drivers/cosmos" }
 cellar-driver-firestore = { path = "../../../crates/cellar-drivers/firestore" }

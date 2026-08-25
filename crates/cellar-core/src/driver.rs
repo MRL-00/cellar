@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 
 use crate::error::{CellarError, CellarResult};
-use crate::query::{PlanMode, Query, QueryPlan, QueryResult};
+use crate::query::{PlanMode, Query, QueryPlan, QueryResult, QueryResultPage, QueryResultSummary};
 use crate::schema::Database;
 
 /// User-facing identifier for which driver to load. Lives in connection
@@ -145,12 +145,28 @@ pub trait Driver: Send + Sync {
     /// Implementations should cache nothing — the host owns caching.
     async fn introspect(&self, conn: &dyn Connection) -> CellarResult<Vec<Database>>;
 
-    /// Run a query and return the materialized result. Streaming lands later.
+    /// Run a query and return a bounded materialized result for internal callers.
     async fn execute_query(
         &self,
         conn: &dyn Connection,
         query: &Query,
     ) -> CellarResult<QueryResult>;
+
+    /// Deliver ordered pages while the database stream is active. Drivers
+    /// should override this when their client exposes rows progressively.
+    async fn execute_query_stream(
+        &self,
+        conn: &dyn Connection,
+        query: &Query,
+        page_size: usize,
+        on_page: &mut (dyn FnMut(QueryResultPage) -> CellarResult<()> + Send),
+    ) -> CellarResult<QueryResultSummary> {
+        let (pages, summary) = self.execute_query(conn, query).await?.into_pages(page_size);
+        for page in pages {
+            on_page(page)?;
+        }
+        Ok(summary)
+    }
 
     /// Return a structured execution plan. `PlanMode::Estimate` must not run
     /// the supplied statement; `PlanMode::Analyze` may execute it and callers

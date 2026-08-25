@@ -1,0 +1,31 @@
+[package]
+name = "cellar-runtime"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Cellar application runtime shared by native desktop clients"
+publish = false
+
+[dependencies]
+dirs = "5"
+quick-xml = "0.39"
+serde = { workspace = true }
+serde_json = { workspace = true }
+specta = { version = "=2.0.0-rc.22", features = ["derive"] }
+sqlx = { version = "0.8", default-features = false, features = [
+    "runtime-tokio",
+    "sqlite",
+] }
+tokio = { workspace = true }
+tempfile = "3"
+cellar-core = { path = "../cellar-core" }
+cellar-diff = { path = "../cellar-diff" }
+cellar-sql = { path = "../cellar-sql" }
+cellar-secrets = { path = "../cellar-secrets" }
+cellar-driver-convex = { path = "../cellar-drivers/convex" }
+cellar-driver-cosmos = { path = "../cellar-drivers/cosmos" }
+cellar-driver-firestore = { path = "../cellar-drivers/firestore" }
+cellar-driver-mysql = { path = "../cellar-drivers/mysql" }
+cellar-driver-postgres = { path = "../cellar-drivers/postgres" }
+cellar-driver-sqlite = { path = "../cellar-drivers/sqlite" }
+cellar-driver-sqlserver = { path = "../cellar-drivers/sqlserver" }

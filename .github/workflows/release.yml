@@ -14,7 +14,7 @@ permissions:
   contents: write
 
 jobs:
-  build-tauri:
+  build-gpui:
     name: Build ${{ matrix.label }}
     runs-on: ${{ matrix.platform }}
     strategy:
@@ -23,7 +23,6 @@ jobs:
         include:
           - label: macOS Apple Silicon
             platform: macos-latest
-            args: --target aarch64-apple-darwin
             rust-targets: aarch64-apple-darwin
             stable-asset-name: Cellar-mac-arm64.dmg
 
@@ -126,37 +125,77 @@ jobs:
           echo "$APP_STORE_CONNECT_API_KEY_BASE64" | base64 -D > "$api_key_path"
           chmod 600 "$api_key_path"
 
-      - name: Stamp release version into tauri.conf.json
+      - name: Stamp release version
         shell: bash
         run: |
           set -euo pipefail
+          version="${{ steps.release.outputs.version }}"
           conf="apps/desktop/src-tauri/tauri.conf.json"
           tmp="$(mktemp)"
-          jq --arg v "${{ steps.release.outputs.version }}" '.version = $v' "$conf" > "$tmp"
+          jq --arg v "$version" '.version = $v' "$conf" > "$tmp"
           mv "$tmp" "$conf"
-          echo "tauri.conf.json version set to ${{ steps.release.outputs.version }}"
+          sed -i '' -E "0,/^version = \"[^\"]+\"/s//version = \"$version\"/" Cargo.toml
+          echo "Cellar version set to $version"
 
-      - name: Build and upload installers
-        uses: tauri-apps/tauri-action@v0
+      - name: Build, sign, and notarize GPUI app
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           APPLE_API_ISSUER: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           APPLE_API_KEY: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APPLE_API_KEY_PATH: ${{ runner.temp }}/AuthKey_${{ secrets.APP_STORE_CONNECT_KEY_ID }}.p8
           APPLE_SIGNING_IDENTITY: ${{ secrets.DEVELOPER_ID_APPLICATION_IDENTITY }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        with:
-          projectPath: apps/desktop
-          tagName: ${{ steps.release.outputs.tag }}
-          releaseName: Cellar ${{ steps.release.outputs.version }}
-          # Draft-only placeholder; publish-release overwrites the body with
-          # the version's CHANGELOG.md section before publishing.
-          releaseBody: See the assets below to download Cellar for your platform.
-          releaseDraft: true
-          prerelease: ${{ steps.release.outputs.prerelease }}
-          updaterJsonPreferNsis: false
-          args: ${{ matrix.args }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${APPLE_SIGNING_IDENTITY:?APPLE_SIGNING_IDENTITY secret is required}"
+
+          gh release view "$RELEASE_TAG" >/dev/null 2>&1 || \
+            gh release create "$RELEASE_TAG" \
+              --draft \
+              --title "Cellar $RELEASE_VERSION" \
+              --notes "See the assets below to download Cellar for your platform."
+
+          cargo build --release --target "${{ matrix.rust-targets }}" -p cellar-desktop-gpui
+
+          release_dir="target/${{ matrix.rust-targets }}/release"
+          bundle_dir="$release_dir/bundle"
+          app_dir="$bundle_dir/macos/Cellar.app"
+          contents="$app_dir/Contents"
+          mkdir -p "$contents/MacOS" "$contents/Resources" "$bundle_dir/dmg"
+          cp "$release_dir/cellar-desktop-gpui" "$contents/MacOS/Cellar"
+          cp apps/desktop-gpui/macos/Info.plist "$contents/Info.plist"
+          cp apps/desktop/src-tauri/icons/icon.icns "$contents/Resources/icon.icns"
+          plutil -replace CFBundleShortVersionString -string "$RELEASE_VERSION" "$contents/Info.plist"
+          plutil -replace CFBundleVersion -string "$RELEASE_VERSION" "$contents/Info.plist"
+
+          codesign --force --deep --options runtime --timestamp \
+            --sign "$APPLE_SIGNING_IDENTITY" "$app_dir"
+          codesign --verify --deep --strict --verbose=2 "$app_dir"
+
+          notarize_zip="$RUNNER_TEMP/Cellar-notarize.zip"
+          ditto -c -k --keepParent "$app_dir" "$notarize_zip"
+          xcrun notarytool submit "$notarize_zip" \
+            --key "$APPLE_API_KEY_PATH" \
+            --key-id "$APPLE_API_KEY" \
+            --issuer "$APPLE_API_ISSUER" \
+            --wait
+          xcrun stapler staple "$app_dir"
+          xcrun stapler validate "$app_dir"
+
+          tar -czf "$bundle_dir/macos/Cellar.app.tar.gz" \
+            -C "$bundle_dir/macos" Cellar.app
+          dmg_source="$RUNNER_TEMP/cellar-dmg"
+          mkdir -p "$dmg_source"
+          cp -R "$app_dir" "$dmg_source/Cellar.app"
+          ln -s /Applications "$dmg_source/Applications"
+          hdiutil create \
+            -volname Cellar \
+            -srcfolder "$dmg_source" \
+            -ov \
+            -format UDZO \
+            "$bundle_dir/dmg/Cellar.dmg"
 
       - name: Upload stable direct-download asset
         env:
@@ -187,10 +226,9 @@ jobs:
           cp "$dmg_path" "/tmp/$STABLE_ASSET_NAME"
           gh release upload "$RELEASE_TAG" "/tmp/$STABLE_ASSET_NAME" --clobber
 
-          # Sign the .app.tar.gz updater bundle and upload both files under
-          # stable names that match the URLs emitted in latest.json.
-          # tauri-action@v0 doesn't correctly handle Tauri v2 updater artifacts,
-          # so we sign the bundle ourselves using the tauri CLI.
+          # Sign the GPUI .app.tar.gz updater bundle and upload both files under
+          # the stable names emitted in latest.json. The existing Tauri signer
+          # format remains the canonical minisign wire format for compatibility.
           bundle_root="$(dirname "$(dirname "$dmg_path")")"
           macos_dir="$bundle_root/macos"
           tarball="$(find "$macos_dir" -name "*.app.tar.gz" -type f -print -quit 2>/dev/null || true)"
@@ -225,7 +263,7 @@ jobs:
 
   publish-release:
     name: Publish release
-    needs: build-tauri
+    needs: build-gpui
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

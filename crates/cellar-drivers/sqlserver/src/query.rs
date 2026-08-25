@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use cellar_core::error::{CellarError, CellarResult};
-use cellar_core::query::{NoticeCapture, Query, QueryResult};
+use cellar_core::query::{NoticeCapture, Query, QueryResult, QueryResultPage, QueryResultSummary};
 use cellar_core::value::{ColumnMeta, Row};
 use cellar_diff::{build_mssql_plan, TableChangeRequest, TableCommitResult};
 use futures_util::TryStreamExt;
@@ -31,6 +31,44 @@ pub async fn execute_query(conn: &SqlServerConnection, query: &Query) -> CellarR
             }
         }
         execute_sql(client, &query.sql, max_rows, offset, started).await
+    })
+    .await
+}
+
+pub async fn execute_query_stream(
+    conn: &SqlServerConnection,
+    query: &Query,
+    page_size: usize,
+    on_page: &mut (dyn FnMut(QueryResultPage) -> CellarResult<()> + Send),
+) -> CellarResult<QueryResultSummary> {
+    if query.read_only {
+        let result = execute_read_only_query(conn, query).await?;
+        let (pages, summary) = result.into_pages(page_size);
+        for page in pages {
+            on_page(page)?;
+        }
+        return Ok(summary);
+    }
+
+    let max_rows = query.max_rows.unwrap_or(DEFAULT_MAX_ROWS) as usize;
+    let offset = query.offset.unwrap_or(0) as usize;
+    let started = Instant::now();
+    conn.with_client(async |client| {
+        if let Some(database) = query.database.as_deref() {
+            if database != conn.config().database {
+                let use_sql = format!("USE {}; {}", quote_ident(database), query.sql);
+                return execute_sql_pages(
+                    client, &use_sql, max_rows, offset, page_size, started, on_page,
+                )
+                .await
+                .map(|(_, summary)| summary);
+            }
+        }
+        execute_sql_pages(
+            client, &query.sql, max_rows, offset, page_size, started, on_page,
+        )
+        .await
+        .map(|(_, summary)| summary)
     })
     .await
 }
@@ -140,9 +178,7 @@ async fn finish_with_rollback(
 ) -> CellarError {
     match rollback_to_baseline(client, baseline).await {
         Ok(()) => primary,
-        Err(cleanup) => session_invalidated(format!(
-            "{primary}; rollback also failed: {cleanup}"
-        )),
+        Err(cleanup) => session_invalidated(format!("{primary}; rollback also failed: {cleanup}")),
     }
 }
 
@@ -330,7 +366,12 @@ fn sql_tokens(sql: &str) -> Vec<String> {
                 i += 1;
             }
             if start < i {
-                tokens.push(chars[start..i].iter().collect::<String>().to_ascii_lowercase());
+                tokens.push(
+                    chars[start..i]
+                        .iter()
+                        .collect::<String>()
+                        .to_ascii_lowercase(),
+                );
             }
             if i < chars.len() {
                 i += 1;
@@ -348,7 +389,12 @@ fn sql_tokens(sql: &str) -> Vec<String> {
                     break;
                 }
             }
-            tokens.push(chars[start..i].iter().collect::<String>().to_ascii_lowercase());
+            tokens.push(
+                chars[start..i]
+                    .iter()
+                    .collect::<String>()
+                    .to_ascii_lowercase(),
+            );
             continue;
         }
         // Punctuation is only a separator.
@@ -364,15 +410,52 @@ async fn execute_sql(
     offset: usize,
     started: Instant,
 ) -> CellarResult<QueryResult> {
+    let mut rows = Vec::with_capacity(max_rows.min(10_000));
+    let (columns, summary) = execute_sql_pages(
+        client,
+        sql,
+        max_rows,
+        offset,
+        usize::MAX,
+        started,
+        &mut |page| {
+            rows.extend(page.rows);
+            Ok(())
+        },
+    )
+    .await?;
+    Ok(QueryResult {
+        columns,
+        rows,
+        notices: summary.notices,
+        notice_capture: summary.notice_capture,
+        rows_affected: summary.rows_affected,
+        duration_ms: summary.duration_ms,
+        truncated: summary.truncated,
+        total_rows: summary.total_rows,
+    })
+}
+
+async fn execute_sql_pages(
+    client: &mut crate::connect::TdsClient,
+    sql: &str,
+    max_rows: usize,
+    offset: usize,
+    page_size: usize,
+    started: Instant,
+    on_page: &mut (dyn FnMut(QueryResultPage) -> CellarResult<()> + Send),
+) -> CellarResult<(Vec<ColumnMeta>, QueryResultSummary)> {
     let mut stream = client
         .simple_query(sql)
         .await
         .map_err(|e| map_tiberius_runtime_err(e, "query execution"))?;
     let mut columns: Option<Vec<ColumnMeta>> = None;
-    let mut rows: Vec<Row> = Vec::with_capacity(max_rows.min(10_000));
+    let page_size = page_size.max(1);
+    let mut rows: Vec<Row> = Vec::with_capacity(max_rows.min(page_size).min(10_000));
     let mut truncated = false;
     // Count of data rows seen so far; used to implement the offset skip.
     let mut rows_seen: usize = 0;
+    let mut rows_output: usize = 0;
 
     while let Some(item) = stream
         .try_next()
@@ -404,7 +487,7 @@ async fn execute_sql(
                 }
                 rows_seen += 1;
 
-                if rows.len() >= max_rows {
+                if rows_output >= max_rows {
                     truncated = true;
                     // B9 fix: break instead of continue. The previous `continue`
                     // iterated the stream to completion, transferring every
@@ -416,14 +499,32 @@ async fn execute_sql(
                     break;
                 }
                 rows.push(row.into_iter().map(decode_cell).collect());
+                rows_output += 1;
+                if rows.len() >= page_size {
+                    emit_page(
+                        columns.as_deref().unwrap_or_default(),
+                        &mut rows,
+                        rows_output,
+                        on_page,
+                    )?;
+                    rows = Vec::with_capacity(max_rows.min(page_size).min(10_000));
+                }
             }
             _ => {}
         }
     }
 
-    Ok(QueryResult {
-        columns: columns.unwrap_or_default(),
-        rows,
+    emit_page(
+        columns.as_deref().unwrap_or_default(),
+        &mut rows,
+        rows_output,
+        on_page,
+    )?;
+
+    let columns = columns.unwrap_or_default();
+    Ok((
+        columns,
+        QueryResultSummary {
         notices: Vec::new(),
         notice_capture: NoticeCapture::unsupported(
             "SQL Server informational messages are not exposed through the current tiberius query path.",
@@ -435,6 +536,24 @@ async fn execute_sql(
         duration_ms: started.elapsed().as_millis() as u64,
         truncated,
         total_rows: None,
+            row_count: rows_output as u64,
+        },
+    ))
+}
+
+fn emit_page(
+    columns: &[ColumnMeta],
+    rows: &mut Vec<Row>,
+    rows_output: usize,
+    on_page: &mut (dyn FnMut(QueryResultPage) -> CellarResult<()> + Send),
+) -> CellarResult<()> {
+    if rows.is_empty() && (columns.is_empty() || rows_output > 0) {
+        return Ok(());
+    }
+    on_page(QueryResultPage {
+        columns: columns.to_vec(),
+        offset: rows_output.saturating_sub(rows.len()) as u64,
+        rows: std::mem::take(rows),
     })
 }
 
@@ -490,7 +609,20 @@ async fn commit_plan(
         let mut rows_affected = 0u64;
         for statement in &plan.statements {
             match client.execute(statement.as_str(), &[]).await {
-                Ok(result) => rows_affected += result.total(),
+                Ok(result) => {
+                    let statement_rows = result.total();
+                    if !statement_row_count_valid(check, statement_rows) {
+                        rollback(client).await;
+                        return Err(CellarError::query(format!(
+                            "one table change affected {statement_rows} rows; expected {}",
+                            match check {
+                                RowCountCheck::Exact => "exactly one",
+                                RowCountCheck::AtMost => "at most one",
+                            }
+                        )));
+                    }
+                    rows_affected += statement_rows;
+                }
                 Err(err) => {
                     rollback(client).await;
                     return Err(map_tiberius_runtime_err(err, "table commit"));
@@ -518,6 +650,13 @@ async fn commit_plan(
         })
     })
     .await
+}
+
+fn statement_row_count_valid(check: RowCountCheck, rows: u64) -> bool {
+    match check {
+        RowCountCheck::Exact => rows == 1,
+        RowCountCheck::AtMost => rows <= 1,
+    }
 }
 
 /// Control statements (USE, BEGIN/COMMIT/ROLLBACK TRANSACTION) must run as a
@@ -549,24 +688,69 @@ async fn rollback(client: &mut TdsClient) {
 
 #[cfg(test)]
 mod read_only_tests {
-    use super::{assert_read_only_sql, sql_tokens, strip_sql_noise};
+    use cellar_core::value::{CellValue, ColumnMeta};
+
+    use super::{
+        assert_read_only_sql, emit_page, sql_tokens, statement_row_count_valid, strip_sql_noise,
+        RowCountCheck,
+    };
+
+    #[test]
+    fn import_statements_cannot_mutate_multiple_rows() {
+        assert!(statement_row_count_valid(RowCountCheck::AtMost, 0));
+        assert!(statement_row_count_valid(RowCountCheck::AtMost, 1));
+        assert!(!statement_row_count_valid(RowCountCheck::AtMost, 2));
+    }
+
+    #[test]
+    fn emits_ordered_bounded_pages() {
+        let columns = vec![ColumnMeta {
+            name: "n".into(),
+            data_type: "int".into(),
+            nullable: false,
+        }];
+        let mut rows = vec![vec![CellValue::Int(3)], vec![CellValue::Int(4)]];
+        let mut pages = Vec::new();
+        emit_page(&columns, &mut rows, 4, &mut |page| {
+            pages.push(page);
+            Ok(())
+        })
+        .unwrap();
+        assert!(rows.is_empty());
+        assert_eq!(pages[0].offset, 2);
+        assert_eq!(pages[0].rows.len(), 2);
+    }
+
+    #[test]
+    fn emits_columns_for_an_empty_result() {
+        let columns = vec![ColumnMeta {
+            name: "id".into(),
+            data_type: "int".into(),
+            nullable: false,
+        }];
+        let mut rows = Vec::new();
+        let mut pages = Vec::new();
+        emit_page(&columns, &mut rows, 0, &mut |page| {
+            pages.push(page);
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(pages.len(), 1);
+        assert_eq!(pages[0].columns, columns);
+        assert!(pages[0].rows.is_empty());
+    }
 
     #[test]
     fn allows_plain_select_and_with() {
         assert_read_only_sql("SELECT Id FROM epiczone.Customers").unwrap();
-        assert_read_only_sql(
-            "WITH x AS (SELECT 1 AS n)\nSELECT * FROM x WHERE n > 0",
-        )
-        .unwrap();
+        assert_read_only_sql("WITH x AS (SELECT 1 AS n)\nSELECT * FROM x WHERE n > 0").unwrap();
     }
 
     #[test]
     fn rejects_commit_escape_and_dml() {
-        let err = assert_read_only_sql(
-            "SELECT 1;\nINSERT INTO t VALUES (1);\nCOMMIT TRANSACTION",
-        )
-        .unwrap_err()
-        .to_string();
+        let err = assert_read_only_sql("SELECT 1;\nINSERT INTO t VALUES (1);\nCOMMIT TRANSACTION")
+            .unwrap_err()
+            .to_string();
         assert!(
             err.contains("insert") || err.contains("commit"),
             "unexpected error: {err}"
@@ -610,9 +794,7 @@ mod read_only_tests {
             "SELECT Id FROM t -- COMMIT TRANSACTION\nWHERE note = 'please INSERT quietly'",
         )
         .unwrap();
-        let stripped = strip_sql_noise(
-            "SELECT 1 -- COMMIT\nWHERE x = 'INSERT'",
-        );
+        let stripped = strip_sql_noise("SELECT 1 -- COMMIT\nWHERE x = 'INSERT'");
         assert!(!stripped.to_ascii_lowercase().contains("commit"));
         assert!(!stripped.to_ascii_lowercase().contains("insert"));
     }

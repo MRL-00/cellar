@@ -86,14 +86,8 @@ mod tests {
         let auth2 = master_key_authorization("GET", "dbs", "", date, &key).expect("auth");
         assert_eq!(auth, auth2);
 
-        let docs = master_key_authorization(
-            "POST",
-            "docs",
-            "dbs/mydb/colls/mycoll",
-            date,
-            &key,
-        )
-        .expect("docs auth");
+        let docs = master_key_authorization("POST", "docs", "dbs/mydb/colls/mycoll", date, &key)
+            .expect("docs auth");
         assert_ne!(auth, docs);
     }
 

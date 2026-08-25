@@ -5,52 +5,88 @@ use std::time::Instant;
 use cellar_core::driver::Engine;
 use cellar_core::error::{CellarError, CellarResult};
 use cellar_core::query::{
-    NoticeCapture, PlanDetail, PlanMode, PlanNode, Query, QueryPlan, QueryResult,
+    NoticeCapture, PlanDetail, PlanMode, PlanNode, Query, QueryPlan, QueryResult, QueryResultPage,
+    QueryResultSummary,
 };
 use cellar_core::value::{CellValue, ColumnMeta, Row};
 use cellar_diff::{build_postgres_plan, TableChangeRequest, TableCommitResult};
 use futures::TryStreamExt;
 use serde_json::{Map, Value};
-use sqlx::{Column as _, PgPool, Row as _, TypeInfo as _};
+use sqlx::{Column as _, Executor as _, PgPool, Row as _, Statement as _, TypeInfo as _};
 
 use crate::connect::PgConnection;
 use crate::decode::decode_cell;
+use crate::runtime::{query_sqlx_err, RegisteredQuery};
 
 const DEFAULT_MAX_ROWS: u32 = 500;
 
-/// Drop guard that removes a query from the connection's active-query
-/// registry on every exit path of `execute_query`.
-struct RegisteredQuery<'a> {
-    conn: &'a PgConnection,
-    query_id: &'a str,
-}
-
-impl Drop for RegisteredQuery<'_> {
-    fn drop(&mut self) {
-        self.conn.unregister_query(self.query_id);
-    }
-}
-
-/// Signal the backend running `query_id` with `pg_cancel_backend`. Runs on a
-/// second pool connection — the one executing the statement stays busy until
-/// the server acts on the signal. Returns `false` when nothing is registered
-/// under that id (the statement already finished or never started).
-pub async fn cancel_query(conn: &PgConnection, query_id: &str) -> CellarResult<bool> {
-    let Some(active) = conn.lookup_query(query_id) else {
-        return Ok(false);
-    };
-    let pool = conn.pool_for_database(&active.database).await?;
-    let cancelled: bool = sqlx::query_scalar("SELECT pg_cancel_backend($1)")
-        .bind(active.pid)
-        .fetch_one(&pool)
-        .await
-        .map_err(|e| {
-            crate::connect::map_sqlx_err_for_runtime(e, "query cancellation", CellarError::query)
-        })?;
-    Ok(cancelled)
-}
-
 pub async fn execute_query(conn: &PgConnection, query: &Query) -> CellarResult<QueryResult> {
+    if query.read_only {
+        let database = query
+            .database
+            .as_deref()
+            .unwrap_or(conn.config().database.as_str());
+        let pool = conn.pool_for_database(database).await?;
+        return execute_read_only_query(&pool, query).await;
+    }
+
+    let mut rows =
+        Vec::with_capacity(query.max_rows.unwrap_or(DEFAULT_MAX_ROWS).min(10_000) as usize);
+    let (columns, summary) = execute_query_pages(conn, query, usize::MAX, |page| {
+        rows.extend(page.rows);
+        Ok(())
+    })
+    .await?;
+    Ok(QueryResult {
+        columns,
+        rows,
+        notices: summary.notices,
+        notice_capture: summary.notice_capture,
+        rows_affected: summary.rows_affected,
+        duration_ms: summary.duration_ms,
+        truncated: summary.truncated,
+        total_rows: summary.total_rows,
+    })
+}
+
+/// Decode and deliver Postgres rows while the database cursor is active. This
+/// is the hot path used by the desktop result grid; unlike `execute_query`, it
+/// never needs to retain the full bounded result in Rust.
+pub async fn execute_query_stream(
+    conn: &PgConnection,
+    query: &Query,
+    page_size: usize,
+    on_page: &mut (dyn FnMut(QueryResultPage) -> CellarResult<()> + Send),
+) -> CellarResult<QueryResultSummary> {
+    if query.read_only {
+        let database = query
+            .database
+            .as_deref()
+            .unwrap_or(conn.config().database.as_str());
+        let pool = conn.pool_for_database(database).await?;
+        let (pages, summary) = execute_read_only_query(&pool, query)
+            .await?
+            .into_pages(page_size);
+        for page in pages {
+            on_page(page)?;
+        }
+        return Ok(summary);
+    }
+
+    execute_query_pages(conn, query, page_size, on_page)
+        .await
+        .map(|(_, summary)| summary)
+}
+
+async fn execute_query_pages<F>(
+    conn: &PgConnection,
+    query: &Query,
+    page_size: usize,
+    mut on_page: F,
+) -> CellarResult<(Vec<ColumnMeta>, QueryResultSummary)>
+where
+    F: FnMut(QueryResultPage) -> CellarResult<()> + Send,
+{
     // Route to the pool for the query's target database so the sidebar can
     // browse and query several databases through one connection.
     let database = query
@@ -59,12 +95,9 @@ pub async fn execute_query(conn: &PgConnection, query: &Query) -> CellarResult<Q
         .unwrap_or(conn.config().database.as_str());
     let pool = conn.pool_for_database(database).await?;
     let pool = &pool;
-    if query.read_only {
-        return execute_read_only_query(pool, query).await;
-    }
-
     let max_rows = query.max_rows.unwrap_or(DEFAULT_MAX_ROWS);
     let max_rows_usize = max_rows as usize;
+    let page_size = page_size.max(1);
     // offset for free-form queries: skip rows from the stream. Because the SQL
     // passes through verbatim (no parser to inject OFFSET), we consume and
     // discard the leading rows. This transfers skipped rows over the wire — an
@@ -72,7 +105,7 @@ pub async fn execute_query(conn: &PgConnection, query: &Query) -> CellarResult<Q
     // rows each). Very large offsets would benefit from a subquery wrapper, but
     // that requires dialect-aware SQL rewriting and is deferred.
     let skip_rows = query.offset.unwrap_or(0) as usize;
-    let capacity = max_rows.min(10_000) as usize;
+    let capacity = max_rows_usize.min(page_size).min(10_000);
 
     // Resolve parameters before building the statement. With no params the SQL
     // passes through verbatim (the existing fast path); otherwise cellar-sql
@@ -92,16 +125,14 @@ pub async fn execute_query(conn: &PgConnection, query: &Query) -> CellarResult<Q
     // and register it so a concurrent cancel_query can signal that PID with
     // pg_cancel_backend. The registration drops (and unregisters) on every
     // exit path, including errors.
-    let mut pinned = None;
+    let mut acquired = pool.acquire().await.map_err(query_sqlx_err)?;
     let _registration = match query.query_id.as_deref() {
         Some(query_id) => {
-            let mut acquired = pool.acquire().await.map_err(query_sqlx_err)?;
             let pid: i32 = sqlx::query_scalar("SELECT pg_backend_pid()")
                 .fetch_one(&mut *acquired)
                 .await
                 .map_err(query_sqlx_err)?;
             conn.register_query(query_id, pid, database);
-            pinned = Some(acquired);
             Some(RegisteredQuery { conn, query_id })
         }
         None => None,
@@ -117,14 +148,12 @@ pub async fn execute_query(conn: &PgConnection, query: &Query) -> CellarResult<Q
         statement = crate::bind::bind_value(statement, value)?;
     }
     #[allow(deprecated)]
-    let mut stream = match pinned.as_mut() {
-        Some(acquired) => statement.fetch_many(&mut **acquired),
-        None => statement.fetch_many(pool),
-    };
+    let mut stream = statement.fetch_many(&mut *acquired);
     let mut columns: Option<Vec<ColumnMeta>> = None;
-    let mut materialized: Vec<Row> = Vec::with_capacity(capacity);
+    let mut page_rows: Vec<Row> = Vec::with_capacity(capacity);
     let mut truncated = false;
     let mut rows_seen: usize = 0;
+    let mut rows_output: usize = 0;
     let mut rows_affected: Option<u64> = None;
 
     while let Some(item) = stream.try_next().await.map_err(query_sqlx_err)? {
@@ -157,7 +186,7 @@ pub async fn execute_query(conn: &PgConnection, query: &Query) -> CellarResult<Q
             continue;
         }
 
-        if materialized.len() >= max_rows_usize {
+        if rows_output >= max_rows_usize {
             truncated = true;
             break;
         }
@@ -166,9 +195,61 @@ pub async fn execute_query(conn: &PgConnection, query: &Query) -> CellarResult<Q
         for i in 0..r.columns().len() {
             cells.push(decode_cell(&r, i)?);
         }
-        materialized.push(cells);
+        page_rows.push(cells);
+        rows_output += 1;
+        if page_rows.len() >= page_size {
+            on_page(QueryResultPage {
+                columns: columns.clone().unwrap_or_default(),
+                rows: std::mem::take(&mut page_rows),
+                offset: (rows_output - page_size) as u64,
+            })?;
+            page_rows = Vec::with_capacity(capacity);
+        }
     }
+    drop(stream);
     let duration_ms = started.elapsed().as_millis() as u64;
+
+    if rows_output == 0
+        && columns.is_none()
+        && cellar_core::query::statement_may_return_rows(exec_sql)
+    {
+        let parameter_types: Vec<_> = bind_values
+            .iter()
+            .map(|value| crate::bind::type_info(value))
+            .collect();
+        let described = (&mut *acquired)
+            .prepare_with(exec_sql, &parameter_types)
+            .await
+            .map_err(query_sqlx_err)?;
+        if !described.columns().is_empty() {
+            columns = Some(
+                described
+                    .columns()
+                    .iter()
+                    .map(|c| ColumnMeta {
+                        name: c.name().to_string(),
+                        data_type: c.type_info().name().to_string().to_lowercase(),
+                        nullable: true,
+                    })
+                    .collect(),
+            );
+        }
+    }
+
+    if !page_rows.is_empty() {
+        let offset = rows_output - page_rows.len();
+        on_page(QueryResultPage {
+            columns: columns.clone().unwrap_or_default(),
+            rows: page_rows,
+            offset: offset as u64,
+        })?;
+    } else if rows_output == 0 && columns.is_some() {
+        on_page(QueryResultPage {
+            columns: columns.clone().unwrap_or_default(),
+            rows: Vec::new(),
+            offset: 0,
+        })?;
+    }
 
     // Only surface an affected count for statements without a result set
     // (INSERT/UPDATE/DELETE/DDL without RETURNING). For row-returning
@@ -180,9 +261,8 @@ pub async fn execute_query(conn: &PgConnection, query: &Query) -> CellarResult<Q
         None
     };
 
-    Ok(QueryResult {
-        columns: columns.unwrap_or_default(),
-        rows: materialized,
+    let columns = columns.unwrap_or_default();
+    Ok((columns, QueryResultSummary {
         notices: Vec::new(),
         // SQLx decodes Postgres NoticeResponse frames, but PgPool consumes
         // them inside the connection stream and only emits a log/tracing
@@ -198,7 +278,8 @@ pub async fn execute_query(conn: &PgConnection, query: &Query) -> CellarResult<Q
         // Total row count is not available for free-form queries without
         // wrapping the SQL in a COUNT subquery, which requires parsing.
         total_rows: None,
-    })
+        row_count: rows_output as u64,
+    }))
 }
 
 async fn execute_read_only_query(pool: &PgPool, query: &Query) -> CellarResult<QueryResult> {
@@ -264,6 +345,28 @@ async fn execute_read_only_query(pool: &PgPool, query: &Query) -> CellarResult<Q
         materialized.push(cells);
     }
     drop(stream);
+    if materialized.is_empty()
+        && columns.is_none()
+        && cellar_core::query::statement_may_return_rows(exec_sql)
+    {
+        let described = (&mut *tx)
+            .describe(exec_sql)
+            .await
+            .map_err(query_sqlx_err)?;
+        if !described.columns().is_empty() {
+            columns = Some(
+                described
+                    .columns()
+                    .iter()
+                    .map(|c| ColumnMeta {
+                        name: c.name().to_string(),
+                        data_type: c.type_info().name().to_string().to_lowercase(),
+                        nullable: true,
+                    })
+                    .collect(),
+            );
+        }
+    }
     tx.rollback().await.map_err(query_sqlx_err)?;
 
     let rows_affected = if columns.is_none() {
@@ -357,7 +460,18 @@ async fn commit_plan(
             .execute(&mut *tx)
             .await
             .map_err(query_sqlx_err)?;
-        rows_affected += result.rows_affected();
+        let statement_rows = result.rows_affected();
+        if !statement_row_count_valid(check, statement_rows) {
+            tx.rollback().await.map_err(query_sqlx_err)?;
+            return Err(CellarError::query(format!(
+                "one table change affected {statement_rows} rows; expected {}",
+                match check {
+                    RowCountCheck::Exact => "exactly one",
+                    RowCountCheck::AtMost => "at most one",
+                }
+            )));
+        }
+        rows_affected += statement_rows;
     }
 
     let mismatch = match check {
@@ -379,6 +493,13 @@ async fn commit_plan(
         rows_affected,
         duration_ms: started.elapsed().as_millis() as u64,
     })
+}
+
+fn statement_row_count_valid(check: RowCountCheck, rows: u64) -> bool {
+    match check {
+        RowCountCheck::Exact => rows == 1,
+        RowCountCheck::AtMost => rows <= 1,
+    }
 }
 
 /// Apply a (user-reviewed, possibly edited) schema migration script against
@@ -561,18 +682,6 @@ fn normalize_single_statement(sql: &str) -> CellarResult<String> {
     }
 }
 
-fn query_sqlx_err(err: sqlx::Error) -> CellarError {
-    if let sqlx::Error::Database(db) = &err {
-        // SQLSTATE 57014 query_canceled — raised by pg_cancel_backend and by
-        // statement_timeout. The server message ("canceling statement due to
-        // user request") reads better than the generic sqlx wrapper.
-        if db.code().as_deref() == Some("57014") {
-            return CellarError::Query(db.message().to_string());
-        }
-    }
-    crate::connect::map_sqlx_err_for_runtime(err, "query execution", CellarError::query)
-}
-
 fn has_sql_tokens(sql: &str) -> bool {
     for (idx, ch) in sql.char_indices() {
         if !ch.is_whitespace() {
@@ -691,45 +800,5 @@ fn skip_dollar_quote(sql: &str, start: usize) -> Option<usize> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::json;
-
-    #[test]
-    fn normalizes_a_single_statement_with_trailing_comments() {
-        let sql = " SELECT ';' AS semi; -- ok\n /* done */ ";
-        assert_eq!(
-            normalize_single_statement(sql).expect("single statement"),
-            "SELECT ';' AS semi"
-        );
-    }
-
-    #[test]
-    fn rejects_multiple_statements() {
-        let err = normalize_single_statement("SELECT 1; DROP TABLE users")
-            .expect_err("multiple statements rejected");
-        assert!(err.to_string().contains("one statement"));
-    }
-
-    #[test]
-    fn ignores_semicolons_in_dollar_quotes() {
-        let sql = "SELECT $$semi;colon$$ AS body";
-        assert_eq!(normalize_single_statement(sql).unwrap(), sql);
-    }
-
-    #[test]
-    fn parses_json_plan_nodes() {
-        let plan = json!({
-            "Node Type": "Seq Scan",
-            "Relation Name": "orders",
-            "Startup Cost": 0.0,
-            "Total Cost": 12.5,
-            "Plan Rows": 10,
-            "Filter": "(total > 10)"
-        });
-        let parsed = parse_plan_node(&plan).expect("parse plan");
-        assert_eq!(parsed.node_type, "Seq Scan");
-        assert_eq!(parsed.relation_name.as_deref(), Some("orders"));
-        assert_eq!(parsed.details[0].label, "Filter");
-    }
-}
+#[path = "query_tests.rs"]
+mod tests;

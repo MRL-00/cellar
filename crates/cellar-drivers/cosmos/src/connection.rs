@@ -7,9 +7,7 @@ use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use cellar_core::driver::{Connection, ConnectionConfig, DriverInfo, Engine};
 use cellar_core::error::{CellarError, CellarResult};
-use cellar_core::query::{
-    NoticeCapture, QueryResult, TableBrowseRequest,
-};
+use cellar_core::query::{NoticeCapture, QueryResult, TableBrowseRequest};
 use cellar_core::schema::{Database, Index, Schema, Table};
 use cellar_core::value::ColumnMeta;
 use reqwest::{Client, Method, RequestBuilder, Response, Url};
@@ -31,7 +29,10 @@ pub struct CosmosConnection {
 }
 
 impl CosmosConnection {
-    pub(crate) async fn open(config: &ConnectionConfig, secret: Option<&str>) -> CellarResult<Self> {
+    pub(crate) async fn open(
+        config: &ConnectionConfig,
+        secret: Option<&str>,
+    ) -> CellarResult<Self> {
         let key = secret
             .map(str::trim)
             .filter(|s| !s.is_empty())

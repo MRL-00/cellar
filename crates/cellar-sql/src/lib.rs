@@ -17,9 +17,13 @@
 
 pub mod params;
 mod references;
+mod safety;
+mod statements;
 
 pub use params::{order_values, prepare, ParamError, PreparedStatement};
 pub use references::{find_references, Reference};
+pub use safety::{destructive_reason, sql_contains_credentials};
+pub use statements::{split_statements, statement_at_offset, SqlStatement};
 
 use serde::{Deserialize, Serialize};
 use specta::Type;

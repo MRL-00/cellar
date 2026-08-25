@@ -15,7 +15,8 @@ pub use er::{ErColumn, ErEdge, ErGraph, ErNode};
 pub use error::{CellarError, CellarResult};
 pub use query::{
     DatabaseNotice, DetectedParameter, NoticeCapture, NoticeSeverity, ParameterStyle, PlanDetail,
-    PlanMode, PlanNode, Query, QueryParam, QueryPlan, QueryResult,
+    PlanMode, PlanNode, Query, QueryParam, QueryPlan, QueryResult, QueryResultPage,
+    QueryResultSummary, QueryStreamEvent,
 };
 pub use schema::{
     Column, Database, ForeignKey, Index, Schema, Table, UsageDefinition, UsageKind, UsageReference,
@@ -135,6 +136,55 @@ mod tests {
         assert_eq!(back.notices.len(), 1);
         assert!(back.notice_capture.supported);
         assert!(matches!(back.rows[1][1], CellValue::Null));
+    }
+
+    #[test]
+    fn pages_a_result_without_losing_rows() {
+        let result = QueryResult {
+            columns: vec![ColumnMeta {
+                name: "id".into(),
+                data_type: "int8".into(),
+                nullable: false,
+            }],
+            rows: (0..5).map(|n| vec![CellValue::Int(n)]).collect(),
+            notices: vec![],
+            notice_capture: NoticeCapture::supported(),
+            rows_affected: None,
+            duration_ms: 4,
+            truncated: true,
+            total_rows: None,
+        };
+
+        let (pages, summary) = result.into_pages(2);
+        assert_eq!(
+            pages.iter().map(|page| page.rows.len()).collect::<Vec<_>>(),
+            [2, 2, 1]
+        );
+        assert_eq!(
+            pages.iter().map(|page| page.offset).collect::<Vec<_>>(),
+            [0, 2, 4]
+        );
+        assert_eq!(summary.row_count, 5);
+        assert!(summary.truncated);
+    }
+
+    #[test]
+    fn identifies_statements_that_can_return_rows() {
+        assert!(query::statement_may_return_rows(" SELECT 1"));
+        assert!(query::statement_may_return_rows(
+            "UPDATE t SET x = 1 RETURNING x"
+        ));
+        assert!(query::statement_may_return_rows(
+            "-- explain the query\nSELECT id FROM t WHERE false"
+        ));
+        assert!(query::statement_may_return_rows(
+            "UPDATE t SET x = 1\nRETURNING\nid"
+        ));
+        assert!(!query::statement_may_return_rows(
+            "INSERT INTO t (value) VALUES ($$ returning $$)"
+        ));
+        assert!(!query::statement_may_return_rows("CREATE TABLE t (id int)"));
+        assert!(!query::statement_may_return_rows("DROP TABLE t"));
     }
 
     #[test]

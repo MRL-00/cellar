@@ -66,28 +66,25 @@ Cellar is **not** aimed at non-technical business users. The UI assumes you unde
 
 | Layer | Choice | Reason |
 |---|---|---|
-| Desktop shell | Tauri 2.0 | Small binaries, low memory, secure IPC, Rust backend |
-| Frontend | React 18 + TypeScript | Familiar, huge ecosystem, easy for contributors |
-| Build | Vite | Fast HMR, standard with Tauri |
-| State | Zustand | Minimal, no Redux ceremony |
-| Styling | Tailwind CSS + CSS variables | Token-driven theming, fast iteration |
-| Component primitives | shadcn/ui (selectively) | Owned source, not a dependency |
-| Data grid | Custom, built on TanStack Table v8 | The grid is the product — must own it |
-| SQL editor | CodeMirror 6 | Lighter than Monaco, better extensibility, modern API |
+| Desktop shell and UI | GPUI 0.2.2 (exact pin) | GPU-rendered native Rust UI with direct access to shared typed services |
+| Build | Cargo | One production language and build graph for the desktop client |
+| State | GPUI entities plus plain Rust models | UI invalidation stays local and domain state remains testable without a window |
+| Styling | GPUI styles plus shared Rust theme tokens | Dense token-driven UI without a browser layout engine |
+| Component primitives | Owned GPUI components | Cellar controls focus, accessibility, and rendering cost |
+| Data grid | Custom GPUI grid with two-axis virtualization | The grid is the product — visible cells must stay bounded |
+| SQL editor | Native GPUI editor backed by `cellar-sql` | Native focus/input with shared dialect parsing and formatting |
 | Backend | Rust (stable toolchain) | Performance, safety, best-in-class DB libraries |
 | Async runtime | Tokio | Standard |
 | DB drivers | `sqlx` (Postgres, MySQL, SQLite), `tiberius` (SQL Server) | Mature, async, dialect-aware |
-| IPC type generation | `specta` + `tauri-specta` | End hand-syncing types between Rust and TS |
 | Credential storage | OS keychain via `keyring` crate, fallback to encrypted file | Standard, secure |
-| AI providers | Provider adapters plus typed Tauri IPC for privileged auth | Backend providers keep API keys and OAuth credentials out of the webview |
+| AI providers | Rust provider adapters behind typed runtime services | Provider keys and OAuth credentials never enter UI state |
 | Telemetry | None by default. Opt-in only, self-hosted endpoint configurable. | Trust |
-| Package management | pnpm workspaces + Cargo workspaces | Two ecosystems, two tools |
-| Monorepo orchestration | Turborepo | Just enough, no Nx complexity |
+| Package management | Cargo workspace; pnpm retained only during migration | Tauri/React stays buildable until verified parity |
 | Testing (Rust) | Built-in + `insta` for snapshots | Standard |
-| Testing (TS) | Vitest + Playwright | Vitest for units, Playwright for end-to-end Tauri tests |
-| Linting | `cargo clippy`, `eslint`, `prettier` | Standard |
+| Testing (legacy TS) | Vitest + Playwright | Protects the old client until its removal gate passes |
+| Linting | `cargo clippy`, `rustfmt`; legacy `eslint` and `prettier` | Standard |
 | CI | GitHub Actions | Free for OSS |
-| Release | `tauri-action` for cross-platform builds | Standard Tauri release path |
+| Release | Signed Cargo-built GPUI bundles for macOS, Windows, and Linux | Preserve existing platform support |
 
 ---
 
@@ -97,21 +94,21 @@ Cellar is **not** aimed at non-technical business users. The UI assumes you unde
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      Tauri Window                            │
+│                       GPUI Window                            │
 │  ┌───────────────────────────────────────────────────────┐  │
-│  │              React Frontend (TypeScript)               │  │
+│  │                    Native Rust UI                       │  │
 │  │                                                        │  │
 │  │  Sidebar │  Tabbed Editor / Grid  │  AI Panel          │  │
 │  │          │  Results / Plan / etc. │                    │  │
 │  └───────────────────────────────────────────────────────┘  │
 │                          │                                   │
-│                  Tauri IPC (typed)                           │
+│              bounded typed runtime calls/pages               │
 │                          │                                   │
 │  ┌───────────────────────────────────────────────────────┐  │
-│  │                  Rust Backend                          │  │
+│  │             Shared `cellar-runtime` services           │  │
 │  │  ┌──────────┬───────────┬────────────┬──────────────┐ │  │
-│  │  │ commands │   state   │ connection │  driver host │ │  │
-│  │  │  layer   │  manager  │   pool     │              │ │  │
+│  │  │ UI tasks │ app state │ connection │  driver host │ │  │
+│  │  │ + pages  │  manager  │   pool     │              │ │  │
 │  │  └──────────┴───────────┴────────────┴──────────────┘ │  │
 │  │                          │                             │  │
 │  │  cellar-core (traits) ───┴─── cellar-drivers           │  │
@@ -131,12 +128,15 @@ Cellar is **not** aimed at non-technical business users. The UI assumes you unde
 
 ### 5.2 Repository layout
 
-The repo is a monorepo with two workspace systems: pnpm for TypeScript and Cargo for Rust.
+The repo uses Cargo for the production client and Rust services. The pnpm
+workspace remains only while the Tauri/React client is the parity reference.
 
 ```
 cellar/
-├── apps/desktop/                # Tauri app shell (frontend + Rust commands)
+├── apps/desktop-gpui/           # Production GPUI desktop client
+├── apps/desktop/                # Legacy parity reference during migration
 ├── crates/                      # Rust workspace
+│   ├── cellar-runtime/          # Shared application and connection services
 │   ├── cellar-core/             # Traits, errors, shared types
 │   ├── cellar-drivers/          # Per-engine drivers
 │   ├── cellar-sql/              # SQL parsing, dialect handling
@@ -193,25 +193,32 @@ Each driver is responsible for dialect-specific quirks (identifier quoting, type
 
 **`cellar-plugin-host`** loads external drivers and providers. v1.0 uses dynamic libraries with a stable C ABI plus WASM as a future direction. See §10.
 
-### 5.4 IPC
+### 5.4 UI/runtime boundary
 
-All Tauri commands are defined in `apps/desktop/src-tauri/src/commands/`. TypeScript bindings are generated by `tauri-specta` into `packages/ipc/src/generated.ts`. Frontend code imports from `@cellar/ipc` and never hand-writes types.
+GPUI calls typed `cellar-runtime` services directly. UI tasks may own lightweight
+handles and identifiers, but database connections, credentials, and transaction
+state remain in the runtime. The legacy Tauri commands re-export the same runtime
+while migration is in progress.
 
-Commands are grouped by feature: `connection`, `query`, `schema`, `transaction`, `ai`, `settings`.
+Services are grouped by feature: `connection`, `query`, `schema`, `transaction`,
+`ai`, and `settings`.
 
-Streaming results use Tauri events (channel-style) keyed by a query ID. Large result sets stream in pages of N rows (default 500) rather than loading everything at once.
+Streaming results use bounded channels keyed by query ID. Large result sets arrive
+in pages of N rows (default 500); no complete result is materialized at the UI
+boundary.
 
 ### 5.5 State management
 
-Frontend state is split across Zustand stores per feature:
+UI state is split across GPUI entities per feature:
 
-- `useConnections` — connection list, status, active connection
-- `useTabs` — open tabs (editors and grids), focus, split state
-- `useSchemaTree` — schema introspection cache per connection
-- `useAi` — AI conversation state, context chips, provider config
-- `useSettings` — preferences, themes, keymap
+- connections — connection list, status, active connection
+- tabs — open editors and grids, focus, split state
+- schema tree — introspection cache per connection
+- AI — conversation state, context chips, provider config
+- settings — preferences, themes, keymap
 
-No global Redux store. Cross-store interaction is done via direct imports, not events.
+Domain models remain plain Rust structs where GPUI observation is unnecessary.
+There is no second copy of backend connection or credential state in the UI.
 
 ---
 
@@ -465,7 +472,8 @@ A command palette (`⌘K`) provides search-driven access to every action.
 - AI requests never include database credentials. Provider credentials stay in the OS keychain and outside the renderer where the provider supports a backend transport.
 - AI requests are inspectable before sending.
 - No telemetry without explicit opt-in.
-- Tauri allowlist locked down: only the IPC commands defined in `commands/` are callable; no arbitrary shell access from the frontend.
+- GPUI exposes no arbitrary shell or file capability to feature code. The legacy
+  Tauri allowlist remains locked down until that client is removed.
 
 ### Cross-platform
 
@@ -577,8 +585,9 @@ v1.0 loading mechanism:
 
 ### Build
 
-- `pnpm install && pnpm dev` — runs Tauri dev with HMR
-- `pnpm build` — builds production bundles via Turbo
+- `pnpm dev:native` — runs the GPUI desktop client
+- `pnpm build:native` — builds the optimized GPUI binary
+- `pnpm dev` and `pnpm build` — keep the legacy parity client buildable during migration
 - `cargo test` — runs Rust tests
 - `pnpm test` — runs frontend tests
 - `pnpm e2e` — runs Playwright end-to-end tests
@@ -605,7 +614,8 @@ GitHub Actions:
 - Flatpak (Linux, post-1.0)
 - AUR package (Linux, community-maintained)
 
-Auto-update via Tauri's built-in updater, signed with a project key. Update channel selectable in settings (stable, beta).
+Auto-updates use signed platform artifacts and retain selectable stable and beta
+channels. The updater must verify the project signature before replacement.
 
 ---
 

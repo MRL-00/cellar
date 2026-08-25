@@ -32,3 +32,4 @@ apps/desktop/vite.config.ts.timestamp-*.mjs
 *.updater.key
 *.updater.key.pub
 tauri-signing-key*
+prototypes/target/

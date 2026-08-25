@@ -1,9 +1,7 @@
 //! Translate Cellar grid filters into Cosmos SQL and apply page-local sorts.
 
 use cellar_core::error::{CellarError, CellarResult};
-use cellar_core::query::{
-    SortDirection, TableFilterClause, TableFilterOperator, TableSortClause,
-};
+use cellar_core::query::{SortDirection, TableFilterClause, TableFilterOperator, TableSortClause};
 use cellar_core::schema::Table;
 use serde_json::{json, Map, Value};
 
@@ -70,12 +68,10 @@ fn render_filter(
     };
 
     match filter.operator {
-        TableFilterOperator::IsNull => Ok(format!(
-            "(NOT IS_DEFINED({path}) OR IS_NULL({path}))"
-        )),
-        TableFilterOperator::IsNotNull => Ok(format!(
-            "(IS_DEFINED({path}) AND NOT IS_NULL({path}))"
-        )),
+        TableFilterOperator::IsNull => Ok(format!("(NOT IS_DEFINED({path}) OR IS_NULL({path}))")),
+        TableFilterOperator::IsNotNull => {
+            Ok(format!("(IS_DEFINED({path}) AND NOT IS_NULL({path}))"))
+        }
         TableFilterOperator::Equals | TableFilterOperator::NotEquals => {
             let value = required_value(filter)?;
             let param = push_param(parameters, bind_value(table, &filter.column, value));
@@ -144,10 +140,7 @@ fn required_value<'a>(filter: &'a TableFilterClause) -> CellarResult<&'a str> {
         .as_deref()
         .filter(|s| !s.trim().is_empty())
         .ok_or_else(|| {
-            CellarError::invalid_config(format!(
-                "filter on '{}' needs a value",
-                filter.column
-            ))
+            CellarError::invalid_config(format!("filter on '{}' needs a value", filter.column))
         })
 }
 
