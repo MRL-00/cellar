@@ -36,6 +36,7 @@ jobs:
             clang \
             cmake \
             libasound2-dev \
+            libdbus-1-dev \
             libfontconfig-dev \
             libglib2.0-dev \
             libssl-dev \
