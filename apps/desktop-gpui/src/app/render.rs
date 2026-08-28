@@ -45,6 +45,14 @@ impl Render for CellarApp {
             })
             .on_action({
                 let app = app.clone();
+                move |_: &crate::app_menu::ToggleCommandPalette, window, cx| {
+                    if let Some(app) = app.upgrade() {
+                        app.update(cx, |this, cx| this.toggle_command_palette(window, cx));
+                    }
+                }
+            })
+            .on_action({
+                let app = app.clone();
                 move |_: &crate::app_menu::CloseTab, _, cx| {
                     if let Some(app) = app.upgrade() {
                         app.update(cx, |this, cx| {
