@@ -96,7 +96,26 @@ impl RenderOnce for GridRow {
                             .justify_center()
                             .text_size(px(11.))
                             .text_color(FG_MUTED)
+                            .when(
+                                self.selection
+                                    .is_some_and(|selection| selection.row == self.row),
+                                |element| element.bg(accent_soft()),
+                            )
                             .child((self.row + 1).to_string())
+                            .on_mouse_down(MouseButton::Left, {
+                                let grid = self.grid.clone();
+                                let row = self.row;
+                                move |_, window, cx| {
+                                    grid.update(cx, |grid, cx| {
+                                        grid.select(
+                                            super::CellPosition { row, column: 0 },
+                                            window,
+                                            cx,
+                                        );
+                                    })
+                                    .ok();
+                                }
+                            })
                             .context_menu({
                                 let grid = self.grid.clone();
                                 let row = self.row;
@@ -380,10 +399,10 @@ fn grid_cell(
         .whitespace_nowrap()
         .truncate()
         .child(content)
-        .on_click(move |event, window, cx| {
+        .on_mouse_down(MouseButton::Left, move |event, window, cx| {
             grid.update(cx, |grid, cx| {
                 let position = CellPosition { row, column };
-                if editable && event.click_count() >= 2 {
+                if editable && event.click_count >= 2 {
                     grid.begin_edit(position, window, cx);
                 } else {
                     grid.select(position, window, cx);
