@@ -202,7 +202,13 @@ impl Render for DataGrid {
                     .min_h_0()
                     .overflow_x_scroll()
                     .track_scroll(&self.horizontal_scroll)
-                    .on_scroll_wheel(cx.listener(|_, _: &ScrollWheelEvent, _, cx| cx.notify()))
+                    .on_scroll_wheel(cx.listener(|_, event: &ScrollWheelEvent, window, cx| {
+                        let delta = event.delta.pixel_delta(window.line_height());
+                        if !super::wheel_scrolls_horizontally(delta) {
+                            cx.stop_propagation();
+                        }
+                        cx.notify();
+                    }))
                     .child(self.header(columns.clone(), horizontal_offset, grid.clone()))
                     .child(
                         uniform_list(
