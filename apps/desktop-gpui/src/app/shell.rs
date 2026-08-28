@@ -17,8 +17,8 @@ use super::{
 use cellar_desktop_gpui::{
     model::TabKind,
     theme::{
-        accent_soft, ui_px, ACCENT, BG, BORDER, BORDER_STRONG, FG, FG_MUTED, FG_SECONDARY,
-        FG_TERTIARY, INSET, PANEL, PANEL_MUTED, PANEL_RAISED,
+        accent_soft, ui_px, ACCENT, BG, BORDER, BORDER_SEPARATOR, BORDER_STRONG, FG, FG_MUTED,
+        FG_SECONDARY, FG_TERTIARY, INSET, PANEL, PANEL_MUTED, PANEL_RAISED,
     },
 };
 
@@ -137,6 +137,7 @@ impl CellarApp {
 
         div()
             .id("title-bar")
+            .relative()
             .h(ui_px(34.))
             .flex_shrink_0()
             .flex()
@@ -218,37 +219,6 @@ impl CellarApp {
             )
             .child(
                 div()
-                    .id("open-command-palette")
-                    .tab_index(0)
-                    .w(ui_px(320.))
-                    .h(ui_px(24.))
-                    .flex()
-                    .items_center()
-                    .gap_2()
-                    .px_2()
-                    .rounded(ui_px(5.))
-                    .border_1()
-                    .border_color(BORDER)
-                    .bg(INSET)
-                    .text_size(ui_px(14.))
-                    .text_color(FG_MUTED)
-                    .hover(|style| style.border_color(BORDER_STRONG))
-                    .child(Icon::empty().path("icons/search.svg").size(ui_px(12.)))
-                    .child(div().flex_1().child("Search tables, columns, queries…"))
-                    .child(
-                        div()
-                            .flex()
-                            .gap(ui_px(2.))
-                            .child(keycap("⌘"))
-                            .child(keycap("K")),
-                    )
-                    .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                    .on_click(cx.listener(|this, _, window, cx| {
-                        this.toggle_command_palette(window, cx);
-                    })),
-            )
-            .child(
-                div()
                     .flex_1()
                     .h_full()
                     .flex()
@@ -313,6 +283,41 @@ impl CellarApp {
                             cx.notify();
                         })),
                     ),
+            )
+            .child(
+                div()
+                    .id("open-command-palette")
+                    .tab_index(0)
+                    .absolute()
+                    .top(ui_px(5.))
+                    .left(gpui::relative(0.5))
+                    .ml(ui_px(-160.))
+                    .w(ui_px(320.))
+                    .h(ui_px(24.))
+                    .flex()
+                    .items_center()
+                    .gap_2()
+                    .px_2()
+                    .rounded(ui_px(5.))
+                    .border_1()
+                    .border_color(BORDER)
+                    .bg(INSET)
+                    .text_size(ui_px(14.))
+                    .text_color(FG_MUTED)
+                    .hover(|style| style.border_color(BORDER_STRONG))
+                    .child(Icon::empty().path("icons/search.svg").size(ui_px(12.)))
+                    .child(div().flex_1().child("Search tables, columns, queries…"))
+                    .child(
+                        div()
+                            .flex()
+                            .gap(ui_px(2.))
+                            .child(keycap("⌘"))
+                            .child(keycap("K")),
+                    )
+                    .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        this.toggle_command_palette(window, cx);
+                    })),
             )
     }
 
@@ -476,7 +481,7 @@ impl CellarApp {
                             .bg(if self.bottom_panel_resize.is_some() {
                                 ACCENT.rgba()
                             } else {
-                                BORDER.rgba()
+                                BORDER_SEPARATOR.rgba()
                             })
                             .group_hover("bottom-panel-resizer", |style| {
                                 style.bg(cellar_desktop_gpui::theme::accent(0.32))

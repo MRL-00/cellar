@@ -24,6 +24,7 @@ enum Token {
     Border,
     BorderStrong,
     BorderDivider,
+    BorderSeparator,
     GridLine,
     Fg,
     FgSecondary,
@@ -49,6 +50,7 @@ pub const PANEL_RAISED: DynamicColor = DynamicColor(Token::PanelRaised);
 pub const BORDER: DynamicColor = DynamicColor(Token::Border);
 pub const BORDER_STRONG: DynamicColor = DynamicColor(Token::BorderStrong);
 pub const BORDER_DIVIDER: DynamicColor = DynamicColor(Token::BorderDivider);
+pub const BORDER_SEPARATOR: DynamicColor = DynamicColor(Token::BorderSeparator);
 pub const GRID_LINE: DynamicColor = DynamicColor(Token::GridLine);
 pub const FG: DynamicColor = DynamicColor(Token::Fg);
 pub const FG_SECONDARY: DynamicColor = DynamicColor(Token::FgSecondary);
@@ -178,7 +180,9 @@ impl DynamicColor {
             (Token::BorderStrong, false) => rgba(0xffffff, 0.13),
             (Token::BorderStrong, true) => rgba(0x000000, 0.16),
             (Token::BorderDivider, false) => rgba(0xffffff, 0.05),
-            (Token::BorderDivider, true) => rgba(0x000000, 0.10),
+            (Token::BorderDivider, true) => rgba(0x000000, 0.06),
+            (Token::BorderSeparator, false) => rgba(0x000000, 0.32),
+            (Token::BorderSeparator, true) => rgba(0x000000, 0.16),
             (Token::GridLine, false) => rgba(0xffffff, 0.08),
             (Token::GridLine, true) => rgba(0x000000, 0.12),
             (Token::Fg, false) => rgb(0xeeeeee),
@@ -201,9 +205,9 @@ impl DynamicColor {
             (Token::AccentFg, false) => rgb(0x0a0b0e),
             (Token::AccentFg, true) => rgb(0xffffff),
             (Token::Prod, false) => rgb(0xf87171),
-            (Token::Prod, true) => rgb(0xdc2626),
+            (Token::Prod, true) => rgb(0xf87171),
             (Token::Warn, false) => rgb(0xfbbf24),
-            (Token::Warn, true) => rgb(0xa16207),
+            (Token::Warn, true) => rgb(0xfbbf24),
             (Token::WarnSoft, false) => rgb(0x3a3018),
             (Token::WarnSoft, true) => rgb(0xfff7df),
         }
@@ -306,6 +310,7 @@ mod tests {
         assert_eq!(u32::from(ACCENT.rgba()), 0xa78bfaff);
         assert_eq!(u32::from(FG_TERTIARY.rgba()), 0xb5b5b5ff);
         assert!((BORDER_STRONG.rgba().a - 0.13).abs() < f32::EPSILON);
+        assert!((BORDER_SEPARATOR.rgba().a - 0.32).abs() < f32::EPSILON);
         assert_eq!(u32::from(accent_soft()), 0xa78bfa23);
         assert_eq!(u32::from(overlay()), 0x080808b7);
         assert_eq!(u32::from(syntax_keyword(0.1)), 0xb794f619);
@@ -315,6 +320,10 @@ mod tests {
         assert_eq!(u32::from(FG.rgba()), 0x1a1a1aff);
         assert_eq!(u32::from(FG_TERTIARY.rgba()), 0x6e6e6eff);
         assert!((BORDER_STRONG.rgba().a - 0.16).abs() < f32::EPSILON);
+        assert!((BORDER_DIVIDER.rgba().a - 0.06).abs() < f32::EPSILON);
+        assert!((BORDER_SEPARATOR.rgba().a - 0.16).abs() < f32::EPSILON);
+        assert_eq!(u32::from(WARN.rgba()), 0xfbbf24ff);
+        assert_eq!(u32::from(PROD.rgba()), 0xf87171ff);
         assert_eq!(u32::from(accent_soft()), 0xa78bfa19);
         assert_eq!(u32::from(overlay()), 0xf6f6f6c6);
         assert_eq!(u32::from(syntax_keyword(0.1)), 0x7c3aed19);

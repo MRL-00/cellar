@@ -6,8 +6,9 @@
   "license": "MIT",
   "packageManager": "pnpm@9.0.0",
   "scripts": {
-    "dev": "pnpm --filter @cellar/desktop dev",
-    "dev:native": "cargo run -p cellar-desktop-gpui",
+    "dev": "pnpm dev:native",
+    "dev:native": "cargo run -p cellar-desktop-gpui --bin cellar-desktop-gpui",
+    "dev:tauri": "pnpm --filter @cellar/desktop dev",
     "build:native": "cargo build --release -p cellar-desktop-gpui",
     "perf:native:startup": "scripts/measure-gpui-startup.sh",
     "perf:native:grid": "cargo build --release --bin cellar-grid-perf && scripts/measure-gpui-grid.sh",

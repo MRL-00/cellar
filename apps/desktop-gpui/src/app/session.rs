@@ -162,8 +162,8 @@ impl SavedBounds {
         [self.x, self.y, self.width, self.height]
             .into_iter()
             .all(f32::is_finite)
-            && self.width >= 640.
-            && self.height >= 480.
+            && self.width >= 960.
+            && self.height >= 600.
     }
 }
 

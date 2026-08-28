@@ -74,6 +74,7 @@ fn main() {
                 WindowOptions {
                     focus: true,
                     window_bounds: Some(WindowBounds::Windowed(bounds)),
+                    window_min_size: Some(size(px(960.), px(600.))),
                     titlebar: Some(TitlebarOptions {
                         title: None,
                         appears_transparent: true,

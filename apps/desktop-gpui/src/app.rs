@@ -102,8 +102,8 @@ use cellar_desktop_gpui::{
     grid::{DataGrid, GridLayout},
     model::{AppModel, ConnectionState},
     theme::{
-        ui_px, BG, BORDER, FG, FG_DISABLED, FG_MUTED, INSERT, INSET, PANEL_MUTED, PANEL_RAISED,
-        WARN, WARN_SOFT,
+        ui_px, BG, BORDER, BORDER_SEPARATOR, FG, FG_DISABLED, FG_MUTED, INSERT, INSET, PANEL_MUTED,
+        PANEL_RAISED, WARN, WARN_SOFT,
     },
 };
 
@@ -547,7 +547,7 @@ impl CellarApp {
                                 div()
                                     .id("new-connection")
                                     .cursor_pointer()
-                                    .size(ui_px(24.))
+                                    .size(ui_px(22.))
                                     .flex()
                                     .items_center()
                                     .justify_center()
@@ -563,7 +563,7 @@ impl CellarApp {
                                 div()
                                     .id("connection-actions")
                                     .cursor_pointer()
-                                    .size(ui_px(24.))
+                                    .size(ui_px(22.))
                                     .flex()
                                     .items_center()
                                     .justify_center()
@@ -720,7 +720,7 @@ impl CellarApp {
                             .bg(if self.sidebar_resize.is_some() {
                                 cellar_desktop_gpui::theme::ACCENT.rgba()
                             } else {
-                                BORDER.rgba()
+                                BORDER_SEPARATOR.rgba()
                             })
                             .group_hover("left-panel-resizer", |style| {
                                 style.bg(cellar_desktop_gpui::theme::accent(0.32))

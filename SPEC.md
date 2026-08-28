@@ -585,9 +585,9 @@ v1.0 loading mechanism:
 
 ### Build
 
-- `pnpm dev:native` — runs the GPUI desktop client
+- `pnpm dev` — runs the GPUI desktop client
 - `pnpm build:native` — builds the optimized GPUI binary
-- `pnpm dev` and `pnpm build` — keep the legacy parity client buildable during migration
+- `pnpm dev:tauri` and `pnpm build` — keep the legacy parity client buildable during migration
 - `cargo test` — runs Rust tests
 - `pnpm test` — runs frontend tests
 - `pnpm e2e` — runs Playwright end-to-end tests

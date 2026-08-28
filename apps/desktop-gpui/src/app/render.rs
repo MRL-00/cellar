@@ -25,6 +25,69 @@ impl Render for CellarApp {
             .text_size(px(self.preferences.font_size_px * 14. / 13.))
             .on_action(|_: &crate::app_menu::Minimize, window, _| window.minimize_window())
             .on_action(|_: &crate::app_menu::Zoom, window, _| window.zoom_window())
+            .on_action({
+                let app = app.clone();
+                move |_: &crate::app_menu::NewConnection, window, cx| {
+                    if let Some(app) = app.upgrade() {
+                        app.update(cx, |this, cx| {
+                            this.open_connection_editor(None, window, cx)
+                        });
+                    }
+                }
+            })
+            .on_action({
+                let app = app.clone();
+                move |_: &crate::app_menu::NewQuery, window, cx| {
+                    if let Some(app) = app.upgrade() {
+                        app.update(cx, |this, cx| this.new_query(window, cx));
+                    }
+                }
+            })
+            .on_action({
+                let app = app.clone();
+                move |_: &crate::app_menu::CloseTab, _, cx| {
+                    if let Some(app) = app.upgrade() {
+                        app.update(cx, |this, cx| {
+                            if let Some(tab_id) = this.model.active_tab().map(|tab| tab.id) {
+                                this.close_tab(tab_id, cx);
+                            }
+                        });
+                    }
+                }
+            })
+            .on_action({
+                let app = app.clone();
+                move |_: &crate::app_menu::ToggleSidebar, _, cx| {
+                    if let Some(app) = app.upgrade() {
+                        app.update(cx, |this, cx| {
+                            this.sidebar_open = !this.sidebar_open;
+                            cx.notify();
+                        });
+                    }
+                }
+            })
+            .on_action({
+                let app = app.clone();
+                move |_: &crate::app_menu::ToggleAiPanel, _, cx| {
+                    if let Some(app) = app.upgrade() {
+                        app.update(cx, |this, cx| {
+                            this.right_panel_open = !this.right_panel_open;
+                            cx.notify();
+                        });
+                    }
+                }
+            })
+            .on_action({
+                let app = app.clone();
+                move |_: &crate::app_menu::ToggleBottomPanel, _, cx| {
+                    if let Some(app) = app.upgrade() {
+                        app.update(cx, |this, cx| {
+                            this.bottom_panel_open = !this.bottom_panel_open;
+                            cx.notify();
+                        });
+                    }
+                }
+            })
             .on_mouse_move(cx.listener(Self::resize_panels))
             .on_scroll_wheel(cx.listener(|this, _, _, cx| {
                 if this.dismiss_context_menus() {

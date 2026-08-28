@@ -9,7 +9,8 @@ use super::{
     CellarApp,
 };
 use cellar_desktop_gpui::theme::{
-    ui_px, ACCENT, BORDER, FG, FG_MUTED, FG_SECONDARY, INSET, PANEL, PANEL_RAISED, PROD,
+    ui_px, ACCENT, BORDER, BORDER_SEPARATOR, FG, FG_MUTED, FG_SECONDARY, INSET, PANEL, PANEL_RAISED,
+    PROD,
 };
 
 impl CellarApp {
@@ -48,7 +49,7 @@ impl CellarApp {
                             .bg(if self.right_panel_resize.is_some() {
                                 ACCENT.rgba()
                             } else {
-                                BORDER.rgba()
+                                BORDER_SEPARATOR.rgba()
                             })
                             .group_hover("right-panel-resizer", |style| {
                                 style.bg(cellar_desktop_gpui::theme::accent(0.32))

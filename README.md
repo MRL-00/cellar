@@ -61,7 +61,7 @@ pnpm install
 pnpm dev
 ```
 
-`pnpm dev` runs the Tauri desktop app from `apps/desktop`. The helper starts Vite on port `1430` or the next available port, then opens the native app window.
+`pnpm dev` runs the native GPUI desktop client. Use `pnpm dev:tauri` if you need the legacy React/Tauri parity app.
 
 Useful commands from the repo root:
 

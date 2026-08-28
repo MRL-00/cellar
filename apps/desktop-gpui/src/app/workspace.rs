@@ -53,7 +53,15 @@ impl Render for DraggedTab {
 impl CellarApp {
     pub(super) fn workspace(&self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         if self.model.tabs().is_empty() {
-            return self.empty_workspace();
+            return div()
+                .relative()
+                .flex_1()
+                .h_full()
+                .flex()
+                .flex_col()
+                .child(self.tab_bar(None, cx))
+                .child(self.empty_workspace())
+                .into_any_element();
         }
         div()
             .relative()
@@ -110,7 +118,7 @@ impl CellarApp {
             .min_w_0()
             .flex()
             .flex_col()
-            .bg(if focused { BG } else { PANEL })
+            .bg(if focused { BG } else { INSET })
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |this, _, _, cx| {
@@ -155,7 +163,7 @@ impl CellarApp {
                         .h(px(cellar_desktop_gpui::theme::tab_height()))
                         .flex()
                         .items_center()
-                        .px(ui_px(10.))
+                        .px(ui_px(12.))
                         .text_size(ui_px(12.))
                         .text_color(FG_MUTED)
                         .child("no tabs — double-click a table in the sidebar"),
@@ -169,34 +177,36 @@ impl CellarApp {
                     cx,
                 )
             }))
-            .when(can_query, |element| {
-                element.child(
-                    div()
-                        .id(SharedString::from(format!(
-                            "new-query:{}",
-                            pane.unwrap_or(0)
-                        )))
-                        .cursor_pointer()
-                        .h(px(cellar_desktop_gpui::theme::tab_height()))
-                        .w(ui_px(28.))
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .text_color(FG_TERTIARY)
-                        .hover(|style| style.bg(PANEL_RAISED).text_color(FG))
-                        .child(
-                            gpui_component::Icon::empty()
-                                .path("icons/plus.svg")
-                                .size(ui_px(12.)),
-                        )
-                        .on_click(cx.listener(move |this, _, window, cx| {
-                            if let Some(pane) = pane {
-                                this.model.focus_pane(pane);
-                            }
-                            this.new_query(window, cx);
-                        })),
-                )
-            })
+            .child(
+                div()
+                    .id(SharedString::from(format!(
+                        "new-query:{}",
+                        pane.unwrap_or(0)
+                    )))
+                    .h(px(cellar_desktop_gpui::theme::tab_height()))
+                    .w(ui_px(28.))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .text_color(FG_TERTIARY)
+                    .when(!can_query, |element| element.opacity(0.40))
+                    .when(can_query, |element| {
+                        element
+                            .cursor_pointer()
+                            .hover(|style| style.bg(PANEL_RAISED).text_color(FG))
+                            .on_click(cx.listener(move |this, _, window, cx| {
+                                if let Some(pane) = pane {
+                                    this.model.focus_pane(pane);
+                                }
+                                this.new_query(window, cx);
+                            }))
+                    })
+                    .child(
+                        gpui_component::Icon::empty()
+                            .path("icons/plus.svg")
+                            .size(ui_px(12.)),
+                    ),
+            )
             .child(
                 div()
                     .id(SharedString::from(format!(
@@ -281,14 +291,14 @@ impl CellarApp {
             .flex_col()
             .items_center()
             .justify_center()
-            .gap(px(14.))
+            .gap(ui_px(14.))
             .bg(INSET)
-            .p(px(40.))
+            .p(ui_px(40.))
             .text_center()
             .child(
                 gpui_component::Icon::empty()
                     .path("icons/cellar-mark.svg")
-                    .size(px(44.))
+                    .size(ui_px(44.))
                     .text_color(ACCENT),
             )
             .child(
@@ -298,17 +308,17 @@ impl CellarApp {
                     .items_center()
                     .child(
                         div()
-                            .text_size(px(15.))
+                            .text_size(ui_px(15.))
                             .font_weight(gpui::FontWeight::SEMIBOLD)
                             .text_color(FG)
                             .child("Open a table to begin"),
                     )
                     .child(
                         div()
-                            .w(px(360.))
+                            .w(ui_px(360.))
                             .text_center()
-                            .text_size(px(12.5))
-                            .line_height(px(18.75))
+                            .text_size(ui_px(12.5))
+                            .line_height(ui_px(18.75))
                             .text_color(FG_MUTED)
                             .child("Add a Postgres connection in the sidebar, expand it, and click a table to load real rows — or hit + in the tab bar to open a SQL editor."),
                     ),
@@ -317,13 +327,13 @@ impl CellarApp {
                 div()
                     .flex()
                     .gap_3()
-                    .text_size(px(11.5))
+                    .text_size(ui_px(11.5))
                     .text_color(FG_MUTED)
                     .child(
                         div()
                             .flex()
                             .items_center()
-                            .gap(px(4.))
+                            .gap(ui_px(4.))
                             .child(keycap("⌘"))
                             .child(keycap("N"))
                             .child("new connection"),
@@ -332,7 +342,7 @@ impl CellarApp {
                         div()
                             .flex()
                             .items_center()
-                            .gap(px(4.))
+                            .gap(ui_px(4.))
                             .child(keycap("⌘"))
                             .child(keycap("K"))
                             .child("command palette"),

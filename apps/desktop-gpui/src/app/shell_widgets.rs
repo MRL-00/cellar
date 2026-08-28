@@ -56,6 +56,8 @@ pub(super) fn title_crumb(path: &'static str, label: String, icon_size: f32) -> 
         .items_center()
         .gap(ui_px(5.))
         .px(ui_px(6.))
+        .py(ui_px(3.))
+        .rounded(ui_px(4.))
         .text_size(ui_px(14.))
         .text_color(FG_SECONDARY)
         .child(
@@ -75,6 +77,8 @@ pub(super) fn title_database_crumb(label: String, engine: Engine) -> gpui::Div {
         .items_center()
         .gap(ui_px(5.))
         .px(ui_px(6.))
+        .py(ui_px(3.))
+        .rounded(ui_px(4.))
         .text_size(ui_px(14.))
         .text_color(FG_SECONDARY)
         .child(

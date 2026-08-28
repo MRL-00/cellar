@@ -1,12 +1,12 @@
 use cellar_core::driver::Engine;
-use gpui::{div, prelude::*, AnyElement, Context, SharedString};
+use gpui::{div, point, prelude::*, AnyElement, BoxShadow, Context, SharedString};
 use gpui_component::Icon;
 
 use super::shell_widgets::engine_color;
 use super::{shell_widgets::keycap, CellarApp};
 use cellar_desktop_gpui::theme::{
-    accent, hover_bright, syntax_keyword, ui_px, ACCENT, ACCENT_FG, BG, BORDER, BORDER_DIVIDER,
-    BORDER_STRONG, FG, FG_MUTED, FG_SECONDARY, PANEL, PANEL_MUTED,
+    accent, accent_soft, hover_bright, syntax_keyword, ui_px, ACCENT, ACCENT_FG, BG, BORDER,
+    BORDER_DIVIDER, BORDER_STRONG, FG, FG_MUTED, FG_SECONDARY, PANEL, PANEL_MUTED,
 };
 
 const ENGINES: [(Engine, &str, bool); 7] = [
@@ -47,10 +47,19 @@ impl CellarApp {
                     .text_center()
                     .child(
                         div().mb(ui_px(18.)).flex().justify_center().child(
-                            Icon::empty()
-                                .path("icons/cellar-mark.svg")
-                                .size(ui_px(48.))
-                                .text_color(ACCENT),
+                            div()
+                                .shadow(vec![BoxShadow {
+                                    color: accent_soft().into(),
+                                    offset: point(ui_px(0.), ui_px(0.)),
+                                    blur_radius: ui_px(14.),
+                                    spread_radius: ui_px(0.),
+                                }])
+                                .child(
+                                    Icon::empty()
+                                        .path("icons/cellar-mark.svg")
+                                        .size(ui_px(48.))
+                                        .text_color(ACCENT),
+                                ),
                         ),
                     )
                     .child(
