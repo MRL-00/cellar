@@ -272,10 +272,12 @@ impl Render for DataGrid {
                             .top(px(top))
                             .w(px(width))
                             .h(px(crate::theme::row_height()))
+                            .flex()
+                            .items_center()
                             .bg(PANEL_RAISED)
                             .border_1()
                             .border_color(ACCENT)
-                            .child(crate::widgets::compact_input(&state)),
+                            .child(crate::widgets::compact_input(&state).flex_1()),
                     )
                     .when_some(date, |element, date| {
                         let picker_height = date.picker_height();
