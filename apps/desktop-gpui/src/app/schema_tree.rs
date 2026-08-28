@@ -51,18 +51,23 @@ impl CellarApp {
                         .child("loading schemas…")
                         .into_any_element(),
                     ConnectionState::Error(_) => {
-                        let failed_id = connection_id.to_owned();
-                        div()
+                        let failed_click = connection_id.to_owned();
+                        let failed_key = connection_id.to_owned();
+                        tree_row(32.)
                             .id("schema-connection-failed")
-                            .cursor_pointer()
-                            .pl(ui_px(32.))
-                            .py_1()
-                            .text_size(ui_px(14.))
                             .text_color(WARN)
                             .child("Connection failed")
-                            .on_click(cx.listener(move |this, _, _, cx| {
-                                this.show_connection_error(&failed_id, cx)
+                            .on_click(cx.listener(move |this, _, window, cx| {
+                                this.show_connection_error(&failed_click, Some(window), cx)
                             }))
+                            .on_key_down(cx.listener(
+                                move |this, event: &KeyDownEvent, window, cx| {
+                                    if activate_key(event) {
+                                        this.show_connection_error(&failed_key, Some(window), cx);
+                                        cx.stop_propagation();
+                                    }
+                                },
+                            ))
                             .into_any_element()
                     }
                     _ => div()

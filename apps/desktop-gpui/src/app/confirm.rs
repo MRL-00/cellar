@@ -71,7 +71,15 @@ impl CellarApp {
         cx.notify();
     }
 
-    pub(super) fn show_connection_error(&mut self, id: &str, cx: &mut Context<Self>) {
+    pub(super) fn show_connection_error(
+        &mut self,
+        id: &str,
+        window: Option<&mut Window>,
+        cx: &mut Context<Self>,
+    ) {
+        if !can_replace_confirmation(self.confirmation.as_ref()) {
+            return;
+        }
         let name = self
             .model
             .connections()
@@ -84,6 +92,9 @@ impl CellarApp {
             _ => return,
         };
         self.confirmation = Some(Confirmation::connection_error(id.to_owned(), &name, error));
+        if let Some(window) = window {
+            self.confirmation_focus.focus(window);
+        }
         cx.notify();
     }
 
@@ -230,11 +241,18 @@ fn activates_button(event: &KeyDownEvent) -> bool {
         && matches!(event.keystroke.key.as_str(), "enter" | "space")
 }
 
+fn can_replace_confirmation(existing: Option<&Confirmation>) -> bool {
+    matches!(
+        existing.map(|confirmation| &confirmation.action),
+        None | Some(ConfirmAction::Reconnect(_))
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use gpui::{KeyDownEvent, Keystroke};
 
-    use super::{activates_button, ConfirmAction, Confirmation};
+    use super::{activates_button, can_replace_confirmation, ConfirmAction, Confirmation};
 
     #[test]
     fn connection_error_confirmation_titles_retry_and_reconnect_id() {
@@ -249,6 +267,22 @@ mod tests {
             confirmation.action,
             ConfirmAction::Reconnect(ref id) if id == "conn-1"
         ));
+    }
+
+    #[test]
+    fn connection_error_does_not_replace_an_unrelated_confirmation() {
+        let removal = Confirmation {
+            title: "Remove connection".into(),
+            message: "gone".into(),
+            confirm_label: "Remove",
+            cancel_label: "Cancel",
+            danger: true,
+            action: ConfirmAction::RemoveConnection("other".into()),
+        };
+        assert!(!can_replace_confirmation(Some(&removal)));
+        assert!(can_replace_confirmation(None));
+        let reconnect = Confirmation::connection_error("conn-1".into(), "prod", "timeout".into());
+        assert!(can_replace_confirmation(Some(&reconnect)));
     }
 
     #[test]
