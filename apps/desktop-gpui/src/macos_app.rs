@@ -1,4 +1,7 @@
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static PUBLISH_SEQ: AtomicU64 = AtomicU64::new(0);
 
 const INFO_PLIST: &[u8] = include_bytes!("../macos/Info.plist");
 #[cfg(target_os = "macos")]
@@ -59,9 +62,33 @@ fn stage_app_bundle(exe: &Path, plist: &[u8], icns: &[u8]) -> std::io::Result<Pa
     std::fs::write(resources.join("icon.icns"), icns)?;
     let dest = macos.join("Cellar");
     if needs_copy(exe, &dest) {
-        std::fs::copy(exe, &dest)?;
+        publish_file(exe, &dest)?;
     }
     Ok(dest)
+}
+
+fn publish_file(src: &Path, dest: &Path) -> std::io::Result<()> {
+    let file_name = dest.file_name().ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "destination has no file name",
+        )
+    })?;
+    let seq = PUBLISH_SEQ.fetch_add(1, Ordering::Relaxed);
+    let tmp = dest.with_file_name(format!(
+        ".{}.tmp.{}-{}",
+        file_name.to_string_lossy(),
+        std::process::id(),
+        seq
+    ));
+    std::fs::copy(src, &tmp)?;
+    if cfg!(windows) {
+        let _ = std::fs::remove_file(dest);
+    }
+    std::fs::rename(&tmp, dest).map_err(|err| {
+        let _ = std::fs::remove_file(&tmp);
+        err
+    })
 }
 
 fn needs_copy(src: &Path, dest: &Path) -> bool {
@@ -76,7 +103,7 @@ fn needs_copy(src: &Path, dest: &Path) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{launch_location, stage_app_bundle, LaunchLocation, INFO_PLIST};
+    use super::{launch_location, publish_file, stage_app_bundle, LaunchLocation, INFO_PLIST};
     use std::fs;
     use std::path::Path;
 
@@ -125,5 +152,28 @@ mod tests {
         assert_eq!(dest, dest_again);
         assert_eq!(fs::read(&dest).unwrap(), b"v1");
         assert_eq!(fs::metadata(&dest).unwrap().modified().unwrap(), first);
+    }
+
+    #[test]
+    fn concurrent_publish_leaves_a_complete_payload() {
+        let dir = tempfile::tempdir().unwrap();
+        let dest = dir.path().join("Cellar");
+        fs::write(&dest, b"old").unwrap();
+        let a = dir.path().join("a");
+        let b = dir.path().join("b");
+        let payload_a = vec![b'A'; 256 * 1024];
+        let payload_b = vec![b'B'; 256 * 1024];
+        fs::write(&a, &payload_a).unwrap();
+        fs::write(&b, &payload_b).unwrap();
+        std::thread::scope(|scope| {
+            scope.spawn(|| publish_file(&a, &dest).unwrap());
+            scope.spawn(|| publish_file(&b, &dest).unwrap());
+        });
+        let got = fs::read(&dest).unwrap();
+        assert!(
+            got == payload_a || got == payload_b,
+            "dest was a partial or mixed write ({} bytes)",
+            got.len()
+        );
     }
 }
