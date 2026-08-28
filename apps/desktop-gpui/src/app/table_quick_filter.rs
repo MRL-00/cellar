@@ -4,10 +4,20 @@ use cellar_core::{
     query::{TableFilterClause, TableFilterOperator},
     schema::Table,
 };
-use gpui::{Context, Window};
+use gpui::{
+    div, prelude::*, px, AnyElement, Context, MouseButton, Pixels, Point, SharedString, Window,
+};
 
-use super::CellarApp;
-use cellar_desktop_gpui::model::TabKind;
+use super::{table_presets::overlay_at, CellarApp};
+use cellar_desktop_gpui::{
+    model::TabKind,
+    theme::{ACCENT, FG, PANEL_RAISED},
+};
+
+pub(super) struct QuickColumnMenu {
+    pub(super) tab_id: u64,
+    pub(super) position: Point<Pixels>,
+}
 
 impl CellarApp {
     pub(super) fn queue_quick_filter(&mut self, tab_id: u64, cx: &mut Context<Self>) {
@@ -40,40 +50,117 @@ impl CellarApp {
         .detach();
     }
 
-    pub(super) fn cycle_quick_filter_column(&mut self, tab_id: u64, cx: &mut Context<Self>) {
-        let Some(target) = self.model.tabs().iter().find_map(|tab| match &tab.kind {
-            TabKind::Table { target, .. } if tab.id == tab_id => Some(target),
-            _ => None,
-        }) else {
+    pub(super) fn open_quick_column_menu(&mut self, tab_id: u64, cx: &mut Context<Self>) {
+        let Some(position) = self
+            .quick_column_trigger_bounds
+            .get(&tab_id)
+            .copied()
+            .map(super::table_presets::dropdown_below)
+        else {
             return;
         };
-        let Some(table) = self.model.table(target) else {
-            return;
-        };
-        let text_columns = table
-            .columns
-            .iter()
-            .enumerate()
-            .filter_map(|(index, column)| is_text_type(&column.data_type).then_some(index))
-            .collect::<Vec<_>>();
-        if text_columns.is_empty() {
+        if self
+            .table_quick_column_menu
+            .as_ref()
+            .is_some_and(|menu| menu.tab_id == tab_id)
+        {
+            self.table_quick_column_menu = None;
+            cx.notify();
             return;
         }
-        let current = *self
-            .table_quick_filter_columns
-            .get(&tab_id)
-            .unwrap_or(&text_columns[0]);
-        let next = text_columns
-            .iter()
-            .position(|index| *index == current)
-            .map_or(0, |index| (index + 1) % text_columns.len());
-        self.table_quick_filter_columns
-            .insert(tab_id, text_columns[next]);
+        self.table_preset_menu = None;
+        self.table_quick_column_menu = Some(QuickColumnMenu { tab_id, position });
+        cx.notify();
+    }
+
+    pub(super) fn set_quick_filter_column(
+        &mut self,
+        tab_id: u64,
+        column: usize,
+        cx: &mut Context<Self>,
+    ) {
+        self.table_quick_filter_columns.insert(tab_id, column);
+        self.table_quick_column_menu = None;
         if self.table_quick_filters.contains_key(&tab_id) {
             self.restart_table(tab_id, cx);
         } else {
             cx.notify();
         }
+    }
+
+    pub(super) fn quick_column_menu_overlay(&self, cx: &mut Context<Self>) -> AnyElement {
+        let state = self
+            .table_quick_column_menu
+            .as_ref()
+            .expect("quick column menu requires state");
+        let tab_id = state.tab_id;
+        let position = state.position;
+        let current = *self.table_quick_filter_columns.get(&tab_id).unwrap_or(&0);
+        let columns = self
+            .model
+            .tabs()
+            .iter()
+            .find_map(|tab| match &tab.kind {
+                TabKind::Table { target, .. } if tab.id == tab_id => self.model.table(target),
+                _ => None,
+            })
+            .map(|table| {
+                table
+                    .columns
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, column)| is_text_type(&column.data_type))
+                    .map(|(index, column)| (index, column.name.clone()))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        let mut menu = overlay_at("quick-column-menu", position);
+        for (index, name) in columns {
+            let selected = index == current;
+            menu = menu.child(
+                div()
+                    .id(SharedString::from(format!(
+                        "quick-column-pick:{tab_id}:{index}"
+                    )))
+                    .tab_index(0)
+                    .cursor_pointer()
+                    .h(px(28.))
+                    .flex()
+                    .items_center()
+                    .gap(px(7.))
+                    .rounded(px(4.))
+                    .px(px(6.))
+                    .text_color(if selected { ACCENT } else { FG })
+                    .hover(|style| style.bg(PANEL_RAISED))
+                    .child(div().w(px(12.)).flex().justify_center().when(
+                        selected,
+                        |element| {
+                            element.child(
+                                gpui_component::Icon::empty()
+                                    .path("icons/grid-check.svg")
+                                    .size(px(10.)),
+                            )
+                        },
+                    ))
+                    .child(div().flex_1().truncate().child(name))
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.set_quick_filter_column(tab_id, index, cx);
+                    })),
+            );
+        }
+        div()
+            .id("quick-column-backdrop")
+            .absolute()
+            .inset_0()
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(|this, _, _, cx| {
+                    this.table_quick_column_menu = None;
+                    cx.notify();
+                }),
+            )
+            .child(menu)
+            .into_any_element()
     }
 
     pub(super) fn clear_quick_filter(

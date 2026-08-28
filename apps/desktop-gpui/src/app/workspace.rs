@@ -619,6 +619,8 @@ impl CellarApp {
         self.table_filter_operators.remove(&id);
         self.table_filter_inputs.remove(&id);
         self.table_filter_columns.remove(&id);
+        self.preset_trigger_bounds.remove(&id);
+        self.quick_column_trigger_bounds.remove(&id);
         self.query_summaries.remove(&id);
         self.query_generations.remove(&id);
         self.query_confirmations.remove(&id);

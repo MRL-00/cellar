@@ -41,6 +41,7 @@ impl CellarApp {
             || self.folder_menu.is_some()
             || self.query_database_menu.is_some()
             || self.table_preset_menu.is_some()
+            || self.table_quick_column_menu.is_some()
             || self.bottom_export_menu;
         self.connection_menu = None;
         self.table_menu = None;
@@ -50,6 +51,7 @@ impl CellarApp {
         self.folder_menu = None;
         self.query_database_menu = None;
         self.table_preset_menu = None;
+        self.table_quick_column_menu = None;
         self.bottom_export_menu = false;
         dismissed
     }

@@ -291,5 +291,8 @@ impl Render for CellarApp {
             .when(self.table_preset_menu.is_some(), |element| {
                 element.child(self.table_preset_menu_overlay(cx))
             })
+            .when(self.table_quick_column_menu.is_some(), |element| {
+                element.child(self.quick_column_menu_overlay(cx))
+            })
     }
 }

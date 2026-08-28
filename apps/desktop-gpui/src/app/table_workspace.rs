@@ -8,10 +8,13 @@ use cellar_core::{
     schema::Table,
 };
 use gpui::{
-    div, percentage, prelude::*, px, svg, Animation, AnimationExt, AnyElement, Context, Div,
-    Stateful, Transformation, Window,
+    div, percentage, prelude::*, px, Animation, AnimationExt, AnyElement, Context, Div, Stateful,
+    Transformation, Window,
 };
-use gpui_component::input::{InputEvent, InputState};
+use gpui_component::{
+    input::{InputEvent, InputState},
+    Icon,
+};
 
 use super::{
     table_quick_filter::{is_text_type, quick_filter_clause, quick_filter_operator},
@@ -576,7 +579,7 @@ impl CellarApp {
                 .text_size(px(12.5))
                 .text_color(FG_MUTED)
                 .child(
-                    svg()
+                    Icon::empty()
                         .path("icons/spinner.svg")
                         .size(px(14.))
                         .text_color(ACCENT)
@@ -584,7 +587,7 @@ impl CellarApp {
                             "table-loading-spinner",
                             Animation::new(Duration::from_millis(900)).repeat(),
                             |icon, delta| {
-                                icon.with_transformation(Transformation::rotate(percentage(delta)))
+                                icon.transform(Transformation::rotate(percentage(delta)))
                             },
                         ),
                 )
