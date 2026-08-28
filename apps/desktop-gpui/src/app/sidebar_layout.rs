@@ -434,6 +434,8 @@ impl CellarApp {
                                                 .h(ui_px(20.))
                                                 .min_w_0()
                                                 .flex_1()
+                                                .flex()
+                                                .items_center()
                                                 .overflow_hidden()
                                                 .rounded(ui_px(3.))
                                                 .border_1()
@@ -441,7 +443,7 @@ impl CellarApp {
                                                 .bg(cellar_desktop_gpui::theme::INSET)
                                                 .px_1()
                                                 .on_click(|_, _, cx| cx.stop_propagation())
-                                                .child(compact_input(&input)),
+                                                .child(compact_input(&input).flex_1()),
                                         )
                                     })
                                     .child(

@@ -188,12 +188,14 @@ impl CellarApp {
                     .child(
                         div()
                             .w(px(132.))
-                            .h(px(18.))
+                            .h(px(20.))
+                            .flex()
+                            .items_center()
                             .border_1()
                             .border_color(BORDER)
                             .rounded(px(3.))
                             .bg(INSET)
-                            .child(compact_input(&input)),
+                            .child(compact_input(&input).flex_1()),
                     )
                     .child(
                         div()
@@ -248,7 +250,7 @@ impl CellarApp {
             "icons/sort-asc.svg"
         };
         div()
-            .h(px(34.))
+            .h(px(28.))
             .flex_shrink_0()
             .flex()
             .items_center()
@@ -276,11 +278,13 @@ impl CellarApp {
                         div()
                             .w(px(180.))
                             .h(px(22.))
+                            .flex()
+                            .items_center()
                             .rounded(px(3.))
                             .border_1()
                             .border_color(BORDER)
                             .bg(INSET)
-                            .child(compact_input(&quick_input)),
+                            .child(compact_input(&quick_input).flex_1()),
                     )
                     .when_some(quick_column, |element, quick_column| {
                         element.child(
@@ -466,12 +470,14 @@ impl CellarApp {
                     .child(
                         div()
                             .w(px(132.))
-                            .h(px(18.))
+                            .h(px(20.))
+                            .flex()
+                            .items_center()
                             .rounded(px(3.))
                             .border_1()
                             .border_color(BORDER)
                             .bg(INSET)
-                            .child(compact_input(&input)),
+                            .child(compact_input(&input).flex_1()),
                     )
                     .child(
                         div()

@@ -1,11 +1,7 @@
-use gpui::{prelude::*, px, Entity};
+use gpui::{prelude::*, Entity};
 use gpui_component::input::{Input, InputState};
+use gpui_component::Sizable;
 
 pub fn compact_input(state: &Entity<InputState>) -> Input {
-    Input::new(state)
-        .appearance(false)
-        .h_full()
-        .min_w_0()
-        .px(px(6.))
-        .py(px(0.))
+    Input::new(state).xsmall().appearance(false).min_w_0()
 }
