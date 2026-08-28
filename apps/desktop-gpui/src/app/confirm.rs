@@ -58,6 +58,7 @@ impl CellarApp {
         let Some(confirmation) = self.confirmation.take() else {
             return;
         };
+        let skip_pending = confirmed && matches!(confirmation.action, ConfirmAction::Reconnect(_));
         if confirmed {
             match confirmation.action {
                 ConfirmAction::Dismiss => {}
@@ -65,11 +66,25 @@ impl CellarApp {
                 ConfirmAction::Analyze(tab_id) => {
                     self.explain_query(tab_id, PlanMode::Analyze, window, cx)
                 }
-                ConfirmAction::Reconnect(id) => self.reconnect(id, cx),
+                ConfirmAction::Reconnect(id) => self.reconnect(id, window, cx),
             }
         }
         cx.notify();
-        if let Some(id) = self.pending_connection_error.take() {
+        if !skip_pending {
+            self.show_next_pending_connection_error(window, cx);
+        }
+    }
+
+    pub(super) fn show_next_pending_connection_error(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        while self.confirmation.is_none() {
+            let Some(id) = dequeue_pending_connection_error(&mut self.pending_connection_errors)
+            else {
+                return;
+            };
             self.show_connection_error(&id, Some(window), cx);
         }
     }
@@ -81,7 +96,7 @@ impl CellarApp {
         cx: &mut Context<Self>,
     ) {
         if let Some(deferred) = defer_connection_error_id(self.confirmation.as_ref(), id) {
-            self.pending_connection_error = Some(deferred);
+            enqueue_pending_connection_error(&mut self.pending_connection_errors, deferred);
             return;
         }
         let name = self
@@ -95,7 +110,7 @@ impl CellarApp {
             ConnectionState::Error(error) => error.clone(),
             _ => return,
         };
-        self.pending_connection_error = None;
+        self.pending_connection_errors.retain(|queued| queued != id);
         self.confirmation = Some(Confirmation::connection_error(id.to_owned(), &name, error));
         if let Some(window) = window {
             self.confirmation_focus.focus(window);
@@ -257,12 +272,23 @@ fn defer_connection_error_id(existing: Option<&Confirmation>, id: &str) -> Optio
     (!can_replace_confirmation(existing)).then(|| id.to_owned())
 }
 
+fn enqueue_pending_connection_error(pending: &mut Vec<String>, id: String) {
+    if !pending.iter().any(|queued| queued == &id) {
+        pending.push(id);
+    }
+}
+
+fn dequeue_pending_connection_error(pending: &mut Vec<String>) -> Option<String> {
+    (!pending.is_empty()).then(|| pending.remove(0))
+}
+
 #[cfg(test)]
 mod tests {
     use gpui::{KeyDownEvent, Keystroke};
 
     use super::{
-        activates_button, can_replace_confirmation, defer_connection_error_id, ConfirmAction,
+        activates_button, can_replace_confirmation, defer_connection_error_id,
+        dequeue_pending_connection_error, enqueue_pending_connection_error, ConfirmAction,
         Confirmation,
     };
 
@@ -300,6 +326,23 @@ mod tests {
             Some("conn-1")
         );
         assert_eq!(defer_connection_error_id(None, "conn-1"), None);
+    }
+
+    #[test]
+    fn deferred_connection_errors_queue_in_order_without_duplicates() {
+        let mut pending = Vec::new();
+        enqueue_pending_connection_error(&mut pending, "one".into());
+        enqueue_pending_connection_error(&mut pending, "two".into());
+        enqueue_pending_connection_error(&mut pending, "one".into());
+        assert_eq!(
+            dequeue_pending_connection_error(&mut pending).as_deref(),
+            Some("one")
+        );
+        assert_eq!(
+            dequeue_pending_connection_error(&mut pending).as_deref(),
+            Some("two")
+        );
+        assert_eq!(dequeue_pending_connection_error(&mut pending), None);
     }
 
     #[test]

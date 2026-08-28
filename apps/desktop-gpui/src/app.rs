@@ -164,7 +164,7 @@ pub struct CellarApp {
     save_template_editor: Option<SaveTemplateEditor>,
     confirmation: Option<confirm::Confirmation>,
     confirmation_focus: FocusHandle,
-    pending_connection_error: Option<String>,
+    pending_connection_errors: Vec<String>,
     settings_open: bool,
     settings_category: settings::SettingsCategory,
     settings_search: Entity<InputState>,
@@ -344,7 +344,7 @@ impl CellarApp {
             save_template_editor: None,
             confirmation: None,
             confirmation_focus: cx.focus_handle().tab_stop(true),
-            pending_connection_error: None,
+            pending_connection_errors: Vec::new(),
             settings_open: false,
             settings_category: settings::SettingsCategory::Appearance,
             settings_search,
@@ -481,9 +481,9 @@ impl CellarApp {
                     cx.notify();
                 }),
             )
-            .on_click(cx.listener(move |this, _, _, cx| {
+            .on_click(cx.listener(move |this, _, window, cx| {
                 this.model.select_connection(&id);
-                this.start_connect(id.clone(), cx);
+                this.start_connect(id.clone(), window, cx);
             }))
     }
 

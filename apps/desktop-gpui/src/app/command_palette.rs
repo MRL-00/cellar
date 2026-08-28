@@ -148,13 +148,13 @@ impl CellarApp {
                     self.model.connection_state(&id),
                     cellar_desktop_gpui::model::ConnectionState::Connected
                 ) {
-                    self.disconnect(id, cx);
+                    self.disconnect(id, window, cx);
                 } else {
                     self.model.select_connection(&id);
-                    self.start_connect(id, cx);
+                    self.start_connect(id, window, cx);
                 }
             }
-            PaletteAction::RefreshConnection(id) => self.refresh_schema(id, cx),
+            PaletteAction::RefreshConnection(id) => self.refresh_schema(id, window, cx),
             PaletteAction::OpenTemplate(sql) => {
                 if let Some(config) = self.model.active_connection() {
                     self.open_query(

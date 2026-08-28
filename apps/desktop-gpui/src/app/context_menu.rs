@@ -154,9 +154,9 @@ impl CellarApp {
                                     "Refresh schemas",
                                 )
                                 .on_click(cx.listener(
-                                    move |this, _, _, cx| {
+                                    move |this, _, window, cx| {
                                         this.schema_menu = None;
-                                        this.refresh_schema(refresh.clone(), cx);
+                                        this.refresh_schema(refresh.clone(), window, cx);
                                     },
                                 )),
                             )
@@ -501,9 +501,9 @@ impl CellarApp {
                                 },
                             )
                             .on_click(cx.listener(
-                                move |this, _, _, cx| {
+                                move |this, _, window, cx| {
                                     this.connection_menu = None;
-                                    this.reconnect(reconnect_id.clone(), cx);
+                                    this.reconnect(reconnect_id.clone(), window, cx);
                                 },
                             )),
                         )
@@ -522,13 +522,13 @@ impl CellarApp {
                         )
                         .opacity(if connecting { 0.45 } else { 1. })
                         .when(!connecting, |element| {
-                            element.on_click(cx.listener(move |this, _, _, cx| {
+                            element.on_click(cx.listener(move |this, _, window, cx| {
                                 this.connection_menu = None;
                                 if connected {
-                                    this.disconnect(toggle_id.clone(), cx);
+                                    this.disconnect(toggle_id.clone(), window, cx);
                                 } else {
                                     this.model.select_connection(&toggle_id);
-                                    this.start_connect(toggle_id.clone(), cx);
+                                    this.start_connect(toggle_id.clone(), window, cx);
                                 }
                             }))
                         }),
