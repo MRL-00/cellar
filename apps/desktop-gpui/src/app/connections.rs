@@ -64,6 +64,7 @@ impl CellarApp {
                     Err(error) => {
                         this.driver_infos.remove(&id);
                         this.model.finish_connect(&id, Err(error));
+                        this.show_connection_error(&id, cx);
                     }
                 }
                 if connected {
@@ -97,7 +98,8 @@ impl CellarApp {
                     }
                     Err(error) => {
                         this.driver_infos.remove(&id);
-                        this.model.finish_connect(&id, Err(error))
+                        this.model.finish_connect(&id, Err(error));
+                        this.show_connection_error(&id, cx);
                     }
                 }
                 cx.notify();

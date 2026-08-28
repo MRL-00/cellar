@@ -2,6 +2,7 @@ use cellar_core::query::PlanMode;
 use gpui::{div, prelude::*, AnyElement, Context, KeyDownEvent, MouseButton, Window};
 
 use super::CellarApp;
+use cellar_desktop_gpui::model::ConnectionState;
 use cellar_desktop_gpui::theme::{
     accent, ui_px, ACCENT, ACCENT_FG, BORDER, BORDER_STRONG, FG, FG_SECONDARY, PANEL, PANEL_RAISED,
     WARN,
@@ -11,14 +12,29 @@ pub(super) enum ConfirmAction {
     Dismiss,
     RemoveConnection(String),
     Analyze(u64),
+    Reconnect(String),
 }
 
 pub(super) struct Confirmation {
     pub(super) title: String,
     pub(super) message: String,
     pub(super) confirm_label: &'static str,
+    pub(super) cancel_label: &'static str,
     pub(super) danger: bool,
     pub(super) action: ConfirmAction,
+}
+
+impl Confirmation {
+    pub(super) fn connection_error(id: String, name: &str, error: String) -> Self {
+        Self {
+            title: format!("Could not connect to {name}"),
+            message: error,
+            confirm_label: "Retry",
+            cancel_label: "Close",
+            danger: false,
+            action: ConfirmAction::Reconnect(id),
+        }
+    }
 }
 
 impl CellarApp {
@@ -49,8 +65,25 @@ impl CellarApp {
                 ConfirmAction::Analyze(tab_id) => {
                     self.explain_query(tab_id, PlanMode::Analyze, window, cx)
                 }
+                ConfirmAction::Reconnect(id) => self.reconnect(id, cx),
             }
         }
+        cx.notify();
+    }
+
+    pub(super) fn show_connection_error(&mut self, id: &str, cx: &mut Context<Self>) {
+        let name = self
+            .model
+            .connections()
+            .iter()
+            .find(|config| config.id == id)
+            .map(|config| config.name.clone())
+            .unwrap_or_else(|| id.to_owned());
+        let error = match self.model.connection_state(id) {
+            ConnectionState::Error(error) => error.clone(),
+            _ => return,
+        };
+        self.confirmation = Some(Confirmation::connection_error(id.to_owned(), &name, error));
         cx.notify();
     }
 
@@ -108,25 +141,29 @@ impl CellarApp {
                             .justify_end()
                             .gap_2()
                             .child(
-                                confirm_button("confirmation-cancel", "Cancel", false)
-                                    .track_focus(&self.confirmation_focus)
-                                    .hover(|style| {
-                                        style
-                                            .bg(PANEL_RAISED)
-                                            .border_color(BORDER_STRONG)
-                                            .text_color(FG)
-                                    })
-                                    .on_click(cx.listener(|this, _, window, cx| {
-                                        this.resolve_confirmation(false, window, cx)
-                                    }))
-                                    .on_key_down(cx.listener(
-                                        |this, event: &KeyDownEvent, window, cx| {
-                                            if activates_button(event) {
-                                                this.resolve_confirmation(false, window, cx);
-                                                cx.stop_propagation();
-                                            }
-                                        },
-                                    )),
+                                confirm_button(
+                                    "confirmation-cancel",
+                                    confirmation.cancel_label,
+                                    false,
+                                )
+                                .track_focus(&self.confirmation_focus)
+                                .hover(|style| {
+                                    style
+                                        .bg(PANEL_RAISED)
+                                        .border_color(BORDER_STRONG)
+                                        .text_color(FG)
+                                })
+                                .on_click(cx.listener(|this, _, window, cx| {
+                                    this.resolve_confirmation(false, window, cx)
+                                }))
+                                .on_key_down(cx.listener(
+                                    |this, event: &KeyDownEvent, window, cx| {
+                                        if activates_button(event) {
+                                            this.resolve_confirmation(false, window, cx);
+                                            cx.stop_propagation();
+                                        }
+                                    },
+                                )),
                             )
                             .child(
                                 confirm_button(
@@ -197,7 +234,22 @@ fn activates_button(event: &KeyDownEvent) -> bool {
 mod tests {
     use gpui::{KeyDownEvent, Keystroke};
 
-    use super::activates_button;
+    use super::{activates_button, ConfirmAction, Confirmation};
+
+    #[test]
+    fn connection_error_confirmation_titles_retry_and_reconnect_id() {
+        let confirmation =
+            Confirmation::connection_error("conn-1".into(), "prod", "timeout".into());
+        assert_eq!(confirmation.title, "Could not connect to prod");
+        assert_eq!(confirmation.message, "timeout");
+        assert_eq!(confirmation.confirm_label, "Retry");
+        assert_eq!(confirmation.cancel_label, "Close");
+        assert!(!confirmation.danger);
+        assert!(matches!(
+            confirmation.action,
+            ConfirmAction::Reconnect(ref id) if id == "conn-1"
+        ));
+    }
 
     #[test]
     fn confirmation_buttons_support_canonical_keyboard_activation() {

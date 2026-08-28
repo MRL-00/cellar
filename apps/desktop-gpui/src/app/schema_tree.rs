@@ -25,7 +25,6 @@ impl CellarApp {
         };
         let databases = self.model.databases(connection_id);
         let connection_state = self.model.connection_state(connection_id).clone();
-        let retry_id = connection_id.to_owned();
         div()
             .id("schema-tree")
             .tab_group()
@@ -51,40 +50,21 @@ impl CellarApp {
                         .text_color(FG_MUTED)
                         .child("loading schemas…")
                         .into_any_element(),
-                    ConnectionState::Error(error) => div()
-                        .flex()
-                        .items_start()
-                        .gap_2()
-                        .pl(ui_px(32.))
-                        .pr_3()
-                        .py_1()
-                        .text_size(ui_px(14.))
-                        .text_color(WARN)
-                        .child(div().min_w_0().flex_1().child(error))
-                        .child(
-                            div()
-                                .id("schema-retry-connection")
-                                .cursor_pointer()
-                                .h(ui_px(20.))
-                                .flex()
-                                .items_center()
-                                .gap_1()
-                                .rounded(ui_px(4.))
-                                .border_1()
-                                .border_color(gpui::Rgba {
-                                    a: 0.4,
-                                    ..WARN.rgba()
-                                })
-                                .px(ui_px(6.))
-                                .text_size(ui_px(11.))
-                                .hover(|style| style.bg(PANEL_MUTED))
-                                .child(Icon::empty().path("icons/history.svg").size(ui_px(10.)))
-                                .child("Retry")
-                                .on_click(cx.listener(move |this, _, _, cx| {
-                                    this.reconnect(retry_id.clone(), cx)
-                                })),
-                        )
-                        .into_any_element(),
+                    ConnectionState::Error(_) => {
+                        let failed_id = connection_id.to_owned();
+                        div()
+                            .id("schema-connection-failed")
+                            .cursor_pointer()
+                            .pl(ui_px(32.))
+                            .py_1()
+                            .text_size(ui_px(14.))
+                            .text_color(WARN)
+                            .child("Connection failed")
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                this.show_connection_error(&failed_id, cx)
+                            }))
+                            .into_any_element()
+                    }
                     _ => div()
                         .pl(ui_px(32.))
                         .py_1()

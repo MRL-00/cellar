@@ -363,6 +363,7 @@ impl CellarApp {
                     config.name
                 ),
                 confirm_label: "Remove",
+                cancel_label: "Cancel",
                 danger: true,
                 action: ConfirmAction::RemoveConnection(config.id),
             },
@@ -524,6 +525,7 @@ impl CellarApp {
                             title: "Remove connection failed".into(),
                             message: error,
                             confirm_label: "Close",
+                            cancel_label: "Cancel",
                             danger: false,
                             action: ConfirmAction::Dismiss,
                         });
