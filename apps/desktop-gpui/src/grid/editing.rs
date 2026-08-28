@@ -470,6 +470,18 @@ fn diff_value(value: &CellValue) -> Option<String> {
     }
 }
 
+pub(super) fn clipboard_rows(text: &str) -> Vec<Vec<String>> {
+    text.trim_end_matches(['\r', '\n'])
+        .split('\n')
+        .map(|row| {
+            row.trim_end_matches('\r')
+                .split('\t')
+                .map(str::to_owned)
+                .collect()
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use cellar_core::{
@@ -478,7 +490,7 @@ mod tests {
         value::{CellValue, ColumnMeta},
     };
 
-    use super::{validate_value, EditableGrid};
+    use super::{clipboard_rows, validate_value, EditableGrid};
     use crate::model::TableTarget;
     use cellar_diff::RowChange;
 
@@ -630,5 +642,16 @@ mod tests {
         assert!(validate_value("numeric", "--1").is_err());
         assert!(validate_value("date", "2026-08-14").is_ok());
         assert!(validate_value("date", "14/08/2026").is_err());
+    }
+
+    #[test]
+    fn clipboard_tsv_preserves_empty_cells() {
+        assert_eq!(
+            clipboard_rows("a\tb\n\tc\n"),
+            vec![
+                vec!["a".to_string(), "b".to_string()],
+                vec!["".to_string(), "c".to_string()],
+            ]
+        );
     }
 }

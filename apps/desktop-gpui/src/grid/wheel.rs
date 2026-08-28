@@ -1,4 +1,4 @@
-use gpui::{px, IsZero, Pixels, Point, ScrollDelta, ScrollHandle, ScrollWheelEvent};
+use gpui::{px, IsZero, Pixels, Point, ScrollHandle, ScrollWheelEvent};
 
 /// Applies dx to `handle` only for a horizontal pan or Shift+wheel.
 /// Vertical-intent (including jittery trackpad dy) leaves the offset unchanged.

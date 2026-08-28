@@ -587,7 +587,7 @@ impl DataGrid {
         let Some(text) = cx.read_from_clipboard().and_then(|item| item.text()) else {
             return;
         };
-        for (row_offset, values) in clipboard_rows(&text).into_iter().enumerate() {
+        for (row_offset, values) in editing::clipboard_rows(&text).into_iter().enumerate() {
             let row = start.row.saturating_add(row_offset);
             if row >= self.result.rows.len() {
                 break;
@@ -735,18 +735,11 @@ fn moved_index(index: usize, source: usize, target: usize) -> usize {
     }
 }
 
-fn clipboard_rows(text: &str) -> Vec<Vec<String>> {
-    text.trim_end_matches(['\r', '\n'])
-        .split('\n')
-        .map(|row| row.trim_end_matches('\r').split('\t').map(str::to_owned).collect())
-        .collect()
-}
-
 #[cfg(test)]
 mod tests {
     use cellar_core::query::SortDirection;
 
-    use super::{auto_fit_width, clipboard_rows, moved_index, next_sort_direction, visible_column_range};
+    use super::{auto_fit_width, moved_index, next_sort_direction, visible_column_range};
 
     #[test]
     fn column_autofit_covers_headers_and_values_with_safe_bounds() {
@@ -772,17 +765,6 @@ mod tests {
             Some(SortDirection::Desc)
         );
         assert_eq!(next_sort_direction(Some((2, SortDirection::Desc)), 2), None);
-    }
-
-    #[test]
-    fn clipboard_tsv_preserves_empty_cells() {
-        assert_eq!(
-            clipboard_rows("a\tb\n\tc\n"),
-            vec![
-                vec!["a".to_string(), "b".to_string()],
-                vec!["".to_string(), "c".to_string()],
-            ]
-        );
     }
 
     #[test]
