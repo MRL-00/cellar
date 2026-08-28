@@ -177,7 +177,7 @@ impl CellarApp {
                             .child(
                                 div()
                                     .w(px(260.))
-                                    .h(px(28.))
+                                    .h(px(24.))
                                     .flex()
                                     .items_center()
                                     .gap(px(6.))
@@ -193,10 +193,14 @@ impl CellarApp {
                                             .min_w_0()
                                             .flex_1()
                                             .h_full()
-                                            .child(compact_input(&self.settings_search)),
+                                            .flex()
+                                            .items_center()
+                                            .child(compact_input(&self.settings_search).flex_1()),
                                     )
                                     .child(
                                         div()
+                                            .flex()
+                                            .items_center()
                                             .rounded(px(3.))
                                             .border_1()
                                             .border_color(BORDER)
