@@ -403,7 +403,7 @@ impl CellarApp {
     fn connection_row(
         &self,
         config: &ConnectionConfig,
-        active: bool,
+        expanded: bool,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let id = config.id.clone();
@@ -440,7 +440,7 @@ impl CellarApp {
                     .justify_center()
                     .child(
                         Icon::empty()
-                            .path(if active {
+                            .path(if expanded {
                                 "icons/chevron-down.svg"
                             } else {
                                 "icons/chevron-right.svg"
@@ -483,15 +483,14 @@ impl CellarApp {
             )
             .on_click(cx.listener(move |this, _, window, cx| {
                 this.model.select_connection(&id);
-                this.start_connect(id.clone(), window, cx);
+                if this.model.toggle_connection_expanded(&id) {
+                    this.start_connect(id.clone(), window, cx);
+                }
+                cx.notify();
             }))
     }
 
     fn sidebar(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let active_id = self
-            .model
-            .active_connection()
-            .map(|config| config.id.as_str());
         let sidebar_query = self.sidebar_filter.read(cx).value().trim().to_lowercase();
         let match_count = self
             .model
@@ -610,7 +609,7 @@ impl CellarApp {
                     .flex_1()
                     .min_h_0()
                     .overflow_y_scroll()
-                    .children(self.sidebar_rows(active_id, cx))
+                    .children(self.sidebar_rows(cx))
                     .pb(ui_px(12.))
                     .when(self.model.connections().is_empty(), |element| {
                         element

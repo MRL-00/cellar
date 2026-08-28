@@ -57,6 +57,7 @@ pub struct AppModel {
     states: HashMap<String, ConnectionState>,
     schemas: HashMap<String, Vec<Database>>,
     expanded_nodes: HashSet<SchemaNode>,
+    expanded_connections: HashSet<String>,
     tabs: Vec<WorkspaceTab>,
     active_tab: Option<u64>,
     split: Option<SplitOrientation>,
@@ -80,6 +81,7 @@ impl AppModel {
             active_connection,
             schemas: HashMap::new(),
             expanded_nodes: HashSet::new(),
+            expanded_connections: HashSet::new(),
             tabs: Vec::new(),
             active_tab: None,
             split: None,
@@ -117,6 +119,7 @@ impl AppModel {
         self.connections.retain(|config| config.id != id);
         self.states.remove(id);
         self.schemas.remove(id);
+        self.expanded_connections.remove(id);
         self.tabs.retain(|tab| match &tab.kind {
             TabKind::Table { target, .. } => target.connection_id != id,
             TabKind::Query { target, .. } => target.connection_id != id,
@@ -150,6 +153,22 @@ impl AppModel {
         }
         self.active_connection = Some(id.to_owned());
         true
+    }
+
+    pub fn connection_expanded(&self, id: &str) -> bool {
+        self.expanded_connections.contains(id)
+    }
+
+    pub fn toggle_connection_expanded(&mut self, id: &str) -> bool {
+        if !self.connections.iter().any(|config| config.id == id) {
+            return false;
+        }
+        if self.expanded_connections.remove(id) {
+            false
+        } else {
+            self.expanded_connections.insert(id.to_owned());
+            true
+        }
     }
 
     pub fn connection_state(&self, id: &str) -> &ConnectionState {

@@ -204,11 +204,7 @@ impl CellarApp {
         reconcile(&mut self.sidebar_layout, self.model.connections());
     }
 
-    pub(super) fn sidebar_rows(
-        &self,
-        active_id: Option<&str>,
-        cx: &mut Context<Self>,
-    ) -> Vec<AnyElement> {
+    pub(super) fn sidebar_rows(&self, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let filter = self.sidebar_filter.read(cx).value().trim().to_lowercase();
         let filtering = !filter.is_empty();
         let mut rows = Vec::new();
@@ -261,10 +257,10 @@ impl CellarApp {
                                 })
                                 .child(self.connection_row(
                                     config,
-                                    active_id == Some(id.as_str()),
+                                    self.model.connection_expanded(&id),
                                     cx,
                                 ))
-                                .when(active_id == Some(id.as_str()), |element| {
+                                .when(self.model.connection_expanded(&id), |element| {
                                     element.child(self.schema_tree(Some(&id), cx))
                                 })
                                 .into_any_element(),
@@ -618,10 +614,10 @@ impl CellarApp {
                                             })
                                             .child(self.connection_row(
                                                 config,
-                                                active_id == Some(child_id.as_str()),
+                                                self.model.connection_expanded(&child_id),
                                                 cx,
                                             ))
-                                            .when(active_id == Some(child_id.as_str()), |element| {
+                                            .when(self.model.connection_expanded(&child_id), |element| {
                                                 element.child(self.schema_tree(Some(&child_id), cx))
                                             }),
                                     )
