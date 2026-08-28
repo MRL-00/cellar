@@ -1,0 +1,211 @@
+use cellar_core::query::PlanMode;
+use gpui::{div, prelude::*, AnyElement, Context, KeyDownEvent, MouseButton, Window};
+
+use super::CellarApp;
+use cellar_desktop_gpui::theme::{
+    accent, ui_px, ACCENT, ACCENT_FG, BORDER, BORDER_STRONG, FG, FG_SECONDARY, PANEL, PANEL_RAISED,
+    WARN,
+};
+
+pub(super) enum ConfirmAction {
+    Dismiss,
+    RemoveConnection(String),
+    Analyze(u64),
+}
+
+pub(super) struct Confirmation {
+    pub(super) title: String,
+    pub(super) message: String,
+    pub(super) confirm_label: &'static str,
+    pub(super) danger: bool,
+    pub(super) action: ConfirmAction,
+}
+
+impl CellarApp {
+    pub(super) fn ask_confirmation(
+        &mut self,
+        confirmation: Confirmation,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.confirmation = Some(confirmation);
+        self.confirmation_focus.focus(window);
+        cx.notify();
+    }
+
+    pub(super) fn resolve_confirmation(
+        &mut self,
+        confirmed: bool,
+        window: &mut gpui::Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(confirmation) = self.confirmation.take() else {
+            return;
+        };
+        if confirmed {
+            match confirmation.action {
+                ConfirmAction::Dismiss => {}
+                ConfirmAction::RemoveConnection(id) => self.delete_connection_confirmed(id, cx),
+                ConfirmAction::Analyze(tab_id) => {
+                    self.explain_query(tab_id, PlanMode::Analyze, window, cx)
+                }
+            }
+        }
+        cx.notify();
+    }
+
+    pub(super) fn confirmation_overlay(&self, cx: &mut Context<Self>) -> AnyElement {
+        let confirmation = self
+            .confirmation
+            .as_ref()
+            .expect("confirmation requires state");
+        let danger = confirmation.danger;
+        div()
+            .id("confirmation-backdrop")
+            .absolute()
+            .inset_0()
+            .flex()
+            .items_start()
+            .justify_center()
+            .pt(gpui::relative(0.08))
+            .bg(cellar_desktop_gpui::theme::overlay())
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(|this, _, window, cx| this.resolve_confirmation(false, window, cx)),
+            )
+            .child(
+                div()
+                    .id("confirmation-dialog")
+                    .w(ui_px(420.))
+                    .rounded(ui_px(8.))
+                    .border_1()
+                    .border_color(BORDER)
+                    .bg(PANEL)
+                    .shadow_lg()
+                    .p_4()
+                    .flex()
+                    .flex_col()
+                    .gap_3()
+                    .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                    .child(
+                        div()
+                            .font_weight(gpui::FontWeight::SEMIBOLD)
+                            .text_size(ui_px(14.))
+                            .text_color(FG)
+                            .child(confirmation.title.clone()),
+                    )
+                    .child(
+                        div()
+                            .text_color(FG_SECONDARY)
+                            .text_size(ui_px(14.))
+                            .line_height(ui_px(23.))
+                            .child(confirmation.message.clone()),
+                    )
+                    .child(
+                        div()
+                            .mt_1()
+                            .flex()
+                            .justify_end()
+                            .gap_2()
+                            .child(
+                                confirm_button("confirmation-cancel", "Cancel", false)
+                                    .track_focus(&self.confirmation_focus)
+                                    .hover(|style| {
+                                        style
+                                            .bg(PANEL_RAISED)
+                                            .border_color(BORDER_STRONG)
+                                            .text_color(FG)
+                                    })
+                                    .on_click(cx.listener(|this, _, window, cx| {
+                                        this.resolve_confirmation(false, window, cx)
+                                    }))
+                                    .on_key_down(cx.listener(
+                                        |this, event: &KeyDownEvent, window, cx| {
+                                            if activates_button(event) {
+                                                this.resolve_confirmation(false, window, cx);
+                                                cx.stop_propagation();
+                                            }
+                                        },
+                                    )),
+                            )
+                            .child(
+                                confirm_button(
+                                    "confirmation-confirm",
+                                    confirmation.confirm_label,
+                                    true,
+                                )
+                                .bg(if danger { WARN.rgba() } else { ACCENT.rgba() })
+                                .text_color(if danger {
+                                    gpui::rgb(0xffffff)
+                                } else {
+                                    ACCENT_FG.rgba()
+                                })
+                                .hover(move |style| {
+                                    style.bg(cellar_desktop_gpui::theme::hover_bright(if danger {
+                                        WARN.rgba()
+                                    } else {
+                                        ACCENT.rgba()
+                                    }))
+                                })
+                                .on_click(cx.listener(|this, _, window, cx| {
+                                    this.resolve_confirmation(true, window, cx)
+                                }))
+                                .on_key_down(cx.listener(
+                                    |this, event: &KeyDownEvent, window, cx| {
+                                        if activates_button(event) {
+                                            this.resolve_confirmation(true, window, cx);
+                                            cx.stop_propagation();
+                                        }
+                                    },
+                                )),
+                            ),
+                    ),
+            )
+            .into_any_element()
+    }
+}
+
+fn confirm_button(
+    id: &'static str,
+    label: &'static str,
+    primary: bool,
+) -> gpui::Stateful<gpui::Div> {
+    div()
+        .id(id)
+        .tab_index(0)
+        .cursor_pointer()
+        .h(ui_px(26.))
+        .flex()
+        .items_center()
+        .rounded(ui_px(4.))
+        .border_1()
+        .border_color(if primary { accent(0.) } else { BORDER.rgba() })
+        .px_3()
+        .text_size(ui_px(14.))
+        .font_weight(gpui::FontWeight::MEDIUM)
+        .text_color(if primary { ACCENT_FG } else { FG_SECONDARY })
+        .focus(|style| style.border_color(ACCENT))
+        .child(label)
+}
+
+fn activates_button(event: &KeyDownEvent) -> bool {
+    !event.keystroke.modifiers.modified()
+        && matches!(event.keystroke.key.as_str(), "enter" | "space")
+}
+
+#[cfg(test)]
+mod tests {
+    use gpui::{KeyDownEvent, Keystroke};
+
+    use super::activates_button;
+
+    #[test]
+    fn confirmation_buttons_support_canonical_keyboard_activation() {
+        for key in ["enter", "space"] {
+            assert!(activates_button(&KeyDownEvent {
+                keystroke: Keystroke::parse(key).expect("valid key"),
+                is_held: false,
+            }));
+        }
+    }
+}

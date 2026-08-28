@@ -151,7 +151,12 @@ fn validate_request(request: &TableChangeRequest) -> Result<(), DiffError> {
     if request.table.trim().is_empty() {
         return Err(DiffError::EmptyTable);
     }
-    if request.primary_key.is_empty() && !request.changes.is_empty() {
+    if request.primary_key.is_empty()
+        && request
+            .changes
+            .iter()
+            .any(|change| matches!(change, RowChange::Update { .. } | RowChange::Delete { .. }))
+    {
         return Err(DiffError::MissingPrimaryKey);
     }
     Ok(())

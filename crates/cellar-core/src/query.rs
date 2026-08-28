@@ -8,9 +8,9 @@ use crate::value::{CellValue, ColumnMeta, Row};
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct Query {
     pub sql: String,
-    /// If `Some`, the driver should append (or enforce) a row cap. SPEC §5.4
-    /// asks for streamed page-style results — for the first vertical slice we
-    /// just return up to `max_rows` rows in one shot.
+    /// If `Some`, the driver enforces a row cap while decoding. Interactive
+    /// query runs stream bounded pages; small internal callers may still ask
+    /// for the materialized result.
     pub max_rows: Option<u32>,
     /// Zero-based row offset for paginated queries. The driver skips this many
     /// rows before collecting up to `max_rows`. Because free-form SQL passes
@@ -129,6 +129,97 @@ impl Query {
     }
 }
 
+/// Conservative gate for the post-execution metadata fallback used when a
+/// row-returning statement produced no rows. Mutating statements without a
+/// RETURNING clause must never be prepared again after they execute.
+pub fn statement_may_return_rows(sql: &str) -> bool {
+    let bytes = sql.as_bytes();
+    let mut first = None;
+    let mut has_returning = false;
+    let mut i = 0;
+
+    while i < bytes.len() {
+        if bytes[i..].starts_with(b"--") {
+            i += bytes[i..]
+                .iter()
+                .position(|byte| *byte == b'\n')
+                .unwrap_or(bytes.len() - i);
+        } else if bytes[i..].starts_with(b"/*") {
+            i += 2;
+            let mut depth = 1;
+            while i < bytes.len() && depth > 0 {
+                if bytes[i..].starts_with(b"/*") {
+                    depth += 1;
+                    i += 2;
+                } else if bytes[i..].starts_with(b"*/") {
+                    depth -= 1;
+                    i += 2;
+                } else {
+                    i += 1;
+                }
+            }
+        } else if matches!(bytes[i], b'\'' | b'"' | b'`' | b'[') {
+            let quote = bytes[i];
+            let closing = if quote == b'[' { b']' } else { quote };
+            i += 1;
+            while i < bytes.len() {
+                if bytes[i] == closing {
+                    i += 1;
+                    if i < bytes.len() && bytes[i] == closing {
+                        i += 1;
+                    } else {
+                        break;
+                    }
+                } else {
+                    i += 1;
+                }
+            }
+        } else if bytes[i] == b'$' {
+            let tag_end = bytes[i + 1..]
+                .iter()
+                .position(|byte| *byte == b'$')
+                .map(|offset| i + offset + 1)
+                .filter(|end| {
+                    bytes[i + 1..*end]
+                        .iter()
+                        .all(|byte| byte.is_ascii_alphanumeric() || *byte == b'_')
+                });
+            if let Some(tag_end) = tag_end {
+                let tag = &bytes[i..=tag_end];
+                i = tag_end + 1;
+                i += bytes[i..]
+                    .windows(tag.len())
+                    .position(|window| window == tag)
+                    .map(|offset| offset + tag.len())
+                    .unwrap_or(bytes.len() - i);
+            } else {
+                i += 1;
+            }
+        } else if bytes[i].is_ascii_alphabetic() || bytes[i] == b'_' {
+            let start = i;
+            i += 1;
+            while i < bytes.len() && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_') {
+                i += 1;
+            }
+            let word = &sql[start..i];
+            first.get_or_insert(word);
+            has_returning |= word.eq_ignore_ascii_case("returning");
+        } else {
+            i += 1;
+        }
+    }
+
+    let Some(first) = first else {
+        return false;
+    };
+    [
+        "select", "with", "values", "show", "describe", "explain", "pragma", "table",
+    ]
+    .iter()
+    .any(|prefix| first.eq_ignore_ascii_case(prefix))
+        || has_returning
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct QueryResult {
     pub columns: Vec<ColumnMeta>,
@@ -153,6 +244,93 @@ pub struct QueryResult {
     /// `SELECT count(*)` with the same filter clauses and returns it here.
     /// Free-form queries always return `None`.
     pub total_rows: Option<u64>,
+}
+
+/// One ordered page from a running query. Keeping columns on each page makes
+/// every message independently decodable and lets the frontend paint the first
+/// page before the statement has finished producing rows.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct QueryResultPage {
+    pub columns: Vec<ColumnMeta>,
+    pub rows: Vec<Row>,
+    /// Zero-based row offset within this query response.
+    pub offset: u64,
+}
+
+/// Metadata sent after the final query page. Rows live only in
+/// [`QueryResultPage`] so the completion message stays small.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct QueryResultSummary {
+    pub notices: Vec<DatabaseNotice>,
+    pub notice_capture: NoticeCapture,
+    pub rows_affected: Option<u64>,
+    pub duration_ms: u64,
+    pub truncated: bool,
+    pub total_rows: Option<u64>,
+    pub row_count: u64,
+}
+
+/// Ordered messages delivered over a Tauri channel for a running query.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(tag = "event", content = "data", rename_all = "camelCase")]
+pub enum QueryStreamEvent {
+    Page(QueryResultPage),
+    Complete(QueryResultSummary),
+}
+
+impl QueryResult {
+    /// Split a materialized driver result into bounded transport pages. This is
+    /// the fallback for drivers that have not yet implemented cursor-native
+    /// streaming; streaming drivers emit the same contract while decoding.
+    pub fn into_pages(self, page_size: usize) -> (Vec<QueryResultPage>, QueryResultSummary) {
+        let page_size = page_size.max(1);
+        let QueryResult {
+            columns,
+            rows,
+            notices,
+            notice_capture,
+            rows_affected,
+            duration_ms,
+            truncated,
+            total_rows,
+        } = self;
+        let row_count = rows.len() as u64;
+        let mut remaining = rows.into_iter();
+        let mut pages = Vec::with_capacity((row_count as usize).div_ceil(page_size));
+        let mut offset = 0;
+        loop {
+            let page_rows: Vec<_> = remaining.by_ref().take(page_size).collect();
+            if page_rows.is_empty() {
+                break;
+            }
+            let len = page_rows.len() as u64;
+            pages.push(QueryResultPage {
+                columns: columns.clone(),
+                rows: page_rows,
+                offset,
+            });
+            offset += len;
+        }
+        if pages.is_empty() && !columns.is_empty() {
+            pages.push(QueryResultPage {
+                columns: columns.clone(),
+                rows: Vec::new(),
+                offset: 0,
+            });
+        }
+        (
+            pages,
+            QueryResultSummary {
+                notices,
+                notice_capture,
+                rows_affected,
+                duration_ms,
+                truncated,
+                total_rows,
+                row_count,
+            },
+        )
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]

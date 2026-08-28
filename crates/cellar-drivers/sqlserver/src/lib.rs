@@ -7,7 +7,10 @@
 use async_trait::async_trait;
 use cellar_core::driver::{Connection, ConnectionConfig, Driver, Engine};
 use cellar_core::error::{CellarError, CellarResult};
-use cellar_core::query::{PlanMode, Query, QueryPlan, QueryResult, TableBrowseRequest};
+use cellar_core::query::{
+    PlanMode, Query, QueryPlan, QueryResult, QueryResultPage, QueryResultSummary,
+    TableBrowseRequest,
+};
 use cellar_core::schema::{Database, Table};
 
 mod connect;
@@ -91,6 +94,17 @@ impl Driver for SqlServerDriver {
     async fn execute_query(&self, conn: &dyn Connection, q: &Query) -> CellarResult<QueryResult> {
         let sql = connect::as_sqlserver(conn)?;
         query::execute_query(sql, q).await
+    }
+
+    async fn execute_query_stream(
+        &self,
+        conn: &dyn Connection,
+        q: &Query,
+        page_size: usize,
+        on_page: &mut (dyn FnMut(QueryResultPage) -> CellarResult<()> + Send),
+    ) -> CellarResult<QueryResultSummary> {
+        let sql = connect::as_sqlserver(conn)?;
+        query::execute_query_stream(sql, q, page_size, on_page).await
     }
 
     async fn explain_query(

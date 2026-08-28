@@ -5,12 +5,6 @@ use tauri::State;
 use crate::datagrip::{self, DatagripImport};
 use crate::state::ConnectionRegistry;
 
-/// The stored secret for a connection, or `None` when nothing is saved or the
-/// keychain read fails — callers fall back to a passwordless attempt either way.
-fn stored_password(id: &str) -> Option<String> {
-    cellar_secrets::load(id).ok().flatten()
-}
-
 #[tauri::command]
 #[specta::specta]
 pub async fn list_connections(
@@ -26,10 +20,7 @@ pub async fn save_connection(
     config: ConnectionConfig,
     password: Option<String>,
 ) -> Result<ConnectionConfig, CellarError> {
-    if let Some(p) = password.as_deref() {
-        cellar_secrets::store(&config.id, p)?;
-    }
-    registry.save(config).await
+    registry.save_with_secret(config, password.as_deref()).await
 }
 
 #[tauri::command]
@@ -38,9 +29,7 @@ pub async fn delete_connection(
     registry: State<'_, ConnectionRegistry>,
     id: String,
 ) -> Result<(), CellarError> {
-    // Best-effort: a missing entry in the keychain is not an error here.
-    let _ = cellar_secrets::delete(&id);
-    registry.delete(&id).await
+    registry.delete_with_secret(&id).await
 }
 
 #[tauri::command]
@@ -50,10 +39,7 @@ pub async fn test_connection(
     config: ConnectionConfig,
     password: Option<String>,
 ) -> Result<DriverInfo, CellarError> {
-    // Fall back to the stored secret so the user can retest a saved
-    // connection without retyping the password.
-    let pw_owned = password.or_else(|| stored_password(&config.id));
-    registry.test(&config, pw_owned.as_deref()).await
+    registry.test_with_secret(&config, password).await
 }
 
 #[tauri::command]
@@ -62,8 +48,7 @@ pub async fn connect(
     registry: State<'_, ConnectionRegistry>,
     id: String,
 ) -> Result<DriverInfo, CellarError> {
-    let password = stored_password(&id);
-    registry.connect(&id, password.as_deref()).await
+    registry.connect_saved(&id).await
 }
 
 #[tauri::command]
@@ -72,8 +57,7 @@ pub async fn reconnect(
     registry: State<'_, ConnectionRegistry>,
     id: String,
 ) -> Result<DriverInfo, CellarError> {
-    let password = stored_password(&id);
-    registry.reconnect(&id, password.as_deref()).await
+    registry.reconnect_saved(&id).await
 }
 
 /// Scan the local machine for DataGrip data sources and return the connections

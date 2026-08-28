@@ -5,7 +5,10 @@
 use async_trait::async_trait;
 use cellar_core::driver::{Connection, ConnectionConfig, Driver, Engine};
 use cellar_core::error::CellarResult;
-use cellar_core::query::{PlanMode, Query, QueryPlan, QueryResult, TableBrowseRequest};
+use cellar_core::query::{
+    PlanMode, Query, QueryPlan, QueryResult, QueryResultPage, QueryResultSummary,
+    TableBrowseRequest,
+};
 use cellar_core::schema::{Database, Table, UsageDefinition};
 use cellar_diff::{TableChangeRequest, TableCommitResult};
 
@@ -14,6 +17,7 @@ mod connect;
 mod decode;
 mod introspect;
 mod query;
+mod runtime;
 mod table_browse;
 mod usages;
 
@@ -95,6 +99,17 @@ impl Driver for PostgresDriver {
         query::execute_query(pg, q).await
     }
 
+    async fn execute_query_stream(
+        &self,
+        conn: &dyn Connection,
+        q: &Query,
+        page_size: usize,
+        on_page: &mut (dyn FnMut(QueryResultPage) -> CellarResult<()> + Send),
+    ) -> CellarResult<QueryResultSummary> {
+        let pg = connect::as_pg(conn)?;
+        query::execute_query_stream(pg, q, page_size, on_page).await
+    }
+
     async fn explain_query(
         &self,
         conn: &dyn Connection,
@@ -107,6 +122,6 @@ impl Driver for PostgresDriver {
 
     async fn cancel_query(&self, conn: &dyn Connection, query_id: &str) -> CellarResult<bool> {
         let pg = connect::as_pg(conn)?;
-        query::cancel_query(pg, query_id).await
+        runtime::cancel_query(pg, query_id).await
     }
 }

@@ -1,9 +1,9 @@
-pub mod ai_backend;
+pub use cellar_ai::backend as ai_backend;
 pub mod commands;
 pub mod datagrip;
 pub mod history;
 pub mod menu;
-pub mod openai;
+pub use cellar_ai::openai;
 pub mod state;
 
 use history::HistoryStore;

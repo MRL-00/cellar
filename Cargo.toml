@@ -1,8 +1,11 @@
 [workspace]
 resolver = "2"
 members = [
+    "apps/desktop-gpui",
     "apps/desktop/src-tauri",
+    "crates/cellar-ai",
     "crates/cellar-core",
+    "crates/cellar-runtime",
     "crates/cellar-drivers/convex",
     "crates/cellar-drivers/cosmos",
     "crates/cellar-drivers/firestore",

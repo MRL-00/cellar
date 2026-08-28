@@ -29,9 +29,7 @@ impl SqlServerConnection {
     ) -> CellarResult<T> {
         let mut guard = self.client.lock().await;
         let client = guard.as_mut().ok_or_else(|| {
-            CellarError::NotConnected(
-                "SQL Server connection is closed; reconnect and retry".into(),
-            )
+            CellarError::NotConnected("SQL Server connection is closed; reconnect and retry".into())
         })?;
         let result = f(client).await;
         if matches!(&result, Err(err) if is_session_poison(err)) {

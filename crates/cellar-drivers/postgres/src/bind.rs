@@ -9,12 +9,35 @@ use std::str::FromStr;
 
 use cellar_core::error::{CellarError, CellarResult};
 use cellar_core::value::CellValue;
-use sqlx::postgres::{PgArguments, Postgres};
+use sqlx::postgres::{PgArguments, PgTypeInfo, Postgres};
 use sqlx::query::Query;
 use sqlx::types::BigDecimal;
+use sqlx::Type;
 
 /// A sqlx query bound to the Postgres backend with positional arguments.
 pub type PgQuery<'q> = Query<'q, Postgres, PgArguments>;
+
+pub(crate) fn type_info(value: &CellValue) -> PgTypeInfo {
+    fn of<T: Type<Postgres>>(_: &T) -> PgTypeInfo {
+        T::type_info()
+    }
+
+    match value {
+        CellValue::Null => <String as Type<Postgres>>::type_info(),
+        CellValue::Bool(value) => of(value),
+        CellValue::Int(value) => of(value),
+        CellValue::Float(value) => of(value),
+        CellValue::Numeric(_) => <BigDecimal as Type<Postgres>>::type_info(),
+        CellValue::Text(value) => of(value),
+        CellValue::Bytes(value) => of(value),
+        CellValue::Json(value) => of(value),
+        CellValue::Uuid(value) => of(value),
+        CellValue::Date(value) => of(value),
+        CellValue::Time(value) => of(value),
+        CellValue::Timestamp(value) => of(value),
+        CellValue::TimestampTz(value) => of(value),
+    }
+}
 
 /// Bind one typed cell value to `query`, returning the extended query.
 ///

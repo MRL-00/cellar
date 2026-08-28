@@ -1,0 +1,47 @@
+[package]
+name = "cellar-desktop-gpui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Cellar native GPUI desktop client"
+publish = false
+default-run = "cellar-desktop-gpui"
+
+[dependencies]
+cellar-ai = { path = "../../crates/cellar-ai" }
+cellar-core = { path = "../../crates/cellar-core" }
+cellar-diff = { path = "../../crates/cellar-diff" }
+cellar-runtime = { path = "../../crates/cellar-runtime" }
+cellar-schema-diff = { path = "../../crates/cellar-schema-diff" }
+cellar-sql = { path = "../../crates/cellar-sql" }
+async-channel = "2"
+anyhow = "1"
+base64 = "0.22"
+chrono = "0.4"
+dirs = "5"
+flate2 = "1"
+futures-util = "0.3"
+gpui-component = "=0.5.1"
+minisign-verify = "0.2"
+regex = "1"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
+ropey = "=2.0.0-beta.1"
+semver = "1"
+serde = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite"] }
+tar = "0.4"
+tempfile = "3"
+tokio = { workspace = true }
+tree-sitter-sequel = "=0.3.11"
+uuid = { version = "1", features = ["v4"] }
+lsp-types = { version = "0.97", features = ["proposed"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+gpui = { version = "=0.2.2", default-features = false, features = ["font-kit"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+gpui = { version = "=0.2.2", default-features = false, features = ["font-kit", "wayland", "x11"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+gpui = { version = "=0.2.2", default-features = false, features = ["windows-manifest"] }

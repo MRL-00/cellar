@@ -1,0 +1,18 @@
+[package]
+name = "cellar-ai"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Cellar shared AI provider transports"
+publish = false
+
+[dependencies]
+cellar-core = { path = "../cellar-core" }
+cellar-runtime = { path = "../cellar-runtime" }
+cellar-secrets = { path = "../cellar-secrets" }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+specta = { version = "=2.0.0-rc.22", features = ["derive"] }
+tokio = { workspace = true }
+
