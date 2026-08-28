@@ -1,5 +1,8 @@
 use cellar_core::query::{SortDirection, TableFilterOperator, TableSortClause};
-use gpui::{div, prelude::*, px, AnyElement, ClickEvent, Context, Entity, SharedString};
+use gpui::{
+    canvas, div, prelude::*, px, AnyElement, Bounds, ClickEvent, Context, Div, Entity, Pixels,
+    SharedString,
+};
 use gpui_component::{input::InputState, Icon};
 
 use super::CellarApp;
@@ -8,6 +11,55 @@ use cellar_desktop_gpui::{
     theme::{ACCENT, ACCENT_FG, BORDER, FG, FG_MUTED, FG_SECONDARY, INSET, PANEL, PANEL_RAISED},
     widgets::compact_input,
 };
+
+const BAR_H: f32 = 32.;
+const FIELD_H: f32 = 22.;
+const TYPE: f32 = 12.;
+const LEAD: f32 = 16.;
+const ICON: f32 = 11.;
+const RADIUS: f32 = 3.;
+
+fn field() -> Div {
+    div()
+        .h(px(FIELD_H))
+        .min_h(px(FIELD_H))
+        .max_h(px(FIELD_H))
+        .flex_shrink_0()
+        .flex()
+        .items_center()
+        .overflow_hidden()
+        .rounded(px(RADIUS))
+        .border_1()
+        .border_color(BORDER)
+        .bg(INSET)
+        .px(px(7.))
+        .text_size(px(TYPE))
+        .line_height(px(LEAD))
+}
+
+fn bar_input(state: &Entity<InputState>) -> gpui_component::input::Input {
+    compact_input(state).h(px(LEAD)).max_h(px(LEAD))
+}
+
+fn bar_icon(path: &'static str) -> Icon {
+    Icon::empty().path(path).size(px(ICON))
+}
+
+fn remember_bounds(
+    app: gpui::WeakEntity<CellarApp>,
+    write: fn(&mut CellarApp, Bounds<Pixels>),
+) -> impl IntoElement {
+    canvas(
+        move |bounds, _, cx| {
+            app.update(cx, |this, _| write(this, bounds)).ok();
+        },
+        |_, _, _, _| {},
+    )
+    .absolute()
+    .top_0()
+    .left_0()
+    .size_full()
+}
 
 impl CellarApp {
     pub(super) fn table_filter_bar(
@@ -74,8 +126,7 @@ impl CellarApp {
             .min_w_0()
             .flex()
             .items_center()
-            .gap_1()
-            .overflow_hidden();
+            .gap(px(6.));
         for (index, filter) in filters.iter().enumerate() {
             let value = filter.value.as_deref().unwrap_or("");
             let text = if value.is_empty() {
@@ -89,28 +140,21 @@ impl CellarApp {
                 )
             };
             chips = chips.child(
-                div()
+                field()
                     .flex_shrink_0()
-                    .h(px(20.))
                     .max_w(px(360.))
-                    .flex()
-                    .items_center()
-                    .rounded(px(4.))
-                    .border_1()
                     .border_color(cellar_desktop_gpui::theme::accent(0.32))
                     .bg(cellar_desktop_gpui::theme::accent(0.14))
                     .font_family(cellar_desktop_gpui::theme::mono_font())
                     .text_color(FG)
+                    .gap(px(4.))
                     .child(
                         div()
                             .id(SharedString::from(format!("filter-edit:{tab_id}:{index}")))
                             .tab_index(0)
-                            .h_full()
                             .min_w_0()
-                            .flex()
-                            .items_center()
+                            .flex_1()
                             .truncate()
-                            .px(px(7.))
                             .child(text)
                             .on_click(cx.listener(move |this, _, window, cx| {
                                 this.edit_table_filter(tab_id, index, window, cx);
@@ -123,13 +167,12 @@ impl CellarApp {
                             )))
                             .tab_index(0)
                             .size(px(14.))
-                            .mr(px(3.))
                             .flex()
                             .items_center()
                             .justify_center()
                             .rounded(px(2.))
                             .hover(|style| style.bg(gpui::rgba(0x00000033)))
-                            .child(Icon::empty().path("icons/close.svg").size(px(9.)))
+                            .child(bar_icon("icons/close.svg").text_color(FG_MUTED))
                             .on_click(cx.listener(move |this, _, _, cx| {
                                 this.remove_table_filter(tab_id, index, cx);
                             })),
@@ -140,45 +183,33 @@ impl CellarApp {
             let apply = tab_id;
             chips.child(
                 div()
-                    .h(px(22.))
                     .min_w_0()
                     .flex()
                     .items_center()
-                    .gap_1()
-                    .rounded(px(4.))
+                    .gap(px(4.))
+                    .rounded(px(RADIUS))
                     .border_1()
                     .border_color(FG_MUTED)
                     .bg(PANEL_RAISED)
-                    .px_1()
+                    .px(px(4.))
                     .child(
-                        div()
+                        field()
                             .id(SharedString::from(format!("filter-column:{tab_id}")))
                             .tab_index(0)
                             .cursor_pointer()
                             .max_w(px(150.))
-                            .truncate()
-                            .rounded(px(3.))
-                            .border_1()
-                            .border_color(BORDER)
-                            .bg(INSET)
-                            .px(px(5.))
                             .text_color(FG)
-                            .child(column)
+                            .child(div().truncate().child(column))
                             .on_click(cx.listener(move |this, _, _, cx| {
                                 this.cycle_filter_column(tab_id, cx);
                             })),
                     )
                     .child(
-                        div()
+                        field()
                             .id(SharedString::from(format!("filter-operator:{tab_id}")))
                             .tab_index(0)
                             .cursor_pointer()
                             .max_w(px(104.))
-                            .rounded(px(3.))
-                            .border_1()
-                            .border_color(BORDER)
-                            .bg(INSET)
-                            .px(px(5.))
                             .text_color(FG)
                             .child(operator_label(operator))
                             .on_click(cx.listener(move |this, _, _, cx| {
@@ -186,26 +217,18 @@ impl CellarApp {
                             })),
                     )
                     .child(
-                        div()
+                        field()
                             .w(px(132.))
-                            .h(px(20.))
-                            .flex()
-                            .items_center()
-                            .border_1()
-                            .border_color(BORDER)
-                            .rounded(px(3.))
-                            .bg(INSET)
-                            .child(compact_input(&input).flex_1()),
+                            .px(px(6.))
+                            .child(bar_input(&input).flex_1()),
                     )
                     .child(
-                        div()
+                        field()
                             .id(SharedString::from(format!("filter-apply:{tab_id}")))
                             .tab_index(0)
                             .cursor_pointer()
-                            .h(px(18.))
-                            .rounded(px(3.))
+                            .border_color(ACCENT)
                             .bg(ACCENT)
-                            .px(px(6.))
                             .text_color(ACCENT_FG)
                             .font_weight(gpui::FontWeight::SEMIBOLD)
                             .child("apply")
@@ -216,20 +239,13 @@ impl CellarApp {
             )
         } else {
             chips.child(
-                div()
+                field()
                     .id(SharedString::from(format!("filter-add:{tab_id}")))
                     .tab_index(0)
                     .cursor_pointer()
-                    .h(px(20.))
-                    .flex()
-                    .items_center()
-                    .gap(px(3.))
-                    .rounded(px(4.))
-                    .border_1()
-                    .border_color(BORDER)
-                    .px(px(6.))
+                    .gap(px(4.))
                     .text_color(FG_SECONDARY)
-                    .child(Icon::empty().path("icons/plus.svg").size(px(10.)))
+                    .child(bar_icon("icons/plus.svg").text_color(FG_MUTED))
                     .child("add")
                     .on_click(cx.listener(move |this, _, window, cx| {
                         this.open_table_filter(tab_id, window, cx);
@@ -250,7 +266,7 @@ impl CellarApp {
             "icons/sort-asc.svg"
         };
         div()
-            .h(px(28.))
+            .h(px(BAR_H))
             .flex_shrink_0()
             .flex()
             .items_center()
@@ -259,51 +275,49 @@ impl CellarApp {
             .bg(PANEL)
             .border_b_1()
             .border_color(BORDER)
+            .text_size(px(TYPE))
+            .line_height(px(LEAD))
             .child(
                 div()
                     .flex_shrink_0()
                     .flex()
                     .items_center()
-                    .gap_1()
+                    .gap(px(6.))
                     .pr(px(8.))
                     .border_r_1()
                     .border_color(BORDER)
+                    .child(bar_icon("icons/grid-search.svg").text_color(FG_MUTED))
                     .child(
-                        Icon::empty()
-                            .path("icons/grid-search.svg")
-                            .size(px(11.))
-                            .text_color(FG_MUTED),
-                    )
-                    .child(
-                        div()
+                        field()
                             .w(px(180.))
-                            .h(px(22.))
-                            .flex()
-                            .items_center()
-                            .rounded(px(3.))
-                            .border_1()
-                            .border_color(BORDER)
-                            .bg(INSET)
-                            .child(compact_input(&quick_input).flex_1()),
+                            .px(px(6.))
+                            .child(bar_input(&quick_input).flex_1()),
                     )
                     .when_some(quick_column, |element, quick_column| {
+                        let app = cx.weak_entity();
                         element.child(
                             div()
                                 .id(SharedString::from(format!("quick-column:{tab_id}")))
                                 .tab_index(0)
+                                .relative()
+                                .h(px(FIELD_H))
+                                .flex_shrink_0()
                                 .cursor_pointer()
-                                .h(px(18.))
-                                .max_w(px(110.))
-                                .truncate()
-                                .rounded(px(3.))
-                                .border_1()
-                                .border_color(BORDER)
-                                .bg(INSET)
-                                .px(px(5.))
-                                .text_color(FG_SECONDARY)
-                                .child(quick_column)
+                                .child(
+                                    field()
+                                        .max_w(px(140.))
+                                        .gap(px(4.))
+                                        .text_color(FG)
+                                        .child(div().min_w_0().truncate().child(quick_column))
+                                        .child(
+                                            bar_icon("icons/chevron-down.svg").text_color(FG_MUTED),
+                                        ),
+                                )
+                                .child(remember_bounds(app, |this, bounds| {
+                                    this.quick_column_trigger_bounds = Some(bounds);
+                                }))
                                 .on_click(cx.listener(move |this, _, _, cx| {
-                                    this.cycle_quick_filter_column(tab_id, cx);
+                                    this.open_quick_column_menu(tab_id, cx);
                                 })),
                         )
                     })
@@ -313,12 +327,12 @@ impl CellarApp {
                                 .id(SharedString::from(format!("quick-clear:{tab_id}")))
                                 .tab_index(0)
                                 .cursor_pointer()
-                                .size(px(14.))
+                                .size(px(FIELD_H))
                                 .flex()
                                 .items_center()
                                 .justify_center()
-                                .rounded(px(2.))
-                                .child(Icon::empty().path("icons/close.svg").size(px(9.)))
+                                .rounded(px(RADIUS))
+                                .child(bar_icon("icons/close.svg").text_color(FG_MUTED))
                                 .on_click(cx.listener(move |this, _, window, cx| {
                                     this.clear_quick_filter(tab_id, window, cx);
                                 })),
@@ -328,25 +342,18 @@ impl CellarApp {
             .child(
                 div()
                     .flex_shrink_0()
+                    .h(px(FIELD_H))
                     .flex()
                     .items_center()
-                    .gap_1()
+                    .gap(px(4.))
                     .font_weight(gpui::FontWeight::MEDIUM)
                     .text_color(FG_SECONDARY)
-                    .child(
-                        Icon::empty()
-                            .path("icons/filter.svg")
-                            .size(px(11.))
-                            .text_color(ACCENT),
-                    )
+                    .child(bar_icon("icons/filter.svg").text_color(ACCENT))
                     .child("where")
                     .when(total_active > 0, |element| {
                         element.child(
-                            div()
-                                .rounded(px(3.))
-                                .bg(PANEL_RAISED)
-                                .px(px(4.))
-                                .text_size(px(10.5))
+                            field()
+                                .px(px(5.))
                                 .text_color(FG_MUTED)
                                 .child(format!("{total_active} active")),
                         )
@@ -355,12 +362,10 @@ impl CellarApp {
             .child(chips)
             .when(active_count > 1, |element| {
                 element.child(
-                    div()
+                    field()
                         .id(SharedString::from(format!("filter-clear:{tab_id}")))
                         .tab_index(0)
                         .cursor_pointer()
-                        .h(px(20.))
-                        .px(px(5.))
                         .text_color(FG_MUTED)
                         .hover(|style| style.bg(PANEL_RAISED).text_color(FG))
                         .child("clear")
@@ -372,9 +377,10 @@ impl CellarApp {
             .child(
                 div()
                     .flex_shrink_0()
+                    .h(px(FIELD_H))
                     .flex()
                     .items_center()
-                    .gap_1()
+                    .gap(px(6.))
                     .pl(px(8.))
                     .border_l_1()
                     .border_color(BORDER)
@@ -382,47 +388,37 @@ impl CellarApp {
                         div()
                             .flex()
                             .items_center()
-                            .gap_1()
+                            .gap(px(4.))
                             .font_weight(gpui::FontWeight::MEDIUM)
                             .text_color(FG_SECONDARY)
                             .child(
-                                Icon::empty()
-                                    .path(sort_icon)
-                                    .size(px(11.))
-                                    .text_color(if sort.is_some() { ACCENT } else { FG_MUTED }),
+                                bar_icon(sort_icon).text_color(if sort.is_some() {
+                                    ACCENT
+                                } else {
+                                    FG_MUTED
+                                }),
                             )
                             .child("order by"),
                     )
                     .child(
-                        div()
+                        field()
                             .id(SharedString::from(format!("sort-column:{tab_id}")))
                             .tab_index(0)
                             .cursor_pointer()
-                            .h(px(18.))
                             .max_w(px(150.))
                             .min_w(px(42.))
-                            .truncate()
-                            .rounded(px(3.))
-                            .border_1()
-                            .border_color(BORDER)
-                            .bg(INSET)
-                            .px(px(5.))
-                            .child(sort_column.to_owned())
+                            .child(div().truncate().child(sort_column.to_owned()))
                             .on_click(cx.listener(move |this, _, _, cx| {
                                 this.cycle_toolbar_sort_column(tab_id, cx);
                             })),
                     )
                     .when_some(sort, |element, sort| {
                         element.child(
-                            div()
+                            field()
                                 .id(SharedString::from(format!("sort-direction:{tab_id}")))
                                 .tab_index(0)
                                 .cursor_pointer()
-                                .h(px(18.))
-                                .rounded(px(3.))
-                                .px(px(3.))
                                 .font_family(cellar_desktop_gpui::theme::mono_font())
-                                .text_size(px(10.5))
                                 .text_color(FG_MUTED)
                                 .child(match sort.direction {
                                     SortDirection::Asc => "ASC",
@@ -439,11 +435,11 @@ impl CellarApp {
                 div()
                     .ml_auto()
                     .flex_shrink_0()
+                    .h(px(FIELD_H))
                     .flex()
                     .items_center()
-                    .gap(px(3.))
+                    .gap(px(4.))
                     .font_family(cellar_desktop_gpui::theme::mono_font())
-                    .text_size(px(11.5))
                     .child(div().text_color(FG).child(row_count.to_string()))
                     .child(div().text_color(FG_MUTED).child("/"))
                     .child(div().text_color(FG_SECONDARY).child(row_count.to_string())),
@@ -459,35 +455,28 @@ impl CellarApp {
             .map(|draft| draft.input.clone());
         div()
             .flex_shrink_0()
+            .h(px(FIELD_H))
             .flex()
             .items_center()
-            .gap_1()
+            .gap(px(6.))
             .pl(px(8.))
             .border_l_1()
             .border_color(BORDER)
             .when_some(draft, |element, input| {
                 element
                     .child(
-                        div()
+                        field()
                             .w(px(132.))
-                            .h(px(20.))
-                            .flex()
-                            .items_center()
-                            .rounded(px(3.))
-                            .border_1()
-                            .border_color(BORDER)
-                            .bg(INSET)
-                            .child(compact_input(&input).flex_1()),
+                            .px(px(6.))
+                            .child(bar_input(&input).flex_1()),
                     )
                     .child(
-                        div()
+                        field()
                             .id(SharedString::from(format!("preset-commit:{tab_id}")))
                             .tab_index(0)
                             .cursor_pointer()
-                            .h(px(18.))
-                            .rounded(px(3.))
+                            .border_color(ACCENT)
                             .bg(ACCENT)
-                            .px(px(6.))
                             .text_color(ACCENT_FG)
                             .font_weight(gpui::FontWeight::SEMIBOLD)
                             .child("save")
@@ -500,11 +489,11 @@ impl CellarApp {
                             .id(SharedString::from(format!("preset-cancel:{tab_id}")))
                             .tab_index(0)
                             .cursor_pointer()
-                            .size(px(14.))
+                            .size(px(FIELD_H))
                             .flex()
                             .items_center()
                             .justify_center()
-                            .child(Icon::empty().path("icons/close.svg").size(px(9.)))
+                            .child(bar_icon("icons/close.svg").text_color(FG_MUTED))
                             .on_click(cx.listener(|this, _, _, cx| {
                                 this.cancel_filter_preset_draft(cx);
                             })),
@@ -516,38 +505,45 @@ impl CellarApp {
                     .is_none_or(|draft| draft.tab_id != tab_id),
                 |element| {
                     let label = active.clone().unwrap_or_else(|| "Presets".into());
-                    element.child(
+                    element.child({
+                        let app = cx.weak_entity();
                         div()
                             .id(SharedString::from(format!("preset-trigger:{tab_id}")))
                             .tab_index(0)
+                            .relative()
+                            .h(px(FIELD_H))
+                            .flex_shrink_0()
                             .cursor_pointer()
-                            .h(px(22.))
-                            .max_w(px(190.))
-                            .flex()
-                            .items_center()
-                            .gap(px(5.))
-                            .rounded(px(4.))
-                            .border_1()
-                            .border_color(if active.is_some() {
-                                cellar_desktop_gpui::theme::accent(0.32)
-                            } else {
-                                BORDER.rgba()
-                            })
-                            .bg(INSET)
-                            .px(px(8.))
-                            .text_color(if active.is_some() {
-                                ACCENT
-                            } else {
-                                FG_SECONDARY
-                            })
-                            .child(Icon::empty().path("icons/bookmark.svg").size(px(11.)))
-                            .child(div().min_w_0().truncate().child(label))
-                            .child(Icon::empty().path("icons/chevron-down.svg").size(px(8.)))
-                            .on_click(cx.listener(move |this, event: &ClickEvent, _, cx| {
+                            .child(
+                                field()
+                                    .max_w(px(190.))
+                                    .gap(px(5.))
+                                    .border_color(if active.is_some() {
+                                        cellar_desktop_gpui::theme::accent(0.32)
+                                    } else {
+                                        BORDER.rgba()
+                                    })
+                                    .text_color(if active.is_some() { ACCENT } else { FG_SECONDARY })
+                                    .child(bar_icon("icons/bookmark.svg").text_color(
+                                        if active.is_some() {
+                                            ACCENT
+                                        } else {
+                                            FG_MUTED
+                                        },
+                                    ))
+                                    .child(div().min_w_0().truncate().child(label))
+                                    .child(
+                                        bar_icon("icons/chevron-down.svg").text_color(FG_MUTED),
+                                    ),
+                            )
+                            .child(remember_bounds(app, |this, bounds| {
+                                this.preset_trigger_bounds = Some(bounds);
+                            }))
+                            .on_click(cx.listener(move |this, _: &ClickEvent, _, cx| {
                                 cx.stop_propagation();
-                                this.open_filter_preset_menu(tab_id, event.position(), cx);
-                            })),
-                    )
+                                this.open_filter_preset_menu(tab_id, cx);
+                            }))
+                    })
                 },
             )
             .into_any_element()

@@ -1,7 +1,7 @@
 use cellar_core::query::{TableFilterClause, TableSortClause};
 use gpui::{
-    div, prelude::*, px, AnyElement, Context, Entity, MouseButton, Pixels, Point, SharedString,
-    Window,
+    div, prelude::*, px, AnyElement, Bounds, Context, Entity, MouseButton, Pixels, Point,
+    SharedString, Window,
 };
 use gpui_component::{
     input::{InputEvent, InputState},
@@ -56,16 +56,21 @@ impl CellarApp {
             .map(|preset| preset.name.clone())
     }
 
-    pub(super) fn open_filter_preset_menu(
-        &mut self,
-        tab_id: u64,
-        position: Point<Pixels>,
-        cx: &mut Context<Self>,
-    ) {
-        self.table_preset_menu = Some(PresetMenu {
-            tab_id,
-            position: Point::new(position.x, position.y + px(14.)),
-        });
+    pub(super) fn open_filter_preset_menu(&mut self, tab_id: u64, cx: &mut Context<Self>) {
+        let Some(position) = self.preset_trigger_bounds.map(dropdown_below) else {
+            return;
+        };
+        if self
+            .table_preset_menu
+            .as_ref()
+            .is_some_and(|menu| menu.tab_id == tab_id)
+        {
+            self.table_preset_menu = None;
+            cx.notify();
+            return;
+        }
+        self.table_quick_column_menu = None;
+        self.table_preset_menu = Some(PresetMenu { tab_id, position });
         cx.notify();
     }
 
@@ -210,27 +215,13 @@ impl CellarApp {
             .as_ref()
             .expect("preset menu requires state");
         let tab_id = state.tab_id;
+        let position = state.position;
         let active = self.active_filter_preset(tab_id);
         let presets = table_target(self, tab_id)
             .and_then(|target| self.table_filter_presets.get(&table_key(target)))
             .cloned()
             .unwrap_or_default();
-        let mut menu = div()
-            .id("filter-preset-menu")
-            .tab_group()
-            .absolute()
-            .left(state.position.x)
-            .top(state.position.y)
-            .min_w(px(180.))
-            .max_h(px(300.))
-            .overflow_y_scroll()
-            .p_1()
-            .rounded(px(6.))
-            .border_1()
-            .border_color(BORDER)
-            .bg(PANEL)
-            .shadow_lg()
-            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation());
+        let mut menu = overlay_at("filter-preset-menu", position);
         for preset in presets {
             let name = preset.name.clone();
             let apply_name = name.clone();
@@ -342,6 +333,29 @@ pub(super) fn table_key(target: &TableTarget) -> String {
     )
 }
 
+pub(super) fn dropdown_below(trigger: Bounds<Pixels>) -> Point<Pixels> {
+    Point::new(trigger.origin.x, trigger.origin.y + px(22.))
+}
+
+pub(super) fn overlay_at(id: &'static str, position: Point<Pixels>) -> gpui::Stateful<gpui::Div> {
+    div()
+        .id(id)
+        .tab_group()
+        .absolute()
+        .left(position.x)
+        .top(position.y)
+        .min_w(px(180.))
+        .max_h(px(300.))
+        .overflow_y_scroll()
+        .p_1()
+        .rounded(px(6.))
+        .border_1()
+        .border_color(BORDER)
+        .bg(PANEL)
+        .shadow_lg()
+        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+}
+
 fn separator() -> gpui::Div {
     div().h(px(1.)).mx(px(2.)).my_1().bg(BORDER)
 }
@@ -368,8 +382,9 @@ fn menu_action(
 
 #[cfg(test)]
 mod tests {
-    use super::table_key;
+    use super::{dropdown_below, table_key};
     use cellar_desktop_gpui::model::TableTarget;
+    use gpui::{point, px, size, Bounds};
 
     #[test]
     fn preset_key_matches_the_classic_table_identity() {
@@ -382,5 +397,21 @@ mod tests {
             }),
             "c::db.dbo.users"
         );
+    }
+
+    #[test]
+    fn dropdown_sits_under_the_field_even_if_bounds_are_taller() {
+        let trigger = Bounds {
+            origin: point(px(800.), px(40.)),
+            size: size(px(90.), px(22.)),
+        };
+        let bloated = Bounds {
+            origin: trigger.origin,
+            size: size(px(90.), px(54.)),
+        };
+        let click = point(px(885.), px(51.));
+        assert_eq!(dropdown_below(trigger), point(px(800.), px(62.)));
+        assert_eq!(dropdown_below(bloated), point(px(800.), px(62.)));
+        assert!(dropdown_below(trigger).x < click.x);
     }
 }
