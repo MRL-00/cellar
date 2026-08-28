@@ -1,30 +1,40 @@
 use std::sync::Arc;
 
-use gpui::Context;
+use gpui::{Context, Window};
 
 use super::CellarApp;
 
 impl CellarApp {
-    pub(super) fn start_connect(&mut self, id: String, cx: &mut Context<Self>) {
+    pub(super) fn start_connect(
+        &mut self,
+        id: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if !self.model.begin_connect(&id) {
             cx.notify();
             return;
         }
-        self.connect_and_introspect(id, false, false, cx);
+        self.connect_and_introspect(id, false, false, window, cx);
     }
 
-    pub(super) fn reconnect(&mut self, id: String, cx: &mut Context<Self>) {
+    pub(super) fn reconnect(&mut self, id: String, window: &mut Window, cx: &mut Context<Self>) {
         if !self.model.begin_reconnect(&id) {
             return;
         }
-        self.connect_and_introspect(id, true, true, cx);
+        self.connect_and_introspect(id, true, true, window, cx);
     }
 
-    pub(super) fn refresh_schema(&mut self, id: String, cx: &mut Context<Self>) {
+    pub(super) fn refresh_schema(
+        &mut self,
+        id: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if !self.model.begin_reconnect(&id) {
             return;
         }
-        self.connect_and_introspect(id, false, true, cx);
+        self.connect_and_introspect(id, false, true, window, cx);
     }
 
     fn connect_and_introspect(
@@ -32,12 +42,13 @@ impl CellarApp {
         id: String,
         reconnect: bool,
         refresh: bool,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         let registry = Arc::clone(&self.registry);
         let runtime = Arc::clone(&self.runtime);
         cx.notify();
-        cx.spawn(async move |this, cx| {
+        cx.spawn_in(window, async move |this, cx| {
             let task_id = id.clone();
             let result = runtime
                 .spawn(async move {
@@ -54,7 +65,7 @@ impl CellarApp {
                 .await
                 .map_err(|error| format!("connection task failed: {error}"))
                 .and_then(|result| result.map_err(|error| error.to_string()));
-            this.update(cx, |this, cx| {
+            this.update_in(cx, |this, window, cx| {
                 let connected = result.is_ok();
                 match result {
                     Ok((info, databases)) => {
@@ -64,10 +75,12 @@ impl CellarApp {
                     Err(error) => {
                         this.driver_infos.remove(&id);
                         this.model.finish_connect(&id, Err(error));
+                        this.show_connection_error(&id, Some(window), cx);
                     }
                 }
                 if connected {
                     this.resume_table_loads(&id, cx);
+                    this.show_next_pending_connection_error(window, cx);
                 }
                 cx.notify();
             })
@@ -76,20 +89,20 @@ impl CellarApp {
         .detach();
     }
 
-    pub(super) fn disconnect(&mut self, id: String, cx: &mut Context<Self>) {
+    pub(super) fn disconnect(&mut self, id: String, window: &mut Window, cx: &mut Context<Self>) {
         if !self.model.begin_disconnect(&id) {
             return;
         }
         let registry = Arc::clone(&self.registry);
         let runtime = Arc::clone(&self.runtime);
-        cx.spawn(async move |this, cx| {
+        cx.spawn_in(window, async move |this, cx| {
             let task_id = id.clone();
             let result = runtime
                 .spawn(async move { registry.disconnect(&task_id).await })
                 .await
                 .map_err(|error| format!("disconnect task failed: {error}"))
                 .and_then(|result| result.map_err(|error| error.to_string()));
-            this.update(cx, |this, cx| {
+            this.update_in(cx, |this, window, cx| {
                 match result {
                     Ok(()) => {
                         this.driver_infos.remove(&id);
@@ -97,7 +110,8 @@ impl CellarApp {
                     }
                     Err(error) => {
                         this.driver_infos.remove(&id);
-                        this.model.finish_connect(&id, Err(error))
+                        this.model.finish_connect(&id, Err(error));
+                        this.show_connection_error(&id, Some(window), cx);
                     }
                 }
                 cx.notify();

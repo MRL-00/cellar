@@ -363,6 +363,7 @@ impl CellarApp {
                     config.name
                 ),
                 confirm_label: "Remove",
+                cancel_label: "Cancel",
                 danger: true,
                 action: ConfirmAction::RemoveConnection(config.id),
             },
@@ -473,13 +474,18 @@ impl CellarApp {
         cx.notify();
     }
 
-    pub(super) fn delete_connection_confirmed(&mut self, id: String, cx: &mut Context<Self>) {
+    pub(super) fn delete_connection_confirmed(
+        &mut self,
+        id: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if let Some(editor) = &mut self.connection_editor {
             editor.busy = Some(EditorBusy::Saving);
         }
         let registry = Arc::clone(&self.registry);
         let runtime = Arc::clone(&self.runtime);
-        cx.spawn(async move |this, cx| {
+        cx.spawn_in(window, async move |this, cx| {
             let result = runtime
                 .spawn({
                     let id = id.clone();
@@ -488,7 +494,7 @@ impl CellarApp {
                 .await
                 .map_err(|error| format!("delete task failed: {error}"))
                 .and_then(|result| result.map_err(|error| error.to_string()));
-            this.update(cx, |this, cx| {
+            this.update_in(cx, |this, window, cx| {
                 match result {
                     Ok(()) => {
                         this.driver_infos.remove(&id);
@@ -515,6 +521,7 @@ impl CellarApp {
                         this.commit_review = None;
                         this.data_import = None;
                         this.connection_editor = None;
+                        this.show_next_pending_connection_error(window, cx);
                     }
                     Err(error) => {
                         if let Some(editor) = &mut this.connection_editor {
@@ -524,9 +531,11 @@ impl CellarApp {
                             title: "Remove connection failed".into(),
                             message: error,
                             confirm_label: "Close",
+                            cancel_label: "Cancel",
                             danger: false,
                             action: ConfirmAction::Dismiss,
                         });
+                        this.confirmation_focus.focus(window);
                     }
                 }
                 cx.notify();
