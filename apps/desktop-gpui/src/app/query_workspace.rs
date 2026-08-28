@@ -34,7 +34,7 @@ enum QueryUiEvent {
 }
 
 impl CellarApp {
-    pub(super) fn new_query(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn new_query(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let target = self
             .model
             .active_tab()
@@ -169,6 +169,30 @@ impl CellarApp {
                 .update(cx, |state, cx| state.set_value("false", window, cx));
         }
         cx.notify();
+    }
+
+    pub(crate) fn run_active_query(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.save_template_editor.is_some() {
+            self.save_query_template(cx);
+            return;
+        }
+        if let Some(tab_id) = self
+            .model
+            .active_tab()
+            .and_then(|tab| matches!(&tab.kind, TabKind::Query { .. }).then_some(tab.id))
+        {
+            self.start_query(tab_id, window, cx);
+        }
+    }
+
+    pub(crate) fn run_active_query_all(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(tab_id) = self
+            .model
+            .active_tab()
+            .and_then(|tab| matches!(&tab.kind, TabKind::Query { .. }).then_some(tab.id))
+        {
+            self.start_query_all(tab_id, window, cx);
+        }
     }
 
     pub(super) fn start_query(&mut self, tab_id: u64, window: &mut Window, cx: &mut Context<Self>) {

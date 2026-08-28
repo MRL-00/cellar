@@ -31,6 +31,17 @@ impl CommitReview {
 }
 
 impl CellarApp {
+    pub(crate) fn review_pending_changes(&mut self, cx: &mut Context<Self>) {
+        if let Some(grid) = self
+            .model
+            .active_tab()
+            .and_then(|tab| self.grids.get(&tab.id))
+            .cloned()
+        {
+            grid.update(cx, |grid, cx| grid.request_review(cx));
+        }
+    }
+
     pub(super) fn open_commit_review(
         &mut self,
         tab_id: u64,
