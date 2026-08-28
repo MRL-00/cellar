@@ -205,7 +205,7 @@ impl ConnectionEditor {
 }
 
 impl CellarApp {
-    pub(super) fn open_connection_editor(
+    pub(crate) fn open_connection_editor(
         &mut self,
         config: Option<ConnectionConfig>,
         window: &mut Window,

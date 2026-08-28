@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 
 use gpui::{
     div, prelude::*, AnyElement, Context, MouseButton, MouseDownEvent, Pixels, Point, SharedString,
-    WindowControlArea,
+    Window, WindowControlArea,
 };
 use gpui_component::Icon;
 
@@ -542,6 +542,31 @@ impl CellarApp {
 
     pub(super) fn ai_panel(&self, cx: &mut Context<Self>) -> impl IntoElement {
         self.render_ai_panel(cx)
+    }
+
+    pub(crate) fn toggle_sidebar(&mut self, cx: &mut Context<Self>) {
+        self.sidebar_open = !self.sidebar_open;
+        cx.notify();
+    }
+
+    pub(crate) fn toggle_ai_panel(&mut self, cx: &mut Context<Self>) {
+        self.right_panel_open = !self.right_panel_open;
+        cx.notify();
+    }
+
+    pub(crate) fn toggle_bottom_panel(&mut self, cx: &mut Context<Self>) {
+        self.bottom_panel_open = !self.bottom_panel_open;
+        cx.notify();
+    }
+
+    pub(crate) fn focus_find(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.settings_open {
+            self.settings_search
+                .update(cx, |search, cx| search.focus(window, cx));
+        } else {
+            self.sidebar_filter
+                .update(cx, |filter, cx| filter.focus(window, cx));
+        }
     }
 }
 
