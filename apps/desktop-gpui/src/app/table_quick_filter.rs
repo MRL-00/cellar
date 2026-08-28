@@ -53,6 +53,8 @@ impl CellarApp {
     pub(super) fn open_quick_column_menu(&mut self, tab_id: u64, cx: &mut Context<Self>) {
         let Some(position) = self
             .quick_column_trigger_bounds
+            .get(&tab_id)
+            .copied()
             .map(super::table_presets::dropdown_below)
         else {
             return;

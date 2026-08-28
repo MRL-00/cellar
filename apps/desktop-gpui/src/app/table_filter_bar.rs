@@ -47,7 +47,7 @@ fn bar_icon(path: &'static str) -> Icon {
 
 fn remember_bounds(
     app: gpui::WeakEntity<CellarApp>,
-    write: fn(&mut CellarApp, Bounds<Pixels>),
+    write: impl Fn(&mut CellarApp, Bounds<Pixels>) + 'static,
 ) -> impl IntoElement {
     canvas(
         move |bounds, _, cx| {
@@ -126,7 +126,8 @@ impl CellarApp {
             .min_w_0()
             .flex()
             .items_center()
-            .gap(px(6.));
+            .gap(px(6.))
+            .overflow_hidden();
         for (index, filter) in filters.iter().enumerate() {
             let value = filter.value.as_deref().unwrap_or("");
             let text = if value.is_empty() {
@@ -313,8 +314,8 @@ impl CellarApp {
                                             bar_icon("icons/chevron-down.svg").text_color(FG_MUTED),
                                         ),
                                 )
-                                .child(remember_bounds(app, |this, bounds| {
-                                    this.quick_column_trigger_bounds = Some(bounds);
+                                .child(remember_bounds(app, move |this, bounds| {
+                                    this.quick_column_trigger_bounds.insert(tab_id, bounds);
                                 }))
                                 .on_click(cx.listener(move |this, _, _, cx| {
                                     this.open_quick_column_menu(tab_id, cx);
@@ -536,8 +537,8 @@ impl CellarApp {
                                         bar_icon("icons/chevron-down.svg").text_color(FG_MUTED),
                                     ),
                             )
-                            .child(remember_bounds(app, |this, bounds| {
-                                this.preset_trigger_bounds = Some(bounds);
+                            .child(remember_bounds(app, move |this, bounds| {
+                                this.preset_trigger_bounds.insert(tab_id, bounds);
                             }))
                             .on_click(cx.listener(move |this, _: &ClickEvent, _, cx| {
                                 cx.stop_propagation();

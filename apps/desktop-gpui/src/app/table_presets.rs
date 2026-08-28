@@ -57,7 +57,12 @@ impl CellarApp {
     }
 
     pub(super) fn open_filter_preset_menu(&mut self, tab_id: u64, cx: &mut Context<Self>) {
-        let Some(position) = self.preset_trigger_bounds.map(dropdown_below) else {
+        let Some(position) = self
+            .preset_trigger_bounds
+            .get(&tab_id)
+            .copied()
+            .map(dropdown_below)
+        else {
             return;
         };
         if self
@@ -413,5 +418,32 @@ mod tests {
         assert_eq!(dropdown_below(trigger), point(px(800.), px(62.)));
         assert_eq!(dropdown_below(bloated), point(px(800.), px(62.)));
         assert!(dropdown_below(trigger).x < click.x);
+    }
+
+    #[test]
+    fn split_panes_keep_their_own_dropdown_anchor() {
+        let mut bounds = std::collections::HashMap::new();
+        bounds.insert(
+            1,
+            Bounds {
+                origin: point(px(10.), px(40.)),
+                size: size(px(90.), px(54.)),
+            },
+        );
+        bounds.insert(
+            2,
+            Bounds {
+                origin: point(px(800.), px(40.)),
+                size: size(px(90.), px(54.)),
+            },
+        );
+        assert_eq!(
+            bounds.get(&1).copied().map(dropdown_below),
+            Some(point(px(10.), px(62.)))
+        );
+        assert_eq!(
+            bounds.get(&2).copied().map(dropdown_below),
+            Some(point(px(800.), px(62.)))
+        );
     }
 }
