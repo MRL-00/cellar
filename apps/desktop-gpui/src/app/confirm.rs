@@ -69,6 +69,9 @@ impl CellarApp {
             }
         }
         cx.notify();
+        if let Some(id) = self.pending_connection_error.take() {
+            self.show_connection_error(&id, Some(window), cx);
+        }
     }
 
     pub(super) fn show_connection_error(
@@ -77,7 +80,8 @@ impl CellarApp {
         window: Option<&mut Window>,
         cx: &mut Context<Self>,
     ) {
-        if !can_replace_confirmation(self.confirmation.as_ref()) {
+        if let Some(deferred) = defer_connection_error_id(self.confirmation.as_ref(), id) {
+            self.pending_connection_error = Some(deferred);
             return;
         }
         let name = self
@@ -91,6 +95,7 @@ impl CellarApp {
             ConnectionState::Error(error) => error.clone(),
             _ => return,
         };
+        self.pending_connection_error = None;
         self.confirmation = Some(Confirmation::connection_error(id.to_owned(), &name, error));
         if let Some(window) = window {
             self.confirmation_focus.focus(window);
@@ -248,11 +253,18 @@ fn can_replace_confirmation(existing: Option<&Confirmation>) -> bool {
     )
 }
 
+fn defer_connection_error_id(existing: Option<&Confirmation>, id: &str) -> Option<String> {
+    (!can_replace_confirmation(existing)).then(|| id.to_owned())
+}
+
 #[cfg(test)]
 mod tests {
     use gpui::{KeyDownEvent, Keystroke};
 
-    use super::{activates_button, can_replace_confirmation, ConfirmAction, Confirmation};
+    use super::{
+        activates_button, can_replace_confirmation, defer_connection_error_id, ConfirmAction,
+        Confirmation,
+    };
 
     #[test]
     fn connection_error_confirmation_titles_retry_and_reconnect_id() {
@@ -283,6 +295,11 @@ mod tests {
         assert!(can_replace_confirmation(None));
         let reconnect = Confirmation::connection_error("conn-1".into(), "prod", "timeout".into());
         assert!(can_replace_confirmation(Some(&reconnect)));
+        assert_eq!(
+            defer_connection_error_id(Some(&removal), "conn-1").as_deref(),
+            Some("conn-1")
+        );
+        assert_eq!(defer_connection_error_id(None, "conn-1"), None);
     }
 
     #[test]
