@@ -1,6 +1,7 @@
 mod app;
 mod app_menu;
 mod assets;
+mod macos_app;
 
 use std::{borrow::Cow, sync::Arc};
 
@@ -15,6 +16,7 @@ use gpui_component::highlighter::{LanguageConfig, LanguageRegistry};
 use gpui_component::Root;
 
 fn main() {
+    macos_app::relaunch_from_app_bundle();
     let runtime = Arc::new(
         tokio::runtime::Builder::new_multi_thread()
             .enable_all()

@@ -167,10 +167,10 @@ impl CellarApp {
                         )
                         .opacity(if connected.is_empty() { 0.45 } else { 1. })
                         .when(!connected.is_empty(), |element| {
-                            element.on_click(cx.listener(move |this, _, _, cx| {
+                            element.on_click(cx.listener(move |this, _, window, cx| {
                                 this.sidebar_menu = None;
                                 for id in connected.clone() {
-                                    this.refresh_schema(id, cx);
+                                    this.refresh_schema(id, window, cx);
                                 }
                             }))
                         }),

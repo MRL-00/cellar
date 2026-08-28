@@ -286,7 +286,7 @@ impl CellarApp {
             self.model.select_tab(id);
         }
         if let Some(id) = restore_connection {
-            self.start_connect(id, cx);
+            self.start_connect(id, window, cx);
         }
 
         cx.observe_window_bounds(window, |this, window, cx| {

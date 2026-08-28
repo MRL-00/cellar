@@ -29,9 +29,7 @@ impl Render for CellarApp {
                 let app = app.clone();
                 move |_: &crate::app_menu::NewConnection, window, cx| {
                     if let Some(app) = app.upgrade() {
-                        app.update(cx, |this, cx| {
-                            this.open_connection_editor(None, window, cx)
-                        });
+                        app.update(cx, |this, cx| this.open_connection_editor(None, window, cx));
                     }
                 }
             })
@@ -45,13 +43,17 @@ impl Render for CellarApp {
             })
             .on_action({
                 let app = app.clone();
+                move |_: &crate::app_menu::ToggleCommandPalette, window, cx| {
+                    if let Some(app) = app.upgrade() {
+                        app.update(cx, |this, cx| this.toggle_command_palette(window, cx));
+                    }
+                }
+            })
+            .on_action({
+                let app = app.clone();
                 move |_: &crate::app_menu::CloseTab, _, cx| {
                     if let Some(app) = app.upgrade() {
-                        app.update(cx, |this, cx| {
-                            if let Some(tab_id) = this.model.active_tab().map(|tab| tab.id) {
-                                this.close_tab(tab_id, cx);
-                            }
-                        });
+                        app.update(cx, |this, cx| this.close_active_tab(cx));
                     }
                 }
             })
@@ -59,10 +61,7 @@ impl Render for CellarApp {
                 let app = app.clone();
                 move |_: &crate::app_menu::ToggleSidebar, _, cx| {
                     if let Some(app) = app.upgrade() {
-                        app.update(cx, |this, cx| {
-                            this.sidebar_open = !this.sidebar_open;
-                            cx.notify();
-                        });
+                        app.update(cx, |this, cx| this.toggle_sidebar(cx));
                     }
                 }
             })
@@ -70,10 +69,7 @@ impl Render for CellarApp {
                 let app = app.clone();
                 move |_: &crate::app_menu::ToggleAiPanel, _, cx| {
                     if let Some(app) = app.upgrade() {
-                        app.update(cx, |this, cx| {
-                            this.right_panel_open = !this.right_panel_open;
-                            cx.notify();
-                        });
+                        app.update(cx, |this, cx| this.toggle_ai_panel(cx));
                     }
                 }
             })
@@ -81,10 +77,47 @@ impl Render for CellarApp {
                 let app = app.clone();
                 move |_: &crate::app_menu::ToggleBottomPanel, _, cx| {
                     if let Some(app) = app.upgrade() {
-                        app.update(cx, |this, cx| {
-                            this.bottom_panel_open = !this.bottom_panel_open;
-                            cx.notify();
-                        });
+                        app.update(cx, |this, cx| this.toggle_bottom_panel(cx));
+                    }
+                }
+            })
+            .on_action({
+                let app = app.clone();
+                move |_: &crate::app_menu::RunQuery, window, cx| {
+                    if let Some(app) = app.upgrade() {
+                        app.update(cx, |this, cx| this.run_active_query(window, cx));
+                    }
+                }
+            })
+            .on_action({
+                let app = app.clone();
+                move |_: &crate::app_menu::RunQueryAll, window, cx| {
+                    if let Some(app) = app.upgrade() {
+                        app.update(cx, |this, cx| this.run_active_query_all(window, cx));
+                    }
+                }
+            })
+            .on_action({
+                let app = app.clone();
+                move |_: &crate::app_menu::CancelQuery, _, cx| {
+                    if let Some(app) = app.upgrade() {
+                        app.update(cx, |this, cx| this.cancel_active_query(cx));
+                    }
+                }
+            })
+            .on_action({
+                let app = app.clone();
+                move |_: &crate::app_menu::ReviewChanges, _, cx| {
+                    if let Some(app) = app.upgrade() {
+                        app.update(cx, |this, cx| this.review_pending_changes(cx));
+                    }
+                }
+            })
+            .on_action({
+                let app = app.clone();
+                move |_: &crate::app_menu::Find, window, cx| {
+                    if let Some(app) = app.upgrade() {
+                        app.update(cx, |this, cx| this.focus_find(window, cx));
                     }
                 }
             })
@@ -115,77 +148,6 @@ impl Render for CellarApp {
                         .is_some_and(|review| review.preview.is_some() && !review.committing)
                 {
                     this.start_commit(cx);
-                    cx.stop_propagation();
-                } else if event.keystroke.modifiers.secondary() && event.keystroke.key == "k" {
-                    this.toggle_command_palette(window, cx);
-                    cx.stop_propagation();
-                } else if event.keystroke.modifiers.secondary() && event.keystroke.key == "," {
-                    this.open_settings(settings::SettingsCategory::Appearance, cx);
-                    cx.stop_propagation();
-                } else if event.keystroke.modifiers.secondary() && event.keystroke.key == "n" {
-                    this.open_connection_editor(None, window, cx);
-                    cx.stop_propagation();
-                } else if event.keystroke.modifiers.secondary() && event.keystroke.key == "t" {
-                    this.new_query(window, cx);
-                    cx.stop_propagation();
-                } else if this.save_template_editor.is_some()
-                    && event.keystroke.modifiers.secondary()
-                    && event.keystroke.key == "enter"
-                {
-                    this.save_query_template(cx);
-                    cx.stop_propagation();
-                } else if event.keystroke.modifiers.secondary() && event.keystroke.key == "enter" {
-                    if let Some(tab_id) = this.model.active_tab().and_then(|tab| {
-                        matches!(&tab.kind, cellar_desktop_gpui::model::TabKind::Query { .. })
-                            .then_some(tab.id)
-                    }) {
-                        if event.keystroke.modifiers.shift {
-                            this.start_query_all(tab_id, window, cx);
-                        } else {
-                            this.start_query(tab_id, window, cx);
-                        }
-                    }
-                    cx.stop_propagation();
-                } else if event.keystroke.modifiers.secondary() && event.keystroke.key == "." {
-                    if let Some(tab_id) = this.model.active_tab().map(|tab| tab.id) {
-                        this.cancel_query(tab_id, cx);
-                    }
-                    cx.stop_propagation();
-                } else if event.keystroke.modifiers.secondary() && event.keystroke.key == "w" {
-                    if let Some(tab_id) = this.model.active_tab().map(|tab| tab.id) {
-                        this.close_tab(tab_id, cx);
-                    }
-                    cx.stop_propagation();
-                } else if event.keystroke.modifiers.secondary() && event.keystroke.key == "s" {
-                    if let Some(grid) = this
-                        .model
-                        .active_tab()
-                        .and_then(|tab| this.grids.get(&tab.id))
-                        .cloned()
-                    {
-                        grid.update(cx, |grid, cx| grid.request_review(cx));
-                    }
-                    cx.stop_propagation();
-                } else if event.keystroke.modifiers.secondary() && event.keystroke.key == "b" {
-                    this.sidebar_open = !this.sidebar_open;
-                    cx.notify();
-                    cx.stop_propagation();
-                } else if event.keystroke.modifiers.secondary() && event.keystroke.key == "j" {
-                    this.right_panel_open = !this.right_panel_open;
-                    cx.notify();
-                    cx.stop_propagation();
-                } else if event.keystroke.modifiers.secondary() && event.keystroke.key == "down" {
-                    this.bottom_panel_open = !this.bottom_panel_open;
-                    cx.notify();
-                    cx.stop_propagation();
-                } else if event.keystroke.modifiers.secondary() && event.keystroke.key == "f" {
-                    if this.settings_open {
-                        this.settings_search
-                            .update(cx, |search, cx| search.focus(window, cx));
-                    } else {
-                        this.sidebar_filter
-                            .update(cx, |filter, cx| filter.focus(window, cx));
-                    }
                     cx.stop_propagation();
                 } else if event.keystroke.key == "escape" {
                     if this.save_template_editor.take().is_some() {

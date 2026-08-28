@@ -85,6 +85,7 @@ impl CellarApp {
                         title: "Run EXPLAIN ANALYZE?".into(),
                         message: "Postgres will execute the SQL. Writes can change data, and long statements can take locks.".into(),
                         confirm_label: "Run",
+                        cancel_label: "Cancel",
                         danger: false,
                         action: ConfirmAction::Analyze(tab_id),
                     },
