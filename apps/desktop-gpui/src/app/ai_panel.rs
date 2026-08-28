@@ -2,16 +2,17 @@ use gpui::{
     div, prelude::*, px, AnyElement, Context, KeyDownEvent, MouseButton, MouseDownEvent,
     SharedString,
 };
-use gpui_component::{input::Input, scroll::ScrollableElement, Icon};
+use gpui_component::{scroll::ScrollableElement, Icon};
 
 use super::{
     ai::{AiRole, AiTopic},
     CellarApp,
 };
 use cellar_desktop_gpui::theme::{
-    ui_px, ACCENT, BORDER, BORDER_SEPARATOR, FG, FG_MUTED, FG_SECONDARY, INSET, PANEL, PANEL_RAISED,
-    PROD,
+    ui_px, ACCENT, BORDER, BORDER_SEPARATOR, FG, FG_MUTED, FG_SECONDARY, INSET, PANEL,
+    PANEL_RAISED, PROD,
 };
+use cellar_desktop_gpui::widgets::compact_input;
 
 impl CellarApp {
     pub(super) fn render_ai_panel(&self, cx: &mut Context<Self>) -> AnyElement {
@@ -341,7 +342,7 @@ impl CellarApp {
                                             }
                                         },
                                     ))
-                                    .child(Input::new(&self.ai.draft).h_full().appearance(false)),
+                                    .child(compact_input(&self.ai.draft)),
                             )
                             .child(
                                 div()

@@ -1,14 +1,12 @@
 use cellar_core::query::{SortDirection, TableFilterOperator, TableSortClause};
 use gpui::{div, prelude::*, px, AnyElement, ClickEvent, Context, Entity, SharedString};
-use gpui_component::{
-    input::{Input, InputState},
-    Icon,
-};
+use gpui_component::{input::InputState, Icon};
 
 use super::CellarApp;
 use cellar_desktop_gpui::{
     model::{TablePage, TableTarget},
     theme::{ACCENT, ACCENT_FG, BORDER, FG, FG_MUTED, FG_SECONDARY, INSET, PANEL, PANEL_RAISED},
+    widgets::compact_input,
 };
 
 impl CellarApp {
@@ -195,7 +193,7 @@ impl CellarApp {
                             .border_color(BORDER)
                             .rounded(px(3.))
                             .bg(INSET)
-                            .child(Input::new(&input).h_full().appearance(false)),
+                            .child(compact_input(&input)),
                     )
                     .child(
                         div()
@@ -250,7 +248,7 @@ impl CellarApp {
             "icons/sort-asc.svg"
         };
         div()
-            .h(px(28.))
+            .h(px(34.))
             .flex_shrink_0()
             .flex()
             .items_center()
@@ -282,7 +280,7 @@ impl CellarApp {
                             .border_1()
                             .border_color(BORDER)
                             .bg(INSET)
-                            .child(Input::new(&quick_input).h_full().appearance(false)),
+                            .child(compact_input(&quick_input)),
                     )
                     .when_some(quick_column, |element, quick_column| {
                         element.child(
@@ -473,7 +471,7 @@ impl CellarApp {
                             .border_1()
                             .border_color(BORDER)
                             .bg(INSET)
-                            .child(Input::new(&input).h_full().appearance(false)),
+                            .child(compact_input(&input)),
                     )
                     .child(
                         div()

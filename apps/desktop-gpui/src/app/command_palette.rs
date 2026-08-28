@@ -1,10 +1,11 @@
 use gpui::{div, prelude::*, px, AnyElement, Context, KeyDownEvent, SharedString, Window};
-use gpui_component::{input::Input, input::InputState, Icon};
+use gpui_component::{input::InputState, Icon};
 
 use super::{shell_widgets::keycap, CellarApp};
 use cellar_desktop_gpui::{
     model::TableTarget,
     theme::{ACCENT, BORDER, FG, FG_MUTED, FG_SECONDARY, FG_TERTIARY, PANEL, PANEL_MUTED, WARN},
+    widgets::compact_input,
 };
 
 use super::shell::BottomPanelTab;
@@ -617,7 +618,7 @@ impl CellarApp {
                                     .size(px(13.))
                                     .text_color(FG_MUTED),
                             )
-                            .child(Input::new(input).h_full().flex_1().appearance(false))
+                            .child(compact_input(input).flex_1())
                             .child(keycap("esc")),
                     )
                     .child(

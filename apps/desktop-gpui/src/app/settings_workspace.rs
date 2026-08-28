@@ -4,7 +4,6 @@ use gpui::{
 };
 use gpui_component::{
     button::Button,
-    input::Input,
     menu::{DropdownMenu, PopupMenuItem},
     slider::Slider,
     Theme as ComponentTheme, ThemeMode,
@@ -21,6 +20,7 @@ use cellar_desktop_gpui::theme::{
     ACCENT, BORDER, BORDER_DIVIDER, FG, FG_MUTED, FG_SECONDARY, INSET, PANEL, PANEL_MUTED,
     PANEL_RAISED,
 };
+use cellar_desktop_gpui::widgets::compact_input;
 
 const SANS_FONTS: &[&str] = &[
     "Geist",
@@ -227,11 +227,7 @@ impl CellarApp {
                                     .bg(INSET)
                                     .px_2()
                                     .font_family(cellar_desktop_gpui::theme::mono_font())
-                                    .child(
-                                        Input::new(&self.font_size_input)
-                                            .h_full()
-                                            .appearance(false),
-                                    ),
+                                    .child(compact_input(&self.font_size_input)),
                             )
                             .child(div().text_color(FG_SECONDARY).child("px"))
                             .child(

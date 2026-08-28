@@ -1,6 +1,6 @@
 use cellar_ai::openai::OpenAiLoginMethod;
 use gpui::{div, prelude::*, px, AnyElement, Context, SharedString};
-use gpui_component::{input::Input, Icon};
+use gpui_component::Icon;
 
 use super::{
     ai::AiProvider,
@@ -12,6 +12,7 @@ use super::{
 use cellar_desktop_gpui::theme::{
     ACCENT, BORDER, FG, FG_MUTED, FG_SECONDARY, INSET, PANEL, PANEL_RAISED, PROD,
 };
+use cellar_desktop_gpui::widgets::compact_input;
 
 const PROVIDERS: &[(&str, &str, Option<AiProvider>)] = &[
     ("Google", "gemini-* family", Some(AiProvider::Google)),
@@ -180,7 +181,7 @@ impl CellarApp {
                             .border_color(BORDER)
                             .bg(INSET)
                             .px_1()
-                            .child(Input::new(&self.ai.key).h_full().appearance(false)),
+                            .child(compact_input(&self.ai.key)),
                     )
                     .child(
                         action_button(

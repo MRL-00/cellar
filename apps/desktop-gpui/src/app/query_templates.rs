@@ -1,12 +1,13 @@
 use cellar_runtime::query_templates::{self, QueryTemplate};
 use gpui::{div, prelude::*, px, AnyElement, Context, SharedString, Window};
-use gpui_component::{input::Input, input::InputState, scroll::ScrollableElement, Icon};
+use gpui_component::{input::InputState, scroll::ScrollableElement, Icon};
 
 use super::CellarApp;
 use cellar_desktop_gpui::theme::{
     accent, ACCENT, ACCENT_FG, BORDER, BORDER_STRONG, FG, FG_MUTED, FG_SECONDARY, INSET, PANEL,
     PANEL_MUTED, PANEL_RAISED, PROD,
 };
+use cellar_desktop_gpui::widgets::compact_input;
 
 pub(super) struct SaveTemplateEditor {
     sql: String,
@@ -219,7 +220,7 @@ impl CellarApp {
                                     .border_color(BORDER)
                                     .bg(INSET)
                                     .px(px(10.))
-                                    .child(Input::new(&editor.name).h_full().appearance(false)),
+                                    .child(compact_input(&editor.name)),
                             )
                             .child(field_label("Description", Some("(optional)")))
                             .child(
@@ -232,9 +233,7 @@ impl CellarApp {
                                     .border_color(BORDER)
                                     .bg(INSET)
                                     .px(px(10.))
-                                    .child(
-                                        Input::new(&editor.description).h_full().appearance(false),
-                                    ),
+                                    .child(compact_input(&editor.description)),
                             )
                             .child(field_label("SQL", None))
                             .child(

@@ -1,11 +1,12 @@
 use gpui::{div, prelude::*, px, AnyElement, Context, SharedString};
-use gpui_component::{input::Input, Icon};
+use gpui_component::Icon;
 
 use super::CellarApp;
 use cellar_desktop_gpui::theme::{
     ACCENT, ACCENT_FG, BG, BORDER, BORDER_DIVIDER, FG, FG_MUTED, FG_SECONDARY, FG_TERTIARY, INSERT,
     INSET, PANEL, PANEL_MUTED, PANEL_RAISED,
 };
+use cellar_desktop_gpui::widgets::compact_input;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum SettingsCategory {
@@ -176,7 +177,7 @@ impl CellarApp {
                             .child(
                                 div()
                                     .w(px(260.))
-                                    .h(px(24.))
+                                    .h(px(28.))
                                     .flex()
                                     .items_center()
                                     .gap(px(6.))
@@ -188,11 +189,11 @@ impl CellarApp {
                                     .text_color(FG_MUTED)
                                     .child(Icon::empty().path("icons/search.svg").size(px(11.)))
                                     .child(
-                                        div().min_w_0().flex_1().h_full().child(
-                                            Input::new(&self.settings_search)
-                                                .h_full()
-                                                .appearance(false),
-                                        ),
+                                        div()
+                                            .min_w_0()
+                                            .flex_1()
+                                            .h_full()
+                                            .child(compact_input(&self.settings_search)),
                                     )
                                     .child(
                                         div()
