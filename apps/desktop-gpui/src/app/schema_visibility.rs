@@ -2,10 +2,7 @@ use std::collections::HashSet;
 
 use cellar_core::schema::Schema;
 use gpui::{div, prelude::*, px, AnyElement, Context, Entity, SharedString, Subscription, Window};
-use gpui_component::{
-    input::{Input, InputState},
-    Icon,
-};
+use gpui_component::{input::InputState, Icon};
 use serde::{Deserialize, Serialize};
 
 use super::CellarApp;
@@ -13,6 +10,7 @@ use cellar_desktop_gpui::theme::{
     ACCENT, ACCENT_FG, BG, BORDER, BORDER_STRONG, FG, FG_MUTED, FG_SECONDARY, INSET, PANEL,
     PANEL_RAISED,
 };
+use cellar_desktop_gpui::widgets::compact_input;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub(super) struct SchemaVisibilityPrefs {
@@ -290,12 +288,7 @@ impl CellarApp {
                                             .size(px(11.))
                                             .text_color(FG_MUTED),
                                     )
-                                    .child(
-                                        Input::new(&editor.filter)
-                                            .h_full()
-                                            .flex_1()
-                                            .appearance(false),
-                                    ),
+                                    .child(compact_input(&editor.filter).flex_1()),
                             )
                             .child(
                                 div()

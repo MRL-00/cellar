@@ -82,7 +82,6 @@ use gpui::{
     MouseDownEvent, Pixels, Render, SharedString, Subscription, Window,
 };
 use gpui_component::{
-    input::Input,
     input::InputState,
     slider::{SliderEvent, SliderState, SliderValue},
     Icon,
@@ -105,6 +104,7 @@ use cellar_desktop_gpui::{
         ui_px, BG, BORDER, BORDER_SEPARATOR, FG, FG_DISABLED, FG_MUTED, INSERT, INSET, PANEL_MUTED,
         PANEL_RAISED, WARN, WARN_SOFT,
     },
+    widgets::compact_input,
 };
 
 pub struct CellarApp {
@@ -601,12 +601,7 @@ impl CellarApp {
                     .bg(INSET)
                     .text_color(FG_MUTED)
                     .child(Icon::empty().path("icons/search.svg").size(ui_px(11.)))
-                    .child(
-                        Input::new(&self.sidebar_filter)
-                            .h_full()
-                            .flex_1()
-                            .appearance(false),
-                    )
+                    .child(compact_input(&self.sidebar_filter).flex_1())
                     .child(shell_widgets::keycap("⌘F")),
             )
             .child(

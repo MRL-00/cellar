@@ -1,6 +1,6 @@
 use cellar_runtime::history::QueryHistoryRecord;
 use gpui::{div, prelude::*, px, AnyElement, ClipboardItem, Context, SharedString};
-use gpui_component::{input::Input, scroll::ScrollableElement, Icon};
+use gpui_component::{scroll::ScrollableElement, Icon};
 
 use super::{bottom_panel_support::*, shell_widgets::bottom_empty, CellarApp};
 use cellar_desktop_gpui::model::{QueryState, TabKind, TableLoadState, WorkspaceTab};
@@ -8,6 +8,7 @@ use cellar_desktop_gpui::theme::{
     accent_soft, ACCENT, ACCENT_FG, BORDER, BORDER_DIVIDER, DELETE_SOFT, FG, FG_DISABLED, FG_MUTED,
     FG_SECONDARY, INSERT, INSERT_SOFT, INSET, PANEL, PANEL_MUTED, PROD, WARN,
 };
+use cellar_desktop_gpui::widgets::compact_input;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum MessageFilter {
@@ -237,11 +238,11 @@ impl CellarApp {
                                     .text_color(FG_MUTED),
                             )
                             .child(
-                                div().h_full().min_w_0().flex_1().child(
-                                    Input::new(&self.bottom_history_search)
-                                        .h_full()
-                                        .appearance(false),
-                                ),
+                                div()
+                                    .h_full()
+                                    .min_w_0()
+                                    .flex_1()
+                                    .child(compact_input(&self.bottom_history_search)),
                             ),
                     )
                     .child(

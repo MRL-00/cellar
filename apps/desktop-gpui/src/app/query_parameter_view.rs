@@ -1,5 +1,5 @@
 use gpui::{div, prelude::*, px, AnyElement, Context, SharedString};
-use gpui_component::{input::Input, scroll::ScrollableElement, Icon};
+use gpui_component::{scroll::ScrollableElement, Icon};
 
 use super::{
     query_params::{parameter_value, ParamKind, QueryParameterInput},
@@ -9,6 +9,7 @@ use super::{
 use cellar_desktop_gpui::theme::{
     ACCENT, ACCENT_FG, BORDER, FG, FG_MUTED, FG_SECONDARY, INSET, PANEL, PANEL_RAISED, PROD,
 };
+use cellar_desktop_gpui::widgets::compact_input;
 
 impl CellarApp {
     pub(super) fn query_parameter_panel(
@@ -278,7 +279,7 @@ impl CellarApp {
                 .border_color(BORDER)
                 .bg(INSET)
                 .px(px(7.))
-                .child(Input::new(&input.state).h_full().appearance(false))
+                .child(compact_input(&input.state))
                 .into_any_element(),
         }
     }

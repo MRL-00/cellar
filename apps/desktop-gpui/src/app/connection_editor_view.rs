@@ -1,10 +1,6 @@
 use cellar_core::driver::{Engine, EnvTag, SslMode};
 use gpui::{div, prelude::*, px, AnyElement, Context, Entity, SharedString};
-use gpui_component::{
-    input::{Input, InputState},
-    scroll::ScrollableElement,
-    Icon,
-};
+use gpui_component::{input::InputState, scroll::ScrollableElement, Icon};
 
 use super::{
     connection_editor::{ConnectionEditor, ConnectionTab, EditorBusy, ENGINES},
@@ -15,6 +11,7 @@ use cellar_desktop_gpui::theme::{
     accent, ACCENT, ACCENT_FG, BORDER, BORDER_DIVIDER, BORDER_STRONG, FG, FG_MUTED, FG_SECONDARY,
     FG_TERTIARY, INSET, PANEL, PANEL_MUTED, PANEL_RAISED, WARN,
 };
+use cellar_desktop_gpui::widgets::compact_input;
 
 const SWATCHES: [(&str, u32); 7] = [
     ("#4f8ff7", 0x4f8ff7),
@@ -587,7 +584,7 @@ fn input_box(state: &Entity<InputState>, mono: bool, width: Option<f32>) -> AnyE
         .when(mono, |element| {
             element.font_family(cellar_desktop_gpui::theme::mono_font())
         })
-        .child(Input::new(state).h_full().appearance(false))
+        .child(compact_input(state))
         .into_any_element()
 }
 

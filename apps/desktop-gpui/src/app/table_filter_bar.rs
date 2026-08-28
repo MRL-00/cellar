@@ -1,14 +1,12 @@
 use cellar_core::query::{SortDirection, TableFilterOperator, TableSortClause};
 use gpui::{div, prelude::*, px, AnyElement, ClickEvent, Context, Entity, SharedString};
-use gpui_component::{
-    input::{Input, InputState},
-    Icon,
-};
+use gpui_component::{input::InputState, Icon};
 
 use super::CellarApp;
 use cellar_desktop_gpui::{
     model::{TablePage, TableTarget},
     theme::{ACCENT, ACCENT_FG, BORDER, FG, FG_MUTED, FG_SECONDARY, INSET, PANEL, PANEL_RAISED},
+    widgets::compact_input,
 };
 
 impl CellarApp {
@@ -190,12 +188,14 @@ impl CellarApp {
                     .child(
                         div()
                             .w(px(132.))
-                            .h(px(18.))
+                            .h(px(20.))
+                            .flex()
+                            .items_center()
                             .border_1()
                             .border_color(BORDER)
                             .rounded(px(3.))
                             .bg(INSET)
-                            .child(Input::new(&input).h_full().appearance(false)),
+                            .child(compact_input(&input).flex_1()),
                     )
                     .child(
                         div()
@@ -278,11 +278,13 @@ impl CellarApp {
                         div()
                             .w(px(180.))
                             .h(px(22.))
+                            .flex()
+                            .items_center()
                             .rounded(px(3.))
                             .border_1()
                             .border_color(BORDER)
                             .bg(INSET)
-                            .child(Input::new(&quick_input).h_full().appearance(false)),
+                            .child(compact_input(&quick_input).flex_1()),
                     )
                     .when_some(quick_column, |element, quick_column| {
                         element.child(
@@ -468,12 +470,14 @@ impl CellarApp {
                     .child(
                         div()
                             .w(px(132.))
-                            .h(px(18.))
+                            .h(px(20.))
+                            .flex()
+                            .items_center()
                             .rounded(px(3.))
                             .border_1()
                             .border_color(BORDER)
                             .bg(INSET)
-                            .child(Input::new(&input).h_full().appearance(false)),
+                            .child(compact_input(&input).flex_1()),
                     )
                     .child(
                         div()

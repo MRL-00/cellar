@@ -1,6 +1,6 @@
 use chrono::{Datelike, Local, NaiveDate};
 use gpui::{div, prelude::*, px, AnyElement, Entity, SharedString, WeakEntity};
-use gpui_component::{input::Input, input::InputState, Icon};
+use gpui_component::{input::InputState, Icon};
 
 use super::DataGrid;
 use crate::theme::{
@@ -154,7 +154,7 @@ pub(super) fn picker(
                             .bg(BG)
                             .px_1()
                             .font_family(crate::theme::mono_font())
-                            .child(Input::new(&time).h_full().appearance(false)),
+                            .child(crate::widgets::compact_input(&time)),
                     ),
             )
         })

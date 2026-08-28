@@ -4,7 +4,6 @@ use gpui::{
     div, prelude::*, px, uniform_list, Context, IntoElement, MouseButton, Render, ScrollWheelEvent,
     WeakEntity, Window,
 };
-use gpui_component::input::Input;
 use gpui_component::Icon;
 
 use super::{
@@ -273,10 +272,12 @@ impl Render for DataGrid {
                             .top(px(top))
                             .w(px(width))
                             .h(px(crate::theme::row_height()))
+                            .flex()
+                            .items_center()
                             .bg(PANEL_RAISED)
                             .border_1()
                             .border_color(ACCENT)
-                            .child(Input::new(&state).h_full().appearance(false)),
+                            .child(crate::widgets::compact_input(&state).flex_1()),
                     )
                     .when_some(date, |element, date| {
                         let picker_height = date.picker_height();

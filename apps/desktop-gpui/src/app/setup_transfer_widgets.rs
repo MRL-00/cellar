@@ -1,8 +1,5 @@
 use gpui::{div, prelude::*, px, AnyElement, Context, Entity, SharedString, Window};
-use gpui_component::{
-    input::{Input, InputState},
-    Icon,
-};
+use gpui_component::{input::InputState, Icon};
 
 use super::{
     setup_transfer::{ImportDecision, ImportSetupState, ImportSummary, SetupTransfer},
@@ -12,6 +9,7 @@ use cellar_desktop_gpui::theme::{
     accent, hover_bright, ACCENT, BG, BORDER, BORDER_STRONG, FG, FG_MUTED, FG_SECONDARY, INSET,
     PANEL_MUTED, PANEL_RAISED, PROD,
 };
+use cellar_desktop_gpui::widgets::compact_input;
 
 pub(super) fn modal_header(
     icon: &'static str,
@@ -339,7 +337,7 @@ pub(super) fn import_source(
                 .border_color(BORDER)
                 .bg(INSET)
                 .font_family(cellar_desktop_gpui::theme::mono_font())
-                .child(Input::new(&raw).h_full().appearance(false)),
+                .child(compact_input(&raw)),
         )
         .when_some(error, |element, error| {
             element.child(div().mt_2().text_color(PROD).child(error))

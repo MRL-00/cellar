@@ -4,12 +4,13 @@ use cellar_core::driver::{Engine, EnvTag};
 use cellar_runtime::history::NewQueryHistoryRecord;
 use cellar_schema_diff::{assemble_script, MigrationStatement, SchemaComparison};
 use gpui::{div, prelude::*, px, AnyElement, ClipboardItem, Context, Entity, SharedString, Window};
-use gpui_component::{input::Input, input::InputState, Icon};
+use gpui_component::{input::InputState, Icon};
 
 use super::{schema_compare_support::*, CellarApp};
 use cellar_desktop_gpui::{
     model::{SchemaCompareConfig, SchemaCompareSource, SchemaCompareState, TabKind, WorkspaceTab},
     theme::{ACCENT, BG, BORDER, FG_MUTED, INSERT, INSET, PANEL, PANEL_MUTED, PROD, WARN},
+    widgets::compact_input,
 };
 
 pub(super) struct SchemaCompareWorkspace {
@@ -532,7 +533,7 @@ impl CellarApp {
                         div()
                             .flex_1()
                             .min_h_0()
-                            .child(Input::new(&workspace.editor).h_full().appearance(false)),
+                            .child(compact_input(&workspace.editor)),
                     )
                     .child(
                         div()

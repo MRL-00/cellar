@@ -4,7 +4,7 @@ use cellar_core::driver::ConnectionConfig;
 use gpui::{
     div, prelude::*, AnyElement, Context, MouseButton, MouseDownEvent, Point, Rgba, SharedString,
 };
-use gpui_component::{input::Input, Icon};
+use gpui_component::Icon;
 use serde::{Deserialize, Serialize};
 use sqlx::{sqlite::SqliteConnectOptions, ConnectOptions, Connection, Row};
 
@@ -15,6 +15,7 @@ use super::{
 use cellar_desktop_gpui::theme::{
     ui_px, ACCENT, BORDER, FG, FG_MUTED, FG_TERTIARY, PANEL_MUTED, PANEL_RAISED,
 };
+use cellar_desktop_gpui::widgets::compact_input;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
@@ -437,13 +438,16 @@ impl CellarApp {
                                                 .h(ui_px(20.))
                                                 .min_w_0()
                                                 .flex_1()
+                                                .flex()
+                                                .items_center()
+                                                .overflow_hidden()
                                                 .rounded(ui_px(3.))
                                                 .border_1()
                                                 .border_color(FG_MUTED)
                                                 .bg(cellar_desktop_gpui::theme::INSET)
                                                 .px_1()
                                                 .on_click(|_, _, cx| cx.stop_propagation())
-                                                .child(Input::new(&input).h_full().appearance(false)),
+                                                .child(compact_input(&input).flex_1()),
                                         )
                                     })
                                     .child(

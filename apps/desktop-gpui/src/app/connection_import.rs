@@ -3,16 +3,13 @@ use std::{collections::HashSet, sync::Arc};
 use cellar_core::driver::ConnectionConfig;
 use cellar_runtime::datagrip::DatagripImport;
 use gpui::{div, prelude::*, px, AnyElement, Context, Entity, SharedString, Window};
-use gpui_component::{
-    checkbox::Checkbox,
-    input::{Input, InputState},
-    Disableable, Icon,
-};
+use gpui_component::{checkbox::Checkbox, input::InputState, Disableable, Icon};
 
 use cellar_desktop_gpui::theme::{
     accent, ACCENT, ACCENT_FG, BORDER, BORDER_STRONG, FG, FG_MUTED, FG_SECONDARY, INSET, PANEL,
     PANEL_MUTED, PANEL_RAISED, WARN,
 };
+use cellar_desktop_gpui::widgets::compact_input;
 
 use super::CellarApp;
 
@@ -580,12 +577,7 @@ fn import_row_input(state: &Entity<InputState>, width: f32, enabled: bool) -> An
         .px_2()
         .font_family(cellar_desktop_gpui::theme::mono_font())
         .opacity(if enabled { 1. } else { 0.4 })
-        .child(
-            Input::new(state)
-                .h_full()
-                .appearance(false)
-                .disabled(!enabled),
-        )
+        .child(compact_input(state).disabled(!enabled))
         .into_any_element()
 }
 
