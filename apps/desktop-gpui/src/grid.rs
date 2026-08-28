@@ -746,13 +746,19 @@ fn clipboard_rows(text: &str) -> Vec<Vec<String>> {
         .collect()
 }
 
+pub(super) fn wheel_scrolls_horizontally(delta: gpui::Point<gpui::Pixels>) -> bool {
+    f32::from(delta.x).abs() > f32::from(delta.y).abs()
+}
+
 #[cfg(test)]
 mod tests {
     use cellar_core::query::SortDirection;
 
     use super::{
         auto_fit_width, clipboard_rows, moved_index, next_sort_direction, visible_column_range,
+        wheel_scrolls_horizontally,
     };
+    use gpui::{point, px};
 
     #[test]
     fn column_autofit_covers_headers_and_values_with_safe_bounds() {
@@ -801,5 +807,13 @@ mod tests {
             (0..5).map(|i| moved_index(i, 3, 1)).collect::<Vec<_>>(),
             vec![0, 2, 3, 1, 4]
         );
+    }
+
+    #[test]
+    fn vertical_wheel_does_not_count_as_horizontal() {
+        assert!(!wheel_scrolls_horizontally(point(px(0.), px(40.))));
+        assert!(!wheel_scrolls_horizontally(point(px(4.), px(40.))));
+        assert!(wheel_scrolls_horizontally(point(px(40.), px(4.))));
+        assert!(!wheel_scrolls_horizontally(point(px(10.), px(10.))));
     }
 }
