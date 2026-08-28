@@ -22,6 +22,7 @@ jobs:
             os: ubuntu-latest
           - name: Windows
             os: windows-latest
+    if: ${{ matrix.name == 'macOS' || github.event_name == 'push' }}
 
     steps:
       - name: Checkout
