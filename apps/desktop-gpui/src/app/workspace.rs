@@ -573,6 +573,12 @@ impl CellarApp {
             .into_any_element()
     }
 
+    pub(crate) fn close_active_tab(&mut self, cx: &mut Context<Self>) {
+        if let Some(tab_id) = self.model.active_tab().map(|tab| tab.id) {
+            self.close_tab(tab_id, cx);
+        }
+    }
+
     pub(super) fn close_tab(&mut self, id: u64, cx: &mut Context<Self>) {
         if let Some(tab) = self.model.tabs().iter().find(|tab| tab.id == id) {
             if let TabKind::Table { target, .. } = &tab.kind {

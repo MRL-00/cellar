@@ -16,6 +16,12 @@ pub(super) fn required_analyze_confirmations(_production: bool, _destructive: bo
 }
 
 impl CellarApp {
+    pub(crate) fn cancel_active_query(&mut self, cx: &mut Context<Self>) {
+        if let Some(tab_id) = self.model.active_tab().map(|tab| tab.id) {
+            self.cancel_query(tab_id, cx);
+        }
+    }
+
     pub(super) fn cancel_query(&mut self, tab_id: u64, cx: &mut Context<Self>) {
         let Some((connection_id, engine)) = self.model.tabs().iter().find_map(|tab| {
             if tab.id != tab_id {

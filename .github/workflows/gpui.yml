@@ -22,6 +22,7 @@ jobs:
             os: ubuntu-latest
           - name: Windows
             os: windows-latest
+    if: ${{ matrix.name == 'macOS' || github.event_name == 'push' }}
 
     steps:
       - name: Checkout
@@ -36,6 +37,7 @@ jobs:
             clang \
             cmake \
             libasound2-dev \
+            libdbus-1-dev \
             libfontconfig-dev \
             libglib2.0-dev \
             libssl-dev \

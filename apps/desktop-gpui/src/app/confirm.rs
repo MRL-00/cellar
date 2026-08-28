@@ -2,6 +2,7 @@ use cellar_core::query::PlanMode;
 use gpui::{div, prelude::*, AnyElement, Context, KeyDownEvent, MouseButton, Window};
 
 use super::CellarApp;
+use cellar_desktop_gpui::model::ConnectionState;
 use cellar_desktop_gpui::theme::{
     accent, ui_px, ACCENT, ACCENT_FG, BORDER, BORDER_STRONG, FG, FG_SECONDARY, PANEL, PANEL_RAISED,
     WARN,
@@ -11,14 +12,29 @@ pub(super) enum ConfirmAction {
     Dismiss,
     RemoveConnection(String),
     Analyze(u64),
+    Reconnect(String),
 }
 
 pub(super) struct Confirmation {
     pub(super) title: String,
     pub(super) message: String,
     pub(super) confirm_label: &'static str,
+    pub(super) cancel_label: &'static str,
     pub(super) danger: bool,
     pub(super) action: ConfirmAction,
+}
+
+impl Confirmation {
+    pub(super) fn connection_error(id: String, name: &str, error: String) -> Self {
+        Self {
+            title: format!("Could not connect to {name}"),
+            message: error,
+            confirm_label: "Retry",
+            cancel_label: "Close",
+            danger: false,
+            action: ConfirmAction::Reconnect(id),
+        }
+    }
 }
 
 impl CellarApp {
@@ -42,14 +58,64 @@ impl CellarApp {
         let Some(confirmation) = self.confirmation.take() else {
             return;
         };
+        let skip_pending = skip_pending_connection_errors(confirmed, &confirmation.action);
         if confirmed {
             match confirmation.action {
                 ConfirmAction::Dismiss => {}
-                ConfirmAction::RemoveConnection(id) => self.delete_connection_confirmed(id, cx),
+                ConfirmAction::RemoveConnection(id) => {
+                    self.delete_connection_confirmed(id, window, cx)
+                }
                 ConfirmAction::Analyze(tab_id) => {
                     self.explain_query(tab_id, PlanMode::Analyze, window, cx)
                 }
+                ConfirmAction::Reconnect(id) => self.reconnect(id, window, cx),
             }
+        }
+        cx.notify();
+        if !skip_pending {
+            self.show_next_pending_connection_error(window, cx);
+        }
+    }
+
+    pub(super) fn show_next_pending_connection_error(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        while self.confirmation.is_none() {
+            let Some(id) = dequeue_pending_connection_error(&mut self.pending_connection_errors)
+            else {
+                return;
+            };
+            self.show_connection_error(&id, Some(window), cx);
+        }
+    }
+
+    pub(super) fn show_connection_error(
+        &mut self,
+        id: &str,
+        window: Option<&mut Window>,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(deferred) = defer_connection_error_id(self.confirmation.as_ref(), id) {
+            enqueue_pending_connection_error(&mut self.pending_connection_errors, deferred);
+            return;
+        }
+        let name = self
+            .model
+            .connections()
+            .iter()
+            .find(|config| config.id == id)
+            .map(|config| config.name.clone())
+            .unwrap_or_else(|| id.to_owned());
+        let error = match self.model.connection_state(id) {
+            ConnectionState::Error(error) => error.clone(),
+            _ => return,
+        };
+        self.pending_connection_errors.retain(|queued| queued != id);
+        self.confirmation = Some(Confirmation::connection_error(id.to_owned(), &name, error));
+        if let Some(window) = window {
+            self.confirmation_focus.focus(window);
         }
         cx.notify();
     }
@@ -108,25 +174,29 @@ impl CellarApp {
                             .justify_end()
                             .gap_2()
                             .child(
-                                confirm_button("confirmation-cancel", "Cancel", false)
-                                    .track_focus(&self.confirmation_focus)
-                                    .hover(|style| {
-                                        style
-                                            .bg(PANEL_RAISED)
-                                            .border_color(BORDER_STRONG)
-                                            .text_color(FG)
-                                    })
-                                    .on_click(cx.listener(|this, _, window, cx| {
-                                        this.resolve_confirmation(false, window, cx)
-                                    }))
-                                    .on_key_down(cx.listener(
-                                        |this, event: &KeyDownEvent, window, cx| {
-                                            if activates_button(event) {
-                                                this.resolve_confirmation(false, window, cx);
-                                                cx.stop_propagation();
-                                            }
-                                        },
-                                    )),
+                                confirm_button(
+                                    "confirmation-cancel",
+                                    confirmation.cancel_label,
+                                    false,
+                                )
+                                .track_focus(&self.confirmation_focus)
+                                .hover(|style| {
+                                    style
+                                        .bg(PANEL_RAISED)
+                                        .border_color(BORDER_STRONG)
+                                        .text_color(FG)
+                                })
+                                .on_click(cx.listener(|this, _, window, cx| {
+                                    this.resolve_confirmation(false, window, cx)
+                                }))
+                                .on_key_down(cx.listener(
+                                    |this, event: &KeyDownEvent, window, cx| {
+                                        if activates_button(event) {
+                                            this.resolve_confirmation(false, window, cx);
+                                            cx.stop_propagation();
+                                        }
+                                    },
+                                )),
                             )
                             .child(
                                 confirm_button(
@@ -193,11 +263,116 @@ fn activates_button(event: &KeyDownEvent) -> bool {
         && matches!(event.keystroke.key.as_str(), "enter" | "space")
 }
 
+fn skip_pending_connection_errors(confirmed: bool, action: &ConfirmAction) -> bool {
+    confirmed
+        && matches!(
+            action,
+            ConfirmAction::Reconnect(_) | ConfirmAction::RemoveConnection(_)
+        )
+}
+
+fn can_replace_confirmation(existing: Option<&Confirmation>) -> bool {
+    matches!(
+        existing.map(|confirmation| &confirmation.action),
+        None | Some(ConfirmAction::Reconnect(_))
+    )
+}
+
+fn defer_connection_error_id(existing: Option<&Confirmation>, id: &str) -> Option<String> {
+    (!can_replace_confirmation(existing)).then(|| id.to_owned())
+}
+
+fn enqueue_pending_connection_error(pending: &mut Vec<String>, id: String) {
+    if !pending.iter().any(|queued| queued == &id) {
+        pending.push(id);
+    }
+}
+
+fn dequeue_pending_connection_error(pending: &mut Vec<String>) -> Option<String> {
+    (!pending.is_empty()).then(|| pending.remove(0))
+}
+
 #[cfg(test)]
 mod tests {
     use gpui::{KeyDownEvent, Keystroke};
 
-    use super::activates_button;
+    use super::{
+        activates_button, can_replace_confirmation, defer_connection_error_id,
+        dequeue_pending_connection_error, enqueue_pending_connection_error,
+        skip_pending_connection_errors, ConfirmAction, Confirmation,
+    };
+
+    #[test]
+    fn connection_error_confirmation_titles_retry_and_reconnect_id() {
+        let confirmation =
+            Confirmation::connection_error("conn-1".into(), "prod", "timeout".into());
+        assert_eq!(confirmation.title, "Could not connect to prod");
+        assert_eq!(confirmation.message, "timeout");
+        assert_eq!(confirmation.confirm_label, "Retry");
+        assert_eq!(confirmation.cancel_label, "Close");
+        assert!(!confirmation.danger);
+        assert!(matches!(
+            confirmation.action,
+            ConfirmAction::Reconnect(ref id) if id == "conn-1"
+        ));
+    }
+
+    #[test]
+    fn connection_error_does_not_replace_an_unrelated_confirmation() {
+        let removal = Confirmation {
+            title: "Remove connection".into(),
+            message: "gone".into(),
+            confirm_label: "Remove",
+            cancel_label: "Cancel",
+            danger: true,
+            action: ConfirmAction::RemoveConnection("other".into()),
+        };
+        assert!(!can_replace_confirmation(Some(&removal)));
+        assert!(can_replace_confirmation(None));
+        let reconnect = Confirmation::connection_error("conn-1".into(), "prod", "timeout".into());
+        assert!(can_replace_confirmation(Some(&reconnect)));
+        assert_eq!(
+            defer_connection_error_id(Some(&removal), "conn-1").as_deref(),
+            Some("conn-1")
+        );
+        assert_eq!(defer_connection_error_id(None, "conn-1"), None);
+    }
+
+    #[test]
+    fn deferred_connection_errors_queue_in_order_without_duplicates() {
+        let mut pending = Vec::new();
+        enqueue_pending_connection_error(&mut pending, "one".into());
+        enqueue_pending_connection_error(&mut pending, "two".into());
+        enqueue_pending_connection_error(&mut pending, "one".into());
+        assert_eq!(
+            dequeue_pending_connection_error(&mut pending).as_deref(),
+            Some("one")
+        );
+        assert_eq!(
+            dequeue_pending_connection_error(&mut pending).as_deref(),
+            Some("two")
+        );
+        assert_eq!(dequeue_pending_connection_error(&mut pending), None);
+    }
+
+    #[test]
+    fn confirmed_remove_keeps_deferred_connection_errors_until_delete_finishes() {
+        let remove = ConfirmAction::RemoveConnection("gone".into());
+        assert!(skip_pending_connection_errors(true, &remove));
+        assert!(!skip_pending_connection_errors(false, &remove));
+        assert!(skip_pending_connection_errors(
+            true,
+            &ConfirmAction::Reconnect("conn-1".into())
+        ));
+        assert!(!skip_pending_connection_errors(
+            true,
+            &ConfirmAction::Dismiss
+        ));
+        assert!(!skip_pending_connection_errors(
+            true,
+            &ConfirmAction::Analyze(1)
+        ));
+    }
 
     #[test]
     fn confirmation_buttons_support_canonical_keyboard_activation() {
