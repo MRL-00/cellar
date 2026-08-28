@@ -21,6 +21,7 @@ actions!(
         ToggleSidebar,
         ToggleAiPanel,
         ToggleBottomPanel,
+        ToggleCommandPalette,
         OpenGitHub,
         OpenChangelog
     ]
@@ -35,6 +36,7 @@ pub fn setup(app: &Entity<CellarApp>, cx: &mut App) {
         KeyBinding::new("cmd-q", Quit, None),
         KeyBinding::new("cmd-n", NewConnection, None),
         KeyBinding::new("cmd-t", NewQuery, None),
+        KeyBinding::new("cmd-k", ToggleCommandPalette, None),
         KeyBinding::new("cmd-w", CloseTab, None),
         KeyBinding::new("cmd-b", ToggleSidebar, None),
         KeyBinding::new("cmd-j", ToggleAiPanel, None),
@@ -44,6 +46,18 @@ pub fn setup(app: &Entity<CellarApp>, cx: &mut App) {
     let settings_app = app.clone();
     cx.on_action(move |_: &Settings, cx| {
         settings_app.update(cx, |app, cx| app.open_appearance_settings(cx));
+    });
+    let palette_app = app.clone();
+    cx.on_action(move |_: &ToggleCommandPalette, cx| {
+        let Some(window) = cx.active_window() else {
+            return;
+        };
+        let app = palette_app.clone();
+        window
+            .update(cx, |_, window, cx| {
+                app.update(cx, |app, cx| app.toggle_command_palette(window, cx));
+            })
+            .ok();
     });
     let about_app = app.clone();
     cx.on_action(move |_: &About, cx| {
@@ -100,6 +114,8 @@ pub fn setup(app: &Entity<CellarApp>, cx: &mut App) {
         Menu {
             name: "View".into(),
             items: vec![
+                MenuItem::action("Command Palette", ToggleCommandPalette),
+                MenuItem::separator(),
                 MenuItem::action("Toggle Sidebar", ToggleSidebar),
                 MenuItem::action("Toggle AI Panel", ToggleAiPanel),
                 MenuItem::action("Toggle Output Panel", ToggleBottomPanel),

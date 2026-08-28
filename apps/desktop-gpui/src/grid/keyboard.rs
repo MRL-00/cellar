@@ -109,5 +109,6 @@ mod tests {
             grid_key_action("delete", false, false),
             Some(GridKeyAction::DeleteRow)
         );
+        assert_eq!(grid_key_action("k", true, false), None);
     }
 }

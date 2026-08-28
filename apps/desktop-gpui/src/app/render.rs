@@ -116,9 +116,6 @@ impl Render for CellarApp {
                 {
                     this.start_commit(cx);
                     cx.stop_propagation();
-                } else if event.keystroke.modifiers.secondary() && event.keystroke.key == "k" {
-                    this.toggle_command_palette(window, cx);
-                    cx.stop_propagation();
                 } else if event.keystroke.modifiers.secondary() && event.keystroke.key == "," {
                     this.open_settings(settings::SettingsCategory::Appearance, cx);
                     cx.stop_propagation();
