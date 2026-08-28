@@ -5,7 +5,7 @@ use std::ops::Range;
 
 use gpui::{
     div, prelude::*, px, rgb, size, uniform_list, App, Application, Bounds, Context, IntoElement,
-    Render, RenderOnce, ScrollHandle, ScrollWheelEvent, UniformListScrollHandle, Window,
+    IsZero, Render, RenderOnce, ScrollHandle, ScrollWheelEvent, UniformListScrollHandle, Window,
     WindowBounds, WindowOptions,
 };
 
@@ -180,17 +180,36 @@ impl Render for GridPrototype {
                     .border_color(rgb(0x2b303a))
                     .child("Cellar GPUI grid prototype")
                     .child(format!(
-                        "{} rows × {} columns · rendering {} visible rows",
-                        workload.rows, workload.columns, rendered_rows
+                        "{} rows × {} columns · rendering {} visible rows · h={} v={}",
+                        workload.rows,
+                        workload.columns,
+                        rendered_rows,
+                        f32::from(self.horizontal_scroll.offset().x).round(),
+                        f32::from(self.vertical_scroll.0.borrow().base_handle.offset().y).round()
                     )),
             )
             .child(
                 div()
                     .id("grid-scroller")
                     .flex_1()
-                    .overflow_x_scroll()
+                    .overflow_x_hidden()
                     .track_scroll(&self.horizontal_scroll)
-                    .on_scroll_wheel(cx.listener(|_, _: &ScrollWheelEvent, _, cx| cx.notify()))
+                    .on_scroll_wheel(cx.listener(|this, event: &ScrollWheelEvent, window, cx| {
+                        let delta = event.delta.pixel_delta(window.line_height());
+                        let dx = if f32::from(delta.x).abs() > f32::from(delta.y).abs() {
+                            delta.x
+                        } else if event.modifiers.shift {
+                            delta.y
+                        } else {
+                            px(0.)
+                        };
+                        if !dx.is_zero() {
+                            let mut offset = this.horizontal_scroll.offset();
+                            offset.x += dx;
+                            this.horizontal_scroll.set_offset(offset);
+                        }
+                        cx.notify();
+                    }))
                     .child(Self::header(workload.columns, visible_columns.clone()))
                     .child(
                         uniform_list(

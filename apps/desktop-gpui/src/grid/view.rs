@@ -199,11 +199,15 @@ impl Render for DataGrid {
                     .id("native-grid-scroller")
                     .flex_1()
                     .min_h_0()
-                    .overflow_x_scroll()
+                    // overflow_x_scroll remaps unused-axis dy onto x in bubble before this handler.
+                    .overflow_x_hidden()
                     .track_scroll(&self.horizontal_scroll)
-                    .on_scroll_wheel(cx.listener(|_, event: &ScrollWheelEvent, window, cx| {
-                        let delta = event.delta.pixel_delta(window.line_height());
-                        if !super::wheel_scrolls_horizontally(delta) {
+                    .on_scroll_wheel(cx.listener(|this, event: &ScrollWheelEvent, window, cx| {
+                        if super::wheel::apply_horizontal_wheel(
+                            &this.horizontal_scroll,
+                            event,
+                            window.line_height(),
+                        ) {
                             cx.stop_propagation();
                         }
                         cx.notify();
