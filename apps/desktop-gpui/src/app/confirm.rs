@@ -58,11 +58,13 @@ impl CellarApp {
         let Some(confirmation) = self.confirmation.take() else {
             return;
         };
-        let skip_pending = confirmed && matches!(confirmation.action, ConfirmAction::Reconnect(_));
+        let skip_pending = skip_pending_connection_errors(confirmed, &confirmation.action);
         if confirmed {
             match confirmation.action {
                 ConfirmAction::Dismiss => {}
-                ConfirmAction::RemoveConnection(id) => self.delete_connection_confirmed(id, cx),
+                ConfirmAction::RemoveConnection(id) => {
+                    self.delete_connection_confirmed(id, window, cx)
+                }
                 ConfirmAction::Analyze(tab_id) => {
                     self.explain_query(tab_id, PlanMode::Analyze, window, cx)
                 }
@@ -261,6 +263,14 @@ fn activates_button(event: &KeyDownEvent) -> bool {
         && matches!(event.keystroke.key.as_str(), "enter" | "space")
 }
 
+fn skip_pending_connection_errors(confirmed: bool, action: &ConfirmAction) -> bool {
+    confirmed
+        && matches!(
+            action,
+            ConfirmAction::Reconnect(_) | ConfirmAction::RemoveConnection(_)
+        )
+}
+
 fn can_replace_confirmation(existing: Option<&Confirmation>) -> bool {
     matches!(
         existing.map(|confirmation| &confirmation.action),
@@ -288,8 +298,8 @@ mod tests {
 
     use super::{
         activates_button, can_replace_confirmation, defer_connection_error_id,
-        dequeue_pending_connection_error, enqueue_pending_connection_error, ConfirmAction,
-        Confirmation,
+        dequeue_pending_connection_error, enqueue_pending_connection_error,
+        skip_pending_connection_errors, ConfirmAction, Confirmation,
     };
 
     #[test]
@@ -343,6 +353,25 @@ mod tests {
             Some("two")
         );
         assert_eq!(dequeue_pending_connection_error(&mut pending), None);
+    }
+
+    #[test]
+    fn confirmed_remove_keeps_deferred_connection_errors_until_delete_finishes() {
+        let remove = ConfirmAction::RemoveConnection("gone".into());
+        assert!(skip_pending_connection_errors(true, &remove));
+        assert!(!skip_pending_connection_errors(false, &remove));
+        assert!(skip_pending_connection_errors(
+            true,
+            &ConfirmAction::Reconnect("conn-1".into())
+        ));
+        assert!(!skip_pending_connection_errors(
+            true,
+            &ConfirmAction::Dismiss
+        ));
+        assert!(!skip_pending_connection_errors(
+            true,
+            &ConfirmAction::Analyze(1)
+        ));
     }
 
     #[test]
