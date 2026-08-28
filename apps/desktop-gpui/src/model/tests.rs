@@ -39,6 +39,13 @@ fn selects_only_known_connections() {
         Some("two")
     );
 
+    assert!(!model.connection_expanded("one"));
+    assert!(model.toggle_connection_expanded("one"));
+    assert!(model.connection_expanded("one"));
+    assert!(!model.toggle_connection_expanded("one"));
+    assert!(!model.connection_expanded("one"));
+    assert!(!model.toggle_connection_expanded("missing"));
+
     assert!(model.begin_connect("two"));
     assert_eq!(model.connection_state("two"), &ConnectionState::Connecting);
     assert!(!model.begin_connect("two"));

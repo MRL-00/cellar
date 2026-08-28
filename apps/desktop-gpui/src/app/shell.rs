@@ -154,11 +154,7 @@ impl CellarApp {
                 MouseButton::Left,
                 cx.listener(|this, event: &MouseDownEvent, window, _| {
                     let now = Instant::now();
-                    if is_titlebar_double_press(
-                        this.last_titlebar_press,
-                        now,
-                        event.click_count,
-                    ) {
+                    if is_titlebar_double_press(this.last_titlebar_press, now, event.click_count) {
                         this.last_titlebar_press = None;
                         window.zoom_window();
                     } else {
@@ -168,54 +164,66 @@ impl CellarApp {
             )
             .child(
                 div()
+                    .w(ui_px(68.))
+                    .flex_shrink_0()
+                    .h_full()
+                    .window_control_area(WindowControlArea::Drag),
+            )
+            .when_some(
+                active,
+                |element, (connection, database, context, context_icon, query_tab, engine)| {
+                    let database_crumb = if let Some(tab_id) = query_tab {
+                        title_database_crumb(database, engine)
+                            .id("switch-query-database")
+                            .cursor_pointer()
+                            .hover(|style| style.bg(PANEL_RAISED))
+                            .child(
+                                Icon::empty()
+                                    .path("icons/chevron-down.svg")
+                                    .size(ui_px(10.))
+                                    .text_color(FG_MUTED),
+                            )
+                            .on_mouse_down(
+                                MouseButton::Left,
+                                cx.listener(move |this, event: &MouseDownEvent, _, cx| {
+                                    cx.stop_propagation();
+                                    this.query_database_menu = if this
+                                        .query_database_menu
+                                        .as_ref()
+                                        .is_some_and(|menu| menu.tab_id == tab_id)
+                                    {
+                                        None
+                                    } else {
+                                        Some(QueryDatabaseMenu {
+                                            tab_id,
+                                            position: Point {
+                                                x: event.position.x,
+                                                y: ui_px(38.),
+                                            },
+                                        })
+                                    };
+                                    cx.notify();
+                                }),
+                            )
+                            .into_any_element()
+                    } else {
+                        title_database_crumb(database, engine).into_any_element()
+                    };
+                    element
+                        .child(div().mx(ui_px(4.)).h(ui_px(16.)).w(ui_px(1.)).bg(BORDER))
+                        .child(title_crumb("icons/database.svg", connection, 12.))
+                        .child(title_separator())
+                        .child(database_crumb)
+                        .child(title_separator())
+                        .child(title_crumb(context_icon, context, 11.))
+                },
+            )
+            .child(
+                div()
                     .flex_1()
                     .min_w_0()
                     .h_full()
-                    .window_control_area(WindowControlArea::Drag)
-                    .flex()
-                    .items_center()
-                    .child(div().w(ui_px(68.)).flex_shrink_0())
-                    .when_some(
-                        active,
-                        |element, (connection, database, context, context_icon, query_tab, engine)| {
-                            let database_crumb = if let Some(tab_id) = query_tab {
-                                title_database_crumb(database, engine)
-                                    .id("switch-query-database")
-                                    .cursor_pointer()
-                                    .hover(|style| style.bg(PANEL_RAISED))
-                                    .child(
-                                        Icon::empty()
-                                            .path("icons/chevron-down.svg")
-                                            .size(ui_px(10.))
-                                            .text_color(FG_MUTED),
-                                    )
-                                    .on_mouse_down(
-                                        MouseButton::Left,
-                                        cx.listener(move |this, event: &MouseDownEvent, _, cx| {
-                                            cx.stop_propagation();
-                                            this.query_database_menu = Some(QueryDatabaseMenu {
-                                                tab_id,
-                                                position: Point {
-                                                    x: event.position.x,
-                                                    y: ui_px(38.),
-                                                },
-                                            });
-                                            cx.notify();
-                                        }),
-                                    )
-                                    .into_any_element()
-                            } else {
-                                title_database_crumb(database, engine).into_any_element()
-                            };
-                            element
-                                .child(div().mx(ui_px(4.)).h(ui_px(16.)).w(ui_px(1.)).bg(BORDER))
-                                .child(title_crumb("icons/database.svg", connection, 12.))
-                                .child(title_separator())
-                                .child(database_crumb)
-                                .child(title_separator())
-                                .child(title_crumb(context_icon, context, 11.))
-                        },
-                    ),
+                    .window_control_area(WindowControlArea::Drag),
             )
             .child(
                 div()
@@ -404,9 +412,12 @@ impl CellarApp {
                                     .child(if active { "●" } else { "○" }),
                             )
                             .child(database)
-                            .on_click(cx.listener(move |this, _, _, cx| {
-                                this.select_query_database(tab_id, choose.clone(), cx);
-                            }))
+                            .on_mouse_down(
+                                MouseButton::Left,
+                                cx.listener(move |this, _, _, cx| {
+                                    this.select_query_database(tab_id, choose.clone(), cx);
+                                }),
+                            )
                     })),
             )
             .into_any_element()
