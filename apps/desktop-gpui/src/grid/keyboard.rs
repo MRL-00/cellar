@@ -44,6 +44,9 @@ impl DataGrid {
             GridKeyAction::CancelOrRevert => {
                 if self.active_editor.is_some() {
                     self.cancel_editor(cx);
+                } else if !self.selected_rows.is_empty() {
+                    self.clear_row_selection();
+                    cx.notify();
                 } else if let (Some(position), Some(editable)) =
                     (self.selection, self.editable.as_mut())
                 {

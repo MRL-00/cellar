@@ -14,8 +14,9 @@ use gpui_component::Icon;
 use super::rich::rich_cell_content;
 use super::{width_sum, CellPosition, DataGrid, DragColumn, FROZEN_COLUMNS, ROW_NUMBER_WIDTH};
 use crate::theme::{
-    accent, accent_soft, ACCENT, BORDER_DIVIDER, DELETE_SOFT, FG, FG_MUTED, FG_SECONDARY,
-    GRID_LINE, INSERT_SOFT, PANEL, PANEL_MUTED, PANEL_RAISED, PROD, UPDATE_SOFT, WARN,
+    accent, accent_soft, ACCENT, ACCENT_FG, BORDER_DIVIDER, DELETE_SOFT, FG, FG_MUTED,
+    FG_SECONDARY, GRID_LINE, INSERT_SOFT, PANEL, PANEL_MUTED, PANEL_RAISED, PROD, UPDATE_SOFT,
+    WARN,
 };
 
 struct DragPreview {
@@ -44,6 +45,7 @@ pub(super) struct GridRow {
     pub columns: Range<usize>,
     pub horizontal_offset: f32,
     pub selection: Option<CellPosition>,
+    pub row_selected: bool,
     pub pending: Arc<BTreeMap<(usize, usize), Option<String>>>,
     pub inserted: bool,
     pub deleted: bool,
@@ -58,7 +60,11 @@ impl RenderOnce for GridRow {
     fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
         let total_columns = self.result.columns.len();
         let frozen = FROZEN_COLUMNS.min(total_columns);
-        let row_background = row_background(self.stripe_rows, self.row);
+        let row_background = if self.row_selected {
+            accent_soft()
+        } else {
+            row_background(self.stripe_rows, self.row)
+        };
         div()
             .flex()
             .h(px(crate::theme::row_height()))
@@ -94,21 +100,29 @@ impl RenderOnce for GridRow {
                             .flex()
                             .items_center()
                             .justify_center()
+                            .cursor_pointer()
                             .text_size(px(11.))
                             .text_color(FG_MUTED)
+                            .when(self.row_selected, |element| {
+                                element.bg(ACCENT).text_color(ACCENT_FG)
+                            })
                             .when(
-                                self.selection
-                                    .is_some_and(|selection| selection.row == self.row),
+                                !self.row_selected
+                                    && self
+                                        .selection
+                                        .is_some_and(|selection| selection.row == self.row),
                                 |element| element.bg(accent_soft()),
                             )
                             .child((self.row + 1).to_string())
                             .on_mouse_down(MouseButton::Left, {
                                 let grid = self.grid.clone();
                                 let row = self.row;
-                                move |_, window, cx| {
+                                move |event, window, cx| {
                                     grid.update(cx, |grid, cx| {
-                                        grid.select(
-                                            super::CellPosition { row, column: 0 },
+                                        grid.select_row(
+                                            row,
+                                            event.modifiers.secondary(),
+                                            event.modifiers.shift,
                                             window,
                                             cx,
                                         );
@@ -119,11 +133,14 @@ impl RenderOnce for GridRow {
                             .context_menu({
                                 let grid = self.grid.clone();
                                 let row = self.row;
-                                move |menu, _, cx| {
+                                move |menu, window, cx| {
                                     let Some(entity) = grid.upgrade() else {
                                         return menu;
                                     };
-                                    entity.update(cx, |this, _| {
+                                    entity.update(cx, |this, grid_cx| {
+                                        if !this.selected_rows.contains(&row) {
+                                            this.select_row(row, false, false, window, grid_cx);
+                                        }
                                         this.row_context_menu(menu, row, grid.clone())
                                     })
                                 }
@@ -175,7 +192,11 @@ impl GridRow {
             self.deleted,
             self.editable,
             Arc::clone(&self.null_display),
-            row_background(self.stripe_rows, self.row),
+            if self.row_selected {
+                accent_soft()
+            } else {
+                row_background(self.stripe_rows, self.row)
+            },
             self.column_widths[column],
             self.grid.clone(),
         )

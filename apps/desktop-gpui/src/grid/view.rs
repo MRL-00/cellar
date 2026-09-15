@@ -226,6 +226,7 @@ impl Render for DataGrid {
                                         columns: columns.clone(),
                                         horizontal_offset,
                                         selection,
+                                        row_selected: this.selected_rows.contains(&row),
                                         pending: Arc::clone(&pending),
                                         deleted: row_deleted.contains(&row),
                                         inserted: row_inserted.contains(&row),
