@@ -128,6 +128,7 @@ impl CellarApp {
             .on_click(cx.listener(|this, _, window, cx| {
                 this.close_settings(window, cx);
             }))
+            .on_scroll_wheel(|_, _, cx| cx.stop_propagation())
             .child(
                 div()
                     .id("settings-modal")

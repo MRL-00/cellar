@@ -208,6 +208,7 @@ impl CellarApp {
                 this.schema_visibility_editor = None;
                 cx.notify();
             }))
+            .on_scroll_wheel(|_, _, cx| cx.stop_propagation())
             .child(
                 div()
                     .id("schema-visibility-modal")

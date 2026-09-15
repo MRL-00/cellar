@@ -290,6 +290,7 @@ impl CellarApp {
             .pt(gpui::relative(0.08))
             .bg(cellar_desktop_gpui::theme::overlay())
             .on_click(cx.listener(|this, _, _, cx| this.dismiss_import(cx)))
+            .on_scroll_wheel(|_, _, cx| cx.stop_propagation())
             .child(
                 div()
                     .id("data-import-modal")
