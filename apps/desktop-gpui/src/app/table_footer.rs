@@ -79,6 +79,7 @@ impl CellarApp {
                         .ghost()
                         .small()
                         .compact()
+                        .disabled(reloading)
                         .on_click({
                             let grid = grid.clone();
                             move |_, _, cx| {
@@ -98,14 +99,25 @@ impl CellarApp {
                     "icons/plus.svg",
                     "Add row",
                     FG,
+                    reloading,
                     grid.clone(),
                     |grid, window, cx| grid.add_row(window, cx),
+                ))
+                .child(grid_action(
+                    format!("grid-null:{tab_id}"),
+                    "icons/null.svg",
+                    "Set NULL",
+                    FG,
+                    reloading,
+                    grid.clone(),
+                    |grid, _, cx| grid.set_selected_null(cx),
                 ))
                 .child(grid_action(
                     format!("grid-bool:{tab_id}"),
                     "icons/type-bool.svg",
                     "Toggle boolean",
                     FG,
+                    reloading,
                     grid.clone(),
                     |grid, _, cx| grid.toggle_selected_bool(cx),
                 ))
@@ -114,6 +126,7 @@ impl CellarApp {
                     "icons/trash.svg",
                     "Delete row",
                     WARN,
+                    reloading,
                     grid.clone(),
                     |grid, _, cx| grid.delete_selected_row(cx),
                 ))
@@ -122,6 +135,7 @@ impl CellarApp {
                     "icons/undo.svg",
                     "Revert pending edits",
                     FG,
+                    reloading,
                     grid.clone(),
                     |grid, _, cx| grid.clear_pending(cx),
                 ))
@@ -135,7 +149,7 @@ impl CellarApp {
                         .ghost()
                         .small()
                         .compact()
-                        .disabled(pending_count == 0)
+                        .disabled(reloading || pending_count == 0)
                         .on_click(move |_, _, cx| {
                             grid.update(cx, |grid, cx| grid.request_review(cx));
                         }),
@@ -233,6 +247,7 @@ fn grid_action(
     icon: &'static str,
     tooltip: &'static str,
     color: DynamicColor,
+    disabled: bool,
     grid: Entity<DataGrid>,
     action: impl Fn(&mut DataGrid, &mut Window, &mut Context<DataGrid>) + 'static,
 ) -> Button {
@@ -242,6 +257,7 @@ fn grid_action(
         .ghost()
         .small()
         .compact()
+        .disabled(disabled)
         .on_click(move |_, window, cx| {
             grid.update(cx, |grid, cx| action(grid, window, cx));
         })

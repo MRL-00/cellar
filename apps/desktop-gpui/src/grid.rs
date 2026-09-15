@@ -85,6 +85,7 @@ pub struct DataGrid {
     column_widths: Arc<Vec<f32>>,
     resizing: Option<(usize, f32, f32)>,
     suppress_sort: bool,
+    reloading: bool,
     edit_error: Option<String>,
     export_message: Option<Result<String, String>>,
     null_display: Arc<str>,
@@ -109,6 +110,7 @@ impl DataGrid {
             column_widths,
             resizing: None,
             suppress_sort: false,
+            reloading: false,
             edit_error: None,
             export_message: None,
             null_display: Arc::from("NULL"),
@@ -193,6 +195,9 @@ impl DataGrid {
     }
 
     pub fn clear_pending(&mut self, cx: &mut Context<Self>) {
+        if self.reloading {
+            return;
+        }
         if let Some(editable) = &mut self.editable {
             let inserted = editable.clear();
             if !inserted.is_empty() {
@@ -218,7 +223,11 @@ impl DataGrid {
             self.edit_error = Some("Commit or revert pending edits before reloading data".into());
             cx.notify();
         }
-        !pending && self.edit_error.is_none()
+        let allowed = !pending && self.edit_error.is_none();
+        // The completed load swaps in a fresh grid entity, so freeze mutations
+        // on this one to stop edits made during the flight being discarded.
+        self.reloading = allowed;
+        allowed
     }
 
     pub fn scroll_to_cell(&mut self, row: usize, column: usize, cx: &mut Context<Self>) {
@@ -239,7 +248,7 @@ impl DataGrid {
     }
 
     fn begin_edit(&mut self, position: CellPosition, window: &mut Window, cx: &mut Context<Self>) {
-        if !self.editable.as_ref().is_some_and(EditableGrid::can_edit) {
+        if self.reloading || !self.editable.as_ref().is_some_and(EditableGrid::can_edit) {
             return;
         }
         self.commit_editor(cx);
@@ -365,6 +374,9 @@ impl DataGrid {
     }
 
     pub fn set_selected_null(&mut self, cx: &mut Context<Self>) {
+        if self.reloading {
+            return;
+        }
         self.commit_editor(cx);
         let Some(position) = self.selection else {
             return;
@@ -379,6 +391,9 @@ impl DataGrid {
     }
 
     pub fn toggle_selected_bool(&mut self, cx: &mut Context<Self>) {
+        if self.reloading {
+            return;
+        }
         self.commit_editor(cx);
         let Some(position) = self.selection else {
             return;
@@ -420,6 +435,9 @@ impl DataGrid {
     }
 
     pub fn add_row(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.reloading {
+            return;
+        }
         let Some(editable) = &mut self.editable else {
             return;
         };
@@ -449,6 +467,9 @@ impl DataGrid {
     }
 
     pub fn request_review(&mut self, cx: &mut Context<Self>) {
+        if self.reloading {
+            return;
+        }
         self.review_changes(cx);
     }
 
@@ -471,7 +492,7 @@ impl DataGrid {
     }
 
     pub fn request_csv_import(&mut self, cx: &mut Context<Self>) {
-        if self.editable.is_some() {
+        if !self.reloading && self.editable.is_some() {
             cx.emit(DataGridEvent::ImportCsv);
         }
     }
