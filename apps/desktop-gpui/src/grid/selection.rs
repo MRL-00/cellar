@@ -4,7 +4,7 @@ use cellar_runtime::export::ExportFormat;
 use gpui::{ClipboardItem, Context, ScrollStrategy, Window};
 
 use super::row::clipboard_text;
-use super::{editing, CellPosition, DataGrid};
+use super::{editing, CellPosition, DataGrid, EditableGrid};
 
 impl DataGrid {
     pub(super) fn select(
@@ -115,13 +115,14 @@ impl DataGrid {
         let Some(start) = self.selection else {
             return;
         };
-        let Some(editable) = &mut self.editable else {
-            return;
-        };
-        if !editable.can_edit() {
+        if !self.editable.as_ref().is_some_and(EditableGrid::can_edit) {
             return;
         }
         let Some(text) = cx.read_from_clipboard().and_then(|item| item.text()) else {
+            return;
+        };
+        self.clear_row_selection();
+        let Some(editable) = &mut self.editable else {
             return;
         };
         for (row_offset, values) in editing::clipboard_rows(&text).into_iter().enumerate() {
@@ -166,13 +167,23 @@ impl DataGrid {
 
     /// Rows must be processed in descending order: cancelling an inserted row
     /// removes it from `row_keys` and `result.rows`, which shifts every index
-    /// above it.
+    /// above it. When every selected row is already marked for delete the
+    /// action unmarks them all; otherwise it marks every unmarked row so a
+    /// mixed selection never un-deletes rows.
     pub(super) fn toggle_row_deletes(&mut self, rows: &[usize], cx: &mut Context<Self>) {
         let Some(editable) = &mut self.editable else {
             return;
         };
+        let deleted = editable
+            .deleted_rows()
+            .into_iter()
+            .collect::<std::collections::BTreeSet<_>>();
+        let all_deleted = !rows.is_empty() && rows.iter().all(|row| deleted.contains(row));
         let mut removed = false;
         for &row in rows.iter().rev() {
+            if !all_deleted && deleted.contains(&row) {
+                continue;
+            }
             if editable.toggle_delete(row) {
                 Arc::make_mut(&mut self.result).rows.remove(row);
                 removed = true;

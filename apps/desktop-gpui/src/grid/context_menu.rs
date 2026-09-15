@@ -1,4 +1,4 @@
-use cellar_core::query::QueryResult;
+use cellar_core::{query::QueryResult, value::CellValue};
 use cellar_runtime::export::{export_result, ExportFormat};
 use gpui::{App, ClipboardItem, SharedString, WeakEntity};
 use gpui_component::{
@@ -116,9 +116,14 @@ impl DataGrid {
             ));
         }
         if let Some(editable) = &self.editable {
+            let deleted = editable.deleted_rows();
             let label = if selected.len() > 1 {
-                format!("Delete {} rows", selected.len())
-            } else if editable.deleted_rows().contains(&row) {
+                if selected.iter().all(|row| deleted.contains(row)) {
+                    format!("Unmark {} rows for delete", selected.len())
+                } else {
+                    format!("Delete {} rows", selected.len())
+                }
+            } else if deleted.contains(&row) {
                 "Unmark row for delete".to_owned()
             } else if editable.inserted_rows().contains(&row) {
                 "Cancel insert".to_owned()
@@ -179,7 +184,31 @@ impl DataGrid {
         let mut result: QueryResult = (*self.result).clone();
         result.rows = rows
             .iter()
-            .filter_map(|row| self.result.rows.get(*row).cloned())
+            .filter_map(|row| {
+                self.result.rows.get(*row).map(|cells| {
+                    cells
+                        .iter()
+                        .enumerate()
+                        .map(|(column, value)| {
+                            match self
+                                .editable
+                                .as_ref()
+                                .and_then(|editable| editable.display_value(*row, column))
+                            {
+                                Some(pending) => pending_cell_value(
+                                    self.result
+                                        .columns
+                                        .get(column)
+                                        .map_or("", |column| column.data_type.as_str()),
+                                    value,
+                                    pending,
+                                ),
+                                None => value.clone(),
+                            }
+                        })
+                        .collect()
+                })
+            })
             .collect();
         let table = self
             .editable
@@ -218,6 +247,54 @@ fn copy_item(label: impl Into<SharedString>, text: String) -> PopupMenuItem {
         .on_click(move |_, _, cx: &mut App| {
             cx.write_to_clipboard(ClipboardItem::new_string(text.clone()));
         })
+}
+
+/// Rebuilds a typed cell from a pending string so JSON and SQL exports keep the
+/// original value's type instead of quoting every edit as text.
+fn pending_cell_value(data_type: &str, original: &CellValue, pending: Option<String>) -> CellValue {
+    let Some(text) = pending else {
+        return CellValue::Null;
+    };
+    let parsed = match original {
+        CellValue::Bool(_) => text.parse::<bool>().ok().map(CellValue::Bool),
+        CellValue::Int(_) => text.parse::<i64>().ok().map(CellValue::Int),
+        CellValue::Float(_) => text.parse::<f64>().ok().map(CellValue::Float),
+        CellValue::Numeric(_) => Some(CellValue::Numeric(text.clone())),
+        CellValue::Uuid(_) => uuid::Uuid::parse_str(&text).ok().map(CellValue::Uuid),
+        CellValue::Json(_) => serde_json::from_str(&text).ok().map(CellValue::Json),
+        CellValue::Null => typed_from_data_type(data_type, &text),
+        _ => None,
+    };
+    parsed.unwrap_or(CellValue::Text(text))
+}
+
+fn typed_from_data_type(data_type: &str, text: &str) -> Option<CellValue> {
+    let kind = data_type.to_ascii_lowercase();
+    if kind.contains("bool") {
+        text.parse::<bool>().ok().map(CellValue::Bool)
+    } else if ["int", "serial", "oid"]
+        .iter()
+        .any(|needle| kind.contains(needle))
+        && !kind.contains("interval")
+    {
+        text.parse::<i64>().ok().map(CellValue::Int)
+    } else if ["float", "double", "real"]
+        .iter()
+        .any(|needle| kind.contains(needle))
+    {
+        text.parse::<f64>().ok().map(CellValue::Float)
+    } else if ["numeric", "decimal"]
+        .iter()
+        .any(|needle| kind.contains(needle))
+    {
+        Some(CellValue::Numeric(text.to_owned()))
+    } else if kind.contains("uuid") {
+        uuid::Uuid::parse_str(text).ok().map(CellValue::Uuid)
+    } else if kind.contains("json") {
+        serde_json::from_str(text).ok().map(CellValue::Json)
+    } else {
+        None
+    }
 }
 
 fn is_guid_type(data_type: &str) -> bool {
