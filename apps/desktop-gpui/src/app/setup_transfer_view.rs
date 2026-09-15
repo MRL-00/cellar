@@ -91,6 +91,7 @@ impl CellarApp {
                     cx.notify();
                 }
             }))
+            .on_scroll_wheel(|_, _, cx| cx.stop_propagation())
             .child(
                 div()
                     .id("setup-transfer-card")

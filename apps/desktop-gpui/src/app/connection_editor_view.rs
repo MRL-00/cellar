@@ -45,6 +45,7 @@ impl CellarApp {
                 this.connection_editor = None;
                 cx.notify();
             }))
+            .on_scroll_wheel(|_, _, cx| cx.stop_propagation())
             .child(
                 div()
                     .id("connection-editor-modal")

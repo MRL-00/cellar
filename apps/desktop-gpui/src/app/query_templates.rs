@@ -143,6 +143,7 @@ impl CellarApp {
                 this.save_template_editor = None;
                 cx.notify();
             }))
+            .on_scroll_wheel(|_, _, cx| cx.stop_propagation())
             .child(
                 div()
                     .id("save-template-modal")

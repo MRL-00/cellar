@@ -139,6 +139,7 @@ impl CellarApp {
                 MouseButton::Left,
                 cx.listener(|this, _, window, cx| this.resolve_confirmation(false, window, cx)),
             )
+            .on_scroll_wheel(|_, _, cx| cx.stop_propagation())
             .child(
                 div()
                     .id("confirmation-dialog")
