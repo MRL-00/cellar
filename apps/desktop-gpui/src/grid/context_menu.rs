@@ -1,6 +1,6 @@
 use cellar_core::query::QueryResult;
 use cellar_runtime::export::{export_result, ExportFormat};
-use gpui::{App, ClipboardItem, WeakEntity};
+use gpui::{App, ClipboardItem, SharedString, WeakEntity};
 use gpui_component::{
     menu::{PopupMenu, PopupMenuItem},
     Icon,
@@ -91,27 +91,45 @@ impl DataGrid {
         row: usize,
         grid: WeakEntity<Self>,
     ) -> PopupMenu {
+        let selected: Vec<usize> = if self.selected_rows.contains(&row) {
+            self.selected_rows.iter().copied().collect()
+        } else {
+            vec![row]
+        };
+        let rows_label = if selected.len() > 1 {
+            format!("{} rows", selected.len())
+        } else {
+            "row".to_owned()
+        };
         for (label, format) in [
-            ("Copy row as CSV", ExportFormat::Csv),
-            ("Copy row as TSV", ExportFormat::Tsv),
-            ("Copy row as JSON", ExportFormat::Json),
-            ("Copy row as SQL INSERT", ExportFormat::Sql),
+            (format!("Copy {rows_label} as CSV"), ExportFormat::Csv),
+            (format!("Copy {rows_label} as TSV"), ExportFormat::Tsv),
+            (format!("Copy {rows_label} as JSON"), ExportFormat::Json),
+            (
+                format!("Copy {rows_label} as SQL INSERT"),
+                ExportFormat::Sql,
+            ),
         ] {
-            menu = menu.item(copy_item(label, self.formatted_rows(&[row], format, false)));
+            menu = menu.item(copy_item(
+                label,
+                self.formatted_rows(&selected, format, false),
+            ));
         }
         if let Some(editable) = &self.editable {
-            let label = if editable.deleted_rows().contains(&row) {
-                "Unmark row for delete"
+            let label = if selected.len() > 1 {
+                format!("Delete {} rows", selected.len())
+            } else if editable.deleted_rows().contains(&row) {
+                "Unmark row for delete".to_owned()
             } else if editable.inserted_rows().contains(&row) {
-                "Cancel insert"
+                "Cancel insert".to_owned()
             } else {
-                "Delete row"
+                "Delete row".to_owned()
             };
             menu = menu.item(PopupMenuItem::separator()).item(
                 PopupMenuItem::new(label)
                     .icon(Icon::empty().path("icons/trash.svg"))
                     .on_click(move |_, _, cx| {
-                        grid.update(cx, |grid, cx| grid.toggle_row_delete(row, cx))
+                        grid.update(cx, |grid, cx| grid.delete_selected_row(cx))
                             .ok();
                     }),
             );
@@ -152,7 +170,12 @@ impl DataGrid {
             .unwrap_or_default()
     }
 
-    fn formatted_rows(&self, rows: &[usize], format: ExportFormat, header: bool) -> String {
+    pub(super) fn formatted_rows(
+        &self,
+        rows: &[usize],
+        format: ExportFormat,
+        header: bool,
+    ) -> String {
         let mut result: QueryResult = (*self.result).clone();
         result.rows = rows
             .iter()
@@ -189,7 +212,7 @@ impl DataGrid {
     }
 }
 
-fn copy_item(label: &'static str, text: String) -> PopupMenuItem {
+fn copy_item(label: impl Into<SharedString>, text: String) -> PopupMenuItem {
     PopupMenuItem::new(label)
         .icon(Icon::empty().path("icons/copy.svg"))
         .on_click(move |_, _, cx: &mut App| {
