@@ -1,5 +1,4 @@
 mod context_menu;
-mod controls;
 mod date_picker;
 mod editing;
 mod export;
@@ -7,12 +6,13 @@ mod keyboard;
 mod layout;
 mod rich;
 mod row;
+mod selection;
 mod view;
 mod wheel;
 
 pub use layout::{GridLayout, PortableGridLayout};
 
-use std::{ops::Range, sync::Arc};
+use std::{collections::BTreeSet, ops::Range, sync::Arc};
 
 use cellar_core::{
     query::{NoticeCapture, QueryResult, QueryResultPage, QueryResultSummary, SortDirection},
@@ -21,14 +21,14 @@ use cellar_core::{
 use cellar_diff::TableChangeRequest;
 use chrono::Datelike as _;
 use gpui::{
-    point, prelude::*, px, ClipboardItem, Context, Entity, EventEmitter, FocusHandle, Focusable,
-    ScrollHandle, ScrollStrategy, UniformListScrollHandle, Window,
+    point, prelude::*, px, Context, Entity, EventEmitter, FocusHandle, Focusable, ScrollHandle,
+    ScrollStrategy, UniformListScrollHandle, Window,
 };
 use gpui_component::input::{InputEvent, InputState};
 
 use date_picker::{date_editor_kind, DateEditor};
 use editing::EditableGrid;
-use row::{cell_edit_text, clipboard_text};
+use row::cell_edit_text;
 
 use crate::model::TableTarget;
 
@@ -77,6 +77,8 @@ pub struct DataGrid {
     horizontal_scroll: ScrollHandle,
     focus_handle: FocusHandle,
     selection: Option<CellPosition>,
+    selected_rows: BTreeSet<usize>,
+    row_anchor: Option<usize>,
     editable: Option<EditableGrid>,
     active_editor: Option<ActiveEditor>,
     sort: Option<(usize, SortDirection)>,
@@ -99,6 +101,8 @@ impl DataGrid {
             horizontal_scroll: ScrollHandle::new(),
             focus_handle: cx.focus_handle(),
             selection: None,
+            selected_rows: BTreeSet::new(),
+            row_anchor: None,
             editable: None,
             active_editor: None,
             sort: None,
@@ -193,6 +197,7 @@ impl DataGrid {
             let inserted = editable.clear();
             if !inserted.is_empty() {
                 self.selection = None;
+                self.clear_row_selection();
             }
             for row in inserted.into_iter().rev() {
                 Arc::make_mut(&mut self.result).rows.remove(row);
@@ -218,6 +223,7 @@ impl DataGrid {
 
     pub fn scroll_to_cell(&mut self, row: usize, column: usize, cx: &mut Context<Self>) {
         self.selection = Some(CellPosition { row, column });
+        self.clear_row_selection();
         self.vertical_scroll
             .scroll_to_item(row, ScrollStrategy::Center);
         self.reveal_column(column);
@@ -230,12 +236,6 @@ impl DataGrid {
             (-f32::from(self.horizontal_scroll.offset().x)).max(0.),
             f32::from(self.horizontal_scroll.bounds().size.width).max(800.),
         )
-    }
-
-    fn select(&mut self, position: CellPosition, window: &mut Window, cx: &mut Context<Self>) {
-        self.selection = Some(position);
-        window.focus(&self.focus_handle);
-        cx.notify();
     }
 
     fn begin_edit(&mut self, position: CellPosition, window: &mut Window, cx: &mut Context<Self>) {
@@ -281,6 +281,7 @@ impl DataGrid {
         .detach();
         window.focus(&state.focus_handle(cx));
         self.selection = Some(position);
+        self.clear_row_selection();
         self.active_editor = Some(ActiveEditor {
             position,
             state,
@@ -363,7 +364,7 @@ impl DataGrid {
         cx.notify();
     }
 
-    fn set_selected_null(&mut self, cx: &mut Context<Self>) {
+    pub fn set_selected_null(&mut self, cx: &mut Context<Self>) {
         self.commit_editor(cx);
         let Some(position) = self.selection else {
             return;
@@ -376,7 +377,7 @@ impl DataGrid {
         }
     }
 
-    fn toggle_selected_bool(&mut self, cx: &mut Context<Self>) {
+    pub fn toggle_selected_bool(&mut self, cx: &mut Context<Self>) {
         self.commit_editor(cx);
         let Some(position) = self.selection else {
             return;
@@ -416,7 +417,7 @@ impl DataGrid {
         cx.notify();
     }
 
-    fn add_row(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub fn add_row(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(editable) = &mut self.editable else {
             return;
         };
@@ -429,27 +430,6 @@ impl DataGrid {
         self.vertical_scroll
             .scroll_to_item(row, ScrollStrategy::Center);
         self.begin_edit(CellPosition { row, column: 0 }, window, cx);
-    }
-
-    fn delete_selected_row(&mut self, cx: &mut Context<Self>) {
-        self.commit_editor(cx);
-        if self.edit_error.is_some() {
-            return;
-        }
-        let Some(position) = self.selection else {
-            return;
-        };
-        self.toggle_row_delete(position.row, cx);
-    }
-
-    fn toggle_row_delete(&mut self, row: usize, cx: &mut Context<Self>) {
-        if let Some(editable) = &mut self.editable {
-            if editable.toggle_delete(row) {
-                Arc::make_mut(&mut self.result).rows.remove(row);
-                self.selection = None;
-            }
-            cx.notify();
-        }
     }
 
     fn review_changes(&mut self, cx: &mut Context<Self>) {
@@ -476,7 +456,19 @@ impl DataGrid {
             .map_or(0, EditableGrid::pending_count)
     }
 
-    fn request_csv_import(&mut self, cx: &mut Context<Self>) {
+    pub fn can_edit(&self) -> bool {
+        self.editable.as_ref().is_some_and(EditableGrid::can_edit)
+    }
+
+    pub fn edit_error(&self) -> Option<&str> {
+        self.edit_error.as_deref()
+    }
+
+    pub fn export_message(&self) -> Option<&Result<String, String>> {
+        self.export_message.as_ref()
+    }
+
+    pub fn request_csv_import(&mut self, cx: &mut Context<Self>) {
         if self.editable.is_some() {
             cx.emit(DataGridEvent::ImportCsv);
         }
@@ -530,80 +522,6 @@ impl DataGrid {
             .sort
             .map(|(column, direction)| (moved_index(column, source, target), direction));
         self.suppress_sort = true;
-        cx.notify();
-    }
-
-    fn move_selection(&mut self, row_delta: isize, column_delta: isize, cx: &mut Context<Self>) {
-        if self.result.rows.is_empty() || self.result.columns.is_empty() {
-            return;
-        }
-        let current = self.selection.unwrap_or(CellPosition { row: 0, column: 0 });
-        let row = current
-            .row
-            .saturating_add_signed(row_delta)
-            .min(self.result.rows.len() - 1);
-        let column = current
-            .column
-            .saturating_add_signed(column_delta)
-            .min(self.result.columns.len() - 1);
-        self.selection = Some(CellPosition { row, column });
-        self.vertical_scroll
-            .scroll_to_item(row, ScrollStrategy::Center);
-        self.reveal_column(column);
-        cx.notify();
-    }
-
-    fn copy_selection(&self, cx: &mut Context<Self>) {
-        let Some(position) = self.selection else {
-            return;
-        };
-        let text = self
-            .editable
-            .as_ref()
-            .and_then(|editable| editable.display_value(position.row, position.column))
-            .map(|value| value.unwrap_or_else(|| "NULL".into()))
-            .or_else(|| {
-                self.result
-                    .rows
-                    .get(position.row)
-                    .and_then(|row| row.get(position.column))
-                    .map(clipboard_text)
-            });
-        if let Some(text) = text {
-            cx.write_to_clipboard(ClipboardItem::new_string(text));
-        }
-    }
-
-    fn paste_selection(&mut self, cx: &mut Context<Self>) {
-        let Some(start) = self.selection else {
-            return;
-        };
-        let Some(editable) = &mut self.editable else {
-            return;
-        };
-        if !editable.can_edit() {
-            return;
-        }
-        let Some(text) = cx.read_from_clipboard().and_then(|item| item.text()) else {
-            return;
-        };
-        for (row_offset, values) in editing::clipboard_rows(&text).into_iter().enumerate() {
-            let row = start.row.saturating_add(row_offset);
-            if row >= self.result.rows.len() {
-                break;
-            }
-            for (column_offset, value) in values.into_iter().enumerate() {
-                let column = start.column.saturating_add(column_offset);
-                if column >= self.result.columns.len() {
-                    break;
-                }
-                if let Err(error) = editable.set_value(row, column, Some(value), &self.result) {
-                    self.edit_error = Some(error);
-                    cx.notify();
-                    return;
-                }
-            }
-        }
         cx.notify();
     }
 

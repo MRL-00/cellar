@@ -5,13 +5,13 @@ use cellar_core::{
     schema::Table,
 };
 use gpui::{
-    div, prelude::*, px, AnyElement, Context, MouseButton, Pixels, Point, SharedString, Window,
+    div, prelude::*, AnyElement, Context, MouseButton, Pixels, Point, SharedString, Window,
 };
 
 use super::{table_presets::overlay_at, CellarApp};
 use cellar_desktop_gpui::{
     model::TabKind,
-    theme::{ACCENT, FG, PANEL_RAISED},
+    theme::{ui_px, ACCENT, FG, PANEL_RAISED},
 };
 
 pub(super) struct QuickColumnMenu {
@@ -69,6 +69,8 @@ impl CellarApp {
             return;
         }
         self.table_preset_menu = None;
+        self.table_filter_column_menu = None;
+        self.table_sort_column_menu = None;
         self.table_quick_column_menu = Some(QuickColumnMenu { tab_id, position });
         cx.notify();
     }
@@ -105,13 +107,15 @@ impl CellarApp {
                 _ => None,
             })
             .map(|table| {
-                table
+                let mut columns = table
                     .columns
                     .iter()
                     .enumerate()
                     .filter(|(_, column)| is_text_type(&column.data_type))
                     .map(|(index, column)| (index, column.name.clone()))
-                    .collect::<Vec<_>>()
+                    .collect::<Vec<_>>();
+                columns.sort_by(|a, b| a.1.to_lowercase().cmp(&b.1.to_lowercase()));
+                columns
             })
             .unwrap_or_default();
         let mut menu = overlay_at("quick-column-menu", position);
@@ -124,21 +128,21 @@ impl CellarApp {
                     )))
                     .tab_index(0)
                     .cursor_pointer()
-                    .h(px(28.))
+                    .h(ui_px(28.))
                     .flex()
                     .items_center()
-                    .gap(px(7.))
-                    .rounded(px(4.))
-                    .px(px(6.))
+                    .gap(ui_px(7.))
+                    .rounded(ui_px(4.))
+                    .px(ui_px(6.))
                     .text_color(if selected { ACCENT } else { FG })
                     .hover(|style| style.bg(PANEL_RAISED))
-                    .child(div().w(px(12.)).flex().justify_center().when(
+                    .child(div().w(ui_px(12.)).flex().justify_center().when(
                         selected,
                         |element| {
                             element.child(
                                 gpui_component::Icon::empty()
                                     .path("icons/grid-check.svg")
-                                    .size(px(10.)),
+                                    .size(ui_px(10.)),
                             )
                         },
                     ))
