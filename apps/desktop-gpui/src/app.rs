@@ -58,7 +58,9 @@ mod sidebar_menu;
 mod sql_completion;
 mod status_bar;
 mod tab_context_menu;
+mod table_column_menus;
 mod table_filter_bar;
+mod table_footer;
 mod table_presets;
 mod table_quick_filter;
 mod table_workspace;
@@ -134,8 +136,12 @@ pub struct CellarApp {
     table_filter_presets: HashMap<String, Vec<table_presets::FilterPreset>>,
     table_preset_menu: Option<table_presets::PresetMenu>,
     table_quick_column_menu: Option<table_quick_filter::QuickColumnMenu>,
+    table_filter_column_menu: Option<table_column_menus::ColumnMenu>,
+    table_sort_column_menu: Option<table_column_menus::ColumnMenu>,
     preset_trigger_bounds: HashMap<u64, Bounds<Pixels>>,
     quick_column_trigger_bounds: HashMap<u64, Bounds<Pixels>>,
+    filter_column_trigger_bounds: HashMap<u64, Bounds<Pixels>>,
+    sort_column_trigger_bounds: HashMap<u64, Bounds<Pixels>>,
     table_preset_draft: Option<table_presets::PresetDraft>,
     table_preset_subscription: Option<Subscription>,
     query_summaries: HashMap<u64, QueryResultSummary>,
@@ -317,8 +323,12 @@ impl CellarApp {
             table_filter_presets: HashMap::new(),
             table_preset_menu: None,
             table_quick_column_menu: None,
+            table_filter_column_menu: None,
+            table_sort_column_menu: None,
             preset_trigger_bounds: HashMap::new(),
             quick_column_trigger_bounds: HashMap::new(),
+            filter_column_trigger_bounds: HashMap::new(),
+            sort_column_trigger_bounds: HashMap::new(),
             table_preset_draft: None,
             table_preset_subscription: None,
             query_summaries: HashMap::new(),
@@ -679,7 +689,6 @@ impl CellarApp {
                     .flex_shrink_0()
                     .flex()
                     .items_center()
-                    .px_2()
                     .py(ui_px(6.))
                     .border_t_1()
                     .border_color(BORDER)
@@ -688,11 +697,11 @@ impl CellarApp {
                             .id("open-settings")
                             .cursor_pointer()
                             .h(ui_px(27.))
+                            .w_full()
                             .flex()
                             .items_center()
                             .gap(ui_px(6.))
-                            .rounded(ui_px(4.))
-                            .px(ui_px(6.))
+                            .px(ui_px(14.))
                             .text_size(ui_px(14.))
                             .text_color(cellar_desktop_gpui::theme::FG_SECONDARY)
                             .child(Icon::empty().path("icons/settings.svg").size(ui_px(13.)))

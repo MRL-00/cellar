@@ -234,6 +234,9 @@ impl DataGrid {
         value: Option<String>,
         cx: &mut gpui::Context<Self>,
     ) {
+        if self.reloading {
+            return;
+        }
         if let Some(editable) = &mut self.editable {
             self.edit_error = editable.set_value(row, column, value, &self.result).err();
             cx.notify();

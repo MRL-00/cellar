@@ -8,7 +8,7 @@ use cellar_core::{
     schema::Table,
 };
 use gpui::{
-    div, percentage, prelude::*, px, Animation, AnimationExt, AnyElement, Context, Div, Stateful,
+    div, percentage, prelude::*, px, Animation, AnimationExt, AnyElement, Context, Entity,
     Transformation, Window,
 };
 use gpui_component::{
@@ -23,7 +23,7 @@ use super::{
 use cellar_desktop_gpui::{
     grid::{DataGrid, DataGridEvent},
     model::{TabKind, TableLoadState, TablePage, TableTarget, WorkspaceTab},
-    theme::{ACCENT, BORDER, FG_MUTED, INSET, PANEL_RAISED, PROD, WARN},
+    theme::{ACCENT, FG_MUTED, INSET, PROD, WARN},
 };
 
 impl CellarApp {
@@ -118,7 +118,7 @@ impl CellarApp {
         self.start_table_load(tab_id, target, page, cx);
     }
 
-    fn change_table_page(&mut self, tab_id: u64, next: bool, cx: &mut Context<Self>) {
+    pub(super) fn change_table_page(&mut self, tab_id: u64, next: bool, cx: &mut Context<Self>) {
         if !self.table_reload_allowed(tab_id, cx) {
             return;
         }
@@ -140,7 +140,7 @@ impl CellarApp {
         self.start_table_load(tab_id, target, page, cx);
     }
 
-    fn change_table_sort(
+    pub(super) fn change_table_sort(
         &mut self,
         tab_id: u64,
         column: String,
@@ -163,40 +163,6 @@ impl CellarApp {
         self.start_table_load(tab_id, target, page, cx);
     }
 
-    pub(super) fn cycle_toolbar_sort_column(&mut self, tab_id: u64, cx: &mut Context<Self>) {
-        let Some(target) = self.model.tabs().iter().find_map(|tab| match &tab.kind {
-            TabKind::Table { target, .. } if tab.id == tab_id => Some(target),
-            _ => None,
-        }) else {
-            return;
-        };
-        let Some(table) = self.model.table(target) else {
-            return;
-        };
-        let current = self.table_sorts.get(&tab_id).and_then(|sort| {
-            table
-                .columns
-                .iter()
-                .position(|column| column.name == sort.column)
-        });
-        let next = current.map_or(0, |index| index + 1);
-        if next >= table.columns.len() {
-            self.change_table_sort(tab_id, String::new(), None, cx);
-        } else {
-            let direction = self
-                .table_sorts
-                .get(&tab_id)
-                .map(|sort| sort.direction)
-                .unwrap_or(SortDirection::Asc);
-            self.change_table_sort(
-                tab_id,
-                table.columns[next].name.clone(),
-                Some(direction),
-                cx,
-            );
-        }
-    }
-
     pub(super) fn toggle_toolbar_sort_direction(&mut self, tab_id: u64, cx: &mut Context<Self>) {
         let Some(sort) = self.table_sorts.get(&tab_id).cloned() else {
             return;
@@ -210,32 +176,6 @@ impl CellarApp {
             }),
             cx,
         );
-    }
-
-    pub(super) fn cycle_filter_column(&mut self, tab_id: u64, cx: &mut Context<Self>) {
-        let Some(tab) = self.model.tabs().iter().find(|tab| tab.id == tab_id) else {
-            return;
-        };
-        let TabKind::Table { target, .. } = &tab.kind else {
-            return;
-        };
-        let count = self
-            .model
-            .table(target)
-            .map(|table| table.columns.len())
-            .unwrap_or(0);
-        if count == 0 {
-            return;
-        }
-        let column = self.table_filter_columns.entry(tab_id).or_insert(0);
-        *column = (*column + 1) % count;
-        if let Some(table) = self.model.table(target) {
-            self.table_filter_operators.insert(
-                tab_id,
-                quick_filter_operator(&table.columns[*column].data_type),
-            );
-        }
-        cx.notify();
     }
 
     pub(super) fn cycle_filter_operator(&mut self, tab_id: u64, cx: &mut Context<Self>) {
@@ -312,6 +252,7 @@ impl CellarApp {
             value: (!null_check).then_some(value),
         });
         self.table_filter_composers.remove(&tab_id);
+        self.table_filter_column_menu = None;
         if let Some(input) = self.table_filter_inputs.get(&tab_id) {
             input.update(cx, |input, cx| input.set_value("", window, cx));
         }
@@ -407,6 +348,7 @@ impl CellarApp {
         }
         self.table_filters.remove(&tab_id);
         self.table_filter_composers.remove(&tab_id);
+        self.table_filter_column_menu = None;
         if let Some(input) = self.table_filter_inputs.get(&tab_id) {
             input.update(cx, |input, cx| input.set_value("", window, cx));
         }
@@ -569,30 +511,36 @@ impl CellarApp {
             unreachable!("table_content called for a non-table tab");
         };
         match state {
-            TableLoadState::Loading => div()
-                .flex_1()
-                .flex()
-                .items_center()
-                .justify_center()
-                .gap_2()
-                .bg(INSET)
-                .text_size(px(12.5))
-                .text_color(FG_MUTED)
-                .child(
-                    Icon::empty()
-                        .path("icons/spinner.svg")
-                        .size(px(14.))
-                        .text_color(ACCENT)
-                        .with_animation(
-                            "table-loading-spinner",
-                            Animation::new(Duration::from_millis(900)).repeat(),
-                            |icon, delta| {
-                                icon.transform(Transformation::rotate(percentage(delta)))
-                            },
-                        ),
-                )
-                .child(format!("Loading {}.{}…", target.schema, target.table))
-                .into_any_element(),
+            TableLoadState::Loading => {
+                if let Some(grid) = self.grids.get(&tab.id).cloned() {
+                    self.loaded_table_view(tab.id, target, *page, grid, true, cx)
+                } else {
+                    div()
+                        .flex_1()
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .gap_2()
+                        .bg(INSET)
+                        .text_size(px(12.5))
+                        .text_color(FG_MUTED)
+                        .child(
+                            Icon::empty()
+                                .path("icons/spinner.svg")
+                                .size(px(14.))
+                                .text_color(ACCENT)
+                                .with_animation(
+                                    "table-loading-spinner",
+                                    Animation::new(Duration::from_millis(900)).repeat(),
+                                    |icon, delta| {
+                                        icon.transform(Transformation::rotate(percentage(delta)))
+                                    },
+                                ),
+                        )
+                        .child(format!("Loading {}.{}…", target.schema, target.table))
+                        .into_any_element()
+                }
+            }
             TableLoadState::Error(_) => div()
                 .flex_1()
                 .flex()
@@ -612,50 +560,34 @@ impl CellarApp {
                         .child("Grid state is unavailable")
                         .into_any_element();
                 };
-                let previous = tab.id;
-                let next = tab.id;
-                div()
-                    .flex_1()
-                    .min_h_0()
-                    .flex()
-                    .flex_col()
-                    .when_some(
-                        self.table_filter_bar(tab.id, target, *page, cx),
-                        |element, bar| element.child(bar),
-                    )
-                    .child(grid)
-                    .child(
-                        div()
-                            .h(px(32.))
-                            .flex_shrink_0()
-                            .flex()
-                            .items_center()
-                            .justify_between()
-                            .px_3()
-                            .border_t_1()
-                            .border_color(BORDER)
-                            .bg(PANEL_RAISED)
-                            .child(page_label(*page))
-                            .child(
-                                div()
-                                    .flex()
-                                    .gap_3()
-                                    .child(pager_button("Previous", page.has_previous()).on_click(
-                                        cx.listener(move |this, _, _, cx| {
-                                            this.change_table_page(previous, false, cx);
-                                        }),
-                                    ))
-                                    .child(pager_button("Next", page.has_next()).on_click(
-                                        cx.listener(move |this, _, _, cx| {
-                                            this.change_table_page(next, true, cx);
-                                        }),
-                                    )),
-                            ),
-                    )
-                    .into_any_element()
+                self.loaded_table_view(tab.id, target, *page, grid, false, cx)
             }
         }
     }
+
+    fn loaded_table_view(
+        &self,
+        tab_id: u64,
+        target: &TableTarget,
+        page: TablePage,
+        grid: Entity<DataGrid>,
+        reloading: bool,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        div()
+            .flex_1()
+            .min_h_0()
+            .flex()
+            .flex_col()
+            .when_some(
+                self.table_filter_bar(tab_id, target, page, cx),
+                |element, bar| element.child(bar),
+            )
+            .child(grid.clone())
+            .child(self.table_footer(tab_id, page, grid, reloading, cx))
+            .into_any_element()
+    }
+
 }
 
 pub(super) fn table_layout_key(target: &TableTarget) -> String {
@@ -713,30 +645,11 @@ fn next_filter_operator(operator: TableFilterOperator, data_type: &str) -> Table
     operators[(index + 1) % operators.len()]
 }
 
-fn page_label(page: TablePage) -> String {
-    if page.rows == 0 {
-        return "0 rows".into();
-    }
-    let first = u64::from(page.offset) + 1;
-    let last = u64::from(page.offset) + u64::from(page.rows);
-    match page.total_rows {
-        Some(total) => format!("{first}–{last} of {total}"),
-        None => format!("{first}–{last}"),
-    }
-}
 
-fn pager_button(label: &'static str, enabled: bool) -> Stateful<Div> {
-    div()
-        .id(label)
-        .px_2()
-        .py_1()
-        .text_color(if enabled { ACCENT } else { FG_MUTED })
-        .when(enabled, |element| element.tab_index(0).cursor_pointer())
-}
 
 #[cfg(test)]
 mod tests {
-    use super::{next_filter_operator, page_label};
+    use super::{super::table_footer::page_label, next_filter_operator};
     use cellar_core::query::TableFilterOperator;
     use cellar_desktop_gpui::model::TablePage;
 

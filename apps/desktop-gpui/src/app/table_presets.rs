@@ -1,7 +1,7 @@
 use cellar_core::query::{TableFilterClause, TableSortClause};
 use gpui::{
-    div, prelude::*, px, AnyElement, Bounds, Context, Entity, MouseButton, Pixels, Point,
-    SharedString, Window,
+    div, prelude::*, AnyElement, Bounds, Context, Entity, MouseButton, Pixels, Point, SharedString,
+    Window,
 };
 use gpui_component::{
     input::{InputEvent, InputState},
@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use super::CellarApp;
 use cellar_desktop_gpui::{
     model::{TabKind, TableTarget},
-    theme::{ACCENT, BORDER, FG, FG_MUTED, PANEL, PANEL_RAISED},
+    theme::{ui_px, ACCENT, BORDER, FG, FG_MUTED, PANEL, PANEL_RAISED},
 };
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -75,6 +75,8 @@ impl CellarApp {
             return;
         }
         self.table_quick_column_menu = None;
+        self.table_filter_column_menu = None;
+        self.table_sort_column_menu = None;
         self.table_preset_menu = Some(PresetMenu { tab_id, position });
         cx.notify();
     }
@@ -234,10 +236,10 @@ impl CellarApp {
             let selected = active.as_deref() == Some(name.as_str());
             menu = menu.child(
                 div()
-                    .h(px(28.))
+                    .h(ui_px(28.))
                     .flex()
                     .items_center()
-                    .rounded(px(4.))
+                    .rounded(ui_px(4.))
                     .hover(|style| style.bg(PANEL_RAISED))
                     .child(
                         div()
@@ -248,14 +250,14 @@ impl CellarApp {
                             .h_full()
                             .flex()
                             .items_center()
-                            .gap(px(7.))
-                            .px(px(6.))
+                            .gap(ui_px(7.))
+                            .px(ui_px(6.))
                             .text_color(if selected { ACCENT } else { FG })
-                            .child(div().w(px(12.)).flex().justify_center().when(
+                            .child(div().w(ui_px(12.)).flex().justify_center().when(
                                 selected,
                                 |element| {
                                     element.child(
-                                        Icon::empty().path("icons/grid-check.svg").size(px(10.)),
+                                        Icon::empty().path("icons/grid-check.svg").size(ui_px(10.)),
                                     )
                                 },
                             ))
@@ -273,12 +275,12 @@ impl CellarApp {
                             div()
                                 .id(SharedString::from(format!("preset-delete:{delete_name}")))
                                 .tab_index(0)
-                                .size(px(14.))
-                                .mr(px(4.))
+                                .size(ui_px(14.))
+                                .mr(ui_px(4.))
                                 .flex()
                                 .items_center()
                                 .justify_center()
-                                .child(Icon::empty().path("icons/close.svg").size(px(9.)))
+                                .child(Icon::empty().path("icons/close.svg").size(ui_px(9.)))
                                 .on_click(cx.listener(move |this, _, _, cx| {
                                     this.delete_filter_preset(tab_id, &delete_name, cx);
                                 })),
@@ -324,7 +326,7 @@ impl CellarApp {
     }
 }
 
-fn table_target(app: &CellarApp, tab_id: u64) -> Option<&TableTarget> {
+pub(super) fn table_target(app: &CellarApp, tab_id: u64) -> Option<&TableTarget> {
     app.model.tabs().iter().find_map(|tab| match &tab.kind {
         TabKind::Table { target, .. } if tab.id == tab_id => Some(target),
         _ => None,
@@ -339,7 +341,7 @@ pub(super) fn table_key(target: &TableTarget) -> String {
 }
 
 pub(super) fn dropdown_below(trigger: Bounds<Pixels>) -> Point<Pixels> {
-    Point::new(trigger.origin.x, trigger.origin.y + px(22.))
+    Point::new(trigger.origin.x, trigger.origin.y + ui_px(24.))
 }
 
 pub(super) fn overlay_at(id: &'static str, position: Point<Pixels>) -> gpui::Stateful<gpui::Div> {
@@ -349,20 +351,21 @@ pub(super) fn overlay_at(id: &'static str, position: Point<Pixels>) -> gpui::Sta
         .absolute()
         .left(position.x)
         .top(position.y)
-        .min_w(px(180.))
-        .max_h(px(300.))
+        .min_w(ui_px(180.))
+        .max_h(ui_px(300.))
         .overflow_y_scroll()
         .p_1()
-        .rounded(px(6.))
+        .rounded(ui_px(6.))
         .border_1()
         .border_color(BORDER)
         .bg(PANEL)
         .shadow_lg()
         .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+        .on_scroll_wheel(|_, _, cx| cx.stop_propagation())
 }
 
 fn separator() -> gpui::Div {
-    div().h(px(1.)).mx(px(2.)).my_1().bg(BORDER)
+    div().h(ui_px(1.)).mx(ui_px(2.)).my_1().bg(BORDER)
 }
 
 fn menu_action(
@@ -373,23 +376,23 @@ fn menu_action(
     div()
         .id(id)
         .tab_index(0)
-        .h(px(28.))
+        .h(ui_px(28.))
         .flex()
         .items_center()
         .gap_2()
-        .rounded(px(4.))
-        .px(px(6.))
+        .rounded(ui_px(4.))
+        .px(ui_px(6.))
         .text_color(FG)
         .hover(|style| style.bg(PANEL_RAISED))
-        .child(Icon::empty().path(icon).size(px(11.)).text_color(FG_MUTED))
+        .child(Icon::empty().path(icon).size(ui_px(11.)).text_color(FG_MUTED))
         .child(label)
 }
 
 #[cfg(test)]
 mod tests {
     use super::{dropdown_below, table_key};
-    use cellar_desktop_gpui::model::TableTarget;
-    use gpui::{point, px, size, Bounds};
+    use cellar_desktop_gpui::{model::TableTarget, theme::ui_px};
+    use gpui::{point, size, Bounds};
 
     #[test]
     fn preset_key_matches_the_classic_table_identity() {
@@ -407,16 +410,16 @@ mod tests {
     #[test]
     fn dropdown_sits_under_the_field_even_if_bounds_are_taller() {
         let trigger = Bounds {
-            origin: point(px(800.), px(40.)),
-            size: size(px(90.), px(22.)),
+            origin: point(ui_px(800.), ui_px(40.)),
+            size: size(ui_px(90.), ui_px(22.)),
         };
         let bloated = Bounds {
             origin: trigger.origin,
-            size: size(px(90.), px(54.)),
+            size: size(ui_px(90.), ui_px(54.)),
         };
-        let click = point(px(885.), px(51.));
-        assert_eq!(dropdown_below(trigger), point(px(800.), px(62.)));
-        assert_eq!(dropdown_below(bloated), point(px(800.), px(62.)));
+        let click = point(ui_px(885.), ui_px(51.));
+        assert_eq!(dropdown_below(trigger), point(ui_px(800.), ui_px(64.)));
+        assert_eq!(dropdown_below(bloated), point(ui_px(800.), ui_px(64.)));
         assert!(dropdown_below(trigger).x < click.x);
     }
 
@@ -426,24 +429,24 @@ mod tests {
         bounds.insert(
             1,
             Bounds {
-                origin: point(px(10.), px(40.)),
-                size: size(px(90.), px(54.)),
+                origin: point(ui_px(10.), ui_px(40.)),
+                size: size(ui_px(90.), ui_px(54.)),
             },
         );
         bounds.insert(
             2,
             Bounds {
-                origin: point(px(800.), px(40.)),
-                size: size(px(90.), px(54.)),
+                origin: point(ui_px(800.), ui_px(40.)),
+                size: size(ui_px(90.), ui_px(54.)),
             },
         );
         assert_eq!(
             bounds.get(&1).copied().map(dropdown_below),
-            Some(point(px(10.), px(62.)))
+            Some(point(ui_px(10.), ui_px(64.)))
         );
         assert_eq!(
             bounds.get(&2).copied().map(dropdown_below),
-            Some(point(px(800.), px(62.)))
+            Some(point(ui_px(800.), ui_px(64.)))
         );
     }
 }

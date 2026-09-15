@@ -294,5 +294,11 @@ impl Render for CellarApp {
             .when(self.table_quick_column_menu.is_some(), |element| {
                 element.child(self.quick_column_menu_overlay(cx))
             })
+            .when(self.table_filter_column_menu.is_some(), |element| {
+                element.child(self.filter_column_menu_overlay(cx))
+            })
+            .when(self.table_sort_column_menu.is_some(), |element| {
+                element.child(self.sort_column_menu_overlay(cx))
+            })
     }
 }

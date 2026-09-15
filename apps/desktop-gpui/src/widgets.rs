@@ -1,8 +1,8 @@
-use gpui::{px, Entity, prelude::*};
+use gpui::{Entity, prelude::*};
 use gpui_component::input::{Input, InputState};
 use gpui_component::Sizable;
 
-use crate::theme::FG;
+use crate::theme::{ui_px, FG};
 
 pub fn compact_input(state: &Entity<InputState>) -> Input {
     Input::new(state)
@@ -10,7 +10,7 @@ pub fn compact_input(state: &Entity<InputState>) -> Input {
         .appearance(false)
         .min_w_0()
         .overflow_hidden()
-        .text_size(px(12.))
-        .line_height(px(16.))
+        .text_size(ui_px(13.))
+        .line_height(ui_px(18.))
         .text_color(FG)
 }

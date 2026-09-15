@@ -621,6 +621,36 @@ impl CellarApp {
         self.table_filter_columns.remove(&id);
         self.preset_trigger_bounds.remove(&id);
         self.quick_column_trigger_bounds.remove(&id);
+        self.filter_column_trigger_bounds.remove(&id);
+        self.sort_column_trigger_bounds.remove(&id);
+        if self
+            .table_preset_menu
+            .as_ref()
+            .is_some_and(|menu| menu.tab_id == id)
+        {
+            self.table_preset_menu = None;
+        }
+        if self
+            .table_quick_column_menu
+            .as_ref()
+            .is_some_and(|menu| menu.tab_id == id)
+        {
+            self.table_quick_column_menu = None;
+        }
+        if self
+            .table_filter_column_menu
+            .as_ref()
+            .is_some_and(|menu| menu.tab_id == id)
+        {
+            self.table_filter_column_menu = None;
+        }
+        if self
+            .table_sort_column_menu
+            .as_ref()
+            .is_some_and(|menu| menu.tab_id == id)
+        {
+            self.table_sort_column_menu = None;
+        }
         self.query_summaries.remove(&id);
         self.query_generations.remove(&id);
         self.query_confirmations.remove(&id);

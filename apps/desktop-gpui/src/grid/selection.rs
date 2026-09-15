@@ -112,6 +112,9 @@ impl DataGrid {
     }
 
     pub(super) fn paste_selection(&mut self, cx: &mut Context<Self>) {
+        if self.reloading {
+            return;
+        }
         let Some(start) = self.selection else {
             return;
         };
@@ -171,6 +174,9 @@ impl DataGrid {
     /// action unmarks them all; otherwise it marks every unmarked row so a
     /// mixed selection never un-deletes rows.
     pub(super) fn toggle_row_deletes(&mut self, rows: &[usize], cx: &mut Context<Self>) {
+        if self.reloading {
+            return;
+        }
         let Some(editable) = &mut self.editable else {
             return;
         };

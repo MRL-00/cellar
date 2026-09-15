@@ -7,7 +7,7 @@ use gpui::{
 use gpui_component::Icon;
 
 use super::{
-    controls, date_picker, row::header_cell, row::GridRow, width_sum, DataGrid, EditableGrid,
+    date_picker, row::header_cell, row::GridRow, width_sum, DataGrid, EditableGrid,
     FROZEN_COLUMNS, ROW_NUMBER_WIDTH,
 };
 use crate::theme::{ui_px, ui_scale, ACCENT, BORDER, FG_MUTED, PANEL, PANEL_RAISED};
@@ -117,11 +117,6 @@ impl Render for DataGrid {
                 .map(EditableGrid::display_values)
                 .unwrap_or_default(),
         );
-        let pending_count = self
-            .editable
-            .as_ref()
-            .map(EditableGrid::pending_count)
-            .unwrap_or(0);
         let deleted = Arc::new(
             self.editable
                 .as_ref()
@@ -244,18 +239,7 @@ impl Render for DataGrid {
                         .track_scroll(self.vertical_scroll.clone()),
                     ),
             )
-            .child(controls::export_bar(
-                grid.clone(),
-                editable,
-                self.export_message.as_ref(),
-            ))
-            .when(editable, |element| {
-                element.child(controls::pending_bar(
-                    grid.clone(),
-                    pending_count,
-                    self.edit_error.as_deref(),
-                ))
-            })
+
             .when_some(editor, |element, (state, left, top, width, date, time)| {
                 let viewport_width =
                     f32::from(self.horizontal_scroll.bounds().size.width).max(300.);
