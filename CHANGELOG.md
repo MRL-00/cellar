@@ -1,5 +1,40 @@
 # Changelog
 
+## 1.0.0
+
+### Features
+
+- **New GPUI desktop client** — Cellar is now a native GPUI app. The data
+  grid stays fast and responsive on wide tables and large result sets with
+  row and column virtualization, keyboard-first navigation, and a denser,
+  work-focused UI.
+- **Unified table footer** — export, CSV import, row actions, pending-edit
+  state, refresh, and pagination now live on a single icon bar under the
+  grid, with tooltips for every action.
+- **Row multi-select** — select whole rows from the gutter, extend with
+  Shift, and toggle individual rows with Cmd; copy and delete act on the
+  full selection.
+- **Better table filters** — column pickers for quick filter, filter, and
+  order-by are real dropdown menus sorted alphabetically, and the bar's
+  text and controls scale with the UI scale setting.
+
+### Bug fixes
+
+- **Reliable reloads** — sorting, filtering, or refreshing a table no
+  longer flashes a blank panel or discards edits made while data reloads;
+  pending edits are protected and editing controls freeze until the reload
+  completes.
+- **Safer bulk deletes** — deleting a mixed selection no longer unmarks
+  rows that were already marked for deletion.
+- **Scrolling behaves** — the grid no longer scrolls sideways on vertical
+  trackpad gestures, horizontal scroll follows wheel intent, and dropdown
+  menus stay open while their lists scroll.
+- **Clearer connection errors** — connection failures surface in a modal
+  instead of being swallowed.
+- **Mac polish** — the Dock shows the Cellar name and icon, Cmd+K opens the
+  command palette reliably, connection names expand correctly, and compact
+  inputs no longer carry extra padding.
+
 ## 0.3.9
 
 ### Bug fixes
