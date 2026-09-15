@@ -184,7 +184,8 @@ jobs:
           xcrun stapler staple "$app_dir"
           xcrun stapler validate "$app_dir"
 
-          COPYFILE_DISABLE=1 tar -czf "$bundle_dir/macos/Cellar.app.tar.gz" \
+          COPYFILE_DISABLE=1 tar --no-mac-metadata -czf \
+            "$bundle_dir/macos/Cellar.app.tar.gz" \
             -C "$bundle_dir/macos" Cellar.app
           dmg_source="$RUNNER_TEMP/cellar-dmg"
           mkdir -p "$dmg_source"
