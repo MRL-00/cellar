@@ -375,6 +375,7 @@ fn grid_cell(
             value.is_none_or(CellValue::is_null),
         ),
     };
+    let text = inline_text(&text);
     let content = if is_pending {
         div().truncate().child(text).into_any_element()
     } else {
@@ -441,6 +442,13 @@ fn grid_cell(
         })
 }
 
+fn inline_text(text: &str) -> String {
+    if !text.contains(['\n', '\r']) {
+        return text.to_owned();
+    }
+    text.replace("\r\n", "⏎").replace('\n', "⏎").replace('\r', "⏎")
+}
+
 fn cell_text(value: &CellValue, null_display: &str) -> String {
     match value {
         CellValue::Null => null_display.into(),
@@ -484,7 +492,7 @@ pub(super) fn clipboard_text(value: &CellValue) -> String {
 mod tests {
     use cellar_core::value::CellValue;
 
-    use super::{cell_text, column_type_icon, row_background};
+    use super::{cell_text, column_type_icon, inline_text, row_background};
     use crate::theme::{PANEL, PANEL_MUTED};
 
     #[test]
@@ -492,6 +500,13 @@ mod tests {
         assert_eq!(cell_text(&CellValue::Null, "∅"), "∅");
         assert_eq!(row_background(false, 1), PANEL.rgba());
         assert_eq!(row_background(true, 1), PANEL_MUTED.rgba());
+    }
+
+    #[test]
+    fn inline_text_keeps_cells_on_one_line() {
+        assert_eq!(inline_text("plain"), "plain");
+        assert_eq!(inline_text("a\nb\nc"), "a⏎b⏎c");
+        assert_eq!(inline_text("a\r\nb\rc"), "a⏎b⏎c");
     }
 
     #[test]
