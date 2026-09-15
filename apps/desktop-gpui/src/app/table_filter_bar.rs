@@ -298,8 +298,6 @@ impl CellarApp {
             .gap(ui_px(8.))
             .px(ui_px(10.))
             .bg(PANEL)
-            .border_b_1()
-            .border_color(BORDER)
             .text_size(ui_px(TYPE))
             .line_height(ui_px(LEAD))
             .child(

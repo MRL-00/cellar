@@ -18,7 +18,7 @@ use cellar_desktop_gpui::{
     model::TabKind,
     theme::{
         accent_soft, ui_px, ACCENT, BG, BORDER, BORDER_SEPARATOR, BORDER_STRONG, FG, FG_MUTED,
-        FG_SECONDARY, FG_TERTIARY, INSET, PANEL, PANEL_MUTED, PANEL_RAISED,
+        FG_SECONDARY, FG_TERTIARY, GRID_LINE, INSET, PANEL, PANEL_MUTED, PANEL_RAISED,
     },
 };
 
@@ -148,7 +148,7 @@ impl CellarApp {
             .border_color(if self.show_empty_state {
                 cellar_desktop_gpui::theme::accent(0.)
             } else {
-                BORDER.rgba()
+                GRID_LINE.rgba()
             })
             .on_mouse_down(
                 MouseButton::Left,

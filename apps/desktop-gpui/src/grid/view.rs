@@ -10,7 +10,7 @@ use super::{
     date_picker, row::header_cell, row::GridRow, width_sum, DataGrid, EditableGrid,
     FROZEN_COLUMNS, ROW_NUMBER_WIDTH,
 };
-use crate::theme::{ui_px, ui_scale, ACCENT, BORDER, FG_MUTED, PANEL, PANEL_RAISED};
+use crate::theme::{ui_px, ui_scale, ACCENT, FG_MUTED, GRID_LINE, PANEL, PANEL_RAISED};
 
 impl DataGrid {
     fn header(
@@ -27,8 +27,9 @@ impl DataGrid {
             .h(ui_px(26.))
             .w(px(total_width))
             .bg(PANEL)
+            .border_t_1()
             .border_b_1()
-            .border_color(BORDER)
+            .border_color(GRID_LINE)
             .child(
                 div()
                     .relative()
