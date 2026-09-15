@@ -370,6 +370,7 @@ impl DataGrid {
         let Some(position) = self.selection else {
             return;
         };
+        self.clear_row_selection();
         if let Some(editable) = &mut self.editable {
             self.edit_error = editable
                 .set_value(position.row, position.column, None, &self.result)
@@ -383,6 +384,7 @@ impl DataGrid {
         let Some(position) = self.selection else {
             return;
         };
+        self.clear_row_selection();
         if !self.result.columns[position.column]
             .data_type
             .eq_ignore_ascii_case("bool")

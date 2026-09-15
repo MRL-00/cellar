@@ -1,4 +1,4 @@
-use cellar_core::query::QueryResult;
+use cellar_core::{query::QueryResult, value::CellValue};
 use cellar_runtime::export::{export_result, ExportFormat};
 use gpui::{App, ClipboardItem, SharedString, WeakEntity};
 use gpui_component::{
@@ -116,9 +116,14 @@ impl DataGrid {
             ));
         }
         if let Some(editable) = &self.editable {
+            let deleted = editable.deleted_rows();
             let label = if selected.len() > 1 {
-                format!("Delete {} rows", selected.len())
-            } else if editable.deleted_rows().contains(&row) {
+                if selected.iter().all(|row| deleted.contains(row)) {
+                    format!("Unmark {} rows for delete", selected.len())
+                } else {
+                    format!("Delete {} rows", selected.len())
+                }
+            } else if deleted.contains(&row) {
                 "Unmark row for delete".to_owned()
             } else if editable.inserted_rows().contains(&row) {
                 "Cancel insert".to_owned()
@@ -179,7 +184,25 @@ impl DataGrid {
         let mut result: QueryResult = (*self.result).clone();
         result.rows = rows
             .iter()
-            .filter_map(|row| self.result.rows.get(*row).cloned())
+            .filter_map(|row| {
+                self.result.rows.get(*row).map(|cells| {
+                    cells
+                        .iter()
+                        .enumerate()
+                        .map(|(column, value)| {
+                            match self
+                                .editable
+                                .as_ref()
+                                .and_then(|editable| editable.display_value(*row, column))
+                            {
+                                Some(Some(value)) => CellValue::Text(value),
+                                Some(None) => CellValue::Null,
+                                None => value.clone(),
+                            }
+                        })
+                        .collect()
+                })
+            })
             .collect();
         let table = self
             .editable
