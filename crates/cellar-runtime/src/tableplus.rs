@@ -163,7 +163,7 @@ pub fn scan() -> ConnectionImport {
                     skipped: vec![format!("{} — could not be read", path.display())],
                     groups: HashMap::new(),
                 },
-                uuids: Vec::new(),
+                rows: Vec::new(),
             }),
         }
     }
@@ -180,23 +180,18 @@ fn merge(files: Vec<ParsedFile>) -> ConnectionImport {
     let mut groups = HashMap::new();
     let mut seen_uuid = HashSet::new();
     let mut seen_id = HashSet::new();
-    for ParsedFile { result, uuids } in files {
+    for ParsedFile { result, rows } in files {
         skipped.extend(result.skipped);
-        let mut file_groups = result.groups;
-        for (uuid, cfg) in uuids.into_iter().zip(result.connections) {
+        for ((uuid, folder), cfg) in rows.into_iter().zip(result.connections) {
             if !uuid.is_empty() && !seen_uuid.insert(uuid) {
-                // Same TablePlus connection seen in another install: drop its
-                // folder with it so no entry outlives the connection.
-                file_groups.remove(&cfg.id);
-                continue;
+                continue; // same TablePlus connection seen in another install
             }
             if seen_id.insert(cfg.id.clone()) {
-                if let Some(folder) = file_groups.remove(&cfg.id) {
+                if let Some(folder) = folder {
                     groups.insert(cfg.id.clone(), folder);
                 }
                 connections.push(cfg);
             } else {
-                file_groups.remove(&cfg.id);
                 skipped.push(format!(
                     "{} — duplicate id '{}' (a connection with the same name was already imported)",
                     cfg.name, cfg.id
@@ -211,13 +206,14 @@ fn merge(files: Vec<ParsedFile>) -> ConnectionImport {
         groups,
     }
 }
-
 /// [`parse_connections`] plus the TablePlus `ID` of each imported row, so
 /// [`scan`] can de-duplicate across installs before slug collisions are judged.
 struct ParsedFile {
     result: ConnectionImport,
-    /// Parallel to `result.connections`.
-    uuids: Vec<String>,
+    /// Parallel to `result.connections`: the TablePlus `ID` and folder name of
+    /// each row. Kept per row rather than keyed by slug so a dropped duplicate
+    /// can never hand its folder to the row that survives.
+    rows: Vec<(String, Option<String>)>,
 }
 
 /// Parse a `Connections.plist` document (XML or binary) into importable
@@ -227,14 +223,13 @@ struct ParsedFile {
 /// `groups` maps TablePlus group ids to folder names, as read from the sibling
 /// `ConnectionGroups.plist`; pass an empty map when there is none.
 pub fn parse_connections(plist_bytes: &[u8], groups: &HashMap<String, String>) -> ConnectionImport {
-    parse_file(plist_bytes, groups).result
+    merge(vec![parse_file(plist_bytes, groups)])
 }
 
 fn parse_file(plist_bytes: &[u8], groups: &HashMap<String, String>) -> ParsedFile {
     let mut connections = Vec::new();
     let mut skipped = Vec::new();
-    let mut uuids = Vec::new();
-    let mut folders = HashMap::new();
+    let mut meta = Vec::new();
 
     let rows = match plist::from_bytes::<Vec<plist::Value>>(plist_bytes) {
         Ok(rows) => rows,
@@ -244,9 +239,9 @@ fn parse_file(plist_bytes: &[u8], groups: &HashMap<String, String>) -> ParsedFil
                 result: ConnectionImport {
                     connections,
                     skipped,
-                    groups: folders,
+                    groups: HashMap::new(),
                 },
-                uuids,
+                rows: Vec::new(),
             };
         }
     };
@@ -271,11 +266,8 @@ fn parse_file(plist_bytes: &[u8], groups: &HashMap<String, String>) -> ParsedFil
         let folder = groups.get(row.group_id.trim()).cloned();
         match build_config(row) {
             Ok(cfg) => {
-                if let Some(folder) = folder {
-                    folders.insert(cfg.id.clone(), folder);
-                }
                 connections.push(cfg);
-                uuids.push(uuid);
+                meta.push((uuid, folder));
             }
             Err(reason) => skipped.push(format!("{label} — {reason}")),
         }
@@ -285,9 +277,9 @@ fn parse_file(plist_bytes: &[u8], groups: &HashMap<String, String>) -> ParsedFil
         result: ConnectionImport {
             connections,
             skipped,
-            groups: folders,
+            groups: HashMap::new(),
         },
-        uuids,
+        rows: meta,
     }
 }
 
@@ -723,6 +715,49 @@ mod tests {
         assert_eq!(r.connections.len(), 1);
         assert_eq!(r.groups.len(), 1, "one connection, one folder entry");
         assert_eq!(r.groups.get("shared").map(String::as_str), Some("OCO"));
+    }
+
+    #[test]
+    fn a_duplicate_name_keeps_the_first_rows_folder_not_the_dropped_ones() {
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0"><array>
+  <dict>
+    <key>ID</key><string>a</string>
+    <key>ConnectionName</key><string>Twin</string>
+    <key>Driver</key><string>PostgreSQL</string>
+    <key>GroupID</key><string>g-1</string>
+  </dict>
+  <dict>
+    <key>ID</key><string>b</string>
+    <key>ConnectionName</key><string>Twin</string>
+    <key>Driver</key><string>PostgreSQL</string>
+    <key>GroupID</key><string>g-2</string>
+  </dict>
+</array></plist>"#;
+        let r = parse_connections(xml.as_bytes(), &groups());
+        assert_eq!(r.connections.len(), 1);
+        assert_eq!(r.groups.get("twin").map(String::as_str), Some("OCO"));
+    }
+
+    #[test]
+    fn a_dropped_duplicates_folder_never_leaks_onto_the_kept_row() {
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0"><array>
+  <dict>
+    <key>ID</key><string>a</string>
+    <key>ConnectionName</key><string>Twin</string>
+    <key>Driver</key><string>PostgreSQL</string>
+  </dict>
+  <dict>
+    <key>ID</key><string>b</string>
+    <key>ConnectionName</key><string>Twin</string>
+    <key>Driver</key><string>PostgreSQL</string>
+    <key>GroupID</key><string>g-1</string>
+  </dict>
+</array></plist>"#;
+        let r = parse_connections(xml.as_bytes(), &groups());
+        assert_eq!(r.connections.len(), 1);
+        assert!(r.groups.is_empty(), "the kept row was ungrouped");
     }
 
     #[test]
