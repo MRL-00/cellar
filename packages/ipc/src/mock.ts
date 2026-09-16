@@ -78,7 +78,7 @@ export const mockCommands = {
   disconnect: async (_id: string): Promise<Result<null, CellarError>> => ok(null),
 
   importDatagrip: async (): Promise<Result<ConnectionImport, CellarError>> =>
-    ok({ connections: [], skipped: [] }),
+    ok({ connections: [], skipped: [], groups: {} }),
 
   introspect: async (
     _connectionId: string,

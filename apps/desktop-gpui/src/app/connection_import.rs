@@ -11,7 +11,11 @@ use cellar_desktop_gpui::theme::{
 };
 use cellar_desktop_gpui::widgets::compact_input;
 
-use super::CellarApp;
+use super::{
+    sidebar_layout::SidebarItem,
+    sidebar_menu::{find_or_create_folder, remove_connection_from_layout},
+    CellarApp,
+};
 
 /// External client whose saved connections can be imported into Cellar.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -47,6 +51,9 @@ impl ImportSource {
 #[derive(Clone)]
 struct ImportCandidate {
     config: ConnectionConfig,
+    /// Sidebar folder this connection belongs in, from the source app's own
+    /// grouping. `None` leaves it at the top level.
+    folder: Option<String>,
     selected: bool,
     conflict: bool,
     database: Entity<InputState>,
@@ -81,13 +88,18 @@ impl ConnectionImport {
         window: &mut Window,
         cx: &mut Context<CellarApp>,
     ) -> Self {
+        let ImportResult {
+            connections,
+            skipped,
+            groups,
+        } = result;
         Self {
             source,
-            candidates: result
-                .connections
+            candidates: connections
                 .into_iter()
                 .map(|config| {
                     let (selected, conflict) = candidate_state(existing, &config.id);
+                    let folder = groups.get(&config.id).cloned();
                     let database = cx.new(|cx| {
                         InputState::new(window, cx)
                             .default_value(config.database.clone())
@@ -100,6 +112,7 @@ impl ConnectionImport {
                     });
                     ImportCandidate {
                         config,
+                        folder,
                         selected,
                         conflict,
                         database,
@@ -107,7 +120,7 @@ impl ConnectionImport {
                     }
                 })
                 .collect(),
-            skipped: result.skipped,
+            skipped,
             scanning: false,
             importing: false,
             error: None,
@@ -205,7 +218,7 @@ impl CellarApp {
         if import.importing {
             return;
         }
-        let configs: Vec<_> = import
+        let selected: Vec<_> = import
             .candidates
             .iter()
             .filter(|candidate| candidate.selected)
@@ -216,12 +229,28 @@ impl CellarApp {
                     config.database = database;
                 }
                 let password = candidate.password.read(cx).value().to_string();
-                (config, (!password.is_empty()).then_some(password))
+                (
+                    config,
+                    (!password.is_empty()).then_some(password),
+                    candidate.folder.clone(),
+                )
             })
             .collect();
-        if configs.is_empty() {
+        if selected.is_empty() {
             return;
         }
+        // Folders are applied after the save, so the id -> folder pairing has to
+        // survive the round trip through the runtime task.
+        let folders: Vec<(String, String)> = selected
+            .iter()
+            .filter_map(|(config, _, folder)| {
+                folder.clone().map(|folder| (config.id.clone(), folder))
+            })
+            .collect();
+        let configs: Vec<_> = selected
+            .into_iter()
+            .map(|(config, password, _)| (config, password))
+            .collect();
         import.importing = true;
         import.error = None;
         let registry = Arc::clone(&self.registry);
@@ -248,6 +277,23 @@ impl CellarApp {
                         for config in configs {
                             this.model.upsert_connection(config);
                             this.reconcile_sidebar_layout();
+                        }
+                        // `reconcile_sidebar_layout` has just parked every new
+                        // connection at the top level; move the grouped ones into
+                        // their folder now that they all exist.
+                        let stamp = chrono::Utc::now().timestamp_millis();
+                        for (index, (connection_id, folder)) in folders.into_iter().enumerate() {
+                            remove_connection_from_layout(&mut this.sidebar_layout, &connection_id);
+                            let at = find_or_create_folder(
+                                &mut this.sidebar_layout,
+                                &folder,
+                                format!("folder-{stamp}-{index}"),
+                            );
+                            if let SidebarItem::Folder { children, .. } =
+                                &mut this.sidebar_layout[at]
+                            {
+                                children.push(connection_id);
+                            }
                         }
                         this.connection_import = None;
                     }
@@ -437,6 +483,7 @@ impl CellarApp {
                                 let id = candidate.config.id.clone();
                                 let selected = candidate.selected;
                                 let conflict = candidate.conflict;
+                                let folder = candidate.folder.clone();
                                 let app = cx.entity().downgrade();
                                 div()
                                     .id(SharedString::from(format!("import-candidate:{id}")))
@@ -467,6 +514,17 @@ impl CellarApp {
                                                     .truncate()
                                                     .font_weight(gpui::FontWeight::MEDIUM)
                                                     .child(candidate.config.name.clone())
+                                                    .when_some(folder, |name, folder| {
+                                                        name.child(
+                                                            div()
+                                                                .ml_2()
+                                                                .flex_shrink_0()
+                                                                .text_size(px(11.))
+                                                                .font_weight(gpui::FontWeight::NORMAL)
+                                                                .text_color(FG_MUTED)
+                                                                .child(format!("in {folder}")),
+                                                        )
+                                                    })
                                                     .when(conflict, |name| {
                                                         name.child(
                                                             div()

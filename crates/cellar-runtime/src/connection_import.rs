@@ -3,6 +3,8 @@
 //! it can to [`ConnectionConfig`], and reports the rest as human-readable
 //! reasons rather than dropping rows silently.
 
+use std::collections::HashMap;
+
 use cellar_core::driver::ConnectionConfig;
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -17,6 +19,10 @@ pub struct ConnectionImport {
     /// (unsupported engine, unparseable URL). Surfaced so the import is honest
     /// about what it dropped rather than silently skipping rows.
     pub skipped: Vec<String>,
+    /// Folder name for each grouped connection, keyed by connection id. The
+    /// caller maps these onto its own sidebar folders. Importers that read a
+    /// source without grouping leave this empty.
+    pub groups: HashMap<String, String>,
 }
 
 /// Mirror of the frontend `slugify` so imported ids match what the dialog would

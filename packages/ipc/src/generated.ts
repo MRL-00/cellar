@@ -554,7 +554,13 @@ connections: ConnectionConfig[];
  * (unsupported engine, unparseable URL). Surfaced so the import is honest
  * about what it dropped rather than silently skipping rows.
  */
-skipped: string[] }
+skipped: string[]; 
+/**
+ * Folder name for each grouped connection, keyed by connection id. The
+ * caller maps these onto its own sidebar folders. Importers that read a
+ * source without grouping leave this empty.
+ */
+groups: Partial<{ [key in string]: string }> }
 /**
  * One database visible to the connected user. For Postgres this maps to a
  * `pg_database` row, for MySQL to a single catalog, for SQLite the file.

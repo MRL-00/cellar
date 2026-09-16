@@ -8,9 +8,10 @@
 //! have several, so we scan them all and de-duplicate. Passwords are NOT in
 //! the file (they live in the OS keychain), so we import the connection
 //! metadata only and let the user supply passwords at import time or on first
-//! connect.
+//! connect. The sibling `Data/ConnectionGroups.plist` names the groups a
+//! connection can sit in; those map onto Cellar's sidebar folders.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 use cellar_core::driver::{ConnectionConfig, Engine, EnvTag, SslMode};
@@ -48,12 +49,53 @@ struct RawConnection {
     environment: String,
     #[serde(rename = "statusColor", default)]
     status_color: String,
+    /// ID of the `ConnectionGroups.plist` group holding this connection; empty
+    /// when the connection sits at the top level.
+    #[serde(rename = "GroupID", default)]
+    group_id: String,
     #[serde(rename = "isOverSSH", default)]
     #[allow(dead_code)]
     is_over_ssh: bool,
     #[serde(rename = "tLSMode", default)]
     #[allow(dead_code)]
     tls_mode: i64,
+}
+
+/// One `<dict>` from `ConnectionGroups.plist`. TablePlus nests groups by
+/// pointing a group at its parent through `GroupID`; Cellar folders are one
+/// level deep, so only the leaf name is used.
+#[derive(Debug, Default, Deserialize)]
+struct RawGroup {
+    #[serde(rename = "ID", default)]
+    id: String,
+    #[serde(rename = "Name", default)]
+    name: String,
+    /// Parent group id, empty for a top-level group. Kept so the nesting is
+    /// visible in the data even though the mapping flattens it.
+    #[serde(rename = "GroupID", default)]
+    #[allow(dead_code)]
+    group_id: String,
+}
+
+/// Parse a `ConnectionGroups.plist` document into `group id -> group name`. A
+/// missing or malformed file simply means "no groups": grouping is a nicety and
+/// must never cost the user their connections.
+fn parse_groups(plist_bytes: &[u8]) -> HashMap<String, String> {
+    let mut groups = HashMap::new();
+    let Ok(rows) = plist::from_bytes::<Vec<plist::Value>>(plist_bytes) else {
+        return groups;
+    };
+    for value in &rows {
+        let Ok(row) = plist::from_value::<RawGroup>(value) else {
+            continue;
+        };
+        let name = row.name.trim();
+        if row.id.is_empty() || name.is_empty() {
+            continue;
+        }
+        groups.insert(row.id, name.to_string());
+    }
+    groups
 }
 
 /// TablePlus config directories. Matches the normal build
@@ -80,9 +122,9 @@ fn config_dirs() -> Vec<PathBuf> {
         .collect()
 }
 
-/// `<dir>/Data/Connections.plist`, matched case-insensitively inside `Data/`
-/// because Linux filesystems are case-sensitive and the casing has drifted.
-fn connections_file(dir: &std::path::Path) -> Option<PathBuf> {
+/// `<dir>/Data/<name>`, matched case-insensitively inside `Data/` because Linux
+/// filesystems are case-sensitive and the casing has drifted.
+fn data_file(dir: &std::path::Path, name: &str) -> Option<PathBuf> {
     let data = dir.join("Data");
     let entries = std::fs::read_dir(&data).ok()?;
     entries
@@ -90,10 +132,7 @@ fn connections_file(dir: &std::path::Path) -> Option<PathBuf> {
         .map(|e| e.path())
         .find(|p| {
             p.file_name()
-                .map(|n| {
-                    n.to_string_lossy()
-                        .eq_ignore_ascii_case("connections.plist")
-                })
+                .map(|n| n.to_string_lossy().eq_ignore_ascii_case(name))
                 .unwrap_or(false)
         })
         .filter(|p| p.is_file())
@@ -104,15 +143,22 @@ fn connections_file(dir: &std::path::Path) -> Option<PathBuf> {
 pub fn scan() -> ConnectionImport {
     let mut files = Vec::new();
     for dir in config_dirs() {
-        let Some(path) = connections_file(&dir) else {
+        let Some(path) = data_file(&dir, "connections.plist") else {
             continue;
         };
+        // Groups are per install, so they are read alongside that install's
+        // connections and never shared between them.
+        let groups = data_file(&dir, "connectiongroups.plist")
+            .and_then(|path| std::fs::read(path).ok())
+            .map(|bytes| parse_groups(&bytes))
+            .unwrap_or_default();
         match std::fs::read(&path) {
-            Ok(bytes) => files.push(parse_file(&bytes)),
+            Ok(bytes) => files.push(parse_file(&bytes, &groups)),
             Err(_) => files.push(ParsedFile {
                 result: ConnectionImport {
                     connections: Vec::new(),
                     skipped: vec![format!("{} — could not be read", path.display())],
+                    groups: HashMap::new(),
                 },
                 uuids: Vec::new(),
             }),
@@ -128,17 +174,26 @@ pub fn scan() -> ConnectionImport {
 fn merge(files: Vec<ParsedFile>) -> ConnectionImport {
     let mut connections = Vec::new();
     let mut skipped = Vec::new();
+    let mut groups = HashMap::new();
     let mut seen_uuid = HashSet::new();
     let mut seen_id = HashSet::new();
     for ParsedFile { result, uuids } in files {
         skipped.extend(result.skipped);
+        let mut file_groups = result.groups;
         for (uuid, cfg) in uuids.into_iter().zip(result.connections) {
             if !uuid.is_empty() && !seen_uuid.insert(uuid) {
-                continue; // same TablePlus connection seen in another install
+                // Same TablePlus connection seen in another install: drop its
+                // folder with it so no entry outlives the connection.
+                file_groups.remove(&cfg.id);
+                continue;
             }
             if seen_id.insert(cfg.id.clone()) {
+                if let Some(folder) = file_groups.remove(&cfg.id) {
+                    groups.insert(cfg.id.clone(), folder);
+                }
                 connections.push(cfg);
             } else {
+                file_groups.remove(&cfg.id);
                 skipped.push(format!(
                     "{} — duplicate id '{}' (a connection with the same name was already imported)",
                     cfg.name, cfg.id
@@ -150,6 +205,7 @@ fn merge(files: Vec<ParsedFile>) -> ConnectionImport {
     ConnectionImport {
         connections,
         skipped,
+        groups,
     }
 }
 
@@ -165,14 +221,17 @@ struct ParsedFile {
 /// connections. A malformed plist yields a single skipped entry rather than
 /// failing the whole scan; a row with an unexpected value type is skipped on
 /// its own so one odd entry cannot hide the rest.
-pub fn parse_connections(plist_bytes: &[u8]) -> ConnectionImport {
-    parse_file(plist_bytes).result
+/// `groups` maps TablePlus group ids to folder names, as read from the sibling
+/// `ConnectionGroups.plist`; pass an empty map when there is none.
+pub fn parse_connections(plist_bytes: &[u8], groups: &HashMap<String, String>) -> ConnectionImport {
+    parse_file(plist_bytes, groups).result
 }
 
-fn parse_file(plist_bytes: &[u8]) -> ParsedFile {
+fn parse_file(plist_bytes: &[u8], groups: &HashMap<String, String>) -> ParsedFile {
     let mut connections = Vec::new();
     let mut skipped = Vec::new();
     let mut uuids = Vec::new();
+    let mut folders = HashMap::new();
 
     let rows = match plist::from_bytes::<Vec<plist::Value>>(plist_bytes) {
         Ok(rows) => rows,
@@ -182,6 +241,7 @@ fn parse_file(plist_bytes: &[u8]) -> ParsedFile {
                 result: ConnectionImport {
                     connections,
                     skipped,
+                    groups: folders,
                 },
                 uuids,
             };
@@ -202,8 +262,15 @@ fn parse_file(plist_bytes: &[u8]) -> ParsedFile {
             row.name.clone()
         };
         let uuid = row.id.clone();
+        // An unknown group id means the groups file is missing, unreadable, or
+        // out of step with the connections; the connection still imports, just
+        // without a folder.
+        let folder = groups.get(row.group_id.trim()).cloned();
         match build_config(row) {
             Ok(cfg) => {
+                if let Some(folder) = folder {
+                    folders.insert(cfg.id.clone(), folder);
+                }
                 connections.push(cfg);
                 uuids.push(uuid);
             }
@@ -215,6 +282,7 @@ fn parse_file(plist_bytes: &[u8]) -> ParsedFile {
         result: ConnectionImport {
             connections,
             skipped,
+            groups: folders,
         },
         uuids,
     }
@@ -336,6 +404,7 @@ mod tests {
     <key>DatabaseUser</key><string>app</string>
     <key>Enviroment</key><string>production</string>
     <key>statusColor</key><string>#6D0000</string>
+    <key>GroupID</key><string>g-1</string>
     <key>isOverSSH</key><true/>
     <key>tLSMode</key><integer>2</integer>
   </dict>
@@ -348,6 +417,7 @@ mod tests {
     <key>DatabaseName</key><string></string>
     <key>DatabaseUser</key><string>root</string>
     <key>statusColor</key><string>blue</string>
+    <key>GroupID</key><string>g-missing</string>
   </dict>
   <dict>
     <key>ID</key><string>33333333-3333-3333-3333-333333333333</string>
@@ -363,6 +433,7 @@ mod tests {
     <key>DatabasePort</key><string>1433</string>
     <key>DatabaseName</key><string>Sales</string>
     <key>DatabaseUser</key><string>dbadmin</string>
+    <key>GroupID</key><string>g-2</string>
   </dict>
   <dict>
     <key>ID</key><string>55555555-5555-5555-5555-555555555555</string>
@@ -380,6 +451,35 @@ mod tests {
 </array>
 </plist>"#;
 
+    /// Stand-in for `ConnectionGroups.plist`: a top-level group, a group nested
+    /// under it, and a nameless row that must not become a folder.
+    const GROUPS: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0">
+<array>
+  <dict>
+    <key>ID</key><string>g-1</string>
+    <key>Name</key><string>OCO</string>
+    <key>GroupID</key><string></string>
+    <key>IsExpaned</key><true/>
+  </dict>
+  <dict>
+    <key>ID</key><string>g-2</string>
+    <key>Name</key><string>Reporting</string>
+    <key>GroupID</key><string>g-1</string>
+    <key>IsExpaned</key><false/>
+  </dict>
+  <dict>
+    <key>ID</key><string>g-3</string>
+    <key>Name</key><string></string>
+    <key>GroupID</key><string></string>
+  </dict>
+</array>
+</plist>"#;
+
+    fn groups() -> HashMap<String, String> {
+        parse_groups(GROUPS.as_bytes())
+    }
+
     fn by_name<'a>(r: &'a ConnectionImport, name: &str) -> &'a ConnectionConfig {
         r.connections
             .iter()
@@ -389,7 +489,7 @@ mod tests {
 
     #[test]
     fn maps_supported_drivers_and_skips_the_rest() {
-        let r = parse_connections(FIXTURE.as_bytes());
+        let r = parse_connections(FIXTURE.as_bytes(), &groups());
         assert_eq!(r.connections.len(), 5, "5 supported rows imported");
         assert_eq!(r.skipped.len(), 1, "redis skipped");
         assert!(r.skipped[0].contains("Cache"));
@@ -398,7 +498,7 @@ mod tests {
 
     #[test]
     fn postgres_row_maps_every_field() {
-        let r = parse_connections(FIXTURE.as_bytes());
+        let r = parse_connections(FIXTURE.as_bytes(), &groups());
         let pg = by_name(&r, "Prod PG");
         assert_eq!(pg.engine, Engine::Postgres);
         assert_eq!(pg.host, "db.example.com");
@@ -414,7 +514,7 @@ mod tests {
 
     #[test]
     fn empty_host_port_and_database_fall_back_to_defaults() {
-        let r = parse_connections(FIXTURE.as_bytes());
+        let r = parse_connections(FIXTURE.as_bytes(), &groups());
         let my = by_name(&r, "Local MySQL");
         assert_eq!(my.engine, Engine::MySql);
         assert_eq!(my.host, "localhost");
@@ -426,7 +526,7 @@ mod tests {
 
     #[test]
     fn sqlite_uses_the_file_path_as_database() {
-        let r = parse_connections(FIXTURE.as_bytes());
+        let r = parse_connections(FIXTURE.as_bytes(), &groups());
         let db = by_name(&r, "Notes");
         assert_eq!(db.engine, Engine::Sqlite);
         assert_eq!(db.host, "");
@@ -436,7 +536,7 @@ mod tests {
 
     #[test]
     fn azure_host_routes_to_the_azure_engine() {
-        let r = parse_connections(FIXTURE.as_bytes());
+        let r = parse_connections(FIXTURE.as_bytes(), &groups());
         let az = by_name(&r, "Azure Sales");
         assert_eq!(az.engine, Engine::Azure);
         assert_eq!(az.database, "Sales");
@@ -445,7 +545,7 @@ mod tests {
 
     #[test]
     fn empty_name_falls_back_to_host_slash_database() {
-        let r = parse_connections(FIXTURE.as_bytes());
+        let r = parse_connections(FIXTURE.as_bytes(), &groups());
         let c = by_name(&r, "anon.example.com/reports");
         assert_eq!(c.id, "anon-example-com-reports");
     }
@@ -457,7 +557,7 @@ mod tests {
   <key>ConnectionName</key><string>Broken</string>
   <key>Driver</key><string>SQLite</string>
 </dict></array></plist>"#;
-        let r = parse_connections(xml.as_bytes());
+        let r = parse_connections(xml.as_bytes(), &HashMap::new());
         assert!(r.connections.is_empty());
         assert!(r.skipped[0].contains("Broken"));
     }
@@ -479,7 +579,7 @@ mod tests {
     <key>DatabaseHost</key><string>h1</string>
   </dict>
 </array></plist>"#;
-        let r = merge(vec![parse_file(xml.as_bytes())]);
+        let r = merge(vec![parse_file(xml.as_bytes(), &HashMap::new())]);
         assert_eq!(
             r.connections.len(),
             1,
@@ -505,7 +605,7 @@ mod tests {
     <key>DatabaseHost</key><string>h2</string>
   </dict>
 </array></plist>"#;
-        let r = merge(vec![parse_file(xml.as_bytes())]);
+        let r = merge(vec![parse_file(xml.as_bytes(), &HashMap::new())]);
         assert_eq!(r.connections.len(), 1);
         assert_eq!(r.skipped.len(), 1);
         assert!(r.skipped[0].contains("duplicate id 'shared-name'"));
@@ -519,7 +619,10 @@ mod tests {
   <key>ConnectionName</key><string>Shared</string>
   <key>Driver</key><string>PostgreSQL</string>
 </dict></array></plist>"#;
-        let r = merge(vec![parse_file(xml.as_bytes()), parse_file(xml.as_bytes())]);
+        let r = merge(vec![
+            parse_file(xml.as_bytes(), &HashMap::new()),
+            parse_file(xml.as_bytes(), &HashMap::new()),
+        ]);
         assert_eq!(r.connections.len(), 1);
         assert!(r.skipped.is_empty());
     }
@@ -538,7 +641,7 @@ mod tests {
     <key>Driver</key><string>PostgreSQL</string>
   </dict>
 </array></plist>"#;
-        let r = parse_connections(xml.as_bytes());
+        let r = parse_connections(xml.as_bytes(), &HashMap::new());
         assert_eq!(r.connections.len(), 1);
         assert_eq!(r.connections[0].name, "Fine");
         assert_eq!(r.skipped.len(), 1);
@@ -554,8 +657,74 @@ mod tests {
     }
 
     #[test]
+    fn a_grouped_connection_records_its_folder_name() {
+        let r = parse_connections(FIXTURE.as_bytes(), &groups());
+        assert_eq!(r.groups.get("prod-pg").map(String::as_str), Some("OCO"));
+    }
+
+    #[test]
+    fn a_nested_group_maps_to_its_own_leaf_name() {
+        let r = parse_connections(FIXTURE.as_bytes(), &groups());
+        assert_eq!(
+            r.groups.get("azure-sales").map(String::as_str),
+            Some("Reporting"),
+            "Cellar folders are one level deep, so the leaf name wins"
+        );
+    }
+
+    #[test]
+    fn an_ungrouped_connection_has_no_folder() {
+        let r = parse_connections(FIXTURE.as_bytes(), &groups());
+        assert!(by_name(&r, "Notes").id == "notes");
+        assert!(!r.groups.contains_key("notes"));
+    }
+
+    #[test]
+    fn an_unknown_group_id_is_ignored() {
+        let r = parse_connections(FIXTURE.as_bytes(), &groups());
+        assert!(
+            !r.groups.contains_key("local-mysql"),
+            "a GroupID with no matching group is dropped, not invented"
+        );
+        assert_eq!(r.connections.len(), 5, "the connection still imports");
+    }
+
+    #[test]
+    fn a_nameless_group_is_not_a_folder() {
+        assert!(!groups().contains_key("g-3"));
+        assert_eq!(groups().len(), 2);
+    }
+
+    #[test]
+    fn a_garbage_groups_file_yields_no_groups_but_keeps_connections() {
+        let bad = parse_groups(b"not a plist at all \x00\xff");
+        assert!(bad.is_empty());
+        let r = parse_connections(FIXTURE.as_bytes(), &bad);
+        assert_eq!(r.connections.len(), 5);
+        assert!(r.groups.is_empty());
+    }
+
+    #[test]
+    fn a_duplicate_connection_leaves_no_stray_group_entry() {
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0"><array><dict>
+  <key>ID</key><string>uuid-1</string>
+  <key>ConnectionName</key><string>Shared</string>
+  <key>Driver</key><string>PostgreSQL</string>
+  <key>GroupID</key><string>g-1</string>
+</dict></array></plist>"#;
+        let r = merge(vec![
+            parse_file(xml.as_bytes(), &groups()),
+            parse_file(xml.as_bytes(), &groups()),
+        ]);
+        assert_eq!(r.connections.len(), 1);
+        assert_eq!(r.groups.len(), 1, "one connection, one folder entry");
+        assert_eq!(r.groups.get("shared").map(String::as_str), Some("OCO"));
+    }
+
+    #[test]
     fn garbage_bytes_yield_an_empty_result() {
-        let r = parse_connections(b"not a plist at all \x00\xff");
+        let r = parse_connections(b"not a plist at all \x00\xff", &HashMap::new());
         assert!(r.connections.is_empty());
         assert_eq!(
             r.skipped.len(),

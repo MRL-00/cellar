@@ -141,6 +141,7 @@ pub fn scan() -> ConnectionImport {
     ConnectionImport {
         connections,
         skipped,
+        groups: HashMap::new(),
     }
 }
 
@@ -242,6 +243,7 @@ pub fn parse_data_sources(xml: &str, users: &HashMap<String, String>) -> Connect
     ConnectionImport {
         connections,
         skipped,
+        groups: HashMap::new(),
     }
 }
 
