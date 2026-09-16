@@ -1,7 +1,7 @@
 use std::{collections::HashSet, sync::Arc};
 
 use cellar_core::driver::ConnectionConfig;
-use cellar_runtime::datagrip::DatagripImport;
+use cellar_runtime::connection_import::ConnectionImport as ImportResult;
 use gpui::{div, prelude::*, px, AnyElement, Context, Entity, SharedString, Window};
 use gpui_component::{checkbox::Checkbox, input::InputState, Disableable, Icon};
 
@@ -11,11 +11,49 @@ use cellar_desktop_gpui::theme::{
 };
 use cellar_desktop_gpui::widgets::compact_input;
 
-use super::CellarApp;
+use super::{
+    sidebar_layout::SidebarItem,
+    sidebar_menu::{find_or_create_folder, remove_connection_from_layout},
+    CellarApp,
+};
+
+/// External client whose saved connections can be imported into Cellar.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(super) enum ImportSource {
+    Datagrip,
+    Tableplus,
+}
+
+impl ImportSource {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Datagrip => "DataGrip",
+            Self::Tableplus => "TablePlus",
+        }
+    }
+
+    /// One-line caveat shown above the candidate list.
+    fn hint(self) -> &'static str {
+        match self {
+            Self::Datagrip => "Passwords aren't stored by DataGrip — add them now or on first connect.",
+            Self::Tableplus => "Passwords aren't stored by TablePlus — add them now or on first connect. Tunnelled connections will import, but Cellar can't open SSH tunnels yet.",
+        }
+    }
+
+    fn scan(self) -> ImportResult {
+        match self {
+            Self::Datagrip => cellar_runtime::datagrip::scan(),
+            Self::Tableplus => cellar_runtime::tableplus::scan(),
+        }
+    }
+}
 
 #[derive(Clone)]
 struct ImportCandidate {
     config: ConnectionConfig,
+    /// Sidebar folder this connection belongs in, from the source app's own
+    /// grouping. `None` leaves it at the top level.
+    folder: Option<String>,
     selected: bool,
     conflict: bool,
     database: Entity<InputState>,
@@ -23,6 +61,7 @@ struct ImportCandidate {
 }
 
 pub(super) struct ConnectionImport {
+    source: ImportSource,
     candidates: Vec<ImportCandidate>,
     skipped: Vec<String>,
     scanning: bool,
@@ -31,8 +70,9 @@ pub(super) struct ConnectionImport {
 }
 
 impl ConnectionImport {
-    fn scanning() -> Self {
+    fn scanning(source: ImportSource) -> Self {
         Self {
+            source,
             candidates: Vec::new(),
             skipped: Vec::new(),
             scanning: true,
@@ -42,17 +82,24 @@ impl ConnectionImport {
     }
 
     fn from_scan(
-        result: DatagripImport,
+        source: ImportSource,
+        result: ImportResult,
         existing: &HashSet<String>,
         window: &mut Window,
         cx: &mut Context<CellarApp>,
     ) -> Self {
+        let ImportResult {
+            connections,
+            skipped,
+            groups,
+        } = result;
         Self {
-            candidates: result
-                .connections
+            source,
+            candidates: connections
                 .into_iter()
                 .map(|config| {
                     let (selected, conflict) = candidate_state(existing, &config.id);
+                    let folder = groups.get(&config.id).cloned();
                     let database = cx.new(|cx| {
                         InputState::new(window, cx)
                             .default_value(config.database.clone())
@@ -65,6 +112,7 @@ impl ConnectionImport {
                     });
                     ImportCandidate {
                         config,
+                        folder,
                         selected,
                         conflict,
                         database,
@@ -72,7 +120,7 @@ impl ConnectionImport {
                     }
                 })
                 .collect(),
-            skipped: result.skipped,
+            skipped,
             scanning: false,
             importing: false,
             error: None,
@@ -85,43 +133,47 @@ fn candidate_state(existing: &HashSet<String>, id: &str) -> (bool, bool) {
 }
 
 impl CellarApp {
-    pub(super) fn scan_datagrip(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.connection_import = Some(ConnectionImport::scanning());
+    pub(super) fn scan_connection_import(
+        &mut self,
+        source: ImportSource,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.connection_import = Some(ConnectionImport::scanning(source));
         let runtime = Arc::clone(&self.runtime);
-        let window_handle = window.window_handle();
-        cx.spawn(async move |_, cx| {
+        let label = source.label();
+        cx.spawn_in(window, async move |this, cx| {
             let result = runtime
-                .spawn_blocking(cellar_runtime::datagrip::scan)
+                .spawn_blocking(move || source.scan())
                 .await
-                .map_err(|error| format!("DataGrip scan failed: {error}"));
-            let _ = cx.update_window(window_handle, |view, window, cx| {
-                let Ok(app) = view.downcast::<CellarApp>() else {
+                .map_err(|error| format!("{label} scan failed: {error}"));
+            // `this.update_in` reaches the app entity directly; the window's
+            // root view is a `Root` wrapper, so downcasting it would fail.
+            this.update_in(cx, |this, window, cx| {
+                if this.connection_import.is_none() {
                     return;
-                };
-                app.update(cx, |this, cx| {
-                    if this.connection_import.is_none() {
-                        return;
+                }
+                match result {
+                    Ok(result) => {
+                        let existing = this
+                            .model
+                            .connections()
+                            .iter()
+                            .map(|config| config.id.clone())
+                            .collect();
+                        this.connection_import = Some(ConnectionImport::from_scan(
+                            source, result, &existing, window, cx,
+                        ));
                     }
-                    match result {
-                        Ok(result) => {
-                            let existing = this
-                                .model
-                                .connections()
-                                .iter()
-                                .map(|config| config.id.clone())
-                                .collect();
-                            this.connection_import =
-                                Some(ConnectionImport::from_scan(result, &existing, window, cx));
-                        }
-                        Err(error) => {
-                            let import = this.connection_import.as_mut().unwrap();
-                            import.scanning = false;
-                            import.error = Some(error);
-                        }
+                    Err(error) => {
+                        let import = this.connection_import.as_mut().unwrap();
+                        import.scanning = false;
+                        import.error = Some(error);
                     }
-                    cx.notify();
-                });
-            });
+                }
+                cx.notify();
+            })
+            .ok();
         })
         .detach();
         cx.notify();
@@ -166,7 +218,7 @@ impl CellarApp {
         if import.importing {
             return;
         }
-        let configs: Vec<_> = import
+        let selected: Vec<_> = import
             .candidates
             .iter()
             .filter(|candidate| candidate.selected)
@@ -177,12 +229,28 @@ impl CellarApp {
                     config.database = database;
                 }
                 let password = candidate.password.read(cx).value().to_string();
-                (config, (!password.is_empty()).then_some(password))
+                (
+                    config,
+                    (!password.is_empty()).then_some(password),
+                    candidate.folder.clone(),
+                )
             })
             .collect();
-        if configs.is_empty() {
+        if selected.is_empty() {
             return;
         }
+        // Folders are applied after the save, so the id -> folder pairing has to
+        // survive the round trip through the runtime task.
+        let folders: Vec<(String, String)> = selected
+            .iter()
+            .filter_map(|(config, _, folder)| {
+                folder.clone().map(|folder| (config.id.clone(), folder))
+            })
+            .collect();
+        let configs: Vec<_> = selected
+            .into_iter()
+            .map(|(config, password, _)| (config, password))
+            .collect();
         import.importing = true;
         import.error = None;
         let registry = Arc::clone(&self.registry);
@@ -209,6 +277,23 @@ impl CellarApp {
                         for config in configs {
                             this.model.upsert_connection(config);
                             this.reconcile_sidebar_layout();
+                        }
+                        // `reconcile_sidebar_layout` has just parked every new
+                        // connection at the top level; move the grouped ones into
+                        // their folder now that they all exist.
+                        let stamp = chrono::Utc::now().timestamp_millis();
+                        for (index, (connection_id, folder)) in folders.into_iter().enumerate() {
+                            remove_connection_from_layout(&mut this.sidebar_layout, &connection_id);
+                            let at = find_or_create_folder(
+                                &mut this.sidebar_layout,
+                                &folder,
+                                format!("folder-{stamp}-{index}"),
+                            );
+                            if let SidebarItem::Folder { children, .. } =
+                                &mut this.sidebar_layout[at]
+                            {
+                                children.push(connection_id);
+                            }
                         }
                         this.connection_import = None;
                     }
@@ -239,6 +324,7 @@ impl CellarApp {
             .count();
         let all_selected = !import.candidates.is_empty() && selected == import.candidates.len();
         let can_import = selected > 0 && !import.importing;
+        let label = import.source.label();
         div()
             .id("connection-import-backdrop")
             .absolute()
@@ -287,7 +373,7 @@ impl CellarApp {
                             .child(
                                 div()
                                     .font_weight(gpui::FontWeight::SEMIBOLD)
-                                    .child("Import from DataGrip"),
+                                    .child(format!("Import from {label}")),
                             )
                             .child(div().flex_1())
                             .child(
@@ -311,7 +397,7 @@ impl CellarApp {
                     )
                     .child(
                         div()
-                            .id("datagrip-import-list")
+                            .id("connection-import-list")
                             .flex_1()
                             .min_h_0()
                             .overflow_y_scroll()
@@ -325,7 +411,7 @@ impl CellarApp {
                                         .py_8()
                                         .text_center()
                                         .text_color(FG_MUTED)
-                                        .child("Scanning DataGrip…"),
+                                        .child(format!("Scanning {label}…")),
                                 )
                             })
                             .when(
@@ -339,7 +425,9 @@ impl CellarApp {
                                             .py_8()
                                             .text_center()
                                             .text_color(FG_MUTED)
-                                            .child("No importable DataGrip connections found."),
+                                            .child(format!(
+                                                "No importable {label} connections found."
+                                            )),
                                     )
                                 },
                             )
@@ -373,13 +461,15 @@ impl CellarApp {
                                                 .gap_3()
                                                 .child(
                                                     div()
+                                                        .flex_1()
+                                                        .min_w_0()
                                                         .text_size(px(12.))
                                                         .text_color(FG_MUTED)
-                                                        .child("Passwords aren't stored by DataGrip — add them now or on first connect."),
+                                                        .child(import.source.hint()),
                                                 )
                                                 .child(
                                                     div()
-                                                        .id("toggle-all-datagrip")
+                                                        .id("toggle-all-import")
                                                         .tab_index(0)
                                                         .cursor_pointer()
                                                         .flex_shrink_0()
@@ -393,9 +483,10 @@ impl CellarApp {
                                 let id = candidate.config.id.clone();
                                 let selected = candidate.selected;
                                 let conflict = candidate.conflict;
+                                let folder = candidate.folder.clone();
                                 let app = cx.entity().downgrade();
                                 div()
-                                    .id(SharedString::from(format!("datagrip-candidate:{id}")))
+                                    .id(SharedString::from(format!("import-candidate:{id}")))
                                     .flex()
                                     .items_center()
                                     .gap(px(10.))
@@ -406,7 +497,7 @@ impl CellarApp {
                                     .px(px(10.))
                                     .py(px(6.))
                                     .child(
-                                        Checkbox::new(SharedString::from(format!("datagrip-check:{id}")))
+                                        Checkbox::new(SharedString::from(format!("import-check:{id}")))
                                             .checked(selected)
                                             .disabled(import.importing)
                                             .on_click(move |_, _, cx| {
@@ -423,6 +514,17 @@ impl CellarApp {
                                                     .truncate()
                                                     .font_weight(gpui::FontWeight::MEDIUM)
                                                     .child(candidate.config.name.clone())
+                                                    .when_some(folder, |name, folder| {
+                                                        name.child(
+                                                            div()
+                                                                .ml_2()
+                                                                .flex_shrink_0()
+                                                                .text_size(px(11.))
+                                                                .font_weight(gpui::FontWeight::NORMAL)
+                                                                .text_color(FG_MUTED)
+                                                                .child(format!("in {folder}")),
+                                                        )
+                                                    })
                                                     .when(conflict, |name| {
                                                         name.child(
                                                             div()

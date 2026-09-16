@@ -1,7 +1,7 @@
 use gpui::{div, prelude::*, AnyElement, Context, Entity, Pixels, Point, SharedString, Window};
 use gpui_component::input::{InputEvent, InputState};
 
-use super::{sidebar_layout::SidebarItem, CellarApp};
+use super::{connection_import::ImportSource, sidebar_layout::SidebarItem, CellarApp};
 use cellar_desktop_gpui::theme::{
     accent_soft, ui_px, ACCENT, BORDER_STRONG, FG_SECONDARY, PANEL_MUTED, PROD, WARN_SOFT,
 };
@@ -156,7 +156,18 @@ impl CellarApp {
                         )
                         .on_click(cx.listener(|this, _, window, cx| {
                             this.sidebar_menu = None;
-                            this.scan_datagrip(window, cx);
+                            this.scan_connection_import(ImportSource::Datagrip, window, cx);
+                        })),
+                    )
+                    .child(
+                        item(
+                            "sidebar-import-tableplus",
+                            "icons/database.svg",
+                            "Import from TablePlus",
+                        )
+                        .on_click(cx.listener(|this, _, window, cx| {
+                            this.sidebar_menu = None;
+                            this.scan_connection_import(ImportSource::Tableplus, window, cx);
                         })),
                     )
                     .child(
@@ -318,7 +329,31 @@ impl CellarApp {
     }
 }
 
-fn remove_connection_from_layout(items: &mut Vec<SidebarItem>, connection_id: &str) {
+/// Index of the folder called `name`, appending one with `new_id` when the
+/// layout has none. Names are compared exactly, so importing the same external
+/// group twice lands in the same folder instead of making a second one.
+pub(super) fn find_or_create_folder(
+    items: &mut Vec<SidebarItem>,
+    name: &str,
+    new_id: String,
+) -> usize {
+    if let Some(index) = items
+        .iter()
+        .position(|item| matches!(item, SidebarItem::Folder { name: n, .. } if n == name))
+    {
+        return index;
+    }
+    items.push(SidebarItem::Folder {
+        id: new_id,
+        name: name.to_owned(),
+        collapsed: false,
+        children: Vec::new(),
+        color: None,
+    });
+    items.len() - 1
+}
+
+pub(super) fn remove_connection_from_layout(items: &mut Vec<SidebarItem>, connection_id: &str) {
     items.retain(|item| !matches!(item, SidebarItem::Connection { id } if id == connection_id));
     for item in items {
         if let SidebarItem::Folder { children, .. } = item {
@@ -398,7 +433,7 @@ fn parse_color(color: &str) -> gpui::Rgba {
 
 #[cfg(test)]
 mod tests {
-    use super::remove_connection_from_layout;
+    use super::{find_or_create_folder, remove_connection_from_layout};
     use crate::app::sidebar_layout::SidebarItem;
 
     #[test]
@@ -418,5 +453,34 @@ mod tests {
             SidebarItem::Connection { id } => id != "one",
             SidebarItem::Folder { children, .. } => !children.contains(&"one".to_owned()),
         }));
+    }
+
+    #[test]
+    fn importing_the_same_group_twice_reuses_one_folder() {
+        let mut items = vec![
+            SidebarItem::Connection { id: "one".into() },
+            SidebarItem::Folder {
+                id: "folder-1".into(),
+                name: "Work".into(),
+                collapsed: false,
+                children: vec!["two".into()],
+                color: None,
+            },
+        ];
+        assert_eq!(
+            find_or_create_folder(&mut items, "Work", "folder-2".into()),
+            1
+        );
+        assert_eq!(items.len(), 2, "an existing folder is reused, not cloned");
+
+        assert_eq!(
+            find_or_create_folder(&mut items, "work", "folder-3".into()),
+            2
+        );
+        assert!(
+            matches!(&items[2], SidebarItem::Folder { id, name, collapsed, children, color }
+                if id == "folder-3" && name == "work" && !*collapsed && children.is_empty() && color.is_none()),
+            "a different name gets its own folder"
+        );
     }
 }

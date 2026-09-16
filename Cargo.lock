@@ -1289,6 +1289,7 @@ dependencies = [
  "cellar-secrets",
  "cellar-sql",
  "dirs 5.0.1",
+ "plist",
  "quick-xml 0.39.4",
  "serde",
  "serde_json",
