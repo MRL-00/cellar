@@ -1,15 +1,16 @@
 //! One-click import of TablePlus connections.
 //!
 //! TablePlus keeps every connection in one plist,
-//! `<config>/<bundle dir>/Data/Connections.plist`, where `<config>` is
-//! `~/Library/Application Support` on macOS and `<bundle dir>` is
-//! `com.tinyapp.TablePlus` (normal build), `com.tinyapp.TablePlus-setapp`
-//! (Setapp build), or a plain `TablePlus` directory off macOS. A machine can
-//! have several, so we scan them all and de-duplicate. Passwords are NOT in
-//! the file (they live in the OS keychain), so we import the connection
-//! metadata only and let the user supply passwords at import time or on first
-//! connect. The sibling `Data/ConnectionGroups.plist` names the groups a
-//! connection can sit in; those map onto Cellar's sidebar folders.
+//! `<root>/<bundle dir>/Data/Connections.plist`, where `<root>` is
+//! `~/Library/Application Support` on macOS or `%LOCALAPPDATA%` on Windows and
+//! `<bundle dir>` is `com.tinyapp.TablePlus` (normal build) or
+//! `com.tinyapp.TablePlus-setapp` (Setapp build). A machine can have both, so
+//! we scan them all and de-duplicate. The Linux build uses a different layout
+//! (`~/.tableplus/settings/connections.json`) and is not handled here yet.
+//! Passwords are NOT in the file (they live in the OS keychain), so we import
+//! the connection metadata only and let the user supply passwords at import
+//! time or on first connect. The sibling `Data/ConnectionGroups.plist` names
+//! the groups a connection can sit in; those map onto Cellar's sidebar folders.
 
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
@@ -98,32 +99,34 @@ fn parse_groups(plist_bytes: &[u8]) -> HashMap<String, String> {
     groups
 }
 
-/// TablePlus config directories. Matches the normal build
-/// (`com.tinyapp.TablePlus`), the Setapp build (`…-setapp`), and the
-/// plainly-named `TablePlus` directory used off macOS.
+/// TablePlus data directories: the normal build (`com.tinyapp.TablePlus`)
+/// and the Setapp build (`…-setapp`), under whichever root the platform uses.
 fn config_dirs() -> Vec<PathBuf> {
-    let Some(config) = dirs::config_dir() else {
-        return Vec::new();
-    };
-    let Ok(entries) = std::fs::read_dir(&config) else {
-        return Vec::new();
-    };
-    entries
+    // macOS keeps app data under the config dir; Windows keeps it under the
+    // local (non-roaming) data dir. Both resolve to the same place on macOS.
+    let roots: Vec<PathBuf> = [dirs::config_dir(), dirs::data_local_dir()]
+        .into_iter()
         .flatten()
-        .map(|e| e.path())
+        .collect();
+    let mut seen = HashSet::new();
+    roots
+        .into_iter()
+        .filter(|root| seen.insert(root.clone()))
+        .filter_map(|root| std::fs::read_dir(root).ok())
+        .flat_map(|entries| entries.flatten().map(|e| e.path()))
         .filter(|p| {
             p.file_name()
                 .map(|n| {
-                    let n = n.to_string_lossy().to_ascii_lowercase();
-                    n.starts_with("com.tinyapp.tableplus") || n.starts_with("tableplus")
+                    n.to_string_lossy()
+                        .to_ascii_lowercase()
+                        .starts_with("com.tinyapp.tableplus")
                 })
                 .unwrap_or(false)
         })
         .collect()
 }
-
-/// `<dir>/Data/<name>`, matched case-insensitively inside `Data/` because Linux
-/// filesystems are case-sensitive and the casing has drifted.
+/// `<dir>/Data/<name>`, matched case-insensitively inside `Data/` so a casing
+/// change in a future build does not silently break the scan.
 fn data_file(dir: &std::path::Path, name: &str) -> Option<PathBuf> {
     let data = dir.join("Data");
     let entries = std::fs::read_dir(&data).ok()?;
