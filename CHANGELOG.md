@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.3
+
+### Bug fixes
+
+- **Aurora MySQL schema browsing** — connections to Aurora MySQL no longer
+  fail during schema introspection when textual metadata is reported as binary.
+
 ## 1.0.2
 
 ### Bug fixes
