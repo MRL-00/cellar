@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use cellar_core::error::{CellarError, CellarResult};
 use cellar_core::schema::{Column, Database, ForeignKey, Index, Schema, Table, View};
 use cellar_core::table_browse::mark_primary_keys;
+use sqlx::mysql::MySqlRow;
 use sqlx::{MySqlPool, Row};
 
 use crate::connect::MySqlConnection;
@@ -73,7 +74,7 @@ async fn current_database(pool: &MySqlPool) -> CellarResult<String> {
         .fetch_one(pool)
         .await
         .map_err(intro_err)?;
-    row.try_get::<String, _>("d").map_err(intro_err)
+    metadata_text(&row, "d")
 }
 
 async fn list_tables(pool: &MySqlPool, db_name: &str) -> CellarResult<Vec<(String, bool)>> {
@@ -90,8 +91,8 @@ async fn list_tables(pool: &MySqlPool, db_name: &str) -> CellarResult<Vec<(Strin
 
     rows.into_iter()
         .map(|r| {
-            let name: String = r.try_get("TABLE_NAME").map_err(intro_err)?;
-            let kind: String = r.try_get("TABLE_TYPE").map_err(intro_err)?;
+            let name = metadata_text(&r, "TABLE_NAME")?;
+            let kind = metadata_text(&r, "TABLE_TYPE")?;
             let is_view = kind == "VIEW";
             Ok((name, is_view))
         })
@@ -115,11 +116,11 @@ async fn list_columns(pool: &MySqlPool, db_name: &str) -> CellarResult<ColMap> {
 
     let mut out: ColMap = BTreeMap::new();
     for r in rows {
-        let table: String = r.try_get("TABLE_NAME").map_err(intro_err)?;
-        let column: String = r.try_get("COLUMN_NAME").map_err(intro_err)?;
-        let data_type: String = r.try_get("COLUMN_TYPE").map_err(intro_err)?;
-        let nullable: String = r.try_get("IS_NULLABLE").map_err(intro_err)?;
-        let default: Option<String> = r.try_get("COLUMN_DEFAULT").map_err(intro_err)?;
+        let table = metadata_text(&r, "TABLE_NAME")?;
+        let column = metadata_text(&r, "COLUMN_NAME")?;
+        let data_type = metadata_text(&r, "COLUMN_TYPE")?;
+        let nullable = metadata_text(&r, "IS_NULLABLE")?;
+        let default = optional_metadata_text(&r, "COLUMN_DEFAULT")?;
         let ordinal: i64 = r.try_get("ORDINAL_POSITION").map_err(intro_err)?;
         out.entry((db_name.to_string(), table))
             .or_default()
@@ -152,8 +153,8 @@ async fn list_primary_keys(pool: &MySqlPool, db_name: &str) -> CellarResult<KeyM
 
     let mut out: KeyMap = BTreeMap::new();
     for r in rows {
-        let table: String = r.try_get("TABLE_NAME").map_err(intro_err)?;
-        let col: String = r.try_get("COLUMN_NAME").map_err(intro_err)?;
+        let table = metadata_text(&r, "TABLE_NAME")?;
+        let col = metadata_text(&r, "COLUMN_NAME")?;
         out.entry((db_name.to_string(), table))
             .or_default()
             .push(col);
@@ -178,11 +179,11 @@ async fn list_foreign_keys(pool: &MySqlPool, db_name: &str) -> CellarResult<FkMa
 
     let mut by_constraint: BTreeMap<(String, String), ForeignKey> = BTreeMap::new();
     for r in rows {
-        let table: String = r.try_get("TABLE_NAME").map_err(intro_err)?;
-        let name: String = r.try_get("CONSTRAINT_NAME").map_err(intro_err)?;
-        let local: String = r.try_get("COLUMN_NAME").map_err(intro_err)?;
-        let ref_table: String = r.try_get("REFERENCED_TABLE_NAME").map_err(intro_err)?;
-        let ref_col: String = r.try_get("REFERENCED_COLUMN_NAME").map_err(intro_err)?;
+        let table = metadata_text(&r, "TABLE_NAME")?;
+        let name = metadata_text(&r, "CONSTRAINT_NAME")?;
+        let local = metadata_text(&r, "COLUMN_NAME")?;
+        let ref_table = metadata_text(&r, "REFERENCED_TABLE_NAME")?;
+        let ref_col = metadata_text(&r, "REFERENCED_COLUMN_NAME")?;
 
         let entry = by_constraint
             .entry((table.clone(), name.clone()))
@@ -223,13 +224,13 @@ async fn list_indexes(pool: &MySqlPool, db_name: &str) -> CellarResult<IdxMap> {
 
     let mut by_idx: BTreeMap<(String, String, bool), Index> = BTreeMap::new();
     for r in rows {
-        let table: String = r.try_get("TABLE_NAME").map_err(intro_err)?;
-        let name: String = r.try_get("INDEX_NAME").map_err(intro_err)?;
+        let table = metadata_text(&r, "TABLE_NAME")?;
+        let name = metadata_text(&r, "INDEX_NAME")?;
         // COLUMN_NAME is NULL for MySQL 8+ expression (functional) index parts;
         // the expression lives in a separate EXPRESSION column we don't model.
         // Keep the index but skip the unnamed part rather than erroring the
         // whole introspection.
-        let col: Option<String> = r.try_get("COLUMN_NAME").map_err(intro_err)?;
+        let col = optional_metadata_text(&r, "COLUMN_NAME")?;
         let non_unique: i64 = r.try_get("NON_UNIQUE").map_err(intro_err)?;
         let unique = non_unique == 0;
         let primary = name == "PRIMARY";
@@ -271,14 +272,33 @@ async fn list_view_definitions(
 
     let mut out = BTreeMap::new();
     for r in rows {
-        let table: String = r.try_get("TABLE_NAME").map_err(intro_err)?;
-        let def: Option<String> = r.try_get("VIEW_DEFINITION").map_err(intro_err)?;
+        let table = metadata_text(&r, "TABLE_NAME")?;
+        let def = optional_metadata_text(&r, "VIEW_DEFINITION")?;
         if let Some(d) = def {
             out.insert((db_name.to_string(), table), d);
         }
     }
     Ok(out)
 }
+
+// Aurora/MySQL can report textual catalog fields with a binary collation,
+// which SQLx classifies as VARBINARY. These specific metadata fields are known
+// to contain text: bypass SQL type compatibility, but retain SQLx's strict
+// UTF-8 decoding, NULL handling, and column-specific errors. Do not use this
+// for arbitrary query results, where binary values must remain binary.
+fn metadata_text(row: &MySqlRow, column: &str) -> CellarResult<String> {
+    row.try_get_unchecked::<String, _>(column)
+        .map_err(intro_err)
+}
+
+fn optional_metadata_text(row: &MySqlRow, column: &str) -> CellarResult<Option<String>> {
+    row.try_get_unchecked::<Option<String>, _>(column)
+        .map_err(intro_err)
+}
+
+#[cfg(all(test, feature = "integration-tests"))]
+#[path = "introspect_tests.rs"]
+mod tests;
 
 fn intro_err(e: sqlx::Error) -> CellarError {
     crate::connect::map_sqlx_err_for_runtime(e, "schema introspection", CellarError::introspection)
