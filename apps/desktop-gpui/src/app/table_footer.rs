@@ -15,7 +15,7 @@ use cellar_desktop_gpui::{
     grid::DataGrid,
     model::TablePage,
     theme::{
-        ui_px, DynamicColor, ACCENT, BORDER, BORDER_DIVIDER, FG, FG_MUTED, FG_SECONDARY,
+        ui_px, DynamicColor, ACCENT, BORDER_DIVIDER, FG, FG_MUTED, FG_SECONDARY, GRID_LINE,
         PANEL_RAISED, PROD, WARN,
     },
 };
@@ -51,7 +51,7 @@ impl CellarApp {
             .gap(ui_px(2.))
             .px_3()
             .border_t_1()
-            .border_color(BORDER)
+            .border_color(GRID_LINE)
             .bg(PANEL_RAISED)
             .text_size(ui_px(11.5))
             .text_color(FG_SECONDARY)

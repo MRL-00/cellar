@@ -10,8 +10,8 @@ use cellar_desktop_gpui::{
         QueryTarget, SchemaCompareConfig, SplitOrientation, TabKind, TableTarget, WorkspaceTab,
     },
     theme::{
-        accent_soft, ui_px, ACCENT, BG, BORDER, FG, FG_MUTED, FG_SECONDARY, FG_TERTIARY, INSET,
-        PANEL, PANEL_RAISED,
+        accent_soft, ui_px, ACCENT, BG, BORDER, FG, FG_MUTED, FG_SECONDARY, FG_TERTIARY, GRID_LINE,
+        INSET, PANEL, PANEL_RAISED,
     },
 };
 
@@ -149,13 +149,16 @@ impl CellarApp {
         let can_split = self.model.split().is_some() || self.model.tabs().len() > 1;
         let horizontal = self.model.split() == Some(SplitOrientation::Horizontal);
         let vertical = self.model.split() == Some(SplitOrientation::Vertical);
+        // +1: the bottom border shrinks the content box to tab_height()-1, and
+        // items_end would push the 30px tabs 1px above the strip — painting
+        // over the title bar's bottom border under each tab.
         div()
-            .h(px(cellar_desktop_gpui::theme::tab_height()))
+            .h(px(cellar_desktop_gpui::theme::tab_height() + 1.))
             .flex_shrink_0()
             .flex()
             .items_end()
             .border_b_1()
-            .border_color(BORDER)
+            .border_color(GRID_LINE)
             .bg(PANEL)
             .when(self.model.tabs().is_empty(), |element| {
                 element.child(
