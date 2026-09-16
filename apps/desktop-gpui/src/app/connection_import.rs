@@ -120,42 +120,39 @@ impl CellarApp {
     ) {
         self.connection_import = Some(ConnectionImport::scanning(source));
         let runtime = Arc::clone(&self.runtime);
-        let window_handle = window.window_handle();
         let label = source.label();
-        cx.spawn(async move |_, cx| {
+        cx.spawn_in(window, async move |this, cx| {
             let result = runtime
                 .spawn_blocking(move || source.scan())
                 .await
                 .map_err(|error| format!("{label} scan failed: {error}"));
-            let _ = cx.update_window(window_handle, |view, window, cx| {
-                let Ok(app) = view.downcast::<CellarApp>() else {
+            // `this.update_in` reaches the app entity directly; the window's
+            // root view is a `Root` wrapper, so downcasting it would fail.
+            this.update_in(cx, |this, window, cx| {
+                if this.connection_import.is_none() {
                     return;
-                };
-                app.update(cx, |this, cx| {
-                    if this.connection_import.is_none() {
-                        return;
+                }
+                match result {
+                    Ok(result) => {
+                        let existing = this
+                            .model
+                            .connections()
+                            .iter()
+                            .map(|config| config.id.clone())
+                            .collect();
+                        this.connection_import = Some(ConnectionImport::from_scan(
+                            source, result, &existing, window, cx,
+                        ));
                     }
-                    match result {
-                        Ok(result) => {
-                            let existing = this
-                                .model
-                                .connections()
-                                .iter()
-                                .map(|config| config.id.clone())
-                                .collect();
-                            this.connection_import = Some(ConnectionImport::from_scan(
-                                source, result, &existing, window, cx,
-                            ));
-                        }
-                        Err(error) => {
-                            let import = this.connection_import.as_mut().unwrap();
-                            import.scanning = false;
-                            import.error = Some(error);
-                        }
+                    Err(error) => {
+                        let import = this.connection_import.as_mut().unwrap();
+                        import.scanning = false;
+                        import.error = Some(error);
                     }
-                    cx.notify();
-                });
-            });
+                }
+                cx.notify();
+            })
+            .ok();
         })
         .detach();
         cx.notify();
