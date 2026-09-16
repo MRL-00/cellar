@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Cellar has no required wake-time services or authentication. The toolchains
+# and dependencies installed by .agents/setup are preserved in the orb snapshot.
+printf 'Cellar orb ready.\n'

@@ -9,6 +9,7 @@ target/
 .turbo/
 .clawpatch/
 .superset/
+.amp/portals/*
 
 # tauri
 apps/desktop/src-tauri/target/
