@@ -28,6 +28,14 @@ impl ImportSource {
         }
     }
 
+    /// One-line caveat shown above the candidate list.
+    fn hint(self) -> &'static str {
+        match self {
+            Self::Datagrip => "Passwords aren't stored by DataGrip — add them now or on first connect.",
+            Self::Tableplus => "Passwords aren't stored by TablePlus — add them now or on first connect. Tunnelled connections will import, but Cellar can't open SSH tunnels yet.",
+        }
+    }
+
     fn scan(self) -> ImportResult {
         match self {
             Self::Datagrip => cellar_runtime::datagrip::scan(),
@@ -407,9 +415,11 @@ impl CellarApp {
                                                 .gap_3()
                                                 .child(
                                                     div()
+                                                        .flex_1()
+                                                        .min_w_0()
                                                         .text_size(px(12.))
                                                         .text_color(FG_MUTED)
-                                                        .child(format!("Passwords aren't stored by {label} — add them now or on first connect.")),
+                                                        .child(import.source.hint()),
                                                 )
                                                 .child(
                                                     div()
