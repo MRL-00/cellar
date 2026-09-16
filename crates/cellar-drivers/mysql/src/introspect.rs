@@ -121,7 +121,7 @@ async fn list_columns(pool: &MySqlPool, db_name: &str) -> CellarResult<ColMap> {
         let data_type = metadata_text(&r, "COLUMN_TYPE")?;
         let nullable = metadata_text(&r, "IS_NULLABLE")?;
         let default = optional_metadata_text(&r, "COLUMN_DEFAULT")?;
-        let ordinal: i64 = r.try_get("ORDINAL_POSITION").map_err(intro_err)?;
+        let ordinal: u32 = r.try_get("ORDINAL_POSITION").map_err(intro_err)?;
         out.entry((db_name.to_string(), table))
             .or_default()
             .push(Column {
@@ -130,7 +130,7 @@ async fn list_columns(pool: &MySqlPool, db_name: &str) -> CellarResult<ColMap> {
                 nullable: nullable == "YES",
                 default,
                 is_primary_key: false,
-                ordinal: ordinal as u32,
+                ordinal,
                 comment: None,
             });
     }
@@ -210,9 +210,11 @@ async fn list_foreign_keys(pool: &MySqlPool, db_name: &str) -> CellarResult<FkMa
 type IdxMap = BTreeMap<(String, String), Vec<Index>>;
 
 async fn list_indexes(pool: &MySqlPool, db_name: &str) -> CellarResult<IdxMap> {
+    // Normalize this nonnegative flag so signedness differences between
+    // MySQL-compatible servers do not trip SQLx's integer type checks.
     let rows = sqlx::query(
         "SELECT TABLE_NAME, INDEX_NAME, COLUMN_NAME, \
-                NON_UNIQUE, SEQ_IN_INDEX \
+                CAST(NON_UNIQUE AS UNSIGNED) AS NON_UNIQUE, SEQ_IN_INDEX \
          FROM information_schema.statistics \
          WHERE TABLE_SCHEMA = ? \
          ORDER BY TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX",
@@ -231,7 +233,7 @@ async fn list_indexes(pool: &MySqlPool, db_name: &str) -> CellarResult<IdxMap> {
         // Keep the index but skip the unnamed part rather than erroring the
         // whole introspection.
         let col = optional_metadata_text(&r, "COLUMN_NAME")?;
-        let non_unique: i64 = r.try_get("NON_UNIQUE").map_err(intro_err)?;
+        let non_unique: u64 = r.try_get("NON_UNIQUE").map_err(intro_err)?;
         let unique = non_unique == 0;
         let primary = name == "PRIMARY";
         let entry = by_idx
