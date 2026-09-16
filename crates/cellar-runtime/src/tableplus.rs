@@ -57,8 +57,9 @@ struct RawConnection {
     #[serde(rename = "isOverSSH", default)]
     #[allow(dead_code)]
     is_over_ssh: bool,
+    /// Index of the SSL-mode dropdown in TablePlus's per-driver connection
+    /// form; the option list differs per driver, see [`ssl_mode`].
     #[serde(rename = "tLSMode", default)]
-    #[allow(dead_code)]
     tls_mode: i64,
 }
 
@@ -345,16 +346,40 @@ fn build_config(row: RawConnection) -> Result<ConnectionConfig, String> {
         port,
         database,
         user: row.user.trim().to_string(),
-        // ponytail: `tLSMode` is an undocumented TablePlus integer enum; default
-        // to prefer like the new-connection form does and map it once someone
-        // writes the values down.
-        ssl_mode: SslMode::Prefer,
+        ssl_mode: ssl_mode(&row.driver, row.tls_mode),
         env_tag: env_tag(&row.environment),
         application_name: Some("cellar".into()),
         color: color(&row.status_color),
     })
     // `isOverSSH` rows are imported as-is: Cellar has no tunnel support yet, and
     // the stored host is the one TablePlus would reach through the tunnel.
+}
+
+/// Map TablePlus's `tLSMode` to Cellar's [`SslMode`]. TablePlus stores the
+/// zero-based index of the SSL-mode dropdown, and the dropdown differs per
+/// driver (read from the connection forms of the current macOS build; the
+/// vendor docs don't list the values). SQL Server has no such dropdown and
+/// SQLite has no TLS, so both keep the default. An index we don't recognise
+/// also falls back to the default rather than guessing.
+fn ssl_mode(driver: &str, tls_mode: i64) -> SslMode {
+    match (driver.trim().to_ascii_lowercase().as_str(), tls_mode) {
+        // PostgreSQL: PREFERRED, DISABLED, REQUIRED, ALLOW, VERIFY-CA, VERIFY-FULL.
+        // Cellar has no "allow", and "prefer" is the closest opportunistic mode.
+        ("postgresql", 0) | ("postgresql", 3) => SslMode::Prefer,
+        ("postgresql", 1) => SslMode::Disable,
+        ("postgresql", 2) => SslMode::Require,
+        ("postgresql", 4) => SslMode::VerifyCa,
+        ("postgresql", 5) => SslMode::VerifyFull,
+        // MySQL: PREFERRED, DISABLED, REQUIRED, VERIFY-CA, VERIFY-IDENTITY.
+        ("mysql", 1) => SslMode::Disable,
+        ("mysql", 2) => SslMode::Require,
+        ("mysql", 3) => SslMode::VerifyCa,
+        ("mysql", 4) => SslMode::VerifyFull,
+        // MariaDB: PREFERRED, ENFORCE, VERIFY-SERVER-CERT.
+        ("mariadb", 1) => SslMode::Require,
+        ("mariadb", 2) => SslMode::VerifyFull,
+        _ => SslMode::Prefer,
+    }
 }
 
 fn env_tag(value: &str) -> Option<EnvTag> {
@@ -503,7 +528,11 @@ mod tests {
         assert_eq!(pg.id, "prod-pg");
         assert_eq!(pg.env_tag, Some(EnvTag::Prod));
         assert_eq!(pg.color.as_deref(), Some("#6D0000"));
-        assert_eq!(pg.ssl_mode, SslMode::Prefer);
+        assert_eq!(
+            pg.ssl_mode,
+            SslMode::Require,
+            "tLSMode 2 is REQUIRED for PostgreSQL"
+        );
         assert_eq!(pg.application_name.as_deref(), Some("cellar"));
     }
 
@@ -758,6 +787,28 @@ mod tests {
         let r = parse_connections(xml.as_bytes(), &groups());
         assert_eq!(r.connections.len(), 1);
         assert!(r.groups.is_empty(), "the kept row was ungrouped");
+    }
+
+    #[test]
+    fn tls_mode_maps_per_driver_and_falls_back_to_prefer() {
+        assert_eq!(ssl_mode("PostgreSQL", 0), SslMode::Prefer);
+        assert_eq!(ssl_mode("PostgreSQL", 1), SslMode::Disable);
+        assert_eq!(
+            ssl_mode("PostgreSQL", 3),
+            SslMode::Prefer,
+            "ALLOW has no Cellar equivalent"
+        );
+        assert_eq!(ssl_mode("PostgreSQL", 5), SslMode::VerifyFull);
+        assert_eq!(ssl_mode("MySQL", 1), SslMode::Disable);
+        assert_eq!(ssl_mode("MySQL", 4), SslMode::VerifyFull);
+        assert_eq!(ssl_mode("MariaDB", 1), SslMode::Require);
+        assert_eq!(ssl_mode("MariaDB", 2), SslMode::VerifyFull);
+        assert_eq!(
+            ssl_mode("Microsoft SQL Server", 2),
+            SslMode::Prefer,
+            "no dropdown for MSSQL"
+        );
+        assert_eq!(ssl_mode("PostgreSQL", 42), SslMode::Prefer, "unknown index");
     }
 
     #[test]
