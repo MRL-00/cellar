@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.0.1
+
+### Bug fixes
+
+- **Scrolling stays inside dialogs** — wheel and trackpad gestures on a
+  modal backdrop, such as the command palette or confirmation dialogs,
+  no longer scroll the grid and panels behind them.
+- **Multiline cells stay on one line** — text values containing line
+  breaks, such as pretty-printed JSON stored in nvarchar columns, now
+  render as a single truncated line with ⏎ markers instead of
+  overlapping neighbouring rows. Editing and copying keep the real
+  line breaks.
+- **Visible table separators** — borders around the tab strip, column
+  headers, and table footer are visible again on dark backgrounds
+  instead of blending into the panel.
+- **Cleaner updater packages** — update tarballs no longer include
+  stray macOS metadata files.
+
 ## 1.0.0
 
 ### Features
