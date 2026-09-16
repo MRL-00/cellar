@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+step() {
+  local label="$1"
+  shift
+  local started=$SECONDS
+  printf '\n==> %s\n' "$label"
+  "$@"
+  printf '    completed in %ss\n' "$((SECONDS - started))"
+}
+
+install_system_dependencies() {
+  local packages=(
+    build-essential
+    clang
+    cmake
+    curl
+    file
+    libasound2-dev
+    libayatana-appindicator3-dev
+    libdbus-1-dev
+    libfontconfig1-dev
+    libglib2.0-dev
+    libssl-dev
+    libvulkan1
+    libwayland-dev
+    libwebkit2gtk-4.1-dev
+    libx11-xcb-dev
+    libxdo-dev
+    libxkbcommon-x11-dev
+    libzstd-dev
+    librsvg2-dev
+    patchelf
+    pkg-config
+    wget
+  )
+  local missing=()
+  local package
+
+  for package in "${packages[@]}"; do
+    if ! dpkg-query -W -f='${Status}' "$package" 2>/dev/null | grep -Fqx 'install ok installed'; then
+      missing+=("$package")
+    fi
+  done
+
+  if ((${#missing[@]} == 0)); then
+    echo "All system dependencies are already installed."
+    return
+  fi
+
+  sudo apt-get update
+  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${missing[@]}"
+}
+
+install_rust() {
+  if [[ -f "$HOME/.cargo/env" ]]; then
+    # The setup process may not be a login shell, so load a previous install
+    # before deciding whether rustup is missing.
+    # shellcheck disable=SC1091
+    source "$HOME/.cargo/env"
+  fi
+
+  if ! command -v rustup >/dev/null 2>&1; then
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs |
+      sh -s -- -y --profile minimal --default-toolchain stable
+  fi
+
+  # The installer cannot update this already-running process.
+  # shellcheck disable=SC1091
+  source "$HOME/.cargo/env"
+
+  local profile_marker="# Cellar Rust toolchain"
+  if ! grep -Fqx "$profile_marker" "$HOME/.bash_profile" 2>/dev/null; then
+    cat >>"$HOME/.bash_profile" <<'EOF'
+
+# Cellar Rust toolchain
+if [ -f "$HOME/.cargo/env" ]; then
+  . "$HOME/.cargo/env"
+fi
+EOF
+  fi
+}
+
+prepare_pnpm() {
+  local node_major
+  node_major="$(node --version | sed -E 's/^v([0-9]+).*/\1/')"
+  if ((node_major < 20)); then
+    echo "Cellar requires Node.js 20 or newer; found $(node --version)." >&2
+    return 1
+  fi
+
+  if ! command -v pnpm >/dev/null 2>&1 || [[ "$(pnpm --version)" != "9.0.0" ]]; then
+    corepack prepare pnpm@9.0.0 --activate
+  fi
+}
+
+step "Install Linux build dependencies" install_system_dependencies
+step "Install the Rust stable toolchain" install_rust
+step "Activate pnpm 9.0.0" prepare_pnpm
+step "Install JavaScript dependencies" pnpm install --frozen-lockfile
+step "Fetch Rust dependencies" cargo fetch --locked
+
+printf '\nOrb setup complete: Node %s, pnpm %s, %s.\n' \
+  "$(node --version)" "$(pnpm --version)" "$(rustc --version)"
