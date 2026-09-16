@@ -1,0 +1,82 @@
+name: OpenCodeReview
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+# Matching commands supersede stale reviews for the same PR. Other comments
+# receive unique groups so they cannot cancel an in-progress review.
+concurrency:
+  group: >-
+    ${{
+      github.event.issue.pull_request
+      && github.event.comment.user.type != 'Bot'
+      && (
+        github.event.comment.author_association == 'MEMBER'
+        || github.event.comment.author_association == 'OWNER'
+        || github.event.comment.author_association == 'COLLABORATOR'
+      )
+      && (
+        startsWith(github.event.comment.body, '/open-code-review')
+        || startsWith(github.event.comment.body, '@open-code-review')
+      )
+      && format('open-code-review-{0}', github.event.issue.number)
+      || format('open-code-review-noop-{0}', github.run_id)
+    }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: Review pull request
+    if: >-
+      github.event.issue.pull_request
+      && github.event.comment.user.type != 'Bot'
+      && (
+        github.event.comment.author_association == 'MEMBER'
+        || github.event.comment.author_association == 'OWNER'
+        || github.event.comment.author_association == 'COLLABORATOR'
+      )
+      && (
+        startsWith(github.event.comment.body, '/open-code-review')
+        || startsWith(github.event.comment.body, '@open-code-review')
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Resolve pull request
+        id: pull-request
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          script: |
+            const { data: pullRequest } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+
+            core.setOutput('base_ref', pullRequest.base.ref);
+            core.setOutput('head_sha', pullRequest.head.sha);
+
+      - name: Run OpenCodeReview
+        uses: alibaba/open-code-review@f1101fd7f51304c82e4a4f292bbee88aea0823cf # v1.12.4
+        with:
+          ocr_version: '1.12.4'
+          llm_url: https://openrouter.ai/api/v1
+          llm_auth_token: ${{ secrets.OCR_LLM_AUTH_TOKEN }}
+          llm_model: deepseek/deepseek-v4.1-flash
+          llm_use_anthropic: 'false'
+          llm_extra_body: '{"reasoning":{"enabled":false}}'
+          base_ref: ${{ steps.pull-request.outputs.base_ref }}
+          head_sha: ${{ steps.pull-request.outputs.head_sha }}
+          effort: low
+          max_tokens_budget: '250000'
+          review_concurrency: '4'
+          incremental: 'true'
+          checkpoint_range: 'true'
+          sticky_summary: 'true'
+          upload_artifacts: 'false'
