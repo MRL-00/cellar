@@ -3,9 +3,12 @@ name: OpenCodeReview
 on:
   issue_comment:
     types: [created]
+  pull_request_target:
+    types: [labeled]
 
 permissions:
   contents: read
+  issues: write
   pull-requests: write
 
 # Matching commands supersede stale reviews for the same PR. Other comments
@@ -13,18 +16,30 @@ permissions:
 concurrency:
   group: >-
     ${{
-      github.event.issue.pull_request
-      && github.event.comment.user.type != 'Bot'
-      && (
-        github.event.comment.author_association == 'MEMBER'
-        || github.event.comment.author_association == 'OWNER'
-        || github.event.comment.author_association == 'COLLABORATOR'
+      (
+        (
+          github.event_name == 'pull_request_target'
+          && github.event.label.name == 'open-code-review'
+        )
+        || (
+          github.event_name == 'issue_comment'
+          && github.event.issue.pull_request
+          && github.event.comment.user.type != 'Bot'
+          && (
+            github.event.comment.author_association == 'MEMBER'
+            || github.event.comment.author_association == 'OWNER'
+            || github.event.comment.author_association == 'COLLABORATOR'
+          )
+          && (
+            startsWith(github.event.comment.body, '/open-code-review')
+            || startsWith(github.event.comment.body, '@open-code-review')
+          )
+        )
       )
-      && (
-        startsWith(github.event.comment.body, '/open-code-review')
-        || startsWith(github.event.comment.body, '@open-code-review')
+      && format(
+        'open-code-review-{0}',
+        github.event.pull_request.number || github.event.issue.number
       )
-      && format('open-code-review-{0}', github.event.issue.number)
       || format('open-code-review-noop-{0}', github.run_id)
     }}
   cancel-in-progress: true
@@ -33,21 +48,40 @@ jobs:
   review:
     name: Review pull request
     if: >-
-      github.event.issue.pull_request
-      && github.event.comment.user.type != 'Bot'
-      && (
-        github.event.comment.author_association == 'MEMBER'
-        || github.event.comment.author_association == 'OWNER'
-        || github.event.comment.author_association == 'COLLABORATOR'
+      (
+        github.event_name == 'pull_request_target'
+        && github.event.label.name == 'open-code-review'
       )
-      && (
-        startsWith(github.event.comment.body, '/open-code-review')
-        || startsWith(github.event.comment.body, '@open-code-review')
+      || (
+        github.event_name == 'issue_comment'
+        && github.event.issue.pull_request
+        && github.event.comment.user.type != 'Bot'
+        && (
+          github.event.comment.author_association == 'MEMBER'
+          || github.event.comment.author_association == 'OWNER'
+          || github.event.comment.author_association == 'COLLABORATOR'
+        )
+        && (
+          startsWith(github.event.comment.body, '/open-code-review')
+          || startsWith(github.event.comment.body, '@open-code-review')
+        )
       )
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
     steps:
+      - name: Remove reusable trigger label
+        if: github.event_name == 'pull_request_target'
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          script: |
+            await github.rest.issues.removeLabel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              name: 'open-code-review',
+            });
+
       - name: Resolve pull request
         id: pull-request
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
@@ -56,7 +90,7 @@ jobs:
             const { data: pullRequest } = await github.rest.pulls.get({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              pull_number: context.issue.number,
+              pull_number: context.payload.pull_request?.number ?? context.issue.number,
             });
 
             core.setOutput('base_ref', pullRequest.base.ref);
