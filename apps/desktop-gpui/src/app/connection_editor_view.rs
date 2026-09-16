@@ -276,6 +276,7 @@ fn general_panel(editor: &ConnectionEditor, cx: &mut Context<CellarApp>) -> AnyE
                 None,
                 div()
                     .flex()
+                    .flex_1()
                     .min_w_0()
                     .items_center()
                     .gap(px(6.))
