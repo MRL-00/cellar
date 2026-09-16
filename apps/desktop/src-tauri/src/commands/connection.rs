@@ -1,8 +1,9 @@
 use cellar_core::driver::{ConnectionConfig, DriverInfo};
 use cellar_core::error::CellarError;
+use cellar_runtime::connection_import::ConnectionImport;
 use tauri::State;
 
-use crate::datagrip::{self, DatagripImport};
+use crate::datagrip;
 use crate::state::ConnectionRegistry;
 
 #[tauri::command]
@@ -65,7 +66,7 @@ pub async fn reconnect(
 /// which to import and supply passwords (DataGrip never exposes those).
 #[tauri::command]
 #[specta::specta]
-pub async fn import_datagrip() -> Result<DatagripImport, CellarError> {
+pub async fn import_datagrip() -> Result<ConnectionImport, CellarError> {
     tauri::async_runtime::spawn_blocking(datagrip::scan)
         .await
         .map_err(|e| CellarError::invalid_config(format!("DataGrip scan failed: {e}")))

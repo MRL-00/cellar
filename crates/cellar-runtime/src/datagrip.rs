@@ -14,20 +14,8 @@ use std::path::PathBuf;
 use cellar_core::driver::{ConnectionConfig, Engine, SslMode};
 use quick_xml::events::Event;
 use quick_xml::Reader;
-use serde::{Deserialize, Serialize};
-use specta::Type;
 
-/// Result of scanning DataGrip for importable connections.
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-pub struct DatagripImport {
-    /// Connections we could map. Passwords are never included — the caller
-    /// collects them separately (import-time form or on first connect).
-    pub connections: Vec<ConnectionConfig>,
-    /// Data sources we found but could not import, each with a human reason
-    /// (unsupported engine, unparseable URL). Surfaced so the import is honest
-    /// about what it dropped rather than silently skipping rows.
-    pub skipped: Vec<String>,
-}
+use crate::connection_import::{slugify, ConnectionImport};
 
 /// DataGrip config directories (one per installed version). `dirs` resolves
 /// the native application-config root on macOS, Linux, and Windows.
@@ -117,7 +105,7 @@ fn data_source_files(idea: &std::path::Path) -> Vec<PathBuf> {
 
 /// Scan the local machine for DataGrip connections, de-duplicating by id (the
 /// same project can be listed under several DataGrip versions).
-pub fn scan() -> DatagripImport {
+pub fn scan() -> ConnectionImport {
     let mut connections = Vec::new();
     let mut skipped = Vec::new();
     let mut seen = HashSet::new();
@@ -150,7 +138,7 @@ pub fn scan() -> DatagripImport {
         }
     }
     connections.sort_by(|a, b| a.name.cmp(&b.name));
-    DatagripImport {
+    ConnectionImport {
         connections,
         skipped,
     }
@@ -193,7 +181,7 @@ pub fn parse_user_names(xml: &str) -> HashMap<String, String> {
 /// Parse a `dataSources.xml` document into importable connections. `users` maps
 /// uuid -> user-name from the sibling `dataSources.local.xml`, used when a
 /// data-source has no inline `<user-name>`.
-pub fn parse_data_sources(xml: &str, users: &HashMap<String, String>) -> DatagripImport {
+pub fn parse_data_sources(xml: &str, users: &HashMap<String, String>) -> ConnectionImport {
     let mut reader = Reader::from_str(xml);
     let mut connections = Vec::new();
     let mut skipped = Vec::new();
@@ -251,7 +239,7 @@ pub fn parse_data_sources(xml: &str, users: &HashMap<String, String>) -> Datagri
         }
     }
 
-    DatagripImport {
+    ConnectionImport {
         connections,
         skipped,
     }
@@ -347,28 +335,6 @@ fn parse_jdbc_url(url: &str) -> Result<(Engine, String, u16, String), String> {
         port,
         database.unwrap_or_else(|| default_db.to_string()),
     ))
-}
-
-/// Mirror of the frontend `slugify` so imported ids match what the dialog would
-/// produce for the same name.
-fn slugify(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    let mut prev_dash = false;
-    for c in s.to_ascii_lowercase().chars() {
-        if c.is_ascii_alphanumeric() {
-            out.push(c);
-            prev_dash = false;
-        } else if !prev_dash {
-            out.push('-');
-            prev_dash = true;
-        }
-    }
-    let slug: String = out.trim_matches('-').chars().take(64).collect();
-    if slug.is_empty() {
-        "connection".into()
-    } else {
-        slug
-    }
 }
 
 #[cfg(test)]

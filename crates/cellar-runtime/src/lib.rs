@@ -13,12 +13,14 @@ use tokio::fs;
 use tokio::sync::RwLock;
 
 mod bulk_connections;
+pub mod connection_import;
 pub mod csv_import;
 pub mod datagrip;
 pub mod export;
 pub mod history;
 pub mod query_templates;
 mod support;
+pub mod tableplus;
 #[cfg(test)]
 mod tests;
 

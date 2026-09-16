@@ -1,7 +1,7 @@
 use std::{collections::HashSet, sync::Arc};
 
 use cellar_core::driver::ConnectionConfig;
-use cellar_runtime::datagrip::DatagripImport;
+use cellar_runtime::connection_import::ConnectionImport as ImportResult;
 use gpui::{div, prelude::*, px, AnyElement, Context, Entity, SharedString, Window};
 use gpui_component::{checkbox::Checkbox, input::InputState, Disableable, Icon};
 
@@ -13,6 +13,29 @@ use cellar_desktop_gpui::widgets::compact_input;
 
 use super::CellarApp;
 
+/// External client whose saved connections can be imported into Cellar.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(super) enum ImportSource {
+    Datagrip,
+    Tableplus,
+}
+
+impl ImportSource {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Datagrip => "DataGrip",
+            Self::Tableplus => "TablePlus",
+        }
+    }
+
+    fn scan(self) -> ImportResult {
+        match self {
+            Self::Datagrip => cellar_runtime::datagrip::scan(),
+            Self::Tableplus => cellar_runtime::tableplus::scan(),
+        }
+    }
+}
+
 #[derive(Clone)]
 struct ImportCandidate {
     config: ConnectionConfig,
@@ -23,6 +46,7 @@ struct ImportCandidate {
 }
 
 pub(super) struct ConnectionImport {
+    source: ImportSource,
     candidates: Vec<ImportCandidate>,
     skipped: Vec<String>,
     scanning: bool,
@@ -31,8 +55,9 @@ pub(super) struct ConnectionImport {
 }
 
 impl ConnectionImport {
-    fn scanning() -> Self {
+    fn scanning(source: ImportSource) -> Self {
         Self {
+            source,
             candidates: Vec::new(),
             skipped: Vec::new(),
             scanning: true,
@@ -42,12 +67,14 @@ impl ConnectionImport {
     }
 
     fn from_scan(
-        result: DatagripImport,
+        source: ImportSource,
+        result: ImportResult,
         existing: &HashSet<String>,
         window: &mut Window,
         cx: &mut Context<CellarApp>,
     ) -> Self {
         Self {
+            source,
             candidates: result
                 .connections
                 .into_iter()
@@ -85,15 +112,21 @@ fn candidate_state(existing: &HashSet<String>, id: &str) -> (bool, bool) {
 }
 
 impl CellarApp {
-    pub(super) fn scan_datagrip(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.connection_import = Some(ConnectionImport::scanning());
+    pub(super) fn scan_connection_import(
+        &mut self,
+        source: ImportSource,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.connection_import = Some(ConnectionImport::scanning(source));
         let runtime = Arc::clone(&self.runtime);
         let window_handle = window.window_handle();
+        let label = source.label();
         cx.spawn(async move |_, cx| {
             let result = runtime
-                .spawn_blocking(cellar_runtime::datagrip::scan)
+                .spawn_blocking(move || source.scan())
                 .await
-                .map_err(|error| format!("DataGrip scan failed: {error}"));
+                .map_err(|error| format!("{label} scan failed: {error}"));
             let _ = cx.update_window(window_handle, |view, window, cx| {
                 let Ok(app) = view.downcast::<CellarApp>() else {
                     return;
@@ -110,8 +143,9 @@ impl CellarApp {
                                 .iter()
                                 .map(|config| config.id.clone())
                                 .collect();
-                            this.connection_import =
-                                Some(ConnectionImport::from_scan(result, &existing, window, cx));
+                            this.connection_import = Some(ConnectionImport::from_scan(
+                                source, result, &existing, window, cx,
+                            ));
                         }
                         Err(error) => {
                             let import = this.connection_import.as_mut().unwrap();
@@ -239,6 +273,7 @@ impl CellarApp {
             .count();
         let all_selected = !import.candidates.is_empty() && selected == import.candidates.len();
         let can_import = selected > 0 && !import.importing;
+        let label = import.source.label();
         div()
             .id("connection-import-backdrop")
             .absolute()
@@ -287,7 +322,7 @@ impl CellarApp {
                             .child(
                                 div()
                                     .font_weight(gpui::FontWeight::SEMIBOLD)
-                                    .child("Import from DataGrip"),
+                                    .child(format!("Import from {label}")),
                             )
                             .child(div().flex_1())
                             .child(
@@ -311,7 +346,7 @@ impl CellarApp {
                     )
                     .child(
                         div()
-                            .id("datagrip-import-list")
+                            .id("connection-import-list")
                             .flex_1()
                             .min_h_0()
                             .overflow_y_scroll()
@@ -325,7 +360,7 @@ impl CellarApp {
                                         .py_8()
                                         .text_center()
                                         .text_color(FG_MUTED)
-                                        .child("Scanning DataGrip…"),
+                                        .child(format!("Scanning {label}…")),
                                 )
                             })
                             .when(
@@ -339,7 +374,9 @@ impl CellarApp {
                                             .py_8()
                                             .text_center()
                                             .text_color(FG_MUTED)
-                                            .child("No importable DataGrip connections found."),
+                                            .child(format!(
+                                                "No importable {label} connections found."
+                                            )),
                                     )
                                 },
                             )
@@ -375,11 +412,11 @@ impl CellarApp {
                                                     div()
                                                         .text_size(px(12.))
                                                         .text_color(FG_MUTED)
-                                                        .child("Passwords aren't stored by DataGrip — add them now or on first connect."),
+                                                        .child(format!("Passwords aren't stored by {label} — add them now or on first connect.")),
                                                 )
                                                 .child(
                                                     div()
-                                                        .id("toggle-all-datagrip")
+                                                        .id("toggle-all-import")
                                                         .tab_index(0)
                                                         .cursor_pointer()
                                                         .flex_shrink_0()
@@ -395,7 +432,7 @@ impl CellarApp {
                                 let conflict = candidate.conflict;
                                 let app = cx.entity().downgrade();
                                 div()
-                                    .id(SharedString::from(format!("datagrip-candidate:{id}")))
+                                    .id(SharedString::from(format!("import-candidate:{id}")))
                                     .flex()
                                     .items_center()
                                     .gap(px(10.))
@@ -406,7 +443,7 @@ impl CellarApp {
                                     .px(px(10.))
                                     .py(px(6.))
                                     .child(
-                                        Checkbox::new(SharedString::from(format!("datagrip-check:{id}")))
+                                        Checkbox::new(SharedString::from(format!("import-check:{id}")))
                                             .checked(selected)
                                             .disabled(import.importing)
                                             .on_click(move |_, _, cx| {

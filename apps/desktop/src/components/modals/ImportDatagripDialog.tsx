@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { DatagripImport } from "@cellar/ipc";
+import type { ConnectionImport } from "@cellar/ipc";
 import { commands, unwrap } from "@cellar/ipc";
 
 import { Icon } from "../icons";
@@ -22,7 +22,7 @@ const BTN_PRIMARY =
 type Load =
   | { kind: "loading" }
   | { kind: "error"; message: string }
-  | { kind: "ready"; data: DatagripImport };
+  | { kind: "ready"; data: ConnectionImport };
 
 export function ImportDatagripDialog({ onClose }: { onClose: () => void }) {
   const saveConnection = useConnections((s) => s.saveConnection);

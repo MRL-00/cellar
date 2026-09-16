@@ -8,6 +8,7 @@ publish = false
 
 [dependencies]
 dirs = "5"
+plist = "1"
 quick-xml = "0.39"
 serde = { workspace = true }
 serde_json = { workspace = true }

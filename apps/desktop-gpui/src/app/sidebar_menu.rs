@@ -1,7 +1,7 @@
 use gpui::{div, prelude::*, AnyElement, Context, Entity, Pixels, Point, SharedString, Window};
 use gpui_component::input::{InputEvent, InputState};
 
-use super::{sidebar_layout::SidebarItem, CellarApp};
+use super::{connection_import::ImportSource, sidebar_layout::SidebarItem, CellarApp};
 use cellar_desktop_gpui::theme::{
     accent_soft, ui_px, ACCENT, BORDER_STRONG, FG_SECONDARY, PANEL_MUTED, PROD, WARN_SOFT,
 };
@@ -156,7 +156,18 @@ impl CellarApp {
                         )
                         .on_click(cx.listener(|this, _, window, cx| {
                             this.sidebar_menu = None;
-                            this.scan_datagrip(window, cx);
+                            this.scan_connection_import(ImportSource::Datagrip, window, cx);
+                        })),
+                    )
+                    .child(
+                        item(
+                            "sidebar-import-tableplus",
+                            "icons/database.svg",
+                            "Import from TablePlus",
+                        )
+                        .on_click(cx.listener(|this, _, window, cx| {
+                            this.sidebar_menu = None;
+                            this.scan_connection_import(ImportSource::Tableplus, window, cx);
                         })),
                     )
                     .child(
