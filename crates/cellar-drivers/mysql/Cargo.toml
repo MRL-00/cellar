@@ -24,3 +24,14 @@ sqlx = { version = "0.8", default-features = false, features = [
     "uuid",
     "json",
 ] }
+
+[features]
+default = []
+# Enable MySQL-backed integration tests with `cargo test --features integration-tests`.
+# These spin up a MySQL container via testcontainers and require Docker.
+integration-tests = []
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+testcontainers = "0.23"
+testcontainers-modules = { version = "0.11", features = ["mysql"] }
