@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.2
+
+### Bug fixes
+
+- **Hostname field stays visible** — the host input in the connection
+  editor no longer collapses, so the server address and port are always
+  editable.
+
 ## 1.0.1
 
 ### Bug fixes
