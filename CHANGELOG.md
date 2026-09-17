@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.0.4
+
+### Features
+
+- **TablePlus connection import** — discover and import saved TablePlus
+  connections in one step, preserve groups as sidebar folders, map SSL modes,
+  and clearly identify SSH-tunnelled connections that are not yet supported.
+
+### Bug fixes
+
+- **Reliable TablePlus discovery** — scan results now reach the import dialog,
+  Windows uses the correct TablePlus data directory, and a folder's own
+  connection is retained when it shares the folder name.
+- **Unsigned MySQL schema browsing** — tables with unsigned integer metadata
+  no longer fail during schema introspection.
+
 ## 1.0.3
 
 ### Bug fixes
