@@ -1,5 +1,5 @@
 use cellar_core::driver::{Engine, EnvTag, SslMode};
-use gpui::{div, prelude::*, px, AnyElement, Context, Entity, SharedString};
+use gpui::{div, prelude::*, px, AnyElement, Context, Entity, MouseButton, SharedString};
 use gpui_component::{input::InputState, scroll::ScrollableElement, Icon};
 
 use super::{
@@ -49,6 +49,7 @@ impl CellarApp {
             .child(
                 div()
                     .id("connection-editor-modal")
+                    .tab_group()
                     .w(px(760.))
                     .max_h(gpui::relative(0.84))
                     .flex()
@@ -574,6 +575,7 @@ fn form_row(label: &'static str, hint: Option<&'static str>, content: AnyElement
 }
 
 fn input_box(state: &Entity<InputState>, mono: bool, width: Option<f32>) -> AnyElement {
+    let focus_state = state.clone();
     div()
         .h(px(26.))
         .min_w_0()
@@ -585,6 +587,9 @@ fn input_box(state: &Entity<InputState>, mono: bool, width: Option<f32>) -> AnyE
         .bg(INSET)
         .when(mono, |element| {
             element.font_family(cellar_desktop_gpui::theme::mono_font())
+        })
+        .on_mouse_down(MouseButton::Left, move |_, window, cx| {
+            focus_state.update(cx, |state, cx| state.focus(window, cx));
         })
         .child(compact_input(state))
         .into_any_element()

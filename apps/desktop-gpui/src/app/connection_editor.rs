@@ -212,6 +212,9 @@ impl CellarApp {
         cx: &mut Context<Self>,
     ) {
         self.connection_editor = Some(ConnectionEditor::new(config, window, cx));
+        if let Some(editor) = &self.connection_editor {
+            editor.name.update(cx, |name, cx| name.focus(window, cx));
+        }
         cx.notify();
     }
 
@@ -336,6 +339,9 @@ impl CellarApp {
             name.set_value(format!("{} Copy", config.name), window, cx)
         });
         self.connection_editor = Some(editor);
+        if let Some(editor) = &self.connection_editor {
+            editor.name.update(cx, |name, cx| name.focus(window, cx));
+        }
         cx.notify();
     }
 
