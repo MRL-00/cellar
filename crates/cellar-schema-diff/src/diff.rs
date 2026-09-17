@@ -43,7 +43,7 @@ pub struct SchemaDiff {
 }
 
 /// Aggregate counts, used for the comparison header without re-walking the
-/// tree on the frontend.
+/// tree in the UI.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, Type, PartialEq, Eq)]
 pub struct DiffSummary {
     pub tables_added: u32,

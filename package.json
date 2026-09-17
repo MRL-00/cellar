@@ -8,7 +8,6 @@
   "scripts": {
     "dev": "pnpm dev:native",
     "dev:native": "cargo run -p cellar-desktop-gpui --bin cellar-desktop-gpui",
-    "dev:tauri": "pnpm --filter @cellar/desktop dev",
     "build:native": "cargo build --release -p cellar-desktop-gpui",
     "perf:native:startup": "scripts/measure-gpui-startup.sh",
     "perf:native:grid": "cargo build --release --bin cellar-grid-perf && scripts/measure-gpui-grid.sh",
@@ -19,6 +18,7 @@
     "typecheck": "node scripts/turbo-guard.mjs typecheck"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "2.11.2",
     "turbo": "^2.1.0",
     "typescript": "^5.5.4",
     "vitest": "^2.1.9"

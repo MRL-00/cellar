@@ -1,7 +1,7 @@
 //! OpenAI provider services.
 //!
 //! API-key requests use the Responses API directly from Rust so the key never
-//! crosses into the webview. ChatGPT subscription access is delegated to an
+//! enters UI state. ChatGPT subscription access is delegated to an
 //! isolated Codex app-server process, which owns the OAuth tokens and refresh
 //! flow described by OpenAI's supported client integration protocol.
 

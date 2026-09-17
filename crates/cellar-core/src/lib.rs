@@ -1,6 +1,6 @@
 //! Shared traits, types, and errors for Cellar. Every driver implements
-//! [`Driver`]; every IPC type that crosses into the frontend is defined here
-//! and exported via specta in `apps/desktop/src-tauri`.
+//! [`Driver`]; serializable domain types shared by the runtime and native UI are
+//! defined here.
 
 pub mod driver;
 pub mod er;

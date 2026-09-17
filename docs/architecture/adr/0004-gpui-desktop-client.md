@@ -1,6 +1,6 @@
 # ADR 0004: GPUI production desktop client
 
-- **Status:** Accepted
+- **Status:** Accepted; migration completed in 1.0
 - **Date:** 2026-08-14
 
 ## Context
@@ -28,13 +28,14 @@ overscan. Query results cross into UI state as bounded pages. Editors and
 pending changes are keyed independently from visible cells so scrolling cannot
 discard edits.
 
-The Tauri/React client remains buildable during migration and is removed only
-after every item in `docs/gpui-feature-parity.md` is verified. GPUI is pinned to
-an exact version while its API is pre-1.0.
+The former Tauri/React client was retained during migration and removed after
+GPUI became the shipped client. A read-only local-storage importer remains so
+users skipping directly from an older release keep layout and appearance
+preferences. GPUI is pinned to an exact version while its API is pre-1.0.
 
 ## Consequences
 
-- Cellar has one trusted Rust runtime shared by both clients during migration.
+- Cellar has one native client and one trusted Rust runtime.
 - No database credential needs to enter UI state, logs, or plain-text config.
 - Native controls, focus, accessibility, packaging, and updater behaviour must
   be implemented and tested on macOS, Linux, and Windows.
@@ -42,4 +43,3 @@ an exact version while its API is pre-1.0.
   semver-range updates.
 - The validated spike is performance evidence only; production code is written
   in `apps/desktop-gpui`.
-

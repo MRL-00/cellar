@@ -381,7 +381,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn notice_severities_use_the_same_message_filter_groups_as_the_react_app() {
+    fn notice_severities_use_the_classic_message_filter_groups() {
         assert_eq!(notice_filter(&NoticeSeverity::Fatal), MessageFilter::Error);
         assert_eq!(
             notice_filter(&NoticeSeverity::Warning),

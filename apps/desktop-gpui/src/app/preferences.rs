@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::sidebar_layout::{
-    prefers_dev_layout, read_local_storage_value, tauri_local_storage_paths,
+    legacy_local_storage_paths, prefers_dev_layout, read_local_storage_value,
 };
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
@@ -76,9 +76,9 @@ impl Default for Preferences {
 }
 
 impl Preferences {
-    pub(crate) async fn load_classic() -> Self {
+    pub(crate) async fn load_legacy() -> Self {
         let mut candidates = Vec::new();
-        for path in tauri_local_storage_paths() {
+        for path in legacy_local_storage_paths() {
             let Some(json) = read_local_storage_value(&path, "cellar.settings.v1").await else {
                 continue;
             };

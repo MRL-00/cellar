@@ -14,9 +14,9 @@ impl AssetSource for Assets {
     }
 }
 
-/// React's canonical `<I>` wrapper applies rounded caps and joins to every
-/// icon. Keep that inherited geometry when the same paths are rendered as
-/// standalone GPUI SVG assets.
+/// Cellar's original icon wrapper applied rounded caps and joins to every icon.
+/// Preserve that geometry when the paths are rendered as standalone GPUI SVG
+/// assets.
 fn canonical_svg(svg: &'static str) -> Cow<'static, [u8]> {
     let cap = !svg.contains("stroke-linecap=");
     let join = !svg.contains("stroke-linejoin=");
@@ -37,19 +37,17 @@ fn canonical_svg(svg: &'static str) -> Cow<'static, [u8]> {
 
 fn icon(path: &str) -> Option<&'static str> {
     Some(match path {
-        "engines/postgres.svg" => include_str!("../../desktop/src/assets/engines/postgres.svg"),
-        "engines/firestore.svg" => include_str!("../../desktop/src/assets/engines/firestore.svg"),
-        "engines/convex.svg" => include_str!("../../desktop/src/assets/engines/convex.svg"),
-        "engines/cosmos.svg" => include_str!("../../desktop/src/assets/engines/cosmos.svg"),
-        "engines/mssql.svg" => include_str!("../../desktop/src/assets/engines/mssql.svg"),
-        "engines/mysql.svg" => include_str!("../../desktop/src/assets/engines/mysql.svg"),
-        "engines/sqlite.svg" => include_str!("../../desktop/src/assets/engines/sqlite.svg"),
-        "engines/azure.svg" => include_str!("../../desktop/src/assets/engines/azure.svg"),
-        "engines/supabase.svg" => include_str!("../../desktop/src/assets/engines/supabase.svg"),
-        "engines/neon.svg" => include_str!("../../desktop/src/assets/engines/neon.svg"),
-        "engines/planetscale.svg" => {
-            include_str!("../../desktop/src/assets/engines/planetscale.svg")
-        }
+        "engines/postgres.svg" => include_str!("../assets/engines/postgres.svg"),
+        "engines/firestore.svg" => include_str!("../assets/engines/firestore.svg"),
+        "engines/convex.svg" => include_str!("../assets/engines/convex.svg"),
+        "engines/cosmos.svg" => include_str!("../assets/engines/cosmos.svg"),
+        "engines/mssql.svg" => include_str!("../assets/engines/mssql.svg"),
+        "engines/mysql.svg" => include_str!("../assets/engines/mysql.svg"),
+        "engines/sqlite.svg" => include_str!("../assets/engines/sqlite.svg"),
+        "engines/azure.svg" => include_str!("../assets/engines/azure.svg"),
+        "engines/supabase.svg" => include_str!("../assets/engines/supabase.svg"),
+        "engines/neon.svg" => include_str!("../assets/engines/neon.svg"),
+        "engines/planetscale.svg" => include_str!("../assets/engines/planetscale.svg"),
         "icons/search.svg" => {
             r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg>"#
         }

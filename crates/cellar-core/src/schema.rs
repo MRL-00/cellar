@@ -106,7 +106,7 @@ pub struct UsageReference {
 
 /// A single object definition pulled from the system catalogs, cached by the
 /// host so repeated `find_usages` searches don't re-query the catalogs. This is
-/// host-internal and never crosses IPC, so it carries no serde/specta derives.
+/// host-internal and is never persisted, so it carries no serde/specta derives.
 #[derive(Debug, Clone)]
 pub struct UsageDefinition {
     pub kind: UsageKind,

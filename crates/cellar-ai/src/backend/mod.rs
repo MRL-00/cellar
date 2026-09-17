@@ -1,7 +1,7 @@
 //! Backend-only transports for API-key AI providers.
 //!
 //! Provider keys are loaded from `cellar-secrets` and never cross into the
-//! renderer. The public IPC contract stays provider-neutral so additional
+//! UI. The public service contract stays provider-neutral so additional
 //! OpenAI-compatible Chat Completions providers can reuse this transport.
 
 mod chat_completions;

@@ -5,7 +5,7 @@ static PUBLISH_SEQ: AtomicU64 = AtomicU64::new(0);
 
 const INFO_PLIST: &[u8] = include_bytes!("../macos/Info.plist");
 #[cfg(target_os = "macos")]
-const ICON_ICNS: &[u8] = include_bytes!("../../desktop/src-tauri/icons/icon.icns");
+const ICON_ICNS: &[u8] = include_bytes!("../assets/icon.icns");
 
 enum LaunchLocation {
     AppBundle,

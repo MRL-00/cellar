@@ -25,8 +25,7 @@ pub struct ConnectionImport {
     pub groups: HashMap<String, String>,
 }
 
-/// Mirror of the frontend `slugify` so imported ids match what the dialog would
-/// produce for the same name.
+/// Canonical connection-id slug used by importers and the native editor.
 pub(crate) fn slugify(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let mut prev_dash = false;

@@ -8,8 +8,8 @@ use crate::error::{CellarError, CellarResult};
 use crate::query::{PlanMode, Query, QueryPlan, QueryResult, QueryResultPage, QueryResultSummary};
 use crate::schema::Database;
 
-/// User-facing identifier for which driver to load. Lives in connection
-/// configs and crosses IPC, so it has to be serializable.
+/// User-facing identifier for which driver to load. It is persisted in
+/// connection configs, so it has to be serializable.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Type, PartialEq, Eq, Hash)]
 #[serde(rename_all = "lowercase")]
 pub enum Engine {

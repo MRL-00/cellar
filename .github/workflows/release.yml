@@ -72,10 +72,6 @@ jobs:
 
       - name: Cache Rust
         uses: swatinem/rust-cache@v2
-        with:
-          workspaces: |
-            . -> target
-            apps/desktop/src-tauri -> apps/desktop/src-tauri/target
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -130,10 +126,6 @@ jobs:
         run: |
           set -euo pipefail
           version="${{ steps.release.outputs.version }}"
-          conf="apps/desktop/src-tauri/tauri.conf.json"
-          tmp="$(mktemp)"
-          jq --arg v "$version" '.version = $v' "$conf" > "$tmp"
-          mv "$tmp" "$conf"
           sed -i '' -E "0,/^version = \"[^\"]+\"/s//version = \"$version\"/" Cargo.toml
           echo "Cellar version set to $version"
 
@@ -166,7 +158,7 @@ jobs:
           mkdir -p "$contents/MacOS" "$contents/Resources" "$bundle_dir/dmg"
           cp "$release_dir/cellar-desktop-gpui" "$contents/MacOS/Cellar"
           cp apps/desktop-gpui/macos/Info.plist "$contents/Info.plist"
-          cp apps/desktop/src-tauri/icons/icon.icns "$contents/Resources/icon.icns"
+          cp apps/desktop-gpui/assets/icon.icns "$contents/Resources/icon.icns"
           plutil -replace CFBundleShortVersionString -string "$RELEASE_VERSION" "$contents/Info.plist"
           plutil -replace CFBundleVersion -string "$RELEASE_VERSION" "$contents/Info.plist"
 
@@ -209,12 +201,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          # The build output may land at either the repo-root target dir
-          # (when CARGO_TARGET_DIR is set by rust-cache) or under
-          # apps/desktop/src-tauri/target. Search both.
-          search_roots=(target "apps/desktop/src-tauri/target")
-
-          dmg_path="$(find "${search_roots[@]}" \
+          dmg_path="$(find target \
             -path "*/$TARGET_TRIPLE/release/bundle/dmg/*.dmg" -type f \
             -print -quit 2>/dev/null || true)"
           if [[ -z "$dmg_path" ]]; then
@@ -227,9 +214,8 @@ jobs:
           cp "$dmg_path" "/tmp/$STABLE_ASSET_NAME"
           gh release upload "$RELEASE_TAG" "/tmp/$STABLE_ASSET_NAME" --clobber
 
-          # Sign the GPUI .app.tar.gz updater bundle and upload both files under
-          # the stable names emitted in latest.json. The existing Tauri signer
-          # format remains the canonical minisign wire format for compatibility.
+          # Sign the GPUI updater bundle using the existing minisign-compatible
+          # key and signature format so installed clients can verify it.
           bundle_root="$(dirname "$(dirname "$dmg_path")")"
           macos_dir="$bundle_root/macos"
           tarball="$(find "$macos_dir" -name "*.app.tar.gz" -type f -print -quit 2>/dev/null || true)"
@@ -239,7 +225,7 @@ jobs:
             stable_sig_name="${stable_bundle_name}.sig"
 
             echo "Signing updater bundle: $tarball"
-            npx @tauri-apps/cli signer sign \
+            pnpm exec tauri signer sign \
               -k "$TAURI_SIGNING_PRIVATE_KEY" \
               -p "" \
               "$tarball"
