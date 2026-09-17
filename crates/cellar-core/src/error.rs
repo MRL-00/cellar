@@ -4,9 +4,8 @@ use thiserror::Error;
 
 /// Typed error surface for every public API in `cellar-core` and driver crates.
 ///
-/// Crossing the IPC boundary requires serializable values, so the error is a
-/// closed enum rather than a string. Drivers map their native errors into one
-/// of these variants and stash the original message in `detail`.
+/// Runtime and persisted error values use a closed enum rather than strings.
+/// Drivers map native errors into these variants and retain their detail.
 #[derive(Debug, Error, Clone, Serialize, Deserialize, Type)]
 #[serde(tag = "kind", content = "detail")]
 pub enum CellarError {

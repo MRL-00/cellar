@@ -198,7 +198,7 @@ impl CellarApp {
                 .round()
                 .max(140.);
             self.bottom_panel_height = layout.bottom_height.clamp(140., max_bottom);
-        } else if !self.tauri_layout_loaded {
+        } else if !self.legacy_layout_loaded {
             self.sidebar_width = session.sidebar_width.clamp(200., 600.);
         }
         if let Some(connection_id) = session.active_connection.as_deref() {

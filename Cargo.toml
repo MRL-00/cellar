@@ -2,7 +2,6 @@
 resolver = "2"
 members = [
     "apps/desktop-gpui",
-    "apps/desktop/src-tauri",
     "crates/cellar-ai",
     "crates/cellar-core",
     "crates/cellar-runtime",
@@ -34,9 +33,6 @@ anyhow = "1"
 # serialization
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-# tauri (kept in workspace so crates can pin the same major)
-tauri = { version = "2" }
-tauri-build = { version = "2" }
 
 [profile.release]
 codegen-units = 1

@@ -11,13 +11,6 @@ target/
 .superset/
 .amp/portals/*
 
-# tauri
-apps/desktop/src-tauri/target/
-apps/desktop/src-tauri/gen/
-
-# vite transient config-load artifact
-apps/desktop/vite.config.ts.timestamp-*.mjs
-
 # editor / OS
 .DS_Store
 .vscode/

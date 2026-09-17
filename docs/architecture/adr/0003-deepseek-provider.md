@@ -10,14 +10,14 @@ the selected provider. DeepSeek exposes model discovery and generation through
 an OpenAI-compatible Chat Completions API, but it has provider-specific options
 such as thinking mode.
 
-Loading the key into the React webview would expand the credential trust
-boundary. Building a one-off DeepSeek command surface would also make planned
+Loading the key into UI state would expand the credential trust boundary.
+Building a one-off DeepSeek service would also make planned
 compatible providers repeat the same model, message, usage, and error mapping.
 
 ## Decision
 
 DeepSeek is a fixed first-party profile on a provider-neutral Rust backend
-transport. Typed IPC accepts a closed provider enum, so the renderer cannot
+transport. The native service accepts a closed provider enum, so the UI cannot
 choose an arbitrary destination. The service loads `ai:deepseek` from
 `cellar-secrets`, discovers models from `https://api.deepseek.com/models`, and
 sends full conversation history to `https://api.deepseek.com/chat/completions`.
@@ -28,7 +28,7 @@ the provider's model endpoint remains authoritative.
 
 ## Consequences
 
-- The DeepSeek key never enters the webview or plain-text settings.
+- The DeepSeek key never enters GPUI view state or plain-text settings.
 - Cellar does not proxy or store DeepSeek requests.
 - Model changes do not require a Cellar release.
 - The shared transport can support additional fixed Chat Completions profiles

@@ -26,7 +26,7 @@ fn main() {
     let registry = Arc::new(runtime.block_on(ConnectionRegistry::load()));
     let connections = runtime.block_on(registry.list());
     let sidebar_layout = runtime.block_on(SidebarLayout::load(&connections));
-    let preferences = runtime.block_on(Preferences::load_classic());
+    let preferences = runtime.block_on(Preferences::load_legacy());
     let restored_session = SessionState::load();
 
     Application::new()
@@ -34,22 +34,50 @@ fn main() {
         .run(move |cx: &mut App| {
             cx.text_system()
                 .add_fonts(vec![
-                    Cow::Borrowed(include_bytes!("../../desktop/src/assets/fonts/geist/Geist-Variable.woff2")),
-                    Cow::Borrowed(include_bytes!("../../desktop/src/assets/fonts/geist/Geist-Italic.woff2")),
-                    Cow::Borrowed(include_bytes!("../../desktop/src/assets/fonts/geist/GeistMono-Variable.woff2")),
-                    Cow::Borrowed(include_bytes!("../../desktop/src/assets/fonts/geist/GeistMono-Italic.woff2")),
-                    Cow::Borrowed(include_bytes!("../../desktop/src/assets/fonts/inter/inter-latin-wght-normal.woff2")),
-                    Cow::Borrowed(include_bytes!("../../desktop/src/assets/fonts/inter/inter-latin-ext-wght-normal.woff2")),
-                    Cow::Borrowed(include_bytes!("../../desktop/src/assets/fonts/inter/inter-latin-wght-italic.woff2")),
-                    Cow::Borrowed(include_bytes!("../../desktop/src/assets/fonts/inter/inter-latin-ext-wght-italic.woff2")),
-                    Cow::Borrowed(include_bytes!("../../desktop/src/assets/fonts/roboto/roboto-latin-wght-normal.woff2")),
-                    Cow::Borrowed(include_bytes!("../../desktop/src/assets/fonts/roboto/roboto-latin-ext-wght-normal.woff2")),
-                    Cow::Borrowed(include_bytes!("../../desktop/src/assets/fonts/roboto/roboto-latin-wght-italic.woff2")),
-                    Cow::Borrowed(include_bytes!("../../desktop/src/assets/fonts/roboto/roboto-latin-ext-wght-italic.woff2")),
-                    Cow::Borrowed(include_bytes!("../../desktop/src/assets/fonts/jetbrains-mono/jetbrains-mono-latin-wght-normal.woff2")),
-                    Cow::Borrowed(include_bytes!("../../desktop/src/assets/fonts/jetbrains-mono/jetbrains-mono-latin-ext-wght-normal.woff2")),
-                    Cow::Borrowed(include_bytes!("../../desktop/src/assets/fonts/jetbrains-mono/jetbrains-mono-latin-wght-italic.woff2")),
-                    Cow::Borrowed(include_bytes!("../../desktop/src/assets/fonts/jetbrains-mono/jetbrains-mono-latin-ext-wght-italic.woff2")),
+                    Cow::Borrowed(include_bytes!("../assets/fonts/geist/Geist-Variable.woff2")),
+                    Cow::Borrowed(include_bytes!("../assets/fonts/geist/Geist-Italic.woff2")),
+                    Cow::Borrowed(include_bytes!(
+                        "../assets/fonts/geist/GeistMono-Variable.woff2"
+                    )),
+                    Cow::Borrowed(include_bytes!(
+                        "../assets/fonts/geist/GeistMono-Italic.woff2"
+                    )),
+                    Cow::Borrowed(include_bytes!(
+                        "../assets/fonts/inter/inter-latin-wght-normal.woff2"
+                    )),
+                    Cow::Borrowed(include_bytes!(
+                        "../assets/fonts/inter/inter-latin-ext-wght-normal.woff2"
+                    )),
+                    Cow::Borrowed(include_bytes!(
+                        "../assets/fonts/inter/inter-latin-wght-italic.woff2"
+                    )),
+                    Cow::Borrowed(include_bytes!(
+                        "../assets/fonts/inter/inter-latin-ext-wght-italic.woff2"
+                    )),
+                    Cow::Borrowed(include_bytes!(
+                        "../assets/fonts/roboto/roboto-latin-wght-normal.woff2"
+                    )),
+                    Cow::Borrowed(include_bytes!(
+                        "../assets/fonts/roboto/roboto-latin-ext-wght-normal.woff2"
+                    )),
+                    Cow::Borrowed(include_bytes!(
+                        "../assets/fonts/roboto/roboto-latin-wght-italic.woff2"
+                    )),
+                    Cow::Borrowed(include_bytes!(
+                        "../assets/fonts/roboto/roboto-latin-ext-wght-italic.woff2"
+                    )),
+                    Cow::Borrowed(include_bytes!(
+                        "../assets/fonts/jetbrains-mono/jetbrains-mono-latin-wght-normal.woff2"
+                    )),
+                    Cow::Borrowed(include_bytes!(
+                        "../assets/fonts/jetbrains-mono/jetbrains-mono-latin-ext-wght-normal.woff2"
+                    )),
+                    Cow::Borrowed(include_bytes!(
+                        "../assets/fonts/jetbrains-mono/jetbrains-mono-latin-wght-italic.woff2"
+                    )),
+                    Cow::Borrowed(include_bytes!(
+                        "../assets/fonts/jetbrains-mono/jetbrains-mono-latin-ext-wght-italic.woff2"
+                    )),
                 ])
                 .expect("load bundled Cellar fonts");
             gpui_component::init(cx);

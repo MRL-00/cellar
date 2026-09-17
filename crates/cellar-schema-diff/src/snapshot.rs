@@ -2,7 +2,7 @@
 //!
 //! A snapshot captures one database's introspected [`Database`] tree at a
 //! point in time so it can be compared against a live schema (or another
-//! snapshot) later. The host (`apps/desktop`) owns serializing these to
+//! snapshot) later. The native host owns serializing these to
 //! `~/.cellar/snapshots/`; this crate only defines the shape so both the
 //! reader and the diff path agree on it.
 

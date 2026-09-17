@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 use uuid::Uuid;
 
-/// One cell value, tagged so the frontend can render the right editor and
-/// preserve type fidelity through the IPC boundary.
+/// One cell value, tagged so the UI can render the right editor while drivers
+/// and runtime services preserve type fidelity.
 ///
 /// `Numeric` is intentionally a `String`: Postgres `numeric` has arbitrary
 /// precision and JavaScript `number` does not. Drivers that decode it as a

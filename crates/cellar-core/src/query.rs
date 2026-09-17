@@ -66,7 +66,7 @@ pub enum ParameterStyle {
     Positional,
 }
 
-/// A placeholder detected in a SQL statement. The frontend uses this to render
+/// A placeholder detected in a SQL statement. The UI uses this to render
 /// a labeled input before running the query.
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]
 pub struct DetectedParameter {
@@ -247,7 +247,7 @@ pub struct QueryResult {
 }
 
 /// One ordered page from a running query. Keeping columns on each page makes
-/// every message independently decodable and lets the frontend paint the first
+/// every message independently decodable and lets the UI paint the first
 /// page before the statement has finished producing rows.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct QueryResultPage {
@@ -270,7 +270,7 @@ pub struct QueryResultSummary {
     pub row_count: u64,
 }
 
-/// Ordered messages delivered over a Tauri channel for a running query.
+/// Ordered messages delivered over a bounded channel for a running query.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(tag = "event", content = "data", rename_all = "camelCase")]
 pub enum QueryStreamEvent {

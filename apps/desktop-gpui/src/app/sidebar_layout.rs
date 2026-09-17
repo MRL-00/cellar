@@ -76,7 +76,7 @@ impl SidebarLayout {
         let mut best = Vec::new();
         let mut best_score = 0;
         let mut best_path = None;
-        for path in tauri_local_storage_paths() {
+        for path in legacy_local_storage_paths() {
             let Some(items) = read_layout(&path).await else {
                 continue;
             };
@@ -129,7 +129,10 @@ fn reconcile(items: &mut Vec<SidebarItem>, connections: &[ConnectionConfig]) {
     );
 }
 
-pub(super) fn tauri_local_storage_paths() -> Vec<PathBuf> {
+/// Finds pre-GPUI WebKit local-storage databases for one-time preference and
+/// layout migration. This remains read-only so users can skip directly from an
+/// older release without losing their setup.
+pub(super) fn legacy_local_storage_paths() -> Vec<PathBuf> {
     let Some(library) = dirs::home_dir().map(|path| path.join("Library/WebKit")) else {
         return Vec::new();
     };

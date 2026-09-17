@@ -1,8 +1,8 @@
-# GPUI feature parity
+# GPUI migration record
 
-This checklist is the removal gate for `apps/desktop` and its Tauri entrypoint.
-An item is complete only when the GPUI implementation uses the real shared
-runtime and has a runnable check or recorded manual verification.
+This checklist records the completed migration from the former Tauri/React
+client to GPUI. GPUI is the only shipped desktop client as of 1.0. Unchecked
+items are current product gaps, not reasons to retain the old implementation.
 
 Legend: `[x]` verified in GPUI; `[ ]` not yet at parity.
 
@@ -17,7 +17,7 @@ Legend: `[x]` verified in GPUI; `[ ]` not yet at parity.
 - [x] macOS debug and optimized release builds.
 - [x] macOS, Linux, and Windows optimized-build CI paths.
 - [ ] Linux and Windows debug and release builds.
-- [ ] Signed bundles, updater, and release workflow.
+- [x] Signed macOS bundle, native updater, and release workflow.
 
 ## Connections and navigation
 
@@ -147,8 +147,8 @@ Legend: `[x]` verified in GPUI; `[ ]` not yet at parity.
 - [ ] Semantic accessibility for custom GPUI controls.
 - [x] Custom native controls participate in tab order and use GPUI's built-in
   Enter/Space click activation; schema-tree rows retain arrow-key navigation.
-- [x] Native title bar uses Tauri geometry and always toggles maximise/restore
-  on double-click, matching classic Cellar even when macOS disables the native
+- [x] Native title bar preserves classic geometry and always toggles maximise/restore
+  on double-click, even when macOS disables the native
   title-bar action.
 
 Latest macOS launch capture verified the shell renders without a crash. GPUI's

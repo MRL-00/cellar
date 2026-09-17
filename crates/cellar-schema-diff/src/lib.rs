@@ -31,9 +31,8 @@ pub use snapshot::{SchemaSnapshot, SchemaSnapshotMeta};
 
 /// Bundled output of a comparison: the render-ready diff tree, the migration
 /// statements that transform source into target, and the dialect the DDL was
-/// generated for. Returned by the `compare_schemas` IPC command so the UI gets
-/// everything (including the dialect to round-trip back into script assembly)
-/// in one call.
+/// generated for. The UI receives everything, including the dialect to
+/// round-trip back into script assembly, in one service call.
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]
 pub struct SchemaComparison {
     pub diff: SchemaDiff,

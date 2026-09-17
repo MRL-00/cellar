@@ -39,7 +39,7 @@ pub enum MigrationKind {
 /// one logical change the user toggles together.
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]
 pub struct MigrationStatement {
-    /// Stable id (`kind:object`) the frontend uses for selection state.
+    /// Stable id (`kind:object`) the UI uses for selection state.
     pub id: String,
     pub kind: MigrationKind,
     /// Qualified object the statement targets, for display.

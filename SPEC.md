@@ -79,10 +79,10 @@ Cellar is **not** aimed at non-technical business users. The UI assumes you unde
 | Credential storage | OS keychain via `keyring` crate, fallback to encrypted file | Standard, secure |
 | AI providers | Rust provider adapters behind typed runtime services | Provider keys and OAuth credentials never enter UI state |
 | Telemetry | None by default. Opt-in only, self-hosted endpoint configurable. | Trust |
-| Package management | Cargo workspace; pnpm retained only during migration | Tauri/React stays buildable until verified parity |
+| Package management | Cargo workspace; pnpm for the website and repository tooling | Native desktop dependencies stay in Cargo |
 | Testing (Rust) | Built-in + `insta` for snapshots | Standard |
-| Testing (legacy TS) | Vitest + Playwright | Protects the old client until its removal gate passes |
-| Linting | `cargo clippy`, `rustfmt`; legacy `eslint` and `prettier` | Standard |
+| Testing (website) | Vitest | Protects the remaining web surface |
+| Linting | `cargo clippy`, `rustfmt`, and TypeScript checks for the website | Standard |
 | CI | GitHub Actions | Free for OSS |
 | Release | Signed Cargo-built GPUI bundles for macOS, Windows, and Linux | Preserve existing platform support |
 
@@ -129,27 +129,21 @@ Cellar is **not** aimed at non-technical business users. The UI assumes you unde
 ### 5.2 Repository layout
 
 The repo uses Cargo for the production client and Rust services. The pnpm
-workspace remains only while the Tauri/React client is the parity reference.
+workspace owns the marketing/download site and repository tooling.
 
 ```
 cellar/
 ├── apps/desktop-gpui/           # Production GPUI desktop client
-├── apps/desktop/                # Legacy parity reference during migration
+├── apps/site/                   # Marketing and download site
 ├── crates/                      # Rust workspace
 │   ├── cellar-runtime/          # Shared application and connection services
 │   ├── cellar-core/             # Traits, errors, shared types
 │   ├── cellar-drivers/          # Per-engine drivers
 │   ├── cellar-sql/              # SQL parsing, dialect handling
 │   ├── cellar-diff/             # Pending changes → SQL
-│   ├── cellar-secrets/          # Credential storage
-│   └── cellar-plugin-host/      # External plugin loading
-├── packages/                    # pnpm workspace
-│   ├── ui/                      # Shared component library
-│   ├── data-grid/               # The grid (its own package)
-│   ├── sql-editor/              # CodeMirror wrapper
-│   ├── ipc/                     # Generated TS bindings from Rust commands
-│   ├── ai/                      # AI providers, prompts, context building
-│   └── plugin-sdk/              # SDK for community plugin authors
+│   ├── cellar-schema-diff/      # Schema comparison and migration generation
+│   ├── cellar-ai/               # Native provider transports and auth
+│   └── cellar-secrets/          # Credential storage
 ├── plugins/                     # First-party plugins
 ├── docs/                        # Architecture, ADRs, contributor guides
 ├── examples/                    # Docker compose for local DBs, sample data
@@ -160,7 +154,7 @@ See `docs/architecture/overview.md` for the full structure once committed.
 
 ### 5.3 Rust crate responsibilities
 
-**`cellar-core`** owns the contracts. Every driver implements traits from here. Frontend types are generated from here via specta. Contains:
+**`cellar-core`** owns the serializable contracts shared by the runtime, native UI, and drivers. Every driver implements traits from here. Contains:
 
 - `Driver` trait — connect, introspect, execute, transaction lifecycle
 - `Connection` trait — represents an open connection
@@ -191,14 +185,13 @@ Each driver is responsible for dialect-specific quirks (identifier quoting, type
 
 **`cellar-secrets`** stores connection credentials. Uses OS keychain (`keyring` crate) on macOS, Windows, and Linux where available. Falls back to a file encrypted with a key derived from a user-supplied master password.
 
-**`cellar-plugin-host`** loads external drivers and providers. v1.0 uses dynamic libraries with a stable C ABI plus WASM as a future direction. See §10.
+An out-of-process plugin host is planned but not yet implemented. See §9.
 
 ### 5.4 UI/runtime boundary
 
 GPUI calls typed `cellar-runtime` services directly. UI tasks may own lightweight
 handles and identifiers, but database connections, credentials, and transaction
-state remain in the runtime. The legacy Tauri commands re-export the same runtime
-while migration is in progress.
+state remain in the runtime.
 
 Services are grouped by feature: `connection`, `query`, `schema`, `transaction`,
 `ai`, and `settings`.
@@ -472,8 +465,7 @@ A command palette (`⌘K`) provides search-driven access to every action.
 - AI requests never include database credentials. Provider credentials stay in the OS keychain and outside the renderer where the provider supports a backend transport.
 - AI requests are inspectable before sending.
 - No telemetry without explicit opt-in.
-- GPUI exposes no arbitrary shell or file capability to feature code. The legacy
-  Tauri allowlist remains locked down until that client is removed.
+- GPUI exposes no arbitrary shell or file capability to feature code.
 
 ### Cross-platform
 
@@ -519,7 +511,7 @@ The mockup in `docs/design/cellar-main.png` (and on claude.ai/design) is the can
 
 ### 8.2 Design tokens
 
-Defined in `packages/ui/src/tokens/`. Dark theme is default. Light theme available.
+Defined in `apps/desktop-gpui/src/theme.rs`. Dark theme is default. Light theme available.
 
 Core principles:
 
@@ -531,7 +523,7 @@ Core principles:
 ### 8.3 Accessibility
 
 - All interactive elements reachable by keyboard.
-- ARIA labels on icon-only buttons.
+- Icon-only controls expose accessible names through GPUI's platform accessibility APIs.
 - Color is never the only signal: pending states use both color and an icon/dot.
 - Configurable font size, line height.
 - High-contrast theme variant.
@@ -540,7 +532,8 @@ Core principles:
 
 ## 9. Plugin API
 
-The plugin system is foundational, not bolted on. v1.0 ships with three plugin types.
+The plugin system is foundational, not bolted on. The contracts below describe
+the intended extension surface; external plugin loading is not implemented yet.
 
 ### 9.1 Plugin types
 
@@ -555,7 +548,7 @@ Driver authoring guide: `docs/drivers/writing-a-driver.md`.
 
 #### AI providers
 
-An AI provider implements the `AiProvider` interface from `packages/ai`. First-party: Anthropic, OpenAI, DeepSeek, Ollama. Community providers register via the plugin SDK. A first-party provider may use typed Rust IPC when its credentials or supported authentication flow should not enter the renderer; OpenAI and DeepSeek use this boundary today.
+First-party AI provider transports live behind typed Rust services in `cellar-ai`. Provider credentials stay in the OS keychain and never enter query context or GPUI view state. A future plugin contract may expose additional providers out of process.
 
 #### Exporters
 
@@ -565,16 +558,14 @@ An exporter takes a result set and produces a file. First-party: CSV, TSV, JSON,
 
 External plugins live in `~/.cellar/plugins/`. Each plugin is a folder with a `manifest.json` declaring type, version, entry point, and required capabilities.
 
-v1.0 loading mechanism:
+Planned loading mechanism:
 
-- **TS plugins** (AI providers, exporters): loaded as ES modules, run in the frontend renderer with the plugin SDK's restricted API surface.
-- **Rust plugins** (drivers): out-of-process binaries communicating with `cellar-plugin-host` over a stable JSON-RPC protocol. Out-of-process is chosen over dylib loading for crash isolation and ABI stability.
+- **External plugins** run out of process and communicate over a stable JSON-RPC protocol. Out-of-process loading is chosen over dynamic libraries for crash isolation and ABI stability.
 
 ### 9.3 SDK
 
-`packages/plugin-sdk` exports:
+The future plugin SDK will provide:
 
-- TypeScript interfaces for each plugin type
 - A `manifest.json` schema
 - Helpers for capability declaration and permission prompting
 - A local dev mode that loads from a folder for plugin authoring
@@ -587,10 +578,8 @@ v1.0 loading mechanism:
 
 - `pnpm dev` — runs the GPUI desktop client
 - `pnpm build:native` — builds the optimized GPUI binary
-- `pnpm dev:tauri` and `pnpm build` — keep the legacy parity client buildable during migration
-- `cargo test` — runs Rust tests
-- `pnpm test` — runs frontend tests
-- `pnpm e2e` — runs Playwright end-to-end tests
+- `cargo test --workspace` — runs native runtime, driver, and UI-model tests
+- `pnpm build`, `pnpm typecheck`, and `pnpm test` — validate the website and repository JS tooling
 
 ### CI
 
