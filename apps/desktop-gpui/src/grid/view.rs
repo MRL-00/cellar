@@ -1,16 +1,22 @@
 use std::{collections::BTreeSet, ops::Range, sync::Arc};
 
 use gpui::{
-    div, prelude::*, px, uniform_list, Context, IntoElement, MouseButton, Render, ScrollWheelEvent,
-    WeakEntity, Window,
+    canvas, div, prelude::*, px, uniform_list, Context, DispatchPhase, IntoElement, MouseButton,
+    Render, ScrollWheelEvent, WeakEntity, Window,
 };
-use gpui_component::Icon;
+use gpui_component::{
+    scroll::{Scrollbar, ScrollbarShow},
+    Icon,
+};
 
 use super::{
-    date_picker, row::header_cell, row::GridRow, width_sum, DataGrid, EditableGrid,
-    FROZEN_COLUMNS, ROW_NUMBER_WIDTH,
+    date_picker, row::header_cell, row::GridRow, width_sum, DataGrid, EditableGrid, FROZEN_COLUMNS,
+    ROW_NUMBER_WIDTH,
 };
 use crate::theme::{ui_px, ui_scale, ACCENT, FG_MUTED, GRID_LINE, PANEL, PANEL_RAISED};
+
+const GRID_HEADER_HEIGHT: f32 = 26.;
+const SCROLLBAR_SIZE: f32 = 16.;
 
 impl DataGrid {
     fn header(
@@ -24,7 +30,7 @@ impl DataGrid {
         let total_width = ROW_NUMBER_WIDTH + width_sum(&self.column_widths, 0..total_columns);
         div()
             .flex()
-            .h(ui_px(26.))
+            .h(ui_px(GRID_HEADER_HEIGHT))
             .w(px(total_width))
             .bg(PANEL)
             .border_t_1()
@@ -143,6 +149,7 @@ impl Render for DataGrid {
         let null_display = Arc::clone(&self.null_display);
         let stripe_rows = self.stripe_rows;
         let resize_grid = grid.clone();
+        let wheel_grid = grid.clone();
         let column_widths = Arc::clone(&self.column_widths);
         let total_width = ROW_NUMBER_WIDTH + width_sum(&column_widths, 0..result.columns.len());
         let editor = self.active_editor.as_ref().map(|editor| {
@@ -154,7 +161,7 @@ impl Render for DataGrid {
                 column_left - horizontal_offset
             };
             let vertical_offset = f32::from(self.vertical_scroll.0.borrow().base_handle.offset().y);
-            let top = 26. * ui_scale()
+            let top = GRID_HEADER_HEIGHT * ui_scale()
                 + editor.position.row as f32 * crate::theme::row_height()
                 + vertical_offset;
             (
@@ -195,19 +202,8 @@ impl Render for DataGrid {
                     .id("native-grid-scroller")
                     .flex_1()
                     .min_h_0()
-                    // overflow_x_scroll remaps unused-axis dy onto x in bubble before this handler.
                     .overflow_x_hidden()
                     .track_scroll(&self.horizontal_scroll)
-                    .on_scroll_wheel(cx.listener(|this, event: &ScrollWheelEvent, window, cx| {
-                        if super::wheel::apply_horizontal_wheel(
-                            &this.horizontal_scroll,
-                            event,
-                            window.line_height(),
-                        ) {
-                            cx.stop_propagation();
-                        }
-                        cx.notify();
-                    }))
                     .child(self.header(columns.clone(), horizontal_offset, grid.clone()))
                     .child(
                         uniform_list(
@@ -238,9 +234,62 @@ impl Render for DataGrid {
                         .h_full()
                         .w(px(total_width))
                         .track_scroll(self.vertical_scroll.clone()),
+                    )
+                    .child(
+                        canvas(
+                            |bounds, _, _| bounds,
+                            move |bounds, _, window, _| {
+                                window.on_mouse_event(
+                                    move |event: &ScrollWheelEvent, phase, window, cx| {
+                                        if phase != DispatchPhase::Capture
+                                            || !bounds.contains(&event.position)
+                                        {
+                                            return;
+                                        }
+                                        wheel_grid
+                                            .update(cx, |grid, cx| {
+                                                if super::wheel::apply_horizontal_wheel(
+                                                    &grid.horizontal_scroll,
+                                                    event,
+                                                    window.line_height(),
+                                                ) {
+                                                    cx.stop_propagation();
+                                                    cx.notify();
+                                                }
+                                            })
+                                            .ok();
+                                    },
+                                );
+                            },
+                        )
+                        .absolute()
+                        .inset_0(),
                     ),
             )
-
+            .child(
+                div()
+                    .absolute()
+                    .top(ui_px(GRID_HEADER_HEIGHT))
+                    .right_0()
+                    .bottom(ui_px(SCROLLBAR_SIZE))
+                    .w(ui_px(SCROLLBAR_SIZE))
+                    .child(
+                        Scrollbar::vertical(&self.vertical_scroll)
+                            .scrollbar_show(ScrollbarShow::Always),
+                    ),
+            )
+            .child(
+                div()
+                    .absolute()
+                    .left_0()
+                    .right(ui_px(SCROLLBAR_SIZE))
+                    .bottom_0()
+                    .h(ui_px(SCROLLBAR_SIZE))
+                    .child(
+                        Scrollbar::horizontal(&self.horizontal_scroll)
+                            .scrollbar_show(ScrollbarShow::Always),
+                    ),
+            )
             .when_some(editor, |element, (state, left, top, width, date, time)| {
                 let viewport_width =
                     f32::from(self.horizontal_scroll.bounds().size.width).max(300.);
@@ -276,7 +325,7 @@ impl Render for DataGrid {
                         {
                             top + crate::theme::row_height()
                         } else {
-                            (top - picker_height).max(26. * ui_scale())
+                            (top - picker_height).max(GRID_HEADER_HEIGHT * ui_scale())
                         };
                         element.child(date_picker::picker(
                             date,
