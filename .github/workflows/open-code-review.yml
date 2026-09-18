@@ -11,13 +11,44 @@ permissions:
   issues: write
   pull-requests: write
 
-# New triggers supersede stale reviews for the same pull request.
+# Concurrency is evaluated before the job condition, so this trigger predicate
+# intentionally mirrors `jobs.review.if`. Non-review events need unique groups
+# or an ordinary comment or unrelated label could cancel an active review.
 concurrency:
   group: >-
-    ${{ format(
-      'open-code-review-{0}',
-      github.event.pull_request.number || github.event.issue.number || github.run_id
-    ) }}
+    ${{
+      (
+        (
+          github.event_name == 'pull_request_target'
+          && (
+            (
+              github.event.action == 'opened'
+              && github.event.pull_request.head.repo.full_name == github.repository
+            )
+            || github.event.label.name == 'open-code-review'
+          )
+        )
+        || (
+          github.event_name == 'issue_comment'
+          && github.event.issue.pull_request
+          && github.event.comment.user.type != 'Bot'
+          && (
+            github.event.comment.author_association == 'MEMBER'
+            || github.event.comment.author_association == 'OWNER'
+            || github.event.comment.author_association == 'COLLABORATOR'
+          )
+          && (
+            startsWith(github.event.comment.body, '/open-code-review')
+            || startsWith(github.event.comment.body, '@open-code-review')
+          )
+        )
+      )
+      && format(
+        'open-code-review-{0}',
+        github.event.pull_request.number || github.event.issue.number
+      )
+      || format('open-code-review-noop-{0}', github.run_id)
+    }}
   cancel-in-progress: true
 
 jobs:
