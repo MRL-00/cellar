@@ -12,7 +12,9 @@ use gpui_component::menu::ContextMenuExt;
 use gpui_component::Icon;
 
 use super::rich::rich_cell_content;
-use super::{width_sum, CellPosition, DataGrid, DragColumn, FROZEN_COLUMNS, ROW_NUMBER_WIDTH};
+use super::{
+    width_sum, CellPosition, CellRange, DataGrid, DragColumn, FROZEN_COLUMNS, ROW_NUMBER_WIDTH,
+};
 use crate::theme::{
     accent, accent_soft, ACCENT, ACCENT_FG, BORDER_DIVIDER, DELETE_SOFT, FG, FG_MUTED,
     FG_SECONDARY, GRID_LINE, INSERT_SOFT, PANEL, PANEL_MUTED, PANEL_RAISED, PROD, UPDATE_SOFT,
@@ -45,6 +47,7 @@ pub(super) struct GridRow {
     pub columns: Range<usize>,
     pub horizontal_offset: f32,
     pub selection: Option<CellPosition>,
+    pub cell_selection: Option<CellRange>,
     pub row_selected: bool,
     pub pending: Arc<BTreeMap<(usize, usize), Option<String>>>,
     pub inserted: bool,
@@ -182,11 +185,12 @@ impl GridRow {
             Arc::clone(&self.result),
             self.row,
             column,
-            self.selection
-                == Some(CellPosition {
+            self.cell_selection.is_some_and(|selection| {
+                selection.contains(CellPosition {
                     row: self.row,
                     column,
-                }),
+                })
+            }),
             self.pending.get(&(self.row, column)).cloned(),
             self.inserted,
             self.deleted,
@@ -427,10 +431,23 @@ fn grid_cell(
                 if editable && event.click_count >= 2 {
                     grid.begin_edit(position, window, cx);
                 } else {
-                    grid.select(position, window, cx);
+                    grid.select(position, event.modifiers.shift, window, cx);
                 }
             })
             .ok();
+        })
+        .on_mouse_move({
+            let grid = menu_grid.clone();
+            move |event, _, cx| {
+                grid.update(cx, |grid, cx| {
+                    if event.dragging() {
+                        grid.extend_cell_selection(CellPosition { row, column }, cx)
+                    } else {
+                        grid.finish_cell_selection(cx);
+                    }
+                })
+                .ok();
+            }
         })
         .context_menu(move |menu, _, cx| {
             let Some(entity) = menu_grid.upgrade() else {
@@ -477,14 +494,6 @@ pub(super) fn cell_edit_text(value: &CellValue) -> String {
             text
         }
         value => cell_text(value, "NULL"),
-    }
-}
-
-pub(super) fn clipboard_text(value: &CellValue) -> String {
-    if value.is_null() {
-        "NULL".into()
-    } else {
-        cell_edit_text(value)
     }
 }
 

@@ -142,6 +142,7 @@ impl Render for DataGrid {
         );
         let editable = self.editable.as_ref().is_some_and(EditableGrid::can_edit);
         let selection = self.selection;
+        let cell_selection = self.cell_selection();
         let grid = cx.weak_entity();
         let row_grid = grid.clone();
         let row_deleted = Arc::clone(&deleted);
@@ -190,11 +191,17 @@ impl Render for DataGrid {
             .on_mouse_move(cx.listener(Self::resize_column))
             .on_mouse_up(
                 MouseButton::Left,
-                cx.listener(|this, _, _, cx| this.finish_resize(cx)),
+                cx.listener(|this, _, _, cx| {
+                    this.finish_resize(cx);
+                    this.finish_cell_selection(cx);
+                }),
             )
             .on_mouse_up_out(MouseButton::Left, move |_, _, cx| {
                 resize_grid
-                    .update(cx, |grid, cx| grid.finish_resize(cx))
+                    .update(cx, |grid, cx| {
+                        grid.finish_resize(cx);
+                        grid.finish_cell_selection(cx);
+                    })
                     .ok();
             })
             .child(
@@ -218,6 +225,7 @@ impl Render for DataGrid {
                                         columns: columns.clone(),
                                         horizontal_offset,
                                         selection,
+                                        cell_selection,
                                         row_selected: this.selected_rows.contains(&row),
                                         pending: Arc::clone(&pending),
                                         deleted: row_deleted.contains(&row),

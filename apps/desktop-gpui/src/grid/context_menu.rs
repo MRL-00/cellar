@@ -6,7 +6,7 @@ use gpui_component::{
     Icon,
 };
 
-use super::{row::cell_edit_text, DataGrid, DataGridEvent};
+use super::{row::cell_edit_text, CellRange, DataGrid, DataGridEvent};
 
 impl DataGrid {
     pub(super) fn header_context_menu(
@@ -181,7 +181,30 @@ impl DataGrid {
         format: ExportFormat,
         header: bool,
     ) -> String {
+        self.formatted_region(rows, 0..self.result.columns.len(), format, header, false)
+    }
+
+    pub(super) fn formatted_cells(&self, selection: CellRange) -> String {
+        let rows = (selection.start.row..=selection.end.row).collect::<Vec<_>>();
+        self.formatted_region(
+            &rows,
+            selection.start.column..selection.end.column + 1,
+            ExportFormat::Tsv,
+            false,
+            true,
+        )
+    }
+
+    fn formatted_region(
+        &self,
+        rows: &[usize],
+        columns: std::ops::Range<usize>,
+        format: ExportFormat,
+        header: bool,
+        clipboard_nulls: bool,
+    ) -> String {
         let mut result: QueryResult = (*self.result).clone();
+        result.columns = self.result.columns[columns.clone()].to_vec();
         result.rows = rows
             .iter()
             .filter_map(|row| {
@@ -189,8 +212,10 @@ impl DataGrid {
                     cells
                         .iter()
                         .enumerate()
+                        .skip(columns.start)
+                        .take(columns.end.saturating_sub(columns.start))
                         .map(|(column, value)| {
-                            match self
+                            let value = match self
                                 .editable
                                 .as_ref()
                                 .and_then(|editable| editable.display_value(*row, column))
@@ -204,6 +229,11 @@ impl DataGrid {
                                     pending,
                                 ),
                                 None => value.clone(),
+                            };
+                            if clipboard_nulls && value.is_null() {
+                                CellValue::Text("NULL".into())
+                            } else {
+                                value
                             }
                         })
                         .collect()
