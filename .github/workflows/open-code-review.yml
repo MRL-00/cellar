@@ -4,7 +4,7 @@ on:
   issue_comment:
     types: [created]
   pull_request_target:
-    types: [labeled]
+    types: [opened, labeled]
 
 permissions:
   contents: read
@@ -19,7 +19,10 @@ concurrency:
       (
         (
           github.event_name == 'pull_request_target'
-          && github.event.label.name == 'open-code-review'
+          && (
+            github.event.action == 'opened'
+            || github.event.label.name == 'open-code-review'
+          )
         )
         || (
           github.event_name == 'issue_comment'
@@ -50,7 +53,10 @@ jobs:
     if: >-
       (
         github.event_name == 'pull_request_target'
-        && github.event.label.name == 'open-code-review'
+        && (
+          github.event.action == 'opened'
+          || github.event.label.name == 'open-code-review'
+        )
       )
       || (
         github.event_name == 'issue_comment'
@@ -70,16 +76,18 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - name: Remove reusable trigger label
-        if: github.event_name == 'pull_request_target'
+      - name: Mark automatic review in progress
+        if: >-
+          github.event_name == 'pull_request_target'
+          && github.event.action == 'opened'
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
         with:
           script: |
-            await github.rest.issues.removeLabel({
+            await github.rest.issues.addLabels({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.payload.pull_request.number,
-              name: 'open-code-review',
+              labels: ['open-code-review'],
             });
 
       - name: Resolve pull request
@@ -114,3 +122,19 @@ jobs:
           checkpoint_range: 'true'
           sticky_summary: 'true'
           upload_artifacts: 'false'
+
+      - name: Remove reusable trigger label
+        if: ${{ always() && github.event_name == 'pull_request_target' }}
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          script: |
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.pull_request.number,
+                name: 'open-code-review',
+              });
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
