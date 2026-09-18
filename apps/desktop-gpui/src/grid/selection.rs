@@ -3,20 +3,44 @@ use std::sync::Arc;
 use cellar_runtime::export::ExportFormat;
 use gpui::{ClipboardItem, Context, ScrollStrategy, Window};
 
-use super::row::clipboard_text;
-use super::{editing, CellPosition, DataGrid, EditableGrid};
+use super::{editing, CellPosition, CellRange, DataGrid, EditableGrid};
 
 impl DataGrid {
     pub(super) fn select(
         &mut self,
         position: CellPosition,
+        extend: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if !extend || self.selection_anchor.is_none() {
+            self.selection_anchor = Some(position);
+        }
         self.selection = Some(position);
+        self.selecting_cells = true;
         self.clear_row_selection();
         window.focus(&self.focus_handle);
         cx.notify();
+    }
+
+    pub(super) fn extend_cell_selection(&mut self, position: CellPosition, cx: &mut Context<Self>) {
+        if !self.selecting_cells || self.selection == Some(position) {
+            return;
+        }
+        self.selection = Some(position);
+        cx.notify();
+    }
+
+    pub(super) fn finish_cell_selection(&mut self, cx: &mut Context<Self>) {
+        if self.selecting_cells {
+            self.selecting_cells = false;
+            cx.notify();
+        }
+    }
+
+    pub(super) fn cell_selection(&self) -> Option<CellRange> {
+        self.selection
+            .map(|head| CellRange::between(self.selection_anchor.unwrap_or(head), head))
     }
 
     /// Row-number gutter clicks: plain click selects just the row, the
@@ -47,6 +71,8 @@ impl DataGrid {
             self.row_anchor = Some(row);
         }
         self.selection = Some(CellPosition { row, column: 0 });
+        self.selection_anchor = None;
+        self.selecting_cells = false;
         window.focus(&self.focus_handle);
         cx.notify();
     }
@@ -75,6 +101,8 @@ impl DataGrid {
             .saturating_add_signed(column_delta)
             .min(self.result.columns.len() - 1);
         self.selection = Some(CellPosition { row, column });
+        self.selection_anchor = self.selection;
+        self.selecting_cells = false;
         self.clear_row_selection();
         self.vertical_scroll
             .scroll_to_item(row, ScrollStrategy::Center);
@@ -91,22 +119,11 @@ impl DataGrid {
             }
             return;
         }
-        let Some(position) = self.selection else {
+        let Some(selection) = self.cell_selection() else {
             return;
         };
-        let text = self
-            .editable
-            .as_ref()
-            .and_then(|editable| editable.display_value(position.row, position.column))
-            .map(|value| value.unwrap_or_else(|| "NULL".into()))
-            .or_else(|| {
-                self.result
-                    .rows
-                    .get(position.row)
-                    .and_then(|row| row.get(position.column))
-                    .map(clipboard_text)
-            });
-        if let Some(text) = text {
+        let text = self.formatted_cells(selection);
+        if !text.is_empty() {
             cx.write_to_clipboard(ClipboardItem::new_string(text));
         }
     }
@@ -197,8 +214,28 @@ impl DataGrid {
         }
         if removed {
             self.selection = None;
+            self.selection_anchor = None;
+            self.selecting_cells = false;
             self.clear_row_selection();
         }
         cx.notify();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CellPosition, CellRange};
+
+    #[test]
+    fn cell_range_normalizes_drag_direction() {
+        let range = CellRange::between(
+            CellPosition { row: 5, column: 3 },
+            CellPosition { row: 2, column: 1 },
+        );
+
+        assert_eq!(range.start, CellPosition { row: 2, column: 1 });
+        assert_eq!(range.end, CellPosition { row: 5, column: 3 });
+        assert!(range.contains(CellPosition { row: 4, column: 2 }));
+        assert!(!range.contains(CellPosition { row: 4, column: 4 }));
     }
 }

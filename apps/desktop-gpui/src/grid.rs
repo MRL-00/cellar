@@ -43,6 +43,32 @@ struct CellPosition {
     column: usize,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct CellRange {
+    start: CellPosition,
+    end: CellPosition,
+}
+
+impl CellRange {
+    fn between(anchor: CellPosition, head: CellPosition) -> Self {
+        Self {
+            start: CellPosition {
+                row: anchor.row.min(head.row),
+                column: anchor.column.min(head.column),
+            },
+            end: CellPosition {
+                row: anchor.row.max(head.row),
+                column: anchor.column.max(head.column),
+            },
+        }
+    }
+
+    fn contains(self, position: CellPosition) -> bool {
+        (self.start.row..=self.end.row).contains(&position.row)
+            && (self.start.column..=self.end.column).contains(&position.column)
+    }
+}
+
 struct ActiveEditor {
     position: CellPosition,
     state: Entity<InputState>,
@@ -77,6 +103,8 @@ pub struct DataGrid {
     horizontal_scroll: ScrollHandle,
     focus_handle: FocusHandle,
     selection: Option<CellPosition>,
+    selection_anchor: Option<CellPosition>,
+    selecting_cells: bool,
     selected_rows: BTreeSet<usize>,
     row_anchor: Option<usize>,
     editable: Option<EditableGrid>,
@@ -102,6 +130,8 @@ impl DataGrid {
             horizontal_scroll: ScrollHandle::new(),
             focus_handle: cx.focus_handle(),
             selection: None,
+            selection_anchor: None,
+            selecting_cells: false,
             selected_rows: BTreeSet::new(),
             row_anchor: None,
             editable: None,
@@ -202,6 +232,8 @@ impl DataGrid {
             let inserted = editable.clear();
             if !inserted.is_empty() {
                 self.selection = None;
+                self.selection_anchor = None;
+                self.selecting_cells = false;
                 self.clear_row_selection();
             }
             for row in inserted.into_iter().rev() {
@@ -231,7 +263,10 @@ impl DataGrid {
     }
 
     pub fn scroll_to_cell(&mut self, row: usize, column: usize, cx: &mut Context<Self>) {
-        self.selection = Some(CellPosition { row, column });
+        let position = CellPosition { row, column };
+        self.selection = Some(position);
+        self.selection_anchor = Some(position);
+        self.selecting_cells = false;
         self.clear_row_selection();
         self.vertical_scroll
             .scroll_to_item(row, ScrollStrategy::Center);
@@ -290,6 +325,8 @@ impl DataGrid {
         .detach();
         window.focus(&state.focus_handle(cx));
         self.selection = Some(position);
+        self.selection_anchor = Some(position);
+        self.selecting_cells = false;
         self.clear_row_selection();
         self.active_editor = Some(ActiveEditor {
             position,
@@ -538,6 +575,10 @@ impl DataGrid {
             editable.move_column(source, target);
         }
         self.selection = self.selection.map(|position| CellPosition {
+            row: position.row,
+            column: moved_index(position.column, source, target),
+        });
+        self.selection_anchor = self.selection_anchor.map(|position| CellPosition {
             row: position.row,
             column: moved_index(position.column, source, target),
         });
