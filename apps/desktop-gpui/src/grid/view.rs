@@ -15,6 +15,7 @@ use super::{
 };
 use crate::theme::{ui_px, ui_scale, ACCENT, FG_MUTED, GRID_LINE, PANEL, PANEL_RAISED};
 
+const GRID_HEADER_HEIGHT: f32 = 26.;
 const SCROLLBAR_SIZE: f32 = 16.;
 
 impl DataGrid {
@@ -29,7 +30,7 @@ impl DataGrid {
         let total_width = ROW_NUMBER_WIDTH + width_sum(&self.column_widths, 0..total_columns);
         div()
             .flex()
-            .h(ui_px(26.))
+            .h(ui_px(GRID_HEADER_HEIGHT))
             .w(px(total_width))
             .bg(PANEL)
             .border_t_1()
@@ -160,7 +161,7 @@ impl Render for DataGrid {
                 column_left - horizontal_offset
             };
             let vertical_offset = f32::from(self.vertical_scroll.0.borrow().base_handle.offset().y);
-            let top = 26. * ui_scale()
+            let top = GRID_HEADER_HEIGHT * ui_scale()
                 + editor.position.row as f32 * crate::theme::row_height()
                 + vertical_offset;
             (
@@ -268,7 +269,7 @@ impl Render for DataGrid {
             .child(
                 div()
                     .absolute()
-                    .top(ui_px(26.))
+                    .top(ui_px(GRID_HEADER_HEIGHT))
                     .right_0()
                     .bottom(ui_px(SCROLLBAR_SIZE))
                     .w(ui_px(SCROLLBAR_SIZE))
@@ -324,7 +325,7 @@ impl Render for DataGrid {
                         {
                             top + crate::theme::row_height()
                         } else {
-                            (top - picker_height).max(26. * ui_scale())
+                            (top - picker_height).max(GRID_HEADER_HEIGHT * ui_scale())
                         };
                         element.child(date_picker::picker(
                             date,
