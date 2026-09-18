@@ -1,6 +1,6 @@
 use cellar_core::error::{CellarError, CellarResult};
 use cellar_core::value::CellValue;
-use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
+use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 use sqlx::mysql::{MySqlRow, MySqlValueRef};
 use sqlx::{Row, TypeInfo, ValueRef};
 
@@ -93,9 +93,16 @@ pub fn decode_cell(row: &MySqlRow, ordinal: usize) -> CellarResult<CellValue> {
             Ok(t) => Ok(CellValue::Time(t)),
             Err(_) => unchecked_text(row, ordinal).map(CellValue::Text),
         },
-        "DATETIME" | "TIMESTAMP" => row
+        "DATETIME" => row
             .try_get::<NaiveDateTime, _>(ordinal)
             .map(CellValue::Timestamp)
+            .map_err(decode_err),
+        // SQLx maps TIMESTAMP to DateTime<Utc>, not NaiveDateTime. Its default
+        // connection timezone is UTC; keep Cellar's existing Timestamp cell
+        // representation without converting the value to the machine's timezone.
+        "TIMESTAMP" => row
+            .try_get::<DateTime<Utc>, _>(ordinal)
+            .map(|value| CellValue::Timestamp(value.naive_utc()))
             .map_err(decode_err),
 
         "JSON" => row
