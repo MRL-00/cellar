@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.0.5
+
+### Features
+
+- **Cell range selection** — drag across grid cells or Shift-click to extend a
+  rectangular selection, then copy it as tab-separated values for pasting into
+  spreadsheets and other table tools.
+- **Visible grid scrollbars** — use the always-visible horizontal and vertical
+  scrollbars to move through wide tables and large result sets.
+
+### Bug fixes
+
+- **Correct grid scrolling** — Shift+wheel now scrolls horizontally without
+  moving rows, while ordinary wheel and trackpad gestures continue to scroll
+  vertically.
+- **Reliable connection editor focus** — connection fields keep keyboard focus
+  across their full input area, and Tab navigation stays inside the dialog.
+
 ## 1.0.4
 
 ### Features
