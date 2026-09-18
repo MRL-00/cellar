@@ -439,12 +439,14 @@ fn grid_cell(
         .on_mouse_move({
             let grid = menu_grid.clone();
             move |event, _, cx| {
-                if event.dragging() {
-                    grid.update(cx, |grid, cx| {
+                grid.update(cx, |grid, cx| {
+                    if event.dragging() {
                         grid.extend_cell_selection(CellPosition { row, column }, cx)
-                    })
-                    .ok();
-                }
+                    } else {
+                        grid.finish_cell_selection(cx);
+                    }
+                })
+                .ok();
             }
         })
         .context_menu(move |menu, _, cx| {
