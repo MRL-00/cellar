@@ -1,31 +1,39 @@
 # Cellar
 
-An open-source, cross-platform desktop database client with AI in the workflow, not stapled to the side.
+An open-source desktop database client for people who spend a lot of time in SQL.
 
 ![Cellar main window](apps/site/public/assets/cellar-main.png)
 
-Cellar is a dense, keyboard-first SQL workspace for developers, DBAs, and analysts. It is desktop-first, MIT licensed, local-first, and private by default.
+Cellar keeps schema browsing, queries, results, and pending data changes in one native workspace. It is keyboard-first, MIT licensed, local by default, and built in Rust with [GPUI](https://www.gpui.rs/).
 
-## Desktop stack
+It is also early-access software. The useful database workflow is here, but there are still rough edges and unfinished parts.
 
-Cellar 1.0 uses a native Rust desktop stack:
+## Download
 
-- GPUI 0.2.2 for the shell, editor, controls, and two-axis virtualized grid.
-- `cellar-runtime` for application, connection, query, history, and transaction services.
-- `cellar-core` and first-party driver crates for typed database behavior.
-- `cellar-secrets` for OS-keychain credential storage.
-- A native signed updater with bounded downloads and minisign verification.
+[Download the latest release](https://github.com/MRL-00/cellar/releases/latest). The signed build currently supports Apple Silicon Macs running macOS 13 or newer.
 
-The former Tauri/React parity client was removed after the GPUI client shipped. A read-only migration path remains so older installations can carry their WebKit-stored layout and appearance preferences forward.
+Windows and Linux builds are checked in CI, but release packaging for them is not ready yet. Cellar 0.3.5 was the final Intel Mac release.
 
-The React/Vite code under `apps/site` is the marketing and download site, not the desktop client.
+## What works
 
-## Quick start
+- PostgreSQL, MySQL, SQLite, SQL Server, Azure SQL, Firestore, Convex, and Cosmos DB connections
+- Supabase, Neon, and PlanetScale through their native database protocols
+- Live schema browsing, SQL editing, completion, formatting, and query history
+- A bounded, two-axis virtualized result grid for large tables
+- Reviewable row edits that stay pending until you choose to commit them
+- Query plans, schema comparison, ER diagrams, import/export, and a `Cmd/Ctrl+K` command palette
+
+AI support is being built around your own provider account. Context stays visible, generated SQL stays reviewable, and Cellar does not put a hosted proxy between you and the provider.
+
+There is no Cellar account or cloud sync. Database credentials and provider keys are stored through the operating system keychain, and telemetry is off by default.
+
+## Build it
 
 Prerequisites:
 
 - Rust stable
-- Node.js 20 or newer and pnpm 9 or newer for the website and repository checks
+- Node.js 20 or newer
+- pnpm 9 or newer
 - macOS users: Xcode command-line tools
 
 ```bash
@@ -35,42 +43,20 @@ pnpm install
 pnpm dev
 ```
 
-Useful commands:
+`pnpm dev` runs the native GPUI desktop client. The website is a separate app and can be started with `pnpm --filter @cellar/site dev`.
+
+Useful checks:
 
 ```bash
-pnpm dev                 # native GPUI desktop client
-pnpm build:native        # optimized GPUI binary
 cargo check --workspace
 cargo test --workspace
-pnpm build               # website and remaining JS workspaces
+pnpm build
 pnpm typecheck
 pnpm lint
 pnpm test
 ```
 
-Run the website locally with `pnpm --filter @cellar/site dev`.
-
-## Repository layout
-
-```text
-cellar/
-├── apps/
-│   ├── desktop-gpui/    # Production native desktop client and its assets
-│   └── site/            # Marketing and download site
-├── crates/
-│   ├── cellar-runtime/  # Shared application and connection services
-│   ├── cellar-core/     # Driver traits, errors, schema/query types
-│   ├── cellar-drivers/  # First-party database drivers
-│   ├── cellar-sql/      # SQL parsing and dialect support
-│   ├── cellar-diff/     # Pending row edits to transactional SQL
-│   ├── cellar-schema-diff/
-│   ├── cellar-ai/       # Native provider transports and auth
-│   └── cellar-secrets/  # Keychain and credential storage
-├── docs/                # Architecture and release documentation
-└── SPEC.md              # Canonical product and architecture spec
-```
-
-The runtime is direct and typed:
+## How it is put together
 
 ```text
 GPUI entities and models
@@ -79,21 +65,21 @@ GPUI entities and models
   -> concrete database drivers
 ```
 
-Credentials remain in `cellar-secrets`; connection configuration must never contain passwords or provider keys.
+The production desktop app lives in `apps/desktop-gpui`. Shared Rust services and database drivers live under `crates`, while `apps/site` contains the React/Vite marketing site. There is no browser runtime or second IPC layer in the desktop app.
+
+Read [SPEC.md](SPEC.md) for the product and architecture decisions, and [the architecture overview](docs/architecture/overview.md) for the shorter version.
 
 ## Contributing
 
-Read [SPEC.md](SPEC.md) before architectural or product changes. Prefer small vertical slices, existing patterns, and source files below the repository's 800-line limit.
-
-Before opening a pull request:
+Issues and pull requests are welcome. Please run the relevant checks before opening a pull request:
 
 ```bash
-pnpm lint
 pnpm test
 cargo check --workspace
+pnpm lint
 ```
 
-Use Conventional Commit-style PR titles such as `feat: add scenario templates` or `fix: handle titlebar double-click`.
+Use a conventional prefix in the title, for example `feat: add query templates` or `fix: preserve pending row edits`.
 
 ## License
 
