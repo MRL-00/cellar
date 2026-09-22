@@ -52,6 +52,45 @@ pub enum SchemaNode {
         schema: String,
         kind: &'static str,
     },
+    /// A table row. Expanding it reveals its structure folders.
+    Relation {
+        connection_id: String,
+        database: String,
+        schema: String,
+        table: String,
+    },
+    /// A structure folder under a table: `columns`, `keys`, `indexes`, or
+    /// `defaults`.
+    RelationGroup {
+        connection_id: String,
+        database: String,
+        schema: String,
+        table: String,
+        kind: &'static str,
+    },
+}
+
+impl SchemaNode {
+    /// Node tracking whether a table row is expanded.
+    pub fn relation(target: &TableTarget) -> Self {
+        Self::Relation {
+            connection_id: target.connection_id.clone(),
+            database: target.database.clone(),
+            schema: target.schema.clone(),
+            table: target.table.clone(),
+        }
+    }
+
+    /// Node tracking one structure folder under a table.
+    pub fn relation_group(target: &TableTarget, kind: &'static str) -> Self {
+        Self::RelationGroup {
+            connection_id: target.connection_id.clone(),
+            database: target.database.clone(),
+            schema: target.schema.clone(),
+            table: target.table.clone(),
+            kind,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
@@ -68,6 +107,10 @@ pub struct AppModel {
     states: HashMap<String, ConnectionState>,
     schemas: HashMap<String, Vec<Database>>,
     expanded_nodes: HashSet<SchemaNode>,
+    /// Structure folders under an expanded table open by default, so a
+    /// single click on a table reveals its columns. Only folders the user
+    /// explicitly collapsed are tracked here.
+    collapsed_folders: HashSet<SchemaNode>,
     expanded_connections: HashSet<String>,
     tabs: Vec<WorkspaceTab>,
     active_tab: Option<u64>,
@@ -92,6 +135,7 @@ impl AppModel {
             active_connection,
             schemas: HashMap::new(),
             expanded_nodes: HashSet::new(),
+            collapsed_folders: HashSet::new(),
             expanded_connections: HashSet::new(),
             tabs: Vec::new(),
             active_tab: None,
@@ -292,13 +336,20 @@ impl AppModel {
     }
 
     pub fn toggle_node(&mut self, node: SchemaNode) {
-        if !self.expanded_nodes.remove(&node) {
-            self.expanded_nodes.insert(node);
+        let expanded = match node {
+            SchemaNode::RelationGroup { .. } => &mut self.collapsed_folders,
+            _ => &mut self.expanded_nodes,
+        };
+        if !expanded.remove(&node) {
+            expanded.insert(node);
         }
     }
 
     pub fn node_expanded(&self, node: &SchemaNode) -> bool {
-        self.expanded_nodes.contains(node)
+        match node {
+            SchemaNode::RelationGroup { .. } => !self.collapsed_folders.contains(node),
+            _ => self.expanded_nodes.contains(node),
+        }
     }
 
     fn activate_tab(&mut self, id: u64, new: bool) {

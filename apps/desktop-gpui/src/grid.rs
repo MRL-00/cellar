@@ -11,6 +11,7 @@ mod view;
 mod wheel;
 
 pub use layout::{GridLayout, PortableGridLayout};
+pub use row::column_type_icon;
 
 use std::{collections::BTreeSet, ops::Range, sync::Arc};
 

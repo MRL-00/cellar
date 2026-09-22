@@ -303,58 +303,66 @@ impl CellarApp {
         let active = self.model.active_tab().is_some_and(
             |tab| matches!(&tab.kind, TabKind::Table { target: open, .. } if open == &target),
         );
+        let node = SchemaNode::relation(&target);
+        let expanded = self.model.node_expanded(&node);
+        let keyboard_toggle = node.clone();
+        let twisty_id = SharedString::from(format!(
+            "table-toggle:{connection_id}:{database}:{schema}:{}",
+            table.name
+        ));
         let open = target.clone();
         let keyboard_open = target.clone();
         let menu_target = target.clone();
-        tree_row(66.)
-            .id(SharedString::from(format!(
-                "table:{connection_id}:{database}:{schema}:{}",
-                table.name
-            )))
-            .when(active, |element| {
-                element
-                    .bg(accent_soft())
-                    .text_color(ACCENT)
-                    .font_weight(gpui::FontWeight::MEDIUM)
-            })
-            .child(empty_twisty())
-            .child(icon("icons/table.svg", 11.))
-            .child(label(table.name.clone()))
-            .when_some(table.row_count, |element, count| {
-                element.child(meta(format_row_count(count)))
-            })
-            .when(!table.foreign_keys.is_empty(), |element| {
-                element.child(
-                    div()
-                        .ml_1()
-                        .rounded(ui_px(3.))
-                        .bg(PANEL_MUTED)
-                        .px_1()
-                        .text_size(ui_px(10.))
-                        .text_color(FG_MUTED)
-                        .child(format!("fk·{}", table.foreign_keys.len())),
-                )
-            })
-            .on_mouse_down(
-                MouseButton::Right,
-                cx.listener(move |this, event: &MouseDownEvent, _, cx| {
-                    cx.stop_propagation();
-                    this.table_menu = Some(super::context_menu::TableMenu {
-                        target: menu_target.clone(),
-                        position: event.position,
-                    });
-                    cx.notify();
-                }),
+        div()
+            .child(
+                tree_row(66.)
+                    .id(SharedString::from(format!(
+                        "table:{connection_id}:{database}:{schema}:{}",
+                        table.name
+                    )))
+                    .when(active, |element| {
+                        element
+                            .bg(accent_soft())
+                            .text_color(ACCENT)
+                            .font_weight(gpui::FontWeight::MEDIUM)
+                    })
+                    .child(self.relation_twisty(twisty_id, node, expanded, cx))
+                    .child(icon("icons/table.svg", 11.))
+                    .child(label(table.name.clone()))
+                    .when_some(table.row_count, |element, count| {
+                        element.child(meta(format_row_count(count)))
+                    })
+                    .when(!table.foreign_keys.is_empty(), |element| {
+                        element.child(pill(format!("fk·{}", table.foreign_keys.len())))
+                    })
+                    .on_mouse_down(
+                        MouseButton::Right,
+                        cx.listener(move |this, event: &MouseDownEvent, _, cx| {
+                            cx.stop_propagation();
+                            this.table_menu = Some(super::context_menu::TableMenu {
+                                target: menu_target.clone(),
+                                position: event.position,
+                            });
+                            cx.notify();
+                        }),
+                    )
+                    .on_click(cx.listener(move |this, _, window, cx| {
+                        this.open_table(open.clone(), window, cx);
+                    }))
+                    .on_key_down(cx.listener(move |this, event: &KeyDownEvent, window, cx| {
+                        if activate_key(event) {
+                            this.open_table(keyboard_open.clone(), window, cx);
+                            cx.stop_propagation();
+                        } else if arrow_toggle_key(event, expanded) {
+                            this.model.toggle_node(keyboard_toggle.clone());
+                            cx.notify();
+                            cx.stop_propagation();
+                        }
+                    })),
             )
-            .on_click(cx.listener(move |this, _, window, cx| {
-                this.open_table(open.clone(), window, cx);
-            }))
-            .on_key_down(cx.listener(move |this, event: &KeyDownEvent, window, cx| {
-                if activate_key(event) {
-                    this.open_table(keyboard_open.clone(), window, cx);
-                    cx.stop_propagation();
-                }
-            }))
+            .when(expanded, |element| {
+                element.child(self.table_structure(&target, table, cx))
+            })
             .into_any_element()
     }
 
@@ -448,6 +456,27 @@ impl CellarApp {
             }))
             .into_any_element()
     }
+
+    /// Twisty that opens a table's structure without opening the table
+    /// itself, which stays on the row click.
+    fn relation_twisty(
+        &self,
+        id: SharedString,
+        node: SchemaNode,
+        expanded: bool,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        div()
+            .id(id)
+            .flex_shrink_0()
+            .on_click(cx.listener(move |this, _, _, cx| {
+                cx.stop_propagation();
+                this.model.toggle_node(node.clone());
+                cx.notify();
+            }))
+            .child(twisty(expanded))
+            .into_any_element()
+    }
 }
 
 fn group_node(connection_id: &str, database: &str, schema: &str, kind: &'static str) -> SchemaNode {
@@ -459,7 +488,7 @@ fn group_node(connection_id: &str, database: &str, schema: &str, kind: &'static 
     }
 }
 
-fn tree_row(padding: f32) -> gpui::Div {
+pub(super) fn tree_row(padding: f32) -> gpui::Div {
     div()
         .cursor_pointer()
         .h(ui_px(22.))
@@ -476,17 +505,34 @@ fn tree_row(padding: f32) -> gpui::Div {
         .hover(|style| style.bg(PANEL_MUTED))
 }
 
+/// A non-interactive row that reports schema detail: columns, keys, indexes,
+/// and defaults.
+pub(super) fn info_row(padding: f32) -> gpui::Div {
+    div()
+        .h(ui_px(22.))
+        .flex()
+        .items_center()
+        .gap_1()
+        .pl(ui_px(padding))
+        .pr(ui_px(6.))
+        .text_size(ui_px(13.))
+        .text_color(FG_SECONDARY)
+}
+
 fn activate_key(event: &KeyDownEvent) -> bool {
     matches!(event.keystroke.key.as_str(), "enter" | "space")
 }
 
-fn toggle_key(event: &KeyDownEvent, expanded: bool) -> bool {
-    activate_key(event)
-        || event.keystroke.key == "right" && !expanded
-        || event.keystroke.key == "left" && expanded
+pub(super) fn toggle_key(event: &KeyDownEvent, expanded: bool) -> bool {
+    activate_key(event) || arrow_toggle_key(event, expanded)
 }
 
-fn twisty(expanded: bool) -> impl IntoElement {
+/// Arrow keys that expand or collapse a node without activating it.
+fn arrow_toggle_key(event: &KeyDownEvent, expanded: bool) -> bool {
+    event.keystroke.key == "right" && !expanded || event.keystroke.key == "left" && expanded
+}
+
+pub(super) fn twisty(expanded: bool) -> impl IntoElement {
     div()
         .text_color(FG_MUTED)
         .hover(|style| style.text_color(FG_SECONDARY))
@@ -500,11 +546,11 @@ fn twisty(expanded: bool) -> impl IntoElement {
         ))
 }
 
-fn empty_twisty() -> impl IntoElement {
+pub(super) fn empty_twisty() -> impl IntoElement {
     div().size(ui_px(14.)).flex_shrink_0()
 }
 
-fn folder_icon(expanded: bool) -> impl IntoElement {
+pub(super) fn folder_icon(expanded: bool) -> impl IntoElement {
     icon(
         if expanded {
             "icons/folder-open.svg"
@@ -516,16 +562,33 @@ fn folder_icon(expanded: bool) -> impl IntoElement {
 }
 
 fn icon(path: &'static str, size: f32) -> impl IntoElement {
-    div()
-        .size(ui_px(14.))
-        .flex_shrink_0()
+    icon_slot()
         .flex()
         .items_center()
         .justify_center()
         .child(Icon::empty().path(path).size(ui_px(size)))
 }
 
-fn label(text: impl Into<SharedString>) -> impl IntoElement {
+/// Keeps rows that carry no icon aligned with the ones that do.
+pub(super) fn icon_slot() -> gpui::Div {
+    div().size(ui_px(14.)).flex_shrink_0()
+}
+
+/// Icon slot tinted for the kind of column or object it marks.
+pub(super) fn type_icon(
+    path: &'static str,
+    color: cellar_desktop_gpui::theme::DynamicColor,
+    size: f32,
+) -> impl IntoElement {
+    icon_slot()
+        .flex()
+        .items_center()
+        .justify_center()
+        .text_color(color)
+        .child(Icon::empty().path(path).size(ui_px(size)))
+}
+
+pub(super) fn label(text: impl Into<SharedString>) -> impl IntoElement {
     div()
         .min_w_0()
         .flex_1()
@@ -534,13 +597,37 @@ fn label(text: impl Into<SharedString>) -> impl IntoElement {
         .child(text.into())
 }
 
-fn meta(text: impl Into<SharedString>) -> impl IntoElement {
+/// Secondary text that follows a label and gives way to it when space is
+/// short.
+pub(super) fn detail(text: impl Into<SharedString>) -> impl IntoElement {
+    div()
+        .min_w_0()
+        .truncate()
+        .text_size(ui_px(11.))
+        .text_color(FG_MUTED)
+        .child(text.into())
+}
+
+pub(super) fn meta(text: impl Into<SharedString>) -> impl IntoElement {
     div()
         .ml_auto()
         .flex_shrink_0()
         .pr_1()
         .text_size(ui_px(11.))
         .font_weight(gpui::FontWeight::MEDIUM)
+        .text_color(FG_MUTED)
+        .child(text.into())
+}
+
+/// Small muted badge used for counts and index traits.
+pub(super) fn pill(text: impl Into<SharedString>) -> impl IntoElement {
+    div()
+        .ml_1()
+        .flex_shrink_0()
+        .rounded(ui_px(3.))
+        .bg(PANEL_MUTED)
+        .px_1()
+        .text_size(ui_px(10.))
         .text_color(FG_MUTED)
         .child(text.into())
 }

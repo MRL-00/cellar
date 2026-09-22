@@ -186,6 +186,9 @@ fn icon(path: &str) -> Option<&'static str> {
         "icons/database.svg" => {
             r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="2.5"/><path d="M4 5v6c0 1.4 3.6 2.5 8 2.5s8-1.1 8-2.5V5M4 11v6c0 1.4 3.6 2.5 8 2.5s8-1.1 8-2.5v-6"/></svg>"#
         }
+        "icons/index.svg" => {
+            r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h9"/><circle cx="19" cy="18" r="2"/></svg>"#
+        }
         "icons/schema.svg" => {
             r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h7l2 2h9v11a1 1 0 01-1 1H3a1 1 0 01-1-1V7a1 1 0 011-1z"/></svg>"#
         }
@@ -300,5 +303,8 @@ mod tests {
             .contains("M4 12l5 5L20 6"));
         assert!(icon("icons/chevron-left.svg").is_some());
         assert!(icon("icons/user.svg").is_some());
+        assert!(icon("icons/index.svg")
+            .expect("index icon")
+            .contains("M4 6h16M4 12h16M4 18h9"));
     }
 }

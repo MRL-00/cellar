@@ -253,7 +253,7 @@ Each connection can have an environment tag: `local`, `dev`, `staging`, `prod`, 
 ### 6.2 Sidebar and schema tree
 
 - Top: filter input that fuzzy-matches across all expanded nodes (`⌘F` global, scoped when tree is focused).
-- Tree shows: databases → schemas → tables, views, functions, procedures, indexes (under their table), foreign keys (under their table).
+- Tree shows: databases → schemas → tables, views, functions, procedures, and, under each table, its columns, keys, indexes, and defaults.
 - Tables show row count (lazy-loaded) and a small FK indicator if referenced by others.
 - Right-click on a table: open data, open structure, generate SELECT/INSERT/UPDATE/DELETE, copy fully-qualified name, drop (with confirmation), refresh.
 - Drag a table into the editor to insert its qualified name.

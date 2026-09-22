@@ -37,6 +37,7 @@ mod render;
 mod schema_compare;
 mod schema_compare_dialog;
 mod schema_compare_support;
+mod schema_structure;
 mod schema_tree;
 mod schema_visibility;
 mod session;
