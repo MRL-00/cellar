@@ -482,14 +482,14 @@ pub(super) fn clipboard_rows(text: &str) -> Vec<Vec<String>> {
         .collect()
 }
 
-/// Selected-row JSON, placed under the columns whose disambiguated names
-/// (`id`, `id_2`) appear as object keys. `columns` is `(offset, name)` from
-/// the paste origin, and offsets must be unique and below `columns.len()`.
+/// Selected-row JSON as `(offset, value)` pairs for keys that are present.
+/// `columns` is `(offset, name)` from the paste origin. Missing keys are
+/// omitted so a paste starting mid-grid does not blank earlier columns.
 /// `None` means the text is not that array, so the caller pastes it as TSV.
 pub(super) fn clipboard_json_rows(
     text: &str,
     columns: &[(usize, String)],
-) -> Option<Vec<Vec<String>>> {
+) -> Option<Vec<Vec<(usize, String)>>> {
     let value: serde_json::Value = serde_json::from_str(text.trim()).ok()?;
     let rows = value.as_array()?;
     if rows.is_empty() || rows.iter().any(|row| !row.is_object()) {
@@ -505,30 +505,18 @@ pub(super) fn clipboard_json_rows(
     if !matches_a_column {
         return None;
     }
-    if columns.iter().any(|(index, _)| *index >= columns.len()) {
-        return None;
-    }
-    let mut seen = vec![false; columns.len()];
-    if columns.iter().any(|(index, _)| {
-        let duplicate = seen[*index];
-        seen[*index] = true;
-        duplicate
-    }) {
-        return None;
-    }
     Some(
         rows.iter()
-            .map(|row| {
-                let mut values = vec![String::new(); columns.len()];
-                let Some(object) = row.as_object() else {
-                    return values;
-                };
-                for (index, name) in columns {
-                    if let Some(value) = object.get(name) {
-                        values[*index] = json_paste_text(value);
-                    }
-                }
-                values
+            .filter_map(|row| row.as_object())
+            .map(|object| {
+                columns
+                    .iter()
+                    .filter_map(|(index, name)| {
+                        object
+                            .get(name)
+                            .map(|value| (*index, json_paste_text(value)))
+                    })
+                    .collect()
             })
             .collect(),
     )
@@ -739,23 +727,19 @@ mod tests {
         assert_eq!(
             clipboard_json_rows(json, &columns),
             Some(vec![
-                vec!["2".to_string(), String::new()],
-                vec!["1".to_string(), "a".to_string()],
+                vec![(1, String::new()), (0, "2".to_string())],
+                vec![(1, "a".to_string()), (0, "1".to_string())],
             ])
         );
-        assert_eq!(
-            clipboard_json_rows(json, &[(0, "id_2".to_string())]),
-            None
-        );
+        assert_eq!(clipboard_json_rows(json, &[(0, "id_2".to_string())]), None);
         assert_eq!(
             clipboard_json_rows("[{\"id\":1}, \"not-a-row\"]", &columns),
             None
         );
         assert_eq!(clipboard_json_rows("[{\"foo\":1}]", &columns), None);
-        assert_eq!(clipboard_json_rows(json, &[(2, "id".to_string())]), None);
         assert_eq!(
-            clipboard_json_rows(json, &[(0, "id".to_string()), (0, "name".to_string())]),
-            None
+            clipboard_json_rows(json, &[(2, "id".to_string())]),
+            Some(vec![vec![(2, "2".to_string())], vec![(2, "1".to_string())]])
         );
     }
 

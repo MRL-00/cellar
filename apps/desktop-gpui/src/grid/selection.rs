@@ -155,14 +155,20 @@ impl DataGrid {
             .skip(start.column)
             .collect::<Vec<_>>();
         let named = headers.iter().cloned().enumerate().collect::<Vec<_>>();
-        let rows = editing::clipboard_json_rows(&text, &named)
-            .unwrap_or_else(|| editing::without_matching_header(editing::clipboard_rows(&text), &headers));
+        let rows = if let Some(rows) = editing::clipboard_json_rows(&text, &named) {
+            rows
+        } else {
+            editing::without_matching_header(editing::clipboard_rows(&text), &headers)
+                .into_iter()
+                .map(|row| row.into_iter().enumerate().collect())
+                .collect()
+        };
         for (row_offset, values) in rows.into_iter().enumerate() {
             let row = start.row.saturating_add(row_offset);
             if row >= self.result.rows.len() {
                 break;
             }
-            for (column_offset, value) in values.into_iter().enumerate() {
+            for (column_offset, value) in values {
                 let column = start.column.saturating_add(column_offset);
                 if column >= self.result.columns.len() {
                     break;
