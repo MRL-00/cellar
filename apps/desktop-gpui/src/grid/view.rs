@@ -19,6 +19,8 @@ const GRID_HEADER_HEIGHT: f32 = 26.;
 const SCROLLBAR_SIZE: f32 = 16.;
 
 impl DataGrid {
+    /// Header cells for `columns`, plus a frozen pane pinned to the left edge
+    /// that covers the columns scrolled underneath it.
     fn header(
         &self,
         columns: Range<usize>,
@@ -38,43 +40,7 @@ impl DataGrid {
             .border_color(GRID_LINE)
             .child(
                 div()
-                    .relative()
-                    .left(px(horizontal_offset))
-                    .flex()
-                    .flex_shrink_0()
-                    .bg(PANEL)
-                    .child(
-                        div()
-                            .w(px(ROW_NUMBER_WIDTH))
-                            .flex_shrink_0()
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .text_color(FG_MUTED)
-                            .child(Icon::empty().path("icons/type-hash.svg").size(ui_px(9.))),
-                    )
-                    .children(self.result.columns.iter().take(frozen).enumerate().map(
-                        |(index, column)| {
-                            let (primary_key, foreign_key) = self
-                                .editable
-                                .as_ref()
-                                .map(|editable| editable.column_flags(&column.name))
-                                .unwrap_or_default();
-                            header_cell(
-                                column,
-                                index,
-                                self.column_widths[index],
-                                self.sort,
-                                primary_key,
-                                foreign_key,
-                                grid.clone(),
-                            )
-                        },
-                    )),
-            )
-            .child(
-                div()
-                    .w(px(width_sum(&self.column_widths, frozen..columns.start)))
+                    .w(px(width_sum(&self.column_widths, 0..columns.start)))
                     .flex_shrink_0(),
             )
             .children(
@@ -109,6 +75,44 @@ impl DataGrid {
                         columns.end..total_columns,
                     )))
                     .flex_shrink_0(),
+            )
+            .child(
+                div()
+                    .absolute()
+                    .left(px(horizontal_offset))
+                    .top_0()
+                    .bottom_0()
+                    .flex()
+                    .flex_shrink_0()
+                    .bg(PANEL)
+                    .child(
+                        div()
+                            .w(px(ROW_NUMBER_WIDTH))
+                            .flex_shrink_0()
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .text_color(FG_MUTED)
+                            .child(Icon::empty().path("icons/type-hash.svg").size(ui_px(9.))),
+                    )
+                    .children(self.result.columns.iter().take(frozen).enumerate().map(
+                        |(index, column)| {
+                            let (primary_key, foreign_key) = self
+                                .editable
+                                .as_ref()
+                                .map(|editable| editable.column_flags(&column.name))
+                                .unwrap_or_default();
+                            header_cell(
+                                column,
+                                index,
+                                self.column_widths[index],
+                                self.sort,
+                                primary_key,
+                                foreign_key,
+                                grid.clone(),
+                            )
+                        },
+                    )),
             )
     }
 }
@@ -188,6 +192,7 @@ impl Render for DataGrid {
             .bg(PANEL)
             .track_focus(&self.focus_handle)
             .on_key_down(cx.listener(Self::key_down))
+            .on_action(cx.listener(Self::copy_action))
             .on_mouse_move(cx.listener(Self::resize_column))
             .on_mouse_up(
                 MouseButton::Left,

@@ -9,6 +9,7 @@ mod row;
 mod selection;
 mod view;
 mod wheel;
+mod widths;
 
 pub use layout::{GridLayout, PortableGridLayout};
 pub use row::column_type_icon;
@@ -30,11 +31,11 @@ use gpui_component::input::{InputEvent, InputState};
 use date_picker::{date_editor_kind, DateEditor};
 use editing::EditableGrid;
 use row::cell_edit_text;
+use widths::{content_column_widths, MAX_COLUMN_WIDTH, MIN_COLUMN_WIDTH};
 
 use crate::model::TableTarget;
 
 const ROW_NUMBER_WIDTH: f32 = 36.;
-const CELL_WIDTH: f32 = 160.;
 const COLUMN_OVERSCAN: usize = 2;
 const FROZEN_COLUMNS: usize = 1;
 
@@ -95,6 +96,9 @@ pub enum DataGridEvent {
         target: TableTarget,
         column: Option<String>,
     },
+    /// Column widths or order changed. Hosts persist the layout so a resized
+    /// column survives paging, sorting, and tab switches.
+    LayoutChanged,
 }
 
 pub struct DataGrid {
@@ -112,6 +116,9 @@ pub struct DataGrid {
     active_editor: Option<ActiveEditor>,
     sort: Option<(usize, SortDirection)>,
     column_widths: Arc<Vec<f32>>,
+    /// Columns whose width the user dragged or auto-fitted. They stop tracking
+    /// content so a later page cannot undo a deliberate resize.
+    widths_user_set: BTreeSet<usize>,
     resizing: Option<(usize, f32, f32)>,
     suppress_sort: bool,
     reloading: bool,
@@ -123,7 +130,7 @@ pub struct DataGrid {
 
 impl DataGrid {
     pub fn new(result: QueryResult, cx: &mut Context<Self>) -> Self {
-        let column_widths = Arc::new(vec![CELL_WIDTH; result.columns.len()]);
+        let column_widths = Arc::new(content_column_widths(&result));
         Self {
             result: Arc::new(result),
             visible_rows: 0..0,
@@ -139,6 +146,7 @@ impl DataGrid {
             active_editor: None,
             sort: None,
             column_widths,
+            widths_user_set: BTreeSet::new(),
             resizing: None,
             suppress_sort: false,
             reloading: false,
@@ -147,6 +155,12 @@ impl DataGrid {
             null_display: Arc::from("NULL"),
             stripe_rows: false,
         }
+    }
+
+    /// Keyboard focus for the grid itself, so shortcuts such as Cmd/Ctrl+C
+    /// work as soon as a result is on screen.
+    pub fn focus(&self, window: &mut Window) {
+        window.focus(&self.focus_handle);
     }
 
     pub fn set_display_preferences(
@@ -210,6 +224,7 @@ impl DataGrid {
             return Err("query columns changed between result pages".into());
         }
         result.rows.extend(page.rows);
+        self.refit_automatic_columns();
         cx.notify();
         Ok(())
     }
@@ -572,6 +587,11 @@ impl DataGrid {
         let widths = Arc::make_mut(&mut self.column_widths);
         let width = widths.remove(source);
         widths.insert(target, width);
+        self.widths_user_set = self
+            .widths_user_set
+            .iter()
+            .map(|column| moved_index(*column, source, target))
+            .collect();
         if let Some(editable) = &mut self.editable {
             editable.move_column(source, target);
         }
@@ -617,22 +637,7 @@ impl DataGrid {
     }
 
     fn auto_fit_column(&mut self, column: usize, cx: &mut Context<Self>) {
-        let Some(meta) = self.result.columns.get(column) else {
-            return;
-        };
-        // ponytail: character-width estimate; use GPUI text shaping if mixed-width grid fonts need exact sizing.
-        let lengths = self
-            .result
-            .rows
-            .iter()
-            .take(200)
-            .filter_map(|row| row.get(column))
-            .map(|value| cell_edit_text(value).chars().count());
-        Arc::make_mut(&mut self.column_widths)[column] =
-            auto_fit_width(&meta.name, &meta.data_type, lengths);
-        self.resizing = None;
-        self.suppress_sort = true;
-        cx.notify();
+        self.fit_column_to_content(column, cx);
     }
 
     fn resize_column(
@@ -644,15 +649,21 @@ impl DataGrid {
         let Some((column, start_x, start_width)) = self.resizing else {
             return;
         };
-        let width = (start_width + f32::from(event.position.x) - start_x).clamp(64., 600.);
+        let width = (start_width + f32::from(event.position.x) - start_x)
+            .clamp(MIN_COLUMN_WIDTH, MAX_COLUMN_WIDTH);
         Arc::make_mut(&mut self.column_widths)[column] = width;
+        self.widths_user_set.insert(column);
         cx.notify();
     }
 
     fn finish_resize(&mut self, cx: &mut Context<Self>) {
-        if self.resizing.take().is_some() {
-            cx.notify();
+        let Some((column, _, start_width)) = self.resizing.take() else {
+            return;
+        };
+        if self.column_widths[column] != start_width {
+            cx.emit(DataGridEvent::LayoutChanged);
         }
+        cx.notify();
     }
 }
 
@@ -664,14 +675,6 @@ fn width_sum(widths: &[f32], range: Range<usize>) -> f32 {
         .skip(range.start)
         .take(range.end.saturating_sub(range.start))
         .sum()
-}
-
-fn auto_fit_width(name: &str, data_type: &str, value_lengths: impl Iterator<Item = usize>) -> f32 {
-    let header = (name.chars().count() + data_type.chars().count()) as f32 * 7.8 + 58.;
-    value_lengths
-        .map(|length| length as f32 * 7.8 + 32.)
-        .fold(header, f32::max)
-        .clamp(64., 600.)
 }
 
 fn visible_column_range(widths: &[f32], offset: f32, viewport: f32) -> Range<usize> {
@@ -722,13 +725,7 @@ fn moved_index(index: usize, source: usize, target: usize) -> usize {
 mod tests {
     use cellar_core::query::SortDirection;
 
-    use super::{auto_fit_width, moved_index, next_sort_direction, visible_column_range};
-
-    #[test]
-    fn column_autofit_covers_headers_and_values_with_safe_bounds() {
-        assert!(auto_fit_width("customer_id", "uuid", [3].into_iter()) > 150.);
-        assert_eq!(auto_fit_width("x", "text", [1_000].into_iter()), 600.);
-    }
+    use super::{moved_index, next_sort_direction, visible_column_range};
 
     #[test]
     fn horizontal_virtualization_stays_bounded() {

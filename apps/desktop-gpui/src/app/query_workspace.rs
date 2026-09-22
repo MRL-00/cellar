@@ -20,7 +20,7 @@ use super::{
     CellarApp,
 };
 use cellar_desktop_gpui::{
-    grid::DataGrid,
+    grid::{DataGrid, DataGridEvent},
     model::{ConnectionState, QueryState, QueryTarget, TabKind, WorkspaceTab},
     theme::{ui_px, ACCENT, ACCENT_FG, BORDER, FG_MUTED, PANEL, PANEL_RAISED, PROD},
 };
@@ -404,6 +404,12 @@ impl CellarApp {
                                 if let Some(layout) = this.grid_layouts.get(&tab_id) {
                                     grid.update(cx, |grid, cx| grid.apply_layout(layout, cx));
                                 }
+                                cx.subscribe(&grid, move |this, _, event: &DataGridEvent, cx| {
+                                    if matches!(event, DataGridEvent::LayoutChanged) {
+                                        this.store_grid_layout(tab_id, cx);
+                                    }
+                                })
+                                .detach();
                                 this.grids.insert(tab_id, grid);
                                 Ok(())
                             };

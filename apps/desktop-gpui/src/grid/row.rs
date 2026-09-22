@@ -16,7 +16,7 @@ use super::{
     width_sum, CellPosition, CellRange, DataGrid, DragColumn, FROZEN_COLUMNS, ROW_NUMBER_WIDTH,
 };
 use crate::theme::{
-    accent, accent_soft, ACCENT, ACCENT_FG, BORDER_DIVIDER, DELETE_SOFT, FG, FG_MUTED,
+    accent, accent_soft, opaque_over, ACCENT, ACCENT_FG, BORDER_DIVIDER, DELETE_SOFT, FG, FG_MUTED,
     FG_SECONDARY, GRID_LINE, INSERT_SOFT, PANEL, PANEL_MUTED, PANEL_RAISED, PROD, UPDATE_SOFT,
     WARN,
 };
@@ -68,34 +68,49 @@ impl RenderOnce for GridRow {
         } else {
             row_background(self.stripe_rows, self.row)
         };
+        let row_tint = if self.deleted {
+            DELETE_SOFT.rgba()
+        } else if self.inserted {
+            INSERT_SOFT.rgba()
+        } else {
+            row_background
+        };
+        // The frozen pane covers the columns that scroll beneath it, so it needs
+        // an opaque version of the row background: every tint this row can carry
+        // flattened onto the grid's panel color.
+        let pane_background = pane_background(row_tint);
         div()
             .flex()
             .h(px(crate::theme::row_height()))
             .w(px(
                 ROW_NUMBER_WIDTH + width_sum(&self.column_widths, 0..total_columns)
             ))
-            .bg(if self.deleted {
-                DELETE_SOFT.rgba()
-            } else if self.inserted {
-                INSERT_SOFT.rgba()
-            } else {
-                row_background
-            })
+            .bg(row_tint)
             .border_b_1()
             .border_color(BORDER_DIVIDER)
             .child(
                 div()
-                    .relative()
+                    .w(px(width_sum(&self.column_widths, 0..self.columns.start)))
+                    .flex_shrink_0(),
+            )
+            .children(self.columns.clone().map(|column| self.cell(column)))
+            .child(
+                div()
+                    .w(px(width_sum(
+                        &self.column_widths,
+                        self.columns.end..total_columns,
+                    )))
+                    .flex_shrink_0(),
+            )
+            .child(
+                div()
+                    .absolute()
                     .left(px(self.horizontal_offset))
+                    .top_0()
+                    .bottom_0()
                     .flex()
                     .flex_shrink_0()
-                    .bg(if self.deleted {
-                        DELETE_SOFT.rgba()
-                    } else if self.inserted {
-                        INSERT_SOFT.rgba()
-                    } else {
-                        row_background
-                    })
+                    .bg(pane_background)
                     .child(
                         div()
                             .w(px(ROW_NUMBER_WIDTH))
@@ -151,23 +166,6 @@ impl RenderOnce for GridRow {
                     )
                     .children((0..frozen).map(|column| self.cell(column))),
             )
-            .child(
-                div()
-                    .w(px(width_sum(
-                        &self.column_widths,
-                        frozen..self.columns.start,
-                    )))
-                    .flex_shrink_0(),
-            )
-            .children(self.columns.clone().map(|column| self.cell(column)))
-            .child(
-                div()
-                    .w(px(width_sum(
-                        &self.column_widths,
-                        self.columns.end..total_columns,
-                    )))
-                    .flex_shrink_0(),
-            )
     }
 }
 
@@ -177,6 +175,13 @@ fn row_background(stripe_rows: bool, row: usize) -> gpui::Rgba {
     } else {
         PANEL_MUTED.rgba()
     }
+}
+
+/// Rows paint translucent tints (`accent_soft`, delete/insert highlights) over
+/// the grid's panel color. The frozen pane hides the columns that scroll
+/// underneath it, so it has to paint the same result as one opaque color.
+fn pane_background(row_tint: gpui::Rgba) -> gpui::Rgba {
+    opaque_over(PANEL.rgba(), row_tint)
 }
 
 impl GridRow {
@@ -503,14 +508,25 @@ pub(super) fn cell_edit_text(value: &CellValue) -> String {
 mod tests {
     use cellar_core::value::CellValue;
 
-    use super::{cell_text, column_type_icon, inline_text, row_background};
-    use crate::theme::{PANEL, PANEL_MUTED};
+    use super::{cell_text, column_type_icon, inline_text, pane_background, row_background};
+    use crate::theme::{accent_soft, DELETE_SOFT, INSERT_SOFT, PANEL, PANEL_MUTED};
 
     #[test]
     fn grid_display_preferences_control_nulls_and_stripes() {
         assert_eq!(cell_text(&CellValue::Null, "∅"), "∅");
         assert_eq!(row_background(false, 1), PANEL.rgba());
         assert_eq!(row_background(true, 1), PANEL_MUTED.rgba());
+    }
+
+    #[test]
+    fn frozen_pane_background_hides_the_columns_underneath_it() {
+        // Row highlights are translucent; the pane has to flatten them so the
+        // scrolled columns cannot show through a selected or edited row.
+        assert_eq!(pane_background(accent_soft()).a, 1.);
+        assert_eq!(pane_background(DELETE_SOFT.rgba()).a, 1.);
+        assert_eq!(pane_background(INSERT_SOFT.rgba()).a, 1.);
+        // Already-opaque stripe colors are unchanged.
+        assert_eq!(pane_background(PANEL_MUTED.rgba()), PANEL_MUTED.rgba());
     }
 
     #[test]
