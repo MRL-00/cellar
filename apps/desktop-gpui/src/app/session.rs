@@ -425,6 +425,25 @@ impl CellarApp {
             .map(|grid| grid.read(cx).layout())
             .or_else(|| self.grid_layouts.get(&tab_id).cloned())
     }
+
+    /// Records the live grid layout after a resize or auto-fit, so paging,
+    /// sorting, reloads, and tab switches keep the widths the user chose.
+    pub(super) fn store_grid_layout(&mut self, tab_id: u64, cx: &Context<Self>) {
+        let Some(layout) = self.grid_layout(tab_id, cx) else {
+            return;
+        };
+        let table = self.model.tabs().iter().find_map(|tab| match &tab.kind {
+            TabKind::Table { target, .. } if tab.id == tab_id => Some(target.clone()),
+            _ => None,
+        });
+        if let Some(target) = table {
+            self.table_layouts.insert(
+                super::table_workspace::table_layout_key(&target),
+                layout.clone(),
+            );
+        }
+        self.grid_layouts.insert(tab_id, layout);
+    }
 }
 
 fn session_path() -> Option<PathBuf> {

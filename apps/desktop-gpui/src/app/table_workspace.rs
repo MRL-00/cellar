@@ -382,6 +382,20 @@ impl CellarApp {
         self.start_table_load(tab_id, target, page, cx);
     }
 
+    /// Gives a freshly created result grid keyboard focus, so grid shortcuts
+    /// (arrow-key navigation, Cmd/Ctrl+C) work without an extra click.
+    pub(super) fn focus_grid(&self, grid: &Entity<DataGrid>, cx: &mut Context<Self>) {
+        let Some(window) = cx.windows().into_iter().next() else {
+            return;
+        };
+        let grid = grid.clone();
+        window
+            .update(cx, |_, window, cx| {
+                grid.update(cx, |grid, _| grid.focus(window));
+            })
+            .ok();
+    }
+
     pub(super) fn start_table_load(
         &mut self,
         tab_id: u64,
@@ -477,6 +491,7 @@ impl CellarApp {
                         });
                         let null_display = this.preferences.grid.null_display.clone();
                         let stripe_rows = this.preferences.grid.stripe_rows;
+                        let first_result = !this.grids.contains_key(&tab_id);
                         let grid = cx.new(|cx| {
                             let mut grid =
                                 DataGrid::new_table(result, target, table, grid_sort, cx);
@@ -500,9 +515,13 @@ impl CellarApp {
                             DataGridEvent::FindUsages { target, column } => {
                                 this.start_find_usages_for(target, column, false, cx)
                             }
+                            DataGridEvent::LayoutChanged => this.store_grid_layout(tab_id, cx),
                         })
                         .detach();
-                        this.grids.insert(tab_id, grid);
+                        this.grids.insert(tab_id, grid.clone());
+                        if first_result {
+                            this.focus_grid(&grid, cx);
+                        }
                     }
                     Err(error) => {
                         this.model.finish_table_load(tab_id, generation, Err(error));

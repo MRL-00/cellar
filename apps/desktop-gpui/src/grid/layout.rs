@@ -4,7 +4,7 @@ use cellar_core::value::ColumnMeta;
 use gpui::Context;
 use serde::{Deserialize, Serialize};
 
-use super::DataGrid;
+use super::{DataGrid, MAX_COLUMN_WIDTH, MIN_COLUMN_WIDTH};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct GridLayout {
@@ -22,6 +22,11 @@ struct LayoutColumn {
     name: String,
     occurrence: usize,
     width: f32,
+    /// Whether `width` is a width the user chose. Layouts saved before columns
+    /// fit their content have no flag, so their fixed widths are treated as
+    /// defaults and the column fits its data again.
+    #[serde(default)]
+    exact: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -35,11 +40,12 @@ impl DataGrid {
         GridLayout {
             columns: column_keys(&self.result.columns)
                 .into_iter()
-                .zip(self.column_widths.iter().copied())
-                .map(|(key, width)| LayoutColumn {
+                .enumerate()
+                .map(|(index, key)| LayoutColumn {
                     name: key.name,
                     occurrence: key.occurrence,
-                    width,
+                    width: self.column_widths[index],
+                    exact: self.widths_user_set.contains(&index),
                 })
                 .collect(),
         }
@@ -68,19 +74,21 @@ impl DataGrid {
         let widths = layout
             .columns
             .iter()
+            .filter(|column| column.exact)
             .map(|column| {
                 (
                     ColumnKey {
                         name: column.name.clone(),
                         occurrence: column.occurrence,
                     },
-                    column.width.clamp(64., 600.),
+                    column.width.clamp(MIN_COLUMN_WIDTH, MAX_COLUMN_WIDTH),
                 )
             })
             .collect::<HashMap<_, _>>();
         for (index, key) in column_keys(&self.result.columns).iter().enumerate() {
             if let Some(width) = widths.get(key) {
                 std::sync::Arc::make_mut(&mut self.column_widths)[index] = *width;
+                self.widths_user_set.insert(index);
             }
         }
         self.suppress_sort = false;
@@ -111,15 +119,16 @@ impl GridLayout {
             .into_iter()
             .map(|name| {
                 let occurrence = occurrences.entry(name.clone()).or_default();
+                // A transferred layout only pins columns it recorded a width
+                // for; the rest fit their content like a fresh grid.
+                let recorded = layout.widths.get(&name).copied();
                 let column = LayoutColumn {
-                    width: layout
-                        .widths
-                        .get(&name)
-                        .copied()
+                    width: recorded
                         .unwrap_or(160.)
-                        .clamp(64., 600.),
+                        .clamp(MIN_COLUMN_WIDTH, MAX_COLUMN_WIDTH),
                     name,
                     occurrence: *occurrence,
+                    exact: recorded.is_some(),
                 };
                 *occurrence += 1;
                 column
@@ -173,5 +182,27 @@ mod tests {
         assert_eq!(portable.order, ["id", "name"]);
         assert_eq!(portable.widths["id"], 82.);
         assert_eq!(portable.widths["name"], 160.);
+        // Only the column the portable layout recorded a width for is pinned;
+        // `name` keeps fitting its content.
+        assert!(layout.columns[0].exact);
+        assert!(!layout.columns[1].exact);
+    }
+
+    #[test]
+    fn layouts_saved_before_content_fit_do_not_pin_widths() {
+        let layout: super::GridLayout =
+            serde_json::from_str(r#"{"columns":[{"name":"id","occurrence":0,"width":160.0}]}"#)
+                .unwrap();
+        assert!(!layout.columns[0].exact);
+    }
+
+    #[test]
+    fn layouts_round_trip_explicit_widths() {
+        let layout: super::GridLayout = serde_json::from_str(
+            r#"{"columns":[{"name":"id","occurrence":0,"width":82.0,"exact":true}]}"#,
+        )
+        .unwrap();
+        assert!(layout.columns[0].exact);
+        assert_eq!(layout.columns[0].width, 82.);
     }
 }

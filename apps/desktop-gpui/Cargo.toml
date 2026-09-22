@@ -45,3 +45,7 @@ gpui = { version = "=0.2.2", default-features = false, features = ["font-kit", "
 
 [target.'cfg(target_os = "windows")'.dependencies]
 gpui = { version = "=0.2.2", default-features = false, features = ["windows-manifest"] }
+
+[dev-dependencies]
+gpui = { version = "=0.2.2", default-features = false, features = ["font-kit", "test-support"] }
+gpui-component = "=0.5.1"

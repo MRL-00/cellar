@@ -1,4 +1,5 @@
 use gpui::{Context, KeyDownEvent, Window};
+use gpui_component::input::Copy;
 
 use super::DataGrid;
 
@@ -59,6 +60,19 @@ impl DataGrid {
             GridKeyAction::DeleteRow => self.delete_selected_row(cx),
             GridKeyAction::Move(row, column) => self.move_selection(row, column, cx),
         }
+        cx.stop_propagation();
+    }
+
+    /// The Edit menu's Copy item and any Cmd/Ctrl+C key binding resolve to
+    /// GPUI's [`Copy`] action. Handle it while the grid itself holds focus, so
+    /// the menu bar copies the selected cells and rows instead of doing
+    /// nothing. A focused input inside the grid (a cell editor) keeps its own
+    /// copy behaviour because the grid is no longer the focused element.
+    pub(super) fn copy_action(&mut self, _: &Copy, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.focus_handle.is_focused(window) {
+            return;
+        }
+        self.copy_selection(cx);
         cx.stop_propagation();
     }
 }

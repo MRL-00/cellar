@@ -142,6 +142,19 @@ pub fn hover_bright(color: Rgba) -> Rgba {
     }
 }
 
+/// Composites `tint` over `base` and returns an opaque color. Used where a
+/// surface has to hide whatever was painted beneath it, such as the grid's
+/// frozen pane covering the columns that scroll under it.
+pub fn opaque_over(base: Rgba, tint: Rgba) -> Rgba {
+    let alpha = tint.a;
+    Rgba {
+        r: tint.r * alpha + base.r * (1. - alpha),
+        g: tint.g * alpha + base.g * (1. - alpha),
+        b: tint.b * alpha + base.b * (1. - alpha),
+        a: 1.,
+    }
+}
+
 pub fn overlay() -> Rgba {
     if LIGHT.load(Ordering::Relaxed) {
         rgba(0xf6f6f6, 0.78)
