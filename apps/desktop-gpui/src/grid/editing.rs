@@ -483,8 +483,9 @@ pub(super) fn clipboard_rows(text: &str) -> Vec<Vec<String>> {
 }
 
 /// Selected-row JSON, placed under the columns whose disambiguated names
-/// (`id`, `id_2`) appear as object keys. `None` means the text is not that
-/// array, so the caller pastes it as TSV instead.
+/// (`id`, `id_2`) appear as object keys. `columns` is `(offset, name)` from
+/// the paste origin, and offsets must be unique and below `columns.len()`.
+/// `None` means the text is not that array, so the caller pastes it as TSV.
 pub(super) fn clipboard_json_rows(
     text: &str,
     columns: &[(usize, String)],
@@ -504,11 +505,21 @@ pub(super) fn clipboard_json_rows(
     if !matches_a_column {
         return None;
     }
-    let width = columns.iter().map(|(index, _)| *index).max()? + 1;
+    if columns.iter().any(|(index, _)| *index >= columns.len()) {
+        return None;
+    }
+    let mut seen = vec![false; columns.len()];
+    if columns.iter().any(|(index, _)| {
+        let duplicate = seen[*index];
+        seen[*index] = true;
+        duplicate
+    }) {
+        return None;
+    }
     Some(
         rows.iter()
             .map(|row| {
-                let mut values = vec![String::new(); width];
+                let mut values = vec![String::new(); columns.len()];
                 let Some(object) = row.as_object() else {
                     return values;
                 };
@@ -741,6 +752,11 @@ mod tests {
             None
         );
         assert_eq!(clipboard_json_rows("[{\"foo\":1}]", &columns), None);
+        assert_eq!(clipboard_json_rows(json, &[(2, "id".to_string())]), None);
+        assert_eq!(
+            clipboard_json_rows(json, &[(0, "id".to_string()), (0, "name".to_string())]),
+            None
+        );
     }
 
     #[test]

@@ -148,11 +148,13 @@ impl DataGrid {
             return;
         };
         // JSON copy keys objects with the same disambiguated names
-        // (`id`, `id_2`). Lookup uses those names; TSV paste still lines up
-        // from the selected column.
-        let names = cellar_runtime::export::unique_column_names(&self.result);
-        let headers = names[start.column..].to_vec();
-        let named = names.into_iter().enumerate().collect::<Vec<_>>();
+        // (`id`, `id_2`). Indices are relative to the selected column so the
+        // paste loop below can add `start.column`.
+        let headers = cellar_runtime::export::unique_column_names(&self.result)
+            .into_iter()
+            .skip(start.column)
+            .collect::<Vec<_>>();
+        let named = headers.iter().cloned().enumerate().collect::<Vec<_>>();
         let rows = editing::clipboard_json_rows(&text, &named)
             .unwrap_or_else(|| editing::without_matching_header(editing::clipboard_rows(&text), &headers));
         for (row_offset, values) in rows.into_iter().enumerate() {

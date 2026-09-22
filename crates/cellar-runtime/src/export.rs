@@ -222,6 +222,8 @@ fn cell_text(value: &CellValue) -> String {
     }
 }
 
+/// Column names in result order. The first of a repeated name is unchanged;
+/// later copies are `name_2`, `name_3`, and so on, matching JSON object keys.
 pub fn unique_column_names(result: &QueryResult) -> Vec<String> {
     let mut totals = HashMap::<&str, usize>::new();
     for column in &result.columns {
