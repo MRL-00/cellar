@@ -147,7 +147,13 @@ impl DataGrid {
         let Some(editable) = &mut self.editable else {
             return;
         };
-        for (row_offset, values) in editing::clipboard_rows(&text).into_iter().enumerate() {
+        let headers = self.result.columns[start.column..]
+            .iter()
+            .map(|column| column.name.clone())
+            .collect::<Vec<_>>();
+        let rows = editing::clipboard_json_rows(&text, &headers)
+            .unwrap_or_else(|| editing::without_matching_header(editing::clipboard_rows(&text), &headers));
+        for (row_offset, values) in rows.into_iter().enumerate() {
             let row = start.row.saturating_add(row_offset);
             if row >= self.result.rows.len() {
                 break;
