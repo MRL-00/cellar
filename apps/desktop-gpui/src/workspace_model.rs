@@ -1,4 +1,5 @@
 use cellar_core::er::ErGraph;
+use cellar_core::query::TableFilterClause;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -7,6 +8,15 @@ pub struct TableTarget {
     pub database: String,
     pub schema: String,
     pub table: String,
+}
+
+/// Immutable predicates attached to a foreign-key destination tab. User
+/// filters may be layered on top, but paging, sorting, and reloads always
+/// retain these predicates so the tab cannot silently expand to the table.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TableLookupContext {
+    pub filters: Vec<TableFilterClause>,
+    pub focus_column: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

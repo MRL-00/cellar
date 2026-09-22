@@ -167,7 +167,7 @@ type FkMap = BTreeMap<(String, String), Vec<ForeignKey>>;
 async fn list_foreign_keys(pool: &MySqlPool, db_name: &str) -> CellarResult<FkMap> {
     let rows = sqlx::query(
         "SELECT TABLE_NAME, CONSTRAINT_NAME, COLUMN_NAME, \
-                REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME \
+                REFERENCED_TABLE_SCHEMA, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME \
          FROM information_schema.key_column_usage \
          WHERE TABLE_SCHEMA = ? AND REFERENCED_TABLE_NAME IS NOT NULL \
          ORDER BY TABLE_NAME, CONSTRAINT_NAME, ORDINAL_POSITION",
@@ -182,6 +182,7 @@ async fn list_foreign_keys(pool: &MySqlPool, db_name: &str) -> CellarResult<FkMa
         let table = metadata_text(&r, "TABLE_NAME")?;
         let name = metadata_text(&r, "CONSTRAINT_NAME")?;
         let local = metadata_text(&r, "COLUMN_NAME")?;
+        let ref_schema = metadata_text(&r, "REFERENCED_TABLE_SCHEMA")?;
         let ref_table = metadata_text(&r, "REFERENCED_TABLE_NAME")?;
         let ref_col = metadata_text(&r, "REFERENCED_COLUMN_NAME")?;
 
@@ -190,7 +191,7 @@ async fn list_foreign_keys(pool: &MySqlPool, db_name: &str) -> CellarResult<FkMa
             .or_insert_with(|| ForeignKey {
                 name,
                 columns: Vec::new(),
-                referenced_schema: db_name.to_string(),
+                referenced_schema: ref_schema,
                 referenced_table: ref_table,
                 referenced_columns: Vec::new(),
             });

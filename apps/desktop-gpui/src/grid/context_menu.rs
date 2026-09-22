@@ -63,6 +63,53 @@ impl DataGrid {
         grid: WeakEntity<Self>,
     ) -> PopupMenu {
         menu = menu.item(copy_item("Copy cell", self.displayed_cell(row, column)));
+        let foreign_key = self
+            .editable
+            .as_ref()
+            .and_then(|editable| self.result.columns.get(column).map(|meta| (editable, meta)))
+            .is_some_and(|(editable, meta)| editable.column_flags(&meta.name).1);
+        if foreign_key {
+            match self.foreign_key_navigation_options(row, column) {
+                Ok(options) => {
+                    for option in options {
+                        let label = format!("Open {}", option.label);
+                        match option.lookup {
+                            Ok((lookup, focus_column)) => {
+                                let navigation_grid = grid.clone();
+                                menu = menu.item(
+                                    PopupMenuItem::new(label)
+                                        .icon(Icon::empty().path("icons/type-link.svg"))
+                                        .on_click(move |_, _, cx| {
+                                            navigation_grid
+                                                .update(cx, |grid, cx| {
+                                                    grid.select_foreign_key_option(
+                                                        Ok((lookup.clone(), focus_column.clone())),
+                                                        cx,
+                                                    );
+                                                })
+                                                .ok();
+                                        }),
+                                );
+                            }
+                            Err(reason) => {
+                                menu = menu.item(
+                                    PopupMenuItem::new(format!("{label} ({reason})"))
+                                        .icon(Icon::empty().path("icons/type-link.svg"))
+                                        .disabled(true),
+                                );
+                            }
+                        }
+                    }
+                }
+                Err(reason) => {
+                    menu = menu.item(
+                        PopupMenuItem::new(format!("Open referenced row ({reason})"))
+                            .icon(Icon::empty().path("icons/type-link.svg"))
+                            .disabled(true),
+                    );
+                }
+            }
+        }
         let guid = self
             .result
             .columns

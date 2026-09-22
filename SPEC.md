@@ -342,6 +342,18 @@ The grid is the most important component in the product. It must handle large re
 
 - Cells holding FK values show a small link icon.
 - Click to jump: opens a new tab with the referenced row pre-filtered.
+- The lookup uses every column in a composite key with native typed parameter
+  binding and stays on the source connection and database. A destination tab
+  keeps that exact lookup restriction while paging, sorting, and reloading.
+- Navigation is unavailable for NULL or partially NULL keys, inserted/deleted
+  rows, pending edits to key columns, incomplete metadata, cross-catalog
+  references, and unsupported driver or value types. When a column belongs to
+  multiple relationships, the grid offers an explicit target picker and
+  explains any relationship whose metadata or value is unavailable; it never
+  commits or discards edits implicitly. Known unsupported cross-catalog links
+  are visibly muted and disabled before any lookup is emitted.
+- `Cmd/Ctrl+G` and the cell context menu provide keyboard and accessible
+  shortcuts in addition to the link affordance.
 
 ### 6.6 Results, messages, plan, history (bottom panel)
 

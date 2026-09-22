@@ -62,6 +62,7 @@ mod tab_context_menu;
 mod table_column_menus;
 mod table_filter_bar;
 mod table_footer;
+mod table_foreign_key;
 mod table_presets;
 mod table_quick_filter;
 mod table_workspace;
@@ -102,7 +103,7 @@ use sidebar_layout::{SidebarItem, SidebarLayout};
 
 use cellar_desktop_gpui::{
     grid::{DataGrid, GridLayout},
-    model::{AppModel, ConnectionState},
+    model::{AppModel, ConnectionState, TableLookupContext, TableTarget},
     theme::{
         ui_px, BG, BORDER, BORDER_SEPARATOR, FG, FG_DISABLED, FG_MUTED, INSERT, INSET, PANEL_MUTED,
         PANEL_RAISED, WARN, WARN_SOFT,
@@ -226,6 +227,7 @@ pub struct CellarApp {
     dismissed_update_version: Option<String>,
     updater_task: Option<gpui::Task<()>>,
     query_database_menu: Option<shell::QueryDatabaseMenu>,
+    pending_foreign_key_navigation: Option<(TableTarget, TableLookupContext)>,
     last_titlebar_press: Option<Instant>,
 }
 
@@ -413,6 +415,7 @@ impl CellarApp {
             dismissed_update_version: None,
             updater_task: None,
             query_database_menu: None,
+            pending_foreign_key_navigation: None,
             last_titlebar_press: None,
         }
     }

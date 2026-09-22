@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, ops::Range, sync::Arc};
+use std::{collections::{BTreeMap, BTreeSet}, ops::Range, sync::Arc};
 
 use cellar_core::{
     query::{QueryResult, SortDirection},
@@ -50,6 +50,8 @@ pub(super) struct GridRow {
     pub cell_selection: Option<CellRange>,
     pub row_selected: bool,
     pub pending: Arc<BTreeMap<(usize, usize), Option<String>>>,
+    pub foreign_key_columns: Arc<BTreeSet<usize>>,
+    pub foreign_key_unavailable_columns: Arc<BTreeSet<usize>>,
     pub inserted: bool,
     pub deleted: bool,
     pub editable: bool,
@@ -173,6 +175,8 @@ impl GridRow {
                 })
             }),
             self.pending.get(&(self.row, column)).cloned(),
+            self.foreign_key_columns.contains(&column),
+            self.foreign_key_unavailable_columns.contains(&column),
             self.inserted,
             self.deleted,
             self.editable,
@@ -342,6 +346,8 @@ fn grid_cell(
     column: usize,
     selected: bool,
     pending: Option<Option<String>>,
+    foreign_key: bool,
+    foreign_key_unavailable: bool,
     inserted: bool,
     deleted: bool,
     editable: bool,
@@ -365,10 +371,40 @@ fn grid_cell(
         ),
     };
     let text = inline_text(&text);
-    let content = if is_pending {
+    let cell_content = if is_pending {
         div().truncate().child(text).into_any_element()
     } else {
         rich_cell_content(&result, row, column, selected, text, json_palette)
+    };
+    let link_grid = grid.clone();
+    let content = if foreign_key {
+        div()
+            .flex()
+            .items_center()
+            .gap(px(5.))
+            .child(
+                div()
+                    .id(SharedString::from(format!("fk-link:{row}:{column}")))
+                    .flex_shrink_0()
+                    .text_color(if is_null || foreign_key_unavailable {
+                        FG_MUTED
+                    } else {
+                        ACCENT
+                    })
+                    .child(Icon::empty().path("icons/type-link.svg").size(px(9.)))
+                    .when(!foreign_key_unavailable, |element| {
+                        element.on_click(move |_, _, cx| {
+                            cx.stop_propagation();
+                            link_grid
+                                .update(cx, |grid, cx| grid.open_foreign_key_cell(row, column, cx))
+                                .ok();
+                        })
+                    }),
+            )
+            .child(cell_content)
+            .into_any_element()
+    } else {
+        cell_content
     };
     div()
         .id(SharedString::from(format!("cell:{row}:{column}")))
