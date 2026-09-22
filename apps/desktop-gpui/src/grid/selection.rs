@@ -171,7 +171,7 @@ impl DataGrid {
             for (column_offset, value) in values {
                 let column = start.column.saturating_add(column_offset);
                 if column >= self.result.columns.len() {
-                    break;
+                    continue;
                 }
                 if let Err(error) = editable.set_value(row, column, Some(value), &self.result) {
                     self.edit_error = Some(error);
