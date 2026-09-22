@@ -24,6 +24,17 @@ pub enum ConnectionState {
     Error(String),
 }
 
+impl ConnectionState {
+    /// Schema metadata is available and table browses can start.
+    pub fn is_ready(&self) -> bool {
+        matches!(self, Self::Connected)
+    }
+}
+
+/// Recorded when a table browse starts before schema metadata exists.
+/// Reconnect retries tabs in this state; other load errors stay put.
+pub const TABLE_METADATA_UNAVAILABLE: &str = "Table metadata is unavailable";
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SchemaNode {
     Database {
@@ -307,6 +318,13 @@ impl AppModel {
         self.active_tab = Some(id);
     }
 
+    /// Whether a table browse can start: the connection has finished
+    /// introspection and the table is in the schema cache. Callers that ignore
+    /// this and browse anyway record [`TABLE_METADATA_UNAVAILABLE`].
+    pub fn table_browse_ready(&self, target: &TableTarget) -> bool {
+        self.connection_state(&target.connection_id).is_ready() && self.table(target).is_some()
+    }
+
     /// Open a table or focus its existing tab. The boolean is true only when
     /// the caller must start the first page load.
     pub fn open_table(&mut self, target: TableTarget) -> (u64, bool) {
@@ -322,6 +340,7 @@ impl AppModel {
 
         let id = self.next_tab_id;
         self.next_tab_id += 1;
+        let ready = self.table_browse_ready(&target);
         self.tabs.push(WorkspaceTab {
             id,
             title: target.table.clone(),
@@ -333,7 +352,7 @@ impl AppModel {
             },
         });
         self.activate_tab(id, true);
-        (id, true)
+        (id, ready)
     }
 
     pub fn next_table_load(&mut self, tab_id: u64) -> u64 {
