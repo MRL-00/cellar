@@ -483,9 +483,11 @@ pub(super) fn clipboard_rows(text: &str) -> Vec<Vec<String>> {
 }
 
 /// Selected-row JSON as `(offset, value)` pairs for keys that are present.
-/// `columns` is `(offset, name)` from the paste origin. Missing keys are
-/// omitted so a paste starting mid-grid does not blank earlier columns.
-/// `None` means the text is not that array, so the caller pastes it as TSV.
+/// `columns` is `(offset, name)` from the paste origin. Offsets are not
+/// checked here: the caller owns them, and a repeated offset keeps the last
+/// value. Missing keys are omitted so a paste starting mid-grid does not
+/// blank earlier columns. `None` means the text is not that array, so the
+/// caller pastes it as TSV.
 pub(super) fn clipboard_json_rows(
     text: &str,
     columns: &[(usize, String)],
