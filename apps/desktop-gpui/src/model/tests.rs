@@ -1,4 +1,5 @@
 use cellar_core::driver::{ConnectionConfig, Engine, SslMode};
+use cellar_core::schema::{Column, Database, Schema, Table};
 
 use super::{
     AppModel, ConnectionState, QueryTarget, SchemaCompareConfig, SchemaCompareSource,
@@ -69,7 +70,10 @@ fn selects_only_known_connections() {
         table: "users".into(),
     };
     let (tab_id, load) = model.open_table(target.clone());
-    assert!(load);
+    assert!(
+        !load,
+        "schema metadata is not present until introspection finishes"
+    );
     assert_eq!(model.active_tab().map(|tab| tab.id), Some(tab_id));
     assert_eq!(model.open_table(target), (tab_id, false));
     model.close_tab(tab_id);
@@ -135,6 +139,75 @@ fn deleting_either_live_comparison_connection_closes_the_tab() {
     model.remove_connection("target");
 
     assert!(model.tabs().is_empty());
+}
+
+#[test]
+fn table_browse_waits_for_introspection() {
+    let mut model = AppModel::new(vec![config("one")]);
+    let target = TableTarget {
+        connection_id: "one".into(),
+        database: "cellar".into(),
+        schema: "public".into(),
+        table: "users".into(),
+    };
+    assert!(!model.table_browse_ready(&target));
+
+    model.finish_connect(
+        "one",
+        Ok(vec![Database {
+            name: "cellar".into(),
+            is_default: true,
+            schemas: vec![Schema {
+                name: "public".into(),
+                tables: vec![Table {
+                    name: "users".into(),
+                    schema: "public".into(),
+                    row_count: None,
+                    columns: vec![Column {
+                        name: "id".into(),
+                        data_type: "int8".into(),
+                        nullable: false,
+                        default: None,
+                        is_primary_key: true,
+                        ordinal: 1,
+                        comment: None,
+                    }],
+                    primary_key: vec!["id".into()],
+                    foreign_keys: Vec::new(),
+                    indexes: Vec::new(),
+                }],
+                views: Vec::new(),
+            }],
+        }]),
+    );
+    assert!(model.table_browse_ready(&target));
+
+    let missing = TableTarget {
+        table: "absent".into(),
+        ..target
+    };
+    assert!(!model.table_browse_ready(&missing));
+}
+
+#[test]
+fn opening_a_table_before_connect_does_not_request_a_load() {
+    let mut model = AppModel::new(vec![config("one")]);
+    let target = TableTarget {
+        connection_id: "one".into(),
+        database: "cellar".into(),
+        schema: "public".into(),
+        table: "users".into(),
+    };
+    let (tab_id, should_load) = model.open_table(target.clone());
+    assert!(!should_load, "browse must wait until schema metadata exists");
+    assert!(matches!(
+        &model.tabs().iter().find(|tab| tab.id == tab_id).unwrap().kind,
+        super::TabKind::Table {
+            state: TableLoadState::Loading,
+            ..
+        }
+    ));
+    assert_eq!(model.open_table(target), (tab_id, false));
 }
 
 #[test]

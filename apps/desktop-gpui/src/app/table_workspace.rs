@@ -22,7 +22,9 @@ use super::{
 };
 use cellar_desktop_gpui::{
     grid::{DataGrid, DataGridEvent},
-    model::{TabKind, TableLoadState, TablePage, TableTarget, WorkspaceTab},
+    model::{
+        TabKind, TableLoadState, TablePage, TableTarget, WorkspaceTab, TABLE_METADATA_UNAVAILABLE,
+    },
     theme::{ACCENT, FG_MUTED, INSET, PROD, WARN},
 };
 
@@ -76,7 +78,7 @@ impl CellarApp {
                     .unwrap_or(TableFilterOperator::Equals)
             });
         cx.notify();
-        if should_load && self.model.table(&target).is_some() {
+        if should_load {
             self.start_table_load(tab_id, target, TablePage::default(), cx);
         }
     }
@@ -92,6 +94,18 @@ impl CellarApp {
                     state: TableLoadState::Loading,
                     page,
                 } if target.connection_id == connection_id && !self.grids.contains_key(&tab.id) => {
+                    Some((tab.id, target.clone(), *page))
+                }
+                // A restore that raced ahead of connect already recorded this
+                // error. Reconnect is the moment that metadata exists.
+                TabKind::Table {
+                    target,
+                    state: TableLoadState::Error(error),
+                    page,
+                } if target.connection_id == connection_id
+                    && !self.grids.contains_key(&tab.id)
+                    && error == TABLE_METADATA_UNAVAILABLE =>
+                {
                     Some((tab.id, target.clone(), *page))
                 }
                 _ => None,
@@ -115,6 +129,11 @@ impl CellarApp {
         let Some((target, page)) = self.model.begin_table_load(tab_id, None) else {
             return;
         };
+        // Restore reapplies saved filters before connect. Leave the tab
+        // Loading so resume_table_loads picks it up with the filters applied.
+        if !self.model.table_browse_ready(&target) {
+            return;
+        }
         self.start_table_load(tab_id, target, page, cx);
     }
 
@@ -376,7 +395,7 @@ impl CellarApp {
             self.model.finish_table_load(
                 tab_id,
                 generation,
-                Err("Table metadata is unavailable".into()),
+                Err(TABLE_METADATA_UNAVAILABLE.into()),
             );
             cx.notify();
             return;
