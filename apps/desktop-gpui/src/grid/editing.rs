@@ -482,27 +482,42 @@ pub(super) fn clipboard_rows(text: &str) -> Vec<Vec<String>> {
         .collect()
 }
 
-/// Selected-row JSON, aligned to `columns` by name. `None` means the text is
-/// not that array, so the caller pastes it as TSV instead.
-pub(super) fn clipboard_json_rows(text: &str, columns: &[String]) -> Option<Vec<Vec<String>>> {
+/// Selected-row JSON, placed under the columns whose disambiguated names
+/// (`id`, `id_2`) appear as object keys. `None` means the text is not that
+/// array, so the caller pastes it as TSV instead.
+pub(super) fn clipboard_json_rows(
+    text: &str,
+    columns: &[(usize, String)],
+) -> Option<Vec<Vec<String>>> {
     let value: serde_json::Value = serde_json::from_str(text.trim()).ok()?;
     let rows = value.as_array()?;
     if rows.is_empty() || rows.iter().any(|row| !row.is_object()) {
         return None;
     }
+    let matches_a_column = rows.iter().any(|row| {
+        row.as_object().is_some_and(|object| {
+            columns
+                .iter()
+                .any(|(_, name)| object.contains_key(name))
+        })
+    });
+    if !matches_a_column {
+        return None;
+    }
+    let width = columns.iter().map(|(index, _)| *index).max()? + 1;
     Some(
         rows.iter()
             .map(|row| {
-                let object = row.as_object();
-                columns
-                    .iter()
-                    .map(|name| {
-                        object
-                            .and_then(|object| object.get(name))
-                            .map(json_paste_text)
-                            .unwrap_or_default()
-                    })
-                    .collect()
+                let mut values = vec![String::new(); width];
+                let Some(object) = row.as_object() else {
+                    return values;
+                };
+                for (index, name) in columns {
+                    if let Some(value) = object.get(name) {
+                        values[*index] = json_paste_text(value);
+                    }
+                }
+                values
             })
             .collect(),
     )
@@ -709,18 +724,23 @@ mod tests {
     #[test]
     fn clipboard_json_objects_align_to_target_columns() {
         let json = "[\n  {\n    \"id\": 2,\n    \"name\": null\n  },\n  {\n    \"name\": \"a\",\n    \"id\": 1\n  }\n]\n";
-        let columns = vec!["name".to_string(), "id".to_string()];
+        let columns = vec![(1, "name".to_string()), (0, "id".to_string())];
         assert_eq!(
             clipboard_json_rows(json, &columns),
             Some(vec![
-                vec![String::new(), "2".to_string()],
-                vec!["a".to_string(), "1".to_string()],
+                vec!["2".to_string(), String::new()],
+                vec!["1".to_string(), "a".to_string()],
             ])
+        );
+        assert_eq!(
+            clipboard_json_rows(json, &[(0, "id_2".to_string())]),
+            None
         );
         assert_eq!(
             clipboard_json_rows("[{\"id\":1}, \"not-a-row\"]", &columns),
             None
         );
+        assert_eq!(clipboard_json_rows("[{\"foo\":1}]", &columns), None);
     }
 
     #[test]

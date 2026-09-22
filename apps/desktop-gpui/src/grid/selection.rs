@@ -147,11 +147,13 @@ impl DataGrid {
         let Some(editable) = &mut self.editable else {
             return;
         };
-        let headers = self.result.columns[start.column..]
-            .iter()
-            .map(|column| column.name.clone())
-            .collect::<Vec<_>>();
-        let rows = editing::clipboard_json_rows(&text, &headers)
+        // JSON copy keys objects with the same disambiguated names
+        // (`id`, `id_2`). Lookup uses those names; TSV paste still lines up
+        // from the selected column.
+        let names = cellar_runtime::export::unique_column_names(&self.result);
+        let headers = names[start.column..].to_vec();
+        let named = names.into_iter().enumerate().collect::<Vec<_>>();
+        let rows = editing::clipboard_json_rows(&text, &named)
             .unwrap_or_else(|| editing::without_matching_header(editing::clipboard_rows(&text), &headers));
         for (row_offset, values) in rows.into_iter().enumerate() {
             let row = start.row.saturating_add(row_offset);
