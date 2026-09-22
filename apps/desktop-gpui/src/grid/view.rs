@@ -209,6 +209,9 @@ impl Render for DataGrid {
                     .id("native-grid-scroller")
                     .flex_1()
                     .min_h_0()
+                    .mb(ui_px(SCROLLBAR_SIZE))
+                    .flex()
+                    .flex_col()
                     .overflow_x_hidden()
                     .track_scroll(&self.horizontal_scroll)
                     .child(self.header(columns.clone(), horizontal_offset, grid.clone()))
@@ -239,7 +242,8 @@ impl Render for DataGrid {
                                     .collect::<Vec<_>>()
                             }),
                         )
-                        .h_full()
+                        .flex_1()
+                        .min_h_0()
                         .w(px(total_width))
                         .track_scroll(self.vertical_scroll.clone()),
                     )
