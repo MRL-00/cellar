@@ -190,7 +190,7 @@ impl DataGrid {
             &rows,
             selection.start.column..selection.end.column + 1,
             ExportFormat::Tsv,
-            false,
+            true,
             true,
         )
     }

@@ -482,6 +482,71 @@ pub(super) fn clipboard_rows(text: &str) -> Vec<Vec<String>> {
         .collect()
 }
 
+/// Selected-row JSON as `(offset, value)` pairs for keys that are present.
+/// `columns` is `(offset, name)` from the paste origin. Offsets are not
+/// checked here: the caller owns them, and a repeated offset keeps the last
+/// value. Missing keys are omitted so a paste starting mid-grid does not
+/// blank earlier columns. `None` means the text is not that array, so the
+/// caller pastes it as TSV.
+pub(super) fn clipboard_json_rows(
+    text: &str,
+    columns: &[(usize, String)],
+) -> Option<Vec<Vec<(usize, String)>>> {
+    let value: serde_json::Value = serde_json::from_str(text.trim()).ok()?;
+    let rows = value.as_array()?;
+    if rows.is_empty() || rows.iter().any(|row| !row.is_object()) {
+        return None;
+    }
+    let matches_a_column = rows.iter().any(|row| {
+        row.as_object().is_some_and(|object| {
+            columns
+                .iter()
+                .any(|(_, name)| object.contains_key(name))
+        })
+    });
+    if !matches_a_column {
+        return None;
+    }
+    Some(
+        rows.iter()
+            .filter_map(|row| row.as_object())
+            .map(|object| {
+                columns
+                    .iter()
+                    .filter_map(|(index, name)| {
+                        object
+                            .get(name)
+                            .map(|value| (*index, json_paste_text(value)))
+                    })
+                    .collect()
+            })
+            .collect(),
+    )
+}
+
+fn json_paste_text(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::Null => String::new(),
+        serde_json::Value::String(text) => text.clone(),
+        other => other.to_string(),
+    }
+}
+
+/// Drops a copied header row when it matches the columns being pasted into.
+/// A real data row that happens to equal those names is left alone.
+pub(super) fn without_matching_header(rows: Vec<Vec<String>>, headers: &[String]) -> Vec<Vec<String>> {
+    let [first, rest @ ..] = rows.as_slice() else {
+        return rows;
+    };
+    if rest.is_empty() || first.len() != headers.len() {
+        return rows;
+    }
+    if !first.iter().zip(headers).all(|(cell, header)| cell == header) {
+        return rows;
+    }
+    rest.to_vec()
+}
+
 #[cfg(test)]
 mod tests {
     use cellar_core::{
@@ -490,7 +555,9 @@ mod tests {
         value::{CellValue, ColumnMeta},
     };
 
-    use super::{clipboard_rows, validate_value, EditableGrid};
+    use super::{
+        clipboard_json_rows, clipboard_rows, validate_value, without_matching_header, EditableGrid,
+    };
     use crate::model::TableTarget;
     use cellar_diff::RowChange;
 
@@ -652,6 +719,57 @@ mod tests {
                 vec!["a".to_string(), "b".to_string()],
                 vec!["".to_string(), "c".to_string()],
             ]
+        );
+    }
+
+    #[test]
+    fn clipboard_json_objects_align_to_target_columns() {
+        let json = "[\n  {\n    \"id\": 2,\n    \"name\": null\n  },\n  {\n    \"name\": \"a\",\n    \"id\": 1\n  }\n]\n";
+        let columns = vec![(1, "name".to_string()), (0, "id".to_string())];
+        assert_eq!(
+            clipboard_json_rows(json, &columns),
+            Some(vec![
+                vec![(1, String::new()), (0, "2".to_string())],
+                vec![(1, "a".to_string()), (0, "1".to_string())],
+            ])
+        );
+        assert_eq!(clipboard_json_rows(json, &[(0, "id_2".to_string())]), None);
+        assert_eq!(
+            clipboard_json_rows("[{\"id\":1}, \"not-a-row\"]", &columns),
+            None
+        );
+        assert_eq!(clipboard_json_rows("[{\"foo\":1}]", &columns), None);
+        assert_eq!(
+            clipboard_json_rows(json, &[(2, "id".to_string())]),
+            Some(vec![vec![(2, "2".to_string())], vec![(2, "1".to_string())]])
+        );
+    }
+
+    #[test]
+    fn matching_header_is_skipped_only_when_data_follows() {
+        let headers = vec!["id".to_string(), "name".to_string()];
+        assert_eq!(
+            without_matching_header(
+                vec![
+                    vec!["id".to_string(), "name".to_string()],
+                    vec!["1".to_string(), "a".to_string()],
+                ],
+                &headers,
+            ),
+            vec![vec!["1".to_string(), "a".to_string()]]
+        );
+        let header_only = vec![vec!["id".to_string(), "name".to_string()]];
+        assert_eq!(
+            without_matching_header(header_only.clone(), &headers),
+            header_only
+        );
+        let mismatched = vec![
+            vec!["id".to_string(), "title".to_string()],
+            vec!["1".to_string(), "a".to_string()],
+        ];
+        assert_eq!(
+            without_matching_header(mismatched.clone(), &headers),
+            mismatched
         );
     }
 }

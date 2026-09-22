@@ -113,7 +113,9 @@ impl DataGrid {
     pub(super) fn copy_selection(&self, cx: &mut Context<Self>) {
         if !self.selected_rows.is_empty() {
             let rows = self.selected_rows.iter().copied().collect::<Vec<_>>();
-            let text = self.formatted_rows(&rows, ExportFormat::Tsv, false);
+            // JSON objects carry column names. GPUI writes one plain-text
+            // clipboard entry, so a second TSV flavor would be dropped.
+            let text = self.formatted_rows(&rows, ExportFormat::Json, true);
             if !text.is_empty() {
                 cx.write_to_clipboard(ClipboardItem::new_string(text));
             }
@@ -145,15 +147,31 @@ impl DataGrid {
         let Some(editable) = &mut self.editable else {
             return;
         };
-        for (row_offset, values) in editing::clipboard_rows(&text).into_iter().enumerate() {
+        // JSON copy keys objects with the same disambiguated names
+        // (`id`, `id_2`). Indices are relative to the selected column so the
+        // paste loop below can add `start.column`.
+        let headers = cellar_runtime::export::unique_column_names(&self.result)
+            .into_iter()
+            .skip(start.column)
+            .collect::<Vec<_>>();
+        let named = headers.iter().cloned().enumerate().collect::<Vec<_>>();
+        let rows = if let Some(rows) = editing::clipboard_json_rows(&text, &named) {
+            rows
+        } else {
+            editing::without_matching_header(editing::clipboard_rows(&text), &headers)
+                .into_iter()
+                .map(|row| row.into_iter().enumerate().collect())
+                .collect()
+        };
+        for (row_offset, values) in rows.into_iter().enumerate() {
             let row = start.row.saturating_add(row_offset);
             if row >= self.result.rows.len() {
                 break;
             }
-            for (column_offset, value) in values.into_iter().enumerate() {
+            for (column_offset, value) in values {
                 let column = start.column.saturating_add(column_offset);
                 if column >= self.result.columns.len() {
-                    break;
+                    continue;
                 }
                 if let Err(error) = editable.set_value(row, column, Some(value), &self.result) {
                     self.edit_error = Some(error);
