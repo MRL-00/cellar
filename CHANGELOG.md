@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.0.7
+
+### Bug fixes
+
+- **Row copy works straight from the keyboard** — opening a table focuses the
+  grid and the Edit menu's Copy item copies the grid selection, so Cmd/Ctrl+C
+  copies selected rows as JSON without clicking into the grid first.
+- **Columns fit their data again** — columns size to their header, type, and
+  loaded values, keep fitting as more rows load, and widths you resize survive
+  paging, sorting, and reloads.
+- **Clean frozen column when scrolling sideways** — the row numbers and first
+  column stay pinned above the columns scrolling under them, instead of the two
+  overlapping on selected rows.
+
 ## 1.0.6
 
 ### Features
