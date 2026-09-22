@@ -2,7 +2,7 @@ use cellar_core::driver::{ConnectionConfig, Engine, SslMode};
 use cellar_core::schema::{Column, Database, Schema, Table};
 
 use super::{
-    AppModel, ConnectionState, QueryTarget, SchemaCompareConfig, SchemaCompareSource,
+    AppModel, ConnectionState, QueryTarget, SchemaCompareConfig, SchemaCompareSource, SchemaNode,
     SplitOrientation, TableLoadState, TableTarget,
 };
 
@@ -320,4 +320,41 @@ fn query_pages_are_visible_before_completion() {
             if target.database == "analytics"
     ));
     assert!(!model.set_query_database(tab_id, "analytics".into()));
+}
+
+#[test]
+fn relation_structure_folders_open_with_their_table() {
+    let mut model = AppModel::new(vec![config("one")]);
+    let target = TableTarget {
+        connection_id: "one".into(),
+        database: "cellar".into(),
+        schema: "public".into(),
+        table: "users".into(),
+    };
+    let relation = SchemaNode::relation(&target);
+    let columns = SchemaNode::relation_group(&target, "columns");
+    let other = SchemaNode::relation_group(
+        &TableTarget {
+            table: "apikeys".into(),
+            ..target.clone()
+        },
+        "columns",
+    );
+
+    assert!(!model.node_expanded(&relation), "tables start collapsed");
+    assert!(
+        model.node_expanded(&columns),
+        "folders open with the table so one click shows columns"
+    );
+
+    model.toggle_node(relation.clone());
+    assert!(model.node_expanded(&relation));
+    model.toggle_node(relation.clone());
+    assert!(!model.node_expanded(&relation));
+
+    model.toggle_node(columns.clone());
+    assert!(!model.node_expanded(&columns), "collapsing is per folder");
+    assert!(model.node_expanded(&other));
+    model.toggle_node(columns.clone());
+    assert!(model.node_expanded(&columns));
 }

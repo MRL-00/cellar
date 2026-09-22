@@ -43,6 +43,9 @@ Legend: `[x]` verified in GPUI; `[ ]` not yet at parity.
   auto-hiding and visible/total counts.
 - [x] Live command-palette catalogue search across tables, views, and columns.
 - [x] View rows match the classic sidebar behaviour (openable data rows without a non-canonical expandable column subtree).
+- [x] Table rows expand into columns, keys, indexes, and defaults folders built
+  from the introspection cache, with per-table collapse state and Left/Right
+  toggling that never opens the table.
 - [x] Sidebar width is drag-resizable with the classic 200–600 px bounds.
 - [x] Schema-tree keyboard navigation: Tab focus, Up/Down traversal,
   Left/Right collapse and expand, and Enter/Space activation.

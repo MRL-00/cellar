@@ -319,7 +319,9 @@ pub(super) fn header_cell(
         })
 }
 
-fn column_type_icon(
+/// The glyph and tint a column header uses for its engine-native type. Shared
+/// with the schema tree, which lists columns under a table.
+pub fn column_type_icon(
     data_type: &str,
     primary_key: bool,
     foreign_key: bool,
