@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.0.6
+
+### Features
+
+- **Table structure in the sidebar** — expand a table row to see its columns,
+  keys, indexes, and defaults without opening the table. Folders open by
+  default, remember their collapsed state per table, and toggle with Left/Right
+  without opening the table itself.
+- **JSON row copy and paste** — copying selected rows writes JSON objects keyed
+  by column name, and pasting that JSON back into the grid maps values by name,
+  so column order and absent keys are handled for you. Plain text still pastes
+  as tab-separated values, and the context menu keeps its CSV, TSV, JSON, and
+  SQL INSERT copies.
+
+### Bug fixes
+
+- **Restored table tabs load again** — tabs restored on launch no longer stop at
+  "Table metadata is unavailable" when they open before the connection
+  finishes; they load as soon as schema metadata is ready.
+- **Last grid rows stay visible** — the grid now ends above the horizontal
+  scrollbar instead of hiding the final rows behind it.
+
 ## 1.0.5
 
 ### Features
