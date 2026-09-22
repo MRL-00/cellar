@@ -113,7 +113,9 @@ impl DataGrid {
     pub(super) fn copy_selection(&self, cx: &mut Context<Self>) {
         if !self.selected_rows.is_empty() {
             let rows = self.selected_rows.iter().copied().collect::<Vec<_>>();
-            let text = self.formatted_rows(&rows, ExportFormat::Tsv, false);
+            // JSON objects carry column names. GPUI writes one plain-text
+            // clipboard entry, so a second TSV flavor would be dropped.
+            let text = self.formatted_rows(&rows, ExportFormat::Json, true);
             if !text.is_empty() {
                 cx.write_to_clipboard(ClipboardItem::new_string(text));
             }
