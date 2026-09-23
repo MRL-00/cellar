@@ -595,9 +595,9 @@ impl CellarApp {
                             .child(remember_bounds(app, move |this, bounds| {
                                 this.preset_trigger_bounds.insert(tab_id, bounds);
                             }))
-                            .on_click(cx.listener(move |this, _: &ClickEvent, _, cx| {
+                            .on_click(cx.listener(move |this, _: &ClickEvent, window, cx| {
                                 cx.stop_propagation();
-                                this.open_filter_preset_menu(tab_id, cx);
+                                this.open_filter_preset_menu(tab_id, window, cx);
                             }))
                     })
                 },

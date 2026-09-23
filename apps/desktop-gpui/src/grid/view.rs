@@ -11,24 +11,21 @@ use gpui_component::{
 
 use super::{
     date_picker, json::JsonPalette, row::header_cell, row::GridRow, width_sum, DataGrid,
-    EditableGrid, FROZEN_COLUMNS, ROW_NUMBER_WIDTH,
+    EditableGrid, ROW_NUMBER_WIDTH,
 };
-use crate::theme::{ui_px, ui_scale, ACCENT, FG_MUTED, GRID_LINE, PANEL, PANEL_RAISED};
+use crate::theme::{ui_px, ui_scale, ACCENT, GRID_LINE, PANEL, PANEL_RAISED};
 
 const GRID_HEADER_HEIGHT: f32 = 26.;
 const SCROLLBAR_SIZE: f32 = 16.;
 
 impl DataGrid {
-    /// Header cells for `columns`, plus a frozen pane pinned to the left edge
-    /// that covers the columns scrolled underneath it.
+    /// Header cells for the visible portion of the horizontally scrolling grid.
     fn header(
         &self,
         columns: Range<usize>,
-        horizontal_offset: f32,
         grid: WeakEntity<DataGrid>,
     ) -> impl IntoElement {
         let total_columns = self.result.columns.len();
-        let frozen = FROZEN_COLUMNS.min(total_columns);
         let total_width = ROW_NUMBER_WIDTH + width_sum(&self.column_widths, 0..total_columns);
         div()
             .flex()
@@ -38,6 +35,16 @@ impl DataGrid {
             .border_t_1()
             .border_b_1()
             .border_color(GRID_LINE)
+            .child(
+                div()
+                    .w(px(ROW_NUMBER_WIDTH))
+                    .flex_shrink_0()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .text_color(crate::theme::FG_MUTED)
+                    .child(Icon::empty().path("icons/type-hash.svg").size(ui_px(9.))),
+            )
             .child(
                 div()
                     .w(px(width_sum(&self.column_widths, 0..columns.start)))
@@ -75,44 +82,6 @@ impl DataGrid {
                         columns.end..total_columns,
                     )))
                     .flex_shrink_0(),
-            )
-            .child(
-                div()
-                    .absolute()
-                    .left(px(horizontal_offset))
-                    .top_0()
-                    .bottom_0()
-                    .flex()
-                    .flex_shrink_0()
-                    .bg(PANEL)
-                    .child(
-                        div()
-                            .w(px(ROW_NUMBER_WIDTH))
-                            .flex_shrink_0()
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .text_color(FG_MUTED)
-                            .child(Icon::empty().path("icons/type-hash.svg").size(ui_px(9.))),
-                    )
-                    .children(self.result.columns.iter().take(frozen).enumerate().map(
-                        |(index, column)| {
-                            let (primary_key, foreign_key) = self
-                                .editable
-                                .as_ref()
-                                .map(|editable| editable.column_flags(&column.name))
-                                .unwrap_or_default();
-                            header_cell(
-                                column,
-                                index,
-                                self.column_widths[index],
-                                self.sort,
-                                primary_key,
-                                foreign_key,
-                                grid.clone(),
-                            )
-                        },
-                    )),
             )
     }
 }
@@ -162,11 +131,7 @@ impl Render for DataGrid {
         let editor = self.active_editor.as_ref().map(|editor| {
             let column_left =
                 ROW_NUMBER_WIDTH + width_sum(&column_widths, 0..editor.position.column);
-            let left = if editor.position.column < FROZEN_COLUMNS {
-                column_left
-            } else {
-                column_left - horizontal_offset
-            };
+            let left = column_left - horizontal_offset;
             let vertical_offset = f32::from(self.vertical_scroll.0.borrow().base_handle.offset().y);
             let top = GRID_HEADER_HEIGHT * ui_scale()
                 + editor.position.row as f32 * crate::theme::row_height()
@@ -221,7 +186,7 @@ impl Render for DataGrid {
                     .flex_col()
                     .overflow_x_hidden()
                     .track_scroll(&self.horizontal_scroll)
-                    .child(self.header(columns.clone(), horizontal_offset, grid.clone()))
+                    .child(self.header(columns.clone(), grid.clone()))
                     .child(
                         uniform_list(
                             "native-grid-rows",
@@ -233,7 +198,6 @@ impl Render for DataGrid {
                                         result: Arc::clone(&result),
                                         row,
                                         columns: columns.clone(),
-                                        horizontal_offset,
                                         selection,
                                         cell_selection,
                                         row_selected: this.selected_rows.contains(&row),

@@ -14,10 +14,10 @@ use gpui_component::Icon;
 use super::json::JsonPalette;
 use super::rich::rich_cell_content;
 use super::{
-    width_sum, CellPosition, CellRange, DataGrid, DragColumn, FROZEN_COLUMNS, ROW_NUMBER_WIDTH,
+    width_sum, CellPosition, CellRange, DataGrid, DragColumn, ROW_NUMBER_WIDTH,
 };
 use crate::theme::{
-    accent, accent_soft, opaque_over, ACCENT, ACCENT_FG, BORDER_DIVIDER, DELETE_SOFT, FG, FG_MUTED,
+    accent, accent_soft, ACCENT, ACCENT_FG, BORDER_DIVIDER, DELETE_SOFT, FG, FG_MUTED,
     FG_SECONDARY, GRID_LINE, INSERT_SOFT, PANEL, PANEL_MUTED, PANEL_RAISED, PROD, UPDATE_SOFT,
     WARN,
 };
@@ -46,7 +46,6 @@ pub(super) struct GridRow {
     pub result: Arc<QueryResult>,
     pub row: usize,
     pub columns: Range<usize>,
-    pub horizontal_offset: f32,
     pub selection: Option<CellPosition>,
     pub cell_selection: Option<CellRange>,
     pub row_selected: bool,
@@ -64,7 +63,6 @@ pub(super) struct GridRow {
 impl RenderOnce for GridRow {
     fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
         let total_columns = self.result.columns.len();
-        let frozen = FROZEN_COLUMNS.min(total_columns);
         let row_background = if self.row_selected {
             accent_soft()
         } else {
@@ -77,10 +75,6 @@ impl RenderOnce for GridRow {
         } else {
             row_background
         };
-        // The frozen pane covers the columns that scroll beneath it, so it needs
-        // an opaque version of the row background: every tint this row can carry
-        // flattened onto the grid's panel color.
-        let pane_background = pane_background(row_tint);
         div()
             .flex()
             .h(px(crate::theme::row_height()))
@@ -90,6 +84,7 @@ impl RenderOnce for GridRow {
             .bg(row_tint)
             .border_b_1()
             .border_color(BORDER_DIVIDER)
+            .child(self.row_number_cell())
             .child(
                 div()
                     .w(px(width_sum(&self.column_widths, 0..self.columns.start)))
@@ -104,70 +99,6 @@ impl RenderOnce for GridRow {
                     )))
                     .flex_shrink_0(),
             )
-            .child(
-                div()
-                    .absolute()
-                    .left(px(self.horizontal_offset))
-                    .top_0()
-                    .bottom_0()
-                    .flex()
-                    .flex_shrink_0()
-                    .bg(pane_background)
-                    .child(
-                        div()
-                            .w(px(ROW_NUMBER_WIDTH))
-                            .flex_shrink_0()
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .cursor_pointer()
-                            .text_size(px(11.))
-                            .text_color(FG_MUTED)
-                            .when(self.row_selected, |element| {
-                                element.bg(ACCENT).text_color(ACCENT_FG)
-                            })
-                            .when(
-                                !self.row_selected
-                                    && self
-                                        .selection
-                                        .is_some_and(|selection| selection.row == self.row),
-                                |element| element.bg(accent_soft()),
-                            )
-                            .child((self.row + 1).to_string())
-                            .on_mouse_down(MouseButton::Left, {
-                                let grid = self.grid.clone();
-                                let row = self.row;
-                                move |event, window, cx| {
-                                    grid.update(cx, |grid, cx| {
-                                        grid.select_row(
-                                            row,
-                                            event.modifiers.secondary(),
-                                            event.modifiers.shift,
-                                            window,
-                                            cx,
-                                        );
-                                    })
-                                    .ok();
-                                }
-                            })
-                            .context_menu({
-                                let grid = self.grid.clone();
-                                let row = self.row;
-                                move |menu, window, cx| {
-                                    let Some(entity) = grid.upgrade() else {
-                                        return menu;
-                                    };
-                                    entity.update(cx, |this, grid_cx| {
-                                        if !this.selected_rows.contains(&row) {
-                                            this.select_row(row, false, false, window, grid_cx);
-                                        }
-                                        this.row_context_menu(menu, row, grid.clone())
-                                    })
-                                }
-                            }),
-                    )
-                    .children((0..frozen).map(|column| self.cell(column))),
-            )
     }
 }
 
@@ -179,14 +110,57 @@ fn row_background(stripe_rows: bool, row: usize) -> gpui::Rgba {
     }
 }
 
-/// Rows paint translucent tints (`accent_soft`, delete/insert highlights) over
-/// the grid's panel color. The frozen pane hides the columns that scroll
-/// underneath it, so it has to paint the same result as one opaque color.
-fn pane_background(row_tint: gpui::Rgba) -> gpui::Rgba {
-    opaque_over(PANEL.rgba(), row_tint)
-}
-
 impl GridRow {
+    fn row_number_cell(&self) -> impl IntoElement {
+        div()
+            .w(px(ROW_NUMBER_WIDTH))
+            .flex_shrink_0()
+            .flex()
+            .items_center()
+            .justify_center()
+            .cursor_pointer()
+            .text_size(px(11.))
+            .text_color(FG_MUTED)
+            .when(self.row_selected, |element| element.bg(ACCENT).text_color(ACCENT_FG))
+            .when(
+                !self.row_selected
+                    && self.selection.is_some_and(|selection| selection.row == self.row),
+                |element| element.bg(accent_soft()),
+            )
+            .child((self.row + 1).to_string())
+            .on_mouse_down(MouseButton::Left, {
+                let grid = self.grid.clone();
+                let row = self.row;
+                move |event, window, cx| {
+                    grid.update(cx, |grid, cx| {
+                        grid.select_row(
+                            row,
+                            event.modifiers.secondary(),
+                            event.modifiers.shift,
+                            window,
+                            cx,
+                        );
+                    })
+                    .ok();
+                }
+            })
+            .context_menu({
+                let grid = self.grid.clone();
+                let row = self.row;
+                move |menu, window, cx| {
+                    let Some(entity) = grid.upgrade() else {
+                        return menu;
+                    };
+                    entity.update(cx, |this, grid_cx| {
+                        if !this.selected_rows.contains(&row) {
+                            this.select_row(row, false, false, window, grid_cx);
+                        }
+                        this.row_context_menu(menu, row, grid.clone())
+                    })
+                }
+            })
+    }
+
     fn cell(&self, column: usize) -> impl IntoElement {
         grid_cell(
             Arc::clone(&self.result),
@@ -507,25 +481,14 @@ pub(super) fn cell_edit_text(value: &CellValue) -> String {
 mod tests {
     use cellar_core::value::CellValue;
 
-    use super::{cell_text, column_type_icon, inline_text, pane_background, row_background};
-    use crate::theme::{accent_soft, DELETE_SOFT, INSERT_SOFT, PANEL, PANEL_MUTED};
+    use super::{cell_text, column_type_icon, inline_text, row_background};
+    use crate::theme::{PANEL, PANEL_MUTED};
 
     #[test]
     fn grid_display_preferences_control_nulls_and_stripes() {
         assert_eq!(cell_text(&CellValue::Null, "∅"), "∅");
         assert_eq!(row_background(false, 1), PANEL.rgba());
         assert_eq!(row_background(true, 1), PANEL_MUTED.rgba());
-    }
-
-    #[test]
-    fn frozen_pane_background_hides_the_columns_underneath_it() {
-        // Row highlights are translucent; the pane has to flatten them so the
-        // scrolled columns cannot show through a selected or edited row.
-        assert_eq!(pane_background(accent_soft()).a, 1.);
-        assert_eq!(pane_background(DELETE_SOFT.rgba()).a, 1.);
-        assert_eq!(pane_background(INSERT_SOFT.rgba()).a, 1.);
-        // Already-opaque stripe colors are unchanged.
-        assert_eq!(pane_background(PANEL_MUTED.rgba()), PANEL_MUTED.rgba());
     }
 
     #[test]

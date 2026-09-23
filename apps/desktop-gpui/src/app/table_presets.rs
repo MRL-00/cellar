@@ -1,7 +1,7 @@
 use cellar_core::query::{TableFilterClause, TableSortClause};
 use gpui::{
-    div, prelude::*, AnyElement, Bounds, Context, Entity, MouseButton, Pixels, Point, SharedString,
-    Window,
+    div, prelude::*, AnyElement, Bounds, Context, Entity, MouseButton, Pixels, Point,
+    SharedString, Window,
 };
 use gpui_component::{
     input::{InputEvent, InputState},
@@ -56,12 +56,17 @@ impl CellarApp {
             .map(|preset| preset.name.clone())
     }
 
-    pub(super) fn open_filter_preset_menu(&mut self, tab_id: u64, cx: &mut Context<Self>) {
+    pub(super) fn open_filter_preset_menu(
+        &mut self,
+        tab_id: u64,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) {
         let Some(position) = self
             .preset_trigger_bounds
             .get(&tab_id)
             .copied()
-            .map(dropdown_below)
+            .map(|trigger| dropdown_position(trigger, window.bounds()))
         else {
             return;
         };
@@ -345,6 +350,24 @@ pub(super) fn dropdown_below(trigger: Bounds<Pixels>) -> Point<Pixels> {
     Point::new(trigger.origin.x, trigger.origin.y + ui_px(24.))
 }
 
+fn dropdown_position(trigger: Bounds<Pixels>, window: Bounds<Pixels>) -> Point<Pixels> {
+    let menu_width = ui_px(260.);
+    let menu_height = ui_px(300.);
+    let margin = ui_px(8.);
+    let right = window.origin.x + window.size.width - menu_width - margin;
+    let bottom = window.origin.y + window.size.height - menu_height - margin;
+    let below = dropdown_below(trigger);
+    let y = if below.y + menu_height > window.origin.y + window.size.height - margin {
+        (trigger.origin.y - menu_height).max(window.origin.y + margin)
+    } else {
+        below.y
+    };
+    Point::new(
+        trigger.origin.x.min(right).max(window.origin.x + margin),
+        y.min(bottom.max(window.origin.y + margin)),
+    )
+}
+
 pub(super) fn overlay_at(id: &'static str, position: Point<Pixels>) -> gpui::Stateful<gpui::Div> {
     div()
         .id(id)
@@ -352,7 +375,7 @@ pub(super) fn overlay_at(id: &'static str, position: Point<Pixels>) -> gpui::Sta
         .absolute()
         .left(position.x)
         .top(position.y)
-        .min_w(ui_px(180.))
+        .w(ui_px(260.))
         .max_h(ui_px(300.))
         .overflow_y_scroll()
         .p_1()
