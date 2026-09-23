@@ -38,7 +38,6 @@ use crate::model::TableTarget;
 
 const ROW_NUMBER_WIDTH: f32 = 36.;
 const COLUMN_OVERSCAN: usize = 2;
-const FROZEN_COLUMNS: usize = 1;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct CellPosition {
@@ -612,16 +611,12 @@ impl DataGrid {
     }
 
     fn reveal_column(&self, column: usize) {
-        if column < FROZEN_COLUMNS {
-            return;
-        }
         let viewport = f32::from(self.horizontal_scroll.bounds().size.width).max(800.);
         let current = (-f32::from(self.horizontal_scroll.offset().x)).max(0.);
-        let frozen_width = ROW_NUMBER_WIDTH + width_sum(&self.column_widths, 0..FROZEN_COLUMNS);
         let left = ROW_NUMBER_WIDTH + width_sum(&self.column_widths, 0..column);
         let right = left + self.column_widths[column];
-        let next = if left < current + frozen_width {
-            (left - frozen_width).max(0.)
+        let next = if left < current {
+            left.max(0.)
         } else if right > current + viewport {
             right - viewport
         } else {
@@ -680,15 +675,13 @@ fn width_sum(widths: &[f32], range: Range<usize>) -> f32 {
 
 fn visible_column_range(widths: &[f32], offset: f32, viewport: f32) -> Range<usize> {
     let total = widths.len();
-    let frozen = FROZEN_COLUMNS.min(total);
-    let frozen_width = ROW_NUMBER_WIDTH + width_sum(widths, 0..frozen);
-    let mut first = frozen;
-    let mut position = frozen_width;
-    while first < total && position + widths[first] < offset + frozen_width {
+    let mut first = 0;
+    let mut position = ROW_NUMBER_WIDTH;
+    while first < total && position + widths[first] < offset + ROW_NUMBER_WIDTH {
         position += widths[first];
         first += 1;
     }
-    first = first.saturating_sub(COLUMN_OVERSCAN).max(frozen);
+    first = first.saturating_sub(COLUMN_OVERSCAN);
     position = ROW_NUMBER_WIDTH + width_sum(widths, 0..first);
     let mut last = first;
     while last < total && position < offset + viewport {
@@ -731,7 +724,7 @@ mod tests {
     #[test]
     fn horizontal_virtualization_stays_bounded() {
         let widths = vec![160.; 500];
-        assert_eq!(visible_column_range(&widths, 0., 800.), 1..7);
+        assert_eq!(visible_column_range(&widths, 0., 800.), 0..7);
         let scrolled = visible_column_range(&widths, 30_000., 800.);
         assert!(scrolled.start > 180);
         assert!(scrolled.len() <= 10);
