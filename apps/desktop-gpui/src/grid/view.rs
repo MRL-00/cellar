@@ -156,6 +156,8 @@ impl Render for DataGrid {
         let resize_grid = grid.clone();
         let wheel_grid = grid.clone();
         let column_widths = Arc::clone(&self.column_widths);
+        // Theme-derived, so resolve once per render rather than per row range.
+        let json_palette = JsonPalette::from_theme(cx);
         let total_width = ROW_NUMBER_WIDTH + width_sum(&column_widths, 0..result.columns.len());
         let editor = self.active_editor.as_ref().map(|editor| {
             let column_left =
@@ -224,9 +226,8 @@ impl Render for DataGrid {
                         uniform_list(
                             "native-grid-rows",
                             result.rows.len(),
-                            cx.processor(move |this, range: Range<usize>, _, cx| {
+                            cx.processor(move |this, range: Range<usize>, _, _| {
                                 this.visible_rows = range.clone();
-                                let json_palette = JsonPalette::from_theme(cx);
                                 range
                                     .map(|row| GridRow {
                                         result: Arc::clone(&result),

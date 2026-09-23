@@ -1,4 +1,6 @@
-use cellar_core::value::{CellValue, ColumnMeta};
+use std::sync::Arc;
+
+use cellar_core::{query::QueryResult, value::CellValue};
 use gpui::{div, prelude::*, px, AnyElement, ClipboardItem, SharedString};
 use gpui_component::{
     button::{Button, ButtonVariants},
@@ -14,27 +16,38 @@ use crate::theme::{
 
 #[derive(Clone)]
 enum ExpandedValue {
-    Json(serde_json::Value),
+    /// A shared handle to the page plus the cell position. Grid rows repaint
+    /// every frame, so the JSON value is looked up only when the viewer opens
+    /// instead of being deep-cloned for each painted cell.
+    Json {
+        result: Arc<QueryResult>,
+        row: usize,
+        column: usize,
+    },
     Array(Vec<String>),
     Bytes(Vec<u8>),
     Geometry(String),
 }
 
 pub(super) fn rich_cell_content(
+    result: &Arc<QueryResult>,
     row: usize,
     column_index: usize,
     selected: bool,
-    column: Option<&ColumnMeta>,
-    value: Option<&CellValue>,
     fallback: String,
     json_palette: JsonPalette,
 ) -> AnyElement {
+    let column = result.columns.get(column_index);
     let data_type = column
         .map(|column| column.data_type.to_ascii_lowercase())
         .unwrap_or_default();
     let title = column
         .map(|column| format!("{} · {}", column.name, column.data_type))
         .unwrap_or_default();
+    let value = result
+        .rows
+        .get(row)
+        .and_then(|cells| cells.get(column_index));
     let (inline, raw, expanded) = match value {
         Some(CellValue::Json(value)) => (
             div()
@@ -46,7 +59,11 @@ pub(super) fn rich_cell_content(
                 .into_any_element(),
             // Copy text is serialized on click, not on every grid paint.
             String::new(),
-            ExpandedValue::Json(value.clone()),
+            ExpandedValue::Json {
+                result: Arc::clone(result),
+                row,
+                column: column_index,
+            },
         ),
         Some(CellValue::Bytes(bytes)) => {
             let head = bytes
@@ -150,11 +167,17 @@ fn rich_popover(
     json_palette: JsonPalette,
 ) -> impl IntoElement {
     let (width, max_height) = match value {
-        ExpandedValue::Json(_) => (px(560.), px(520.)),
+        ExpandedValue::Json { .. } => (px(560.), px(520.)),
         _ => (px(420.), px(420.)),
     };
     let copy = match &value {
-        ExpandedValue::Json(json) => json.to_string(),
+        ExpandedValue::Json {
+            result,
+            row,
+            column,
+        } => json_cell(result, *row, *column)
+            .map(ToString::to_string)
+            .unwrap_or_default(),
         _ => raw,
     };
     div()
@@ -206,15 +229,23 @@ fn rich_popover(
 
 fn expanded_content(value: ExpandedValue, json_palette: JsonPalette) -> AnyElement {
     match value {
-        ExpandedValue::Json(json) => div()
+        ExpandedValue::Json {
+            result,
+            row,
+            column,
+        } => div()
             .font_family(crate::theme::mono_font())
             .text_size(px(12.5))
             .line_height(px(19.))
             .text_color(FG_SECONDARY)
             .whitespace_nowrap()
             .children(
-                highlight_json(&json, JsonLayout::Pretty, EXPANDED_JSON_LIMIT)
-                    .styled_lines(json_palette)
+                json_cell(&result, row, column)
+                    .map(|json| {
+                        highlight_json(json, JsonLayout::Pretty, EXPANDED_JSON_LIMIT)
+                            .styled_lines(json_palette)
+                    })
+                    .unwrap_or_default()
                     .into_iter()
                     .map(|line| div().child(line)),
             )
@@ -269,6 +300,13 @@ fn expanded_content(value: ExpandedValue, json_palette: JsonPalette) -> AnyEleme
                     .child(raw),
             )
             .into_any_element(),
+    }
+}
+
+fn json_cell(result: &QueryResult, row: usize, column: usize) -> Option<&serde_json::Value> {
+    match result.rows.get(row)?.get(column)? {
+        CellValue::Json(value) => Some(value),
+        _ => None,
     }
 }
 

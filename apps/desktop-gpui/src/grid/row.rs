@@ -394,15 +394,7 @@ fn grid_cell(
     let content = if is_pending {
         div().truncate().child(text).into_any_element()
     } else {
-        rich_cell_content(
-            row,
-            column,
-            selected,
-            result.columns.get(column),
-            value,
-            text,
-            json_palette,
-        )
+        rich_cell_content(&result, row, column, selected, text, json_palette)
     };
     div()
         .id(SharedString::from(format!("cell:{row}:{column}")))

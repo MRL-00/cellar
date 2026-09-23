@@ -89,7 +89,7 @@ impl HighlightedJson {
 
     /// Lines with spans rebased to each line's start. Tokens never cross a
     /// newline because JSON strings escape them.
-    fn lines(self) -> Vec<(String, Vec<(Range<usize>, JsonToken)>)> {
+    fn lines(self) -> Vec<(String, Vec<Span>)> {
         let mut spans = self.spans.into_iter().peekable();
         let mut start = 0;
         self.text
@@ -106,6 +106,8 @@ impl HighlightedJson {
             .collect()
     }
 }
+
+type Span = (Range<usize>, JsonToken);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum JsonToken {
@@ -127,7 +129,7 @@ pub(super) enum JsonLayout {
 #[derive(Clone, Debug, Default)]
 pub(super) struct HighlightedJson {
     pub text: String,
-    pub spans: Vec<(Range<usize>, JsonToken)>,
+    pub spans: Vec<Span>,
     pub truncated: bool,
 }
 
