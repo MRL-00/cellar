@@ -292,6 +292,7 @@ impl CellarApp {
         let clear = tab_id;
         div()
             .id("filter-preset-backdrop")
+            .occlude()
             .absolute()
             .inset_0()
             .on_mouse_down(

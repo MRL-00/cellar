@@ -327,6 +327,7 @@ impl CellarApp {
         let label = import.source.label();
         div()
             .id("connection-import-backdrop")
+            .occlude()
             .absolute()
             .inset_0()
             .flex()

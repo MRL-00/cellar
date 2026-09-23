@@ -34,6 +34,7 @@ impl CellarApp {
 
         div()
             .id("connection-editor-backdrop")
+            .occlude()
             .absolute()
             .inset_0()
             .flex()

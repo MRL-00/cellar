@@ -154,6 +154,7 @@ impl CellarApp {
         }
         div()
             .id("quick-column-backdrop")
+            .occlude()
             .absolute()
             .inset_0()
             .on_mouse_down(

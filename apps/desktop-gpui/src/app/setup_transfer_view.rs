@@ -78,6 +78,7 @@ impl CellarApp {
         };
         div()
             .id("setup-transfer-backdrop")
+            .occlude()
             .absolute()
             .inset_0()
             .bg(cellar_desktop_gpui::theme::overlay())

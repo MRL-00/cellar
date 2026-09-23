@@ -309,6 +309,7 @@ impl CellarApp {
 
         div()
             .id("commit-review-backdrop")
+            .occlude()
             .absolute()
             .inset_0()
             .flex()

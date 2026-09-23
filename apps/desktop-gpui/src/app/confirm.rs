@@ -128,6 +128,7 @@ impl CellarApp {
         let danger = confirmation.danger;
         div()
             .id("confirmation-backdrop")
+            .occlude()
             .absolute()
             .inset_0()
             .flex()

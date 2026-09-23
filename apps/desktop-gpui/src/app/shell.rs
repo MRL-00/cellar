@@ -360,6 +360,7 @@ impl CellarApp {
             .collect::<Vec<_>>();
         div()
             .id("query-database-menu-backdrop")
+            .occlude()
             .absolute()
             .inset_0()
             .on_mouse_down(

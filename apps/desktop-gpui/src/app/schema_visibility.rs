@@ -198,6 +198,7 @@ impl CellarApp {
 
         div()
             .id("schema-visibility-backdrop")
+            .occlude()
             .absolute()
             .inset_0()
             .bg(gpui::rgba(0x00000059))

@@ -282,6 +282,7 @@ impl CellarApp {
 
         div()
             .id("data-import-backdrop")
+            .occlude()
             .absolute()
             .inset_0()
             .flex()
