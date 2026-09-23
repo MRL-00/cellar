@@ -233,7 +233,7 @@ impl CellarApp {
             .and_then(|target| self.table_filter_presets.get(&table_key(target)))
             .cloned()
             .unwrap_or_default();
-        let mut menu = overlay_at("filter-preset-menu", position);
+        let mut menu = overlay_at("filter-preset-menu", position).w(ui_px(260.));
         for preset in presets {
             let name = preset.name.clone();
             let apply_name = name.clone();
@@ -375,7 +375,7 @@ pub(super) fn overlay_at(id: &'static str, position: Point<Pixels>) -> gpui::Sta
         .absolute()
         .left(position.x)
         .top(position.y)
-        .w(ui_px(260.))
+        .min_w(ui_px(180.))
         .max_h(ui_px(300.))
         .overflow_y_scroll()
         .p_1()
