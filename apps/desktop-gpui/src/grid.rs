@@ -2,6 +2,7 @@ mod context_menu;
 mod date_picker;
 mod editing;
 mod export;
+mod json;
 mod keyboard;
 mod layout;
 mod rich;

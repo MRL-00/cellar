@@ -10,8 +10,8 @@ use gpui_component::{
 };
 
 use super::{
-    date_picker, row::header_cell, row::GridRow, width_sum, DataGrid, EditableGrid, FROZEN_COLUMNS,
-    ROW_NUMBER_WIDTH,
+    date_picker, json::JsonPalette, row::header_cell, row::GridRow, width_sum, DataGrid,
+    EditableGrid, FROZEN_COLUMNS, ROW_NUMBER_WIDTH,
 };
 use crate::theme::{ui_px, ui_scale, ACCENT, FG_MUTED, GRID_LINE, PANEL, PANEL_RAISED};
 
@@ -224,8 +224,9 @@ impl Render for DataGrid {
                         uniform_list(
                             "native-grid-rows",
                             result.rows.len(),
-                            cx.processor(move |this, range: Range<usize>, _, _| {
+                            cx.processor(move |this, range: Range<usize>, _, cx| {
                                 this.visible_rows = range.clone();
+                                let json_palette = JsonPalette::from_theme(cx);
                                 range
                                     .map(|row| GridRow {
                                         result: Arc::clone(&result),
@@ -243,6 +244,7 @@ impl Render for DataGrid {
                                         stripe_rows,
                                         grid: row_grid.clone(),
                                         column_widths: Arc::clone(&column_widths),
+                                        json_palette,
                                     })
                                     .collect::<Vec<_>>()
                             }),
