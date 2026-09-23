@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.8
+
+### Features
+
+- **Syntax-highlighted JSON cells** — JSON values now use syntax highlighting
+  both in the grid and in the expanded viewer, making keys, strings, numbers,
+  and other values easier to scan.
+
+### Bug fixes
+
+- **Modal dialogs block background clicks** — clicking controls behind dialogs
+  and menus no longer activates them while an overlay is open.
+
 ## 1.0.7
 
 ### Bug fixes

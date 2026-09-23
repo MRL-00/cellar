@@ -947,7 +947,7 @@ dependencies = [
 
 [[package]]
 name = "cellar-ai"
-version = "1.0.7"
+version = "1.0.8"
 dependencies = [
  "cellar-core",
  "cellar-runtime",
@@ -961,7 +961,7 @@ dependencies = [
 
 [[package]]
 name = "cellar-core"
-version = "1.0.7"
+version = "1.0.8"
 dependencies = [
  "async-trait",
  "chrono",
@@ -974,7 +974,7 @@ dependencies = [
 
 [[package]]
 name = "cellar-desktop-gpui"
-version = "1.0.7"
+version = "1.0.8"
 dependencies = [
  "anyhow",
  "async-channel 2.5.0",
@@ -1009,7 +1009,7 @@ dependencies = [
 
 [[package]]
 name = "cellar-diff"
-version = "1.0.7"
+version = "1.0.8"
 dependencies = [
  "cellar-sql",
  "serde",
@@ -1019,7 +1019,7 @@ dependencies = [
 
 [[package]]
 name = "cellar-driver-convex"
-version = "1.0.7"
+version = "1.0.8"
 dependencies = [
  "async-trait",
  "cellar-core",
@@ -1031,7 +1031,7 @@ dependencies = [
 
 [[package]]
 name = "cellar-driver-cosmos"
-version = "1.0.7"
+version = "1.0.8"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -1047,7 +1047,7 @@ dependencies = [
 
 [[package]]
 name = "cellar-driver-firestore"
-version = "1.0.7"
+version = "1.0.8"
 dependencies = [
  "async-trait",
  "cellar-core",
@@ -1060,7 +1060,7 @@ dependencies = [
 
 [[package]]
 name = "cellar-driver-mysql"
-version = "1.0.7"
+version = "1.0.8"
 dependencies = [
  "async-trait",
  "cellar-core",
@@ -1078,7 +1078,7 @@ dependencies = [
 
 [[package]]
 name = "cellar-driver-postgres"
-version = "1.0.7"
+version = "1.0.8"
 dependencies = [
  "async-trait",
  "cellar-core",
@@ -1098,7 +1098,7 @@ dependencies = [
 
 [[package]]
 name = "cellar-driver-sqlite"
-version = "1.0.7"
+version = "1.0.8"
 dependencies = [
  "async-trait",
  "cellar-core",
@@ -1113,7 +1113,7 @@ dependencies = [
 
 [[package]]
 name = "cellar-driver-sqlserver"
-version = "1.0.7"
+version = "1.0.8"
 dependencies = [
  "async-trait",
  "cellar-core",
@@ -1128,7 +1128,7 @@ dependencies = [
 
 [[package]]
 name = "cellar-runtime"
-version = "1.0.7"
+version = "1.0.8"
 dependencies = [
  "cellar-core",
  "cellar-diff",
@@ -1154,7 +1154,7 @@ dependencies = [
 
 [[package]]
 name = "cellar-schema-diff"
-version = "1.0.7"
+version = "1.0.8"
 dependencies = [
  "cellar-core",
  "cellar-sql",
@@ -1165,7 +1165,7 @@ dependencies = [
 
 [[package]]
 name = "cellar-secrets"
-version = "1.0.7"
+version = "1.0.8"
 dependencies = [
  "cellar-core",
  "keyring",
@@ -1174,7 +1174,7 @@ dependencies = [
 
 [[package]]
 name = "cellar-sql"
-version = "1.0.7"
+version = "1.0.8"
 dependencies = [
  "cellar-core",
  "serde",
