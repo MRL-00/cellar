@@ -124,6 +124,7 @@ impl CellarApp {
         }
         div()
             .id("filter-column-backdrop")
+            .occlude()
             .absolute()
             .inset_0()
             .on_mouse_down(
@@ -170,6 +171,7 @@ impl CellarApp {
         }
         div()
             .id("sort-column-backdrop")
+            .occlude()
             .absolute()
             .inset_0()
             .on_mouse_down(

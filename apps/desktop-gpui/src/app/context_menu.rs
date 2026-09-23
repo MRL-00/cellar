@@ -108,6 +108,7 @@ impl CellarApp {
         let database_compare = compare.clone();
         div()
             .id("schema-menu-backdrop")
+            .occlude()
             .absolute()
             .inset_0()
             .on_mouse_down(
@@ -588,6 +589,7 @@ impl CellarApp {
         let name = menu.target.table.clone();
         div()
             .id("table-menu-backdrop")
+            .occlude()
             .absolute()
             .inset_0()
             .on_mouse_down(

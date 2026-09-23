@@ -43,6 +43,7 @@ impl CellarApp {
         let refresh_id = tab.id;
         div()
             .id("tab-menu-backdrop")
+            .occlude()
             .absolute()
             .inset_0()
             .on_mouse_down(

@@ -118,6 +118,7 @@ impl CellarApp {
         let category = self.settings_category;
         div()
             .id("settings-backdrop")
+            .occlude()
             .absolute()
             .inset_0()
             .bg(cellar_desktop_gpui::theme::overlay())

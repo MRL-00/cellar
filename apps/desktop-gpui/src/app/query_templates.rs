@@ -132,6 +132,7 @@ impl CellarApp {
             && !editor.sql.trim().is_empty();
         div()
             .id("save-template-backdrop")
+            .occlude()
             .absolute()
             .inset_0()
             .flex()

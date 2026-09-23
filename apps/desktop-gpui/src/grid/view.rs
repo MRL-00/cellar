@@ -1,8 +1,8 @@
 use std::{collections::BTreeSet, ops::Range, sync::Arc};
 
 use gpui::{
-    canvas, div, prelude::*, px, uniform_list, Context, DispatchPhase, IntoElement, MouseButton,
-    Render, ScrollWheelEvent, WeakEntity, Window,
+    canvas, div, prelude::*, px, uniform_list, Context, DispatchPhase, HitboxBehavior, IntoElement,
+    MouseButton, Render, ScrollWheelEvent, WeakEntity, Window,
 };
 use gpui_component::{
     scroll::{Scrollbar, ScrollbarShow},
@@ -254,12 +254,15 @@ impl Render for DataGrid {
                     )
                     .child(
                         canvas(
-                            |bounds, _, _| bounds,
-                            move |bounds, _, window, _| {
+                            |bounds, window, _| {
+                                window.insert_hitbox(bounds, HitboxBehavior::Normal)
+                            },
+                            move |_, hitbox, window, _| {
                                 window.on_mouse_event(
                                     move |event: &ScrollWheelEvent, phase, window, cx| {
+                                        // Respect occluding overlays such as modal backdrops.
                                         if phase != DispatchPhase::Capture
-                                            || !bounds.contains(&event.position)
+                                            || !hitbox.should_handle_scroll(window)
                                         {
                                             return;
                                         }

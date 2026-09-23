@@ -14,6 +14,7 @@ impl CellarApp {
     ) -> AnyElement {
         div()
             .id("bottom-export-backdrop")
+            .occlude()
             .absolute()
             .inset_0()
             .on_mouse_down(

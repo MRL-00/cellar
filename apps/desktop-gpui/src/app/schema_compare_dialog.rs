@@ -269,6 +269,7 @@ impl CellarApp {
         let can_compare = source.is_some() && target.is_some() && !dialog.busy;
         div()
             .id("schema-compare-dialog-backdrop")
+            .occlude()
             .absolute()
             .inset_0()
             .bg(cellar_desktop_gpui::theme::overlay())

@@ -363,7 +363,7 @@ pub(super) fn remove_connection_from_layout(items: &mut Vec<SidebarItem>, connec
 }
 
 fn overlay(id: &'static str, cx: &mut Context<CellarApp>) -> gpui::Stateful<gpui::Div> {
-    div().id(id).absolute().inset_0().on_mouse_down(
+    div().id(id).absolute().inset_0().occlude().on_mouse_down(
         gpui::MouseButton::Left,
         cx.listener(|this, _, _, cx| {
             this.sidebar_menu = None;
