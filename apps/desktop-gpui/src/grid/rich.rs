@@ -1,4 +1,6 @@
-use cellar_core::value::{CellValue, ColumnMeta};
+use std::sync::Arc;
+
+use cellar_core::{query::QueryResult, value::CellValue};
 use gpui::{div, prelude::*, px, AnyElement, ClipboardItem, SharedString};
 use gpui_component::{
     button::{Button, ButtonVariants},
@@ -7,46 +9,62 @@ use gpui_component::{
     IconName,
 };
 
+use super::json::{highlight_json, JsonLayout, JsonPalette};
 use crate::theme::{
     ACCENT, BORDER, BORDER_DIVIDER, FG, FG_MUTED, FG_SECONDARY, INSET, PANEL, PANEL_RAISED,
 };
 
 #[derive(Clone)]
 enum ExpandedValue {
-    Json(String),
+    /// A shared handle to the page plus the cell position. Grid rows repaint
+    /// every frame, so the JSON value is looked up only when the viewer opens
+    /// instead of being deep-cloned for each painted cell.
+    Json {
+        result: Arc<QueryResult>,
+        row: usize,
+        column: usize,
+    },
     Array(Vec<String>),
     Bytes(Vec<u8>),
     Geometry(String),
 }
 
 pub(super) fn rich_cell_content(
+    result: &Arc<QueryResult>,
     row: usize,
     column_index: usize,
     selected: bool,
-    column: Option<&ColumnMeta>,
-    value: Option<&CellValue>,
     fallback: String,
+    json_palette: JsonPalette,
 ) -> AnyElement {
+    let column = result.columns.get(column_index);
     let data_type = column
         .map(|column| column.data_type.to_ascii_lowercase())
         .unwrap_or_default();
     let title = column
         .map(|column| format!("{} · {}", column.name, column.data_type))
         .unwrap_or_default();
+    let value = result
+        .rows
+        .get(row)
+        .and_then(|cells| cells.get(column_index));
     let (inline, raw, expanded) = match value {
-        Some(CellValue::Json(value)) => {
-            let raw = value.to_string();
-            let pretty = serde_json::to_string_pretty(value).unwrap_or_else(|_| raw.clone());
-            (
-                div()
-                    .truncate()
-                    .text_color(FG_MUTED)
-                    .child(json_summary(value))
-                    .into_any_element(),
-                raw,
-                ExpandedValue::Json(pretty),
-            )
-        }
+        Some(CellValue::Json(value)) => (
+            div()
+                .truncate()
+                .child(
+                    highlight_json(value, JsonLayout::Inline, INLINE_JSON_LIMIT)
+                        .styled(json_palette),
+                )
+                .into_any_element(),
+            // Copy text is serialized on click, not on every grid paint.
+            String::new(),
+            ExpandedValue::Json {
+                result: Arc::clone(result),
+                row,
+                column: column_index,
+            },
+        ),
         Some(CellValue::Bytes(bytes)) => {
             let head = bytes
                 .iter()
@@ -129,16 +147,42 @@ pub(super) fn rich_cell_content(
                         .group_hover("grid-cell", |style| style.opacity(1.))
                         .on_click(|_, _, cx| cx.stop_propagation()),
                 )
-                .content(move |_, _, _| rich_popover(title.clone(), raw.clone(), expanded.clone())),
+                .content(move |_, _, _| {
+                    rich_popover(title.clone(), raw.clone(), expanded.clone(), json_palette)
+                }),
         )
         .into_any_element()
 }
 
-fn rich_popover(title: String, raw: String, value: ExpandedValue) -> impl IntoElement {
-    let copy = raw.clone();
+/// Grid cells clip at `MAX_COLUMN_WIDTH`, so a few hundred bytes always fills
+/// the visible width without laying out whole documents per row.
+const INLINE_JSON_LIMIT: usize = 512;
+/// Upper bound for the expanded viewer; Copy still yields the full value.
+const EXPANDED_JSON_LIMIT: usize = 64 * 1024;
+
+fn rich_popover(
+    title: String,
+    raw: String,
+    value: ExpandedValue,
+    json_palette: JsonPalette,
+) -> impl IntoElement {
+    let (width, max_height) = match value {
+        ExpandedValue::Json { .. } => (px(560.), px(520.)),
+        _ => (px(420.), px(420.)),
+    };
+    let copy = match &value {
+        ExpandedValue::Json {
+            result,
+            row,
+            column,
+        } => json_cell(result, *row, *column)
+            .map(ToString::to_string)
+            .unwrap_or_default(),
+        _ => raw,
+    };
     div()
-        .w(px(420.))
-        .max_h(px(420.))
+        .w(width)
+        .max_h(max_height)
         .flex()
         .flex_col()
         .rounded(px(6.))
@@ -177,18 +221,34 @@ fn rich_popover(title: String, raw: String, value: ExpandedValue) -> impl IntoEl
         .child(
             div()
                 .min_h_0()
-                .overflow_y_scrollbar()
+                .overflow_scrollbar()
                 .p_2()
-                .child(expanded_content(value)),
+                .child(expanded_content(value, json_palette)),
         )
 }
 
-fn expanded_content(value: ExpandedValue) -> AnyElement {
+fn expanded_content(value: ExpandedValue, json_palette: JsonPalette) -> AnyElement {
     match value {
-        ExpandedValue::Json(pretty) => div()
+        ExpandedValue::Json {
+            result,
+            row,
+            column,
+        } => div()
             .font_family(crate::theme::mono_font())
-            .line_height(px(18.))
-            .child(pretty)
+            .text_size(px(12.5))
+            .line_height(px(19.))
+            .text_color(FG_SECONDARY)
+            .whitespace_nowrap()
+            .children(
+                json_cell(&result, row, column)
+                    .map(|json| {
+                        highlight_json(json, JsonLayout::Pretty, EXPANDED_JSON_LIMIT)
+                            .styled_lines(json_palette)
+                    })
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|line| div().child(line)),
+            )
             .into_any_element(),
         ExpandedValue::Array(values) => div()
             .flex()
@@ -243,6 +303,13 @@ fn expanded_content(value: ExpandedValue) -> AnyElement {
     }
 }
 
+fn json_cell(result: &QueryResult, row: usize, column: usize) -> Option<&serde_json::Value> {
+    match result.rows.get(row)?.get(column)? {
+        CellValue::Json(value) => Some(value),
+        _ => None,
+    }
+}
+
 fn array_inline(values: &[String], raw: &str) -> AnyElement {
     if values.is_empty() {
         return div()
@@ -284,22 +351,6 @@ fn chip(value: String) -> impl IntoElement {
         .bg(PANEL_RAISED)
         .text_size(px(11.))
         .child(value)
-}
-
-fn json_summary(value: &serde_json::Value) -> String {
-    match value {
-        serde_json::Value::Array(values) => match values.len() {
-            0 => "[ ]".into(),
-            1 => "[ 1 item ]".into(),
-            count => format!("[ {count} items ]"),
-        },
-        serde_json::Value::Object(values) => match values.len() {
-            0 => "{ }".into(),
-            1 => "{ 1 key }".into(),
-            count => format!("{{ {count} keys }}"),
-        },
-        value => value.to_string(),
-    }
 }
 
 fn is_array_type(data_type: &str) -> bool {
@@ -404,15 +455,10 @@ fn geometry_label(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{format_byte_size, geometry_label, hex_dump, json_summary, parse_pg_array};
+    use super::{format_byte_size, geometry_label, hex_dump, parse_pg_array};
 
     #[test]
     fn rich_grid_summaries_and_expansions_match_the_classic_renderers() {
-        assert_eq!(
-            json_summary(&serde_json::json!({"a": 1, "b": 2})),
-            "{ 2 keys }"
-        );
-        assert_eq!(json_summary(&serde_json::json!([1])), "[ 1 item ]");
         assert_eq!(
             parse_pg_array(r#"{1,"b,c",{2,3},NULL}"#),
             ["1", "b,c", "{2,3}", "NULL"]

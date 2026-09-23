@@ -11,6 +11,7 @@ use gpui::{
 use gpui_component::menu::ContextMenuExt;
 use gpui_component::Icon;
 
+use super::json::JsonPalette;
 use super::rich::rich_cell_content;
 use super::{
     width_sum, CellPosition, CellRange, DataGrid, DragColumn, FROZEN_COLUMNS, ROW_NUMBER_WIDTH,
@@ -57,6 +58,7 @@ pub(super) struct GridRow {
     pub stripe_rows: bool,
     pub grid: WeakEntity<DataGrid>,
     pub column_widths: Arc<Vec<f32>>,
+    pub json_palette: JsonPalette,
 }
 
 impl RenderOnce for GridRow {
@@ -207,6 +209,7 @@ impl GridRow {
                 row_background(self.stripe_rows, self.row)
             },
             self.column_widths[column],
+            self.json_palette,
             self.grid.clone(),
         )
     }
@@ -371,6 +374,7 @@ fn grid_cell(
     null_display: Arc<str>,
     row_background: gpui::Rgba,
     width: f32,
+    json_palette: JsonPalette,
     grid: WeakEntity<DataGrid>,
 ) -> impl IntoElement {
     let value = result.rows.get(row).and_then(|row| row.get(column));
@@ -390,14 +394,7 @@ fn grid_cell(
     let content = if is_pending {
         div().truncate().child(text).into_any_element()
     } else {
-        rich_cell_content(
-            row,
-            column,
-            selected,
-            result.columns.get(column),
-            value,
-            text,
-        )
+        rich_cell_content(&result, row, column, selected, text, json_palette)
     };
     div()
         .id(SharedString::from(format!("cell:{row}:{column}")))
@@ -470,7 +467,9 @@ fn inline_text(text: &str) -> String {
     if !text.contains(['\n', '\r']) {
         return text.to_owned();
     }
-    text.replace("\r\n", "⏎").replace('\n', "⏎").replace('\r', "⏎")
+    text.replace("\r\n", "⏎")
+        .replace('\n', "⏎")
+        .replace('\r', "⏎")
 }
 
 fn cell_text(value: &CellValue, null_display: &str) -> String {
