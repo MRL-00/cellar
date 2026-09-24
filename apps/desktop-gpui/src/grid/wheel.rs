@@ -11,12 +11,14 @@ pub(super) fn apply_horizontal_wheel(
     line_height: Pixels,
 ) -> bool {
     let dx = horizontal_wheel_delta(event.delta.pixel_delta(line_height), event.modifiers.shift);
-    if dx.is_zero() {
+    if !event.modifiers.shift && dx.is_zero() {
         return false;
     }
-    let mut offset = handle.offset();
-    offset.x += dx;
-    handle.set_offset(offset);
+    if !dx.is_zero() {
+        let mut offset = handle.offset();
+        offset.x += dx;
+        handle.set_offset(offset);
+    }
     true
 }
 
@@ -116,6 +118,17 @@ mod tests {
             px(16.),
         ));
         assert_eq!(handle.offset().x, px(24.));
+    }
+
+    #[test]
+    fn shift_wheel_is_consumed_even_when_it_has_no_horizontal_delta() {
+        let handle = ScrollHandle::new();
+        assert!(apply_horizontal_wheel(
+            &handle,
+            &wheel(ScrollDelta::Pixels(point(px(0.), px(0.))), true),
+            px(16.),
+        ));
+        assert_eq!(handle.offset().x, px(0.));
     }
 
     #[test]
