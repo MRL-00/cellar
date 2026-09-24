@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.9
+
+### Bug fixes
+
+- **Grid and filter menus stay usable** — columns scroll normally instead of
+  remaining frozen, and the filter-preset menu stays within the window without
+  stretching wider than intended.
+
 ## 1.0.8
 
 ### Features
