@@ -12,7 +12,9 @@ enum GridKeyAction {
     SetNull,
     Edit,
     CancelOrRevert,
-    DeleteRow,
+    /// Backspace/Delete: marks gutter-selected rows for delete, otherwise
+    /// clears the selected cell into an empty inline editor.
+    ClearOrDelete,
     Move(isize, isize),
 }
 
@@ -23,6 +25,10 @@ impl DataGrid {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.active_editor.is_some() {
+            self.editor_key_down(event, window, cx);
+            return;
+        }
         let modifiers = event.keystroke.modifiers;
         let Some(action) = grid_key_action(
             event.keystroke.key.as_str(),
@@ -39,13 +45,11 @@ impl DataGrid {
             GridKeyAction::SetNull => self.set_selected_null(cx),
             GridKeyAction::Edit => {
                 if let Some(position) = self.selection {
-                    self.begin_edit(position, window, cx);
+                    self.begin_edit(position, None, window, cx);
                 }
             }
             GridKeyAction::CancelOrRevert => {
-                if self.active_editor.is_some() {
-                    self.cancel_editor(cx);
-                } else if !self.selected_rows.is_empty() {
+                if !self.selected_rows.is_empty() {
                     self.clear_row_selection();
                     cx.notify();
                 } else if let (Some(position), Some(editable)) =
@@ -57,7 +61,13 @@ impl DataGrid {
                     }
                 }
             }
-            GridKeyAction::DeleteRow => self.delete_selected_row(cx),
+            GridKeyAction::ClearOrDelete => {
+                if !self.selected_rows.is_empty() {
+                    self.delete_selected_row(cx);
+                } else if let Some(position) = self.selection {
+                    self.begin_edit(position, Some(String::new()), window, cx);
+                }
+            }
             GridKeyAction::Move(row, column) => self.move_selection(row, column, cx),
         }
         cx.stop_propagation();
@@ -73,6 +83,24 @@ impl DataGrid {
             return;
         }
         self.copy_selection(cx);
+        cx.stop_propagation();
+    }
+
+    /// Keys the inline input lets bubble (Enter, Escape, arrows) arrive here.
+    /// Only commit/cancel are meaningful; everything else must not reach the
+    /// grid shortcuts, or editing a cell could move or delete rows.
+    fn editor_key_down(
+        &mut self,
+        event: &KeyDownEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        match event.keystroke.key.as_str() {
+            "enter" => self.commit_editor(cx),
+            "escape" => self.cancel_editor(cx),
+            _ => return,
+        }
+        window.focus(&self.focus_handle);
         cx.stop_propagation();
     }
 }
@@ -91,7 +119,7 @@ fn grid_key_action(key: &str, secondary: bool, shift: bool) -> Option<GridKeyAct
     match key {
         "enter" => Some(GridKeyAction::Edit),
         "escape" => Some(GridKeyAction::CancelOrRevert),
-        "backspace" | "delete" => Some(GridKeyAction::DeleteRow),
+        "backspace" | "delete" => Some(GridKeyAction::ClearOrDelete),
         "left" => Some(GridKeyAction::Move(0, -1)),
         "right" => Some(GridKeyAction::Move(0, 1)),
         "up" => Some(GridKeyAction::Move(-1, 0)),
@@ -124,7 +152,11 @@ mod tests {
         );
         assert_eq!(
             grid_key_action("delete", false, false),
-            Some(GridKeyAction::DeleteRow)
+            Some(GridKeyAction::ClearOrDelete)
+        );
+        assert_eq!(
+            grid_key_action("backspace", false, false),
+            Some(GridKeyAction::ClearOrDelete)
         );
         assert_eq!(grid_key_action("k", true, false), None);
         assert_eq!(grid_key_action("n", true, false), None);

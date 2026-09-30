@@ -298,24 +298,33 @@ impl DataGrid {
         )
     }
 
-    fn begin_edit(&mut self, position: CellPosition, window: &mut Window, cx: &mut Context<Self>) {
+    /// Opens the inline editor on `position`, prefilled with `initial` when
+    /// given, otherwise with the cell's current (pending or original) value.
+    fn begin_edit(
+        &mut self,
+        position: CellPosition,
+        initial: Option<String>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if self.reloading || !self.editable.as_ref().is_some_and(EditableGrid::can_edit) {
             return;
         }
         self.commit_editor(cx);
-        let current = self
-            .editable
-            .as_ref()
-            .and_then(|editable| editable.display_value(position.row, position.column))
-            .flatten()
-            .or_else(|| {
-                self.result
-                    .rows
-                    .get(position.row)
-                    .and_then(|row| row.get(position.column))
-                    .map(cell_edit_text)
-            })
-            .unwrap_or_default();
+        let current = initial.unwrap_or_else(|| {
+            self.editable
+                .as_ref()
+                .and_then(|editable| editable.display_value(position.row, position.column))
+                .flatten()
+                .or_else(|| {
+                    self.result
+                        .rows
+                        .get(position.row)
+                        .and_then(|row| row.get(position.column))
+                        .map(cell_edit_text)
+                })
+                .unwrap_or_default()
+        });
         let date = self
             .result
             .columns
@@ -502,7 +511,7 @@ impl DataGrid {
             .push(vec![cellar_core::value::CellValue::Null; columns]);
         self.vertical_scroll
             .scroll_to_item(row, ScrollStrategy::Center);
-        self.begin_edit(CellPosition { row, column: 0 }, window, cx);
+        self.begin_edit(CellPosition { row, column: 0 }, None, window, cx);
     }
 
     fn review_changes(&mut self, cx: &mut Context<Self>) {
