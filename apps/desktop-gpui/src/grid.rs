@@ -339,15 +339,16 @@ impl DataGrid {
             })
         });
         let state = cx.new(|cx| InputState::new(window, cx).default_value(current));
-        let commit_on_blur = date.is_none();
-        cx.subscribe_in(&state, window, move |this, _, event: &InputEvent, _, cx| {
-            if matches!(event, InputEvent::PressEnter { .. })
-                || commit_on_blur && matches!(event, InputEvent::Blur)
-            {
-                this.commit_editor(cx);
-            }
-        })
-        .detach();
+        // Enter bubbles from the input to `DataGrid::key_down`, which owns
+        // commit-on-Enter; only blur needs a subscription.
+        if date.is_none() {
+            cx.subscribe_in(&state, window, |this, _, event: &InputEvent, _, cx| {
+                if matches!(event, InputEvent::Blur) {
+                    this.commit_editor(cx);
+                }
+            })
+            .detach();
+        }
         window.focus(&state.focus_handle(cx));
         self.selection = Some(position);
         self.selection_anchor = Some(position);

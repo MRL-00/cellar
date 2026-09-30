@@ -43,22 +43,27 @@ fn users_grid(cx: &mut gpui::Context<DataGrid>) -> DataGrid {
         columns: vec![
             column("id", "int8", true, 1),
             column("name", "text", false, 2),
+            column("born", "date", false, 3),
         ],
         primary_key: vec!["id".into()],
         foreign_keys: Vec::new(),
         indexes: Vec::new(),
     };
     let result = QueryResult {
-        columns: ["id", "name"]
+        columns: ["id", "name", "born"]
             .iter()
-            .zip(["int8", "text"])
+            .zip(["int8", "text", "date"])
             .map(|(name, data_type)| ColumnMeta {
                 name: (*name).into(),
                 data_type: data_type.into(),
                 nullable: *name != "id",
             })
             .collect(),
-        rows: vec![vec![CellValue::Int(7), CellValue::Text("alice".into())]],
+        rows: vec![vec![
+            CellValue::Int(7),
+            CellValue::Text("alice".into()),
+            CellValue::Date(chrono::NaiveDate::from_ymd_opt(1990, 4, 2).expect("valid date")),
+        ]],
         notices: Vec::new(),
         notice_capture: NoticeCapture::unsupported("test"),
         rows_affected: None,
@@ -77,10 +82,24 @@ fn gutter() -> gpui::Point<gpui::Pixels> {
     point(px(18. * theme::ui_scale()), row_y())
 }
 
-/// A point inside the `name` cell: right of the fitted `id` column.
-fn name_cell(grid: &Entity<DataGrid>, cx: &mut VisualTestContext) -> gpui::Point<gpui::Pixels> {
+/// A point just inside the left edge of `column`'s cell, after the gutter
+/// and every fitted column before it.
+fn cell(
+    grid: &Entity<DataGrid>,
+    cx: &mut VisualTestContext,
+    column: &str,
+) -> gpui::Point<gpui::Pixels> {
     let widths = cx.update(|_, cx| grid.read(cx).layout().portable().widths);
-    point(px(36. * theme::ui_scale() + widths["id"] + 20.), row_y())
+    let before: f32 = ["id", "name", "born"]
+        .iter()
+        .take_while(|name| **name != column)
+        .map(|name| widths[*name])
+        .sum();
+    point(px(36. * theme::ui_scale() + before + 20.), row_y())
+}
+
+fn name_cell(grid: &Entity<DataGrid>, cx: &mut VisualTestContext) -> gpui::Point<gpui::Pixels> {
+    cell(grid, cx, "name")
 }
 
 fn open(
@@ -90,7 +109,7 @@ fn open(
     &mut VisualTestContext,
     Rc<RefCell<Option<TableChangeRequest>>>,
 ) {
-    cx.update(|cx| gpui_component::init(cx));
+    cx.update(gpui_component::init);
     // Cell editors are gpui-component inputs, which need a `Root` window
     // layer just like the app's real windows.
     let slot = Rc::new(RefCell::new(None));
@@ -142,10 +161,7 @@ fn only_change(
     }
 }
 
-#[gpui::test]
-fn backspace_in_a_double_clicked_cell_edits_its_text(cx: &mut TestAppContext) {
-    let (grid, cx, reviewed) = open(cx);
-    let cell = name_cell(&grid, cx);
+fn double_click(cx: &mut VisualTestContext, cell: gpui::Point<gpui::Pixels>) {
     cx.simulate_click(cell, Modifiers::default());
     cx.simulate_event(gpui::MouseDownEvent {
         button: gpui::MouseButton::Left,
@@ -160,11 +176,47 @@ fn backspace_in_a_double_clicked_cell_edits_its_text(cx: &mut TestAppContext) {
         modifiers: Modifiers::default(),
         click_count: 2,
     });
+}
+
+#[gpui::test]
+fn backspace_in_a_double_clicked_cell_edits_its_text(cx: &mut TestAppContext) {
+    let (grid, cx, reviewed) = open(cx);
+    let cell = name_cell(&grid, cx);
+    double_click(cx, cell);
     // The cursor starts at the end of "alice"; two backspaces leave "ali".
     cx.simulate_keystrokes("end backspace backspace enter");
     review(cx, &grid);
 
     assert_eq!(only_change(&reviewed), ("update", Some("ali".into())));
+}
+
+/// Enter must close the editor, not commit and reopen it. With the editor
+/// closed, the following Escape reverts the committed cell, leaving nothing
+/// to review; a reopened editor would swallow that Escape instead.
+#[gpui::test]
+fn enter_commits_and_closes_the_cell_editor(cx: &mut TestAppContext) {
+    let (grid, cx, reviewed) = open(cx);
+    let cell = name_cell(&grid, cx);
+    double_click(cx, cell);
+    cx.simulate_keystrokes("end backspace enter escape");
+    review(cx, &grid);
+
+    assert!(reviewed.borrow().is_none(), "{:?}", reviewed.borrow());
+}
+
+/// A date editor stays open after it loses focus (it only commits through
+/// its picker). Clicking another cell must still leave grid keys working.
+#[gpui::test]
+fn grid_keys_work_after_leaving_an_open_date_editor(cx: &mut TestAppContext) {
+    let (grid, cx, reviewed) = open(cx);
+    let born = cell(&grid, cx, "born");
+    double_click(cx, born);
+    let name = name_cell(&grid, cx);
+    cx.simulate_click(name, Modifiers::default());
+    cx.simulate_keystrokes("backspace enter");
+    review(cx, &grid);
+
+    assert_eq!(only_change(&reviewed), ("update", Some(String::new())));
 }
 
 #[gpui::test]

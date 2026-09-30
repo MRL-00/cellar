@@ -1,4 +1,4 @@
-use gpui::{Context, KeyDownEvent, Window};
+use gpui::{Context, Focusable as _, KeyDownEvent, Window};
 use gpui_component::input::Copy;
 
 use super::DataGrid;
@@ -25,7 +25,7 @@ impl DataGrid {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.active_editor.is_some() {
+        if self.editor_has_focus(window, cx) {
             self.editor_key_down(event, window, cx);
             return;
         }
@@ -49,7 +49,10 @@ impl DataGrid {
                 }
             }
             GridKeyAction::CancelOrRevert => {
-                if !self.selected_rows.is_empty() {
+                // A date/time editor stays open after its input blurs.
+                if self.active_editor.is_some() {
+                    self.cancel_editor(cx);
+                } else if !self.selected_rows.is_empty() {
                     self.clear_row_selection();
                     cx.notify();
                 } else if let (Some(position), Some(editable)) =
@@ -84,6 +87,20 @@ impl DataGrid {
         }
         self.copy_selection(cx);
         cx.stop_propagation();
+    }
+
+    /// Whether keyboard focus is inside the open cell editor (its text input
+    /// or a date/time editor's time input). Date/time editors do not commit on
+    /// blur, so an editor can stay open while the grid itself has focus; the
+    /// grid shortcuts must keep working then.
+    fn editor_has_focus(&self, window: &Window, cx: &gpui::App) -> bool {
+        self.active_editor.as_ref().is_some_and(|editor| {
+            editor.state.focus_handle(cx).is_focused(window)
+                || editor
+                    .time
+                    .as_ref()
+                    .is_some_and(|time| time.focus_handle(cx).is_focused(window))
+        })
     }
 
     /// Keys the inline input lets bubble (Enter, Escape, arrows) arrive here.
