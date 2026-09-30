@@ -407,7 +407,11 @@ fn grid_cell(
             grid.update(cx, |grid, cx| {
                 let position = CellPosition { row, column };
                 if editable && event.click_count >= 2 {
-                    grid.begin_edit(position, window, cx);
+                    // The grid root's focus-on-mouse-down runs after this
+                    // listener in the bubble phase and would pull focus back
+                    // off the freshly focused cell input.
+                    window.prevent_default();
+                    grid.begin_edit(position, None, window, cx);
                 } else {
                     grid.select(position, event.modifiers.shift, window, cx);
                 }
