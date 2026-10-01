@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.0.10
+
+### Bug fixes
+
+- **Inline cell editing works again** — double-clicking a cell now shows a
+  caret and keeps typing, arrows, and Backspace inside the editor. Enter
+  commits the value and closes the editor in one press.
+- **Backspace clears the cell, not the row** — Backspace or Delete on a
+  selected cell opens it empty for a new value instead of marking the whole
+  row for deletion. Rows selected from the gutter still toggle delete, and
+  ⌘⌫ still sets NULL.
+- **Grid keys recover after date editing** — leaving a date or time editor
+  open and clicking another cell no longer swallows grid shortcuts.
+- **Shift-scroll stays horizontal** — Shift+wheel in the grid no longer
+  falls through to vertical scrolling.
+
 ## 1.0.9
 
 ### Bug fixes
