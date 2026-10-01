@@ -199,6 +199,17 @@ impl Render for CellarApp {
             .on_mouse_up_out(MouseButton::Left, move |_, _, cx| {
                 app.update(cx, |app, cx| app.finish_panel_resize(cx)).ok();
             })
+            .can_drop(|value, _, _| {
+                value.downcast_ref::<ExternalPaths>().is_some_and(|paths| {
+                    paths
+                        .paths()
+                        .iter()
+                        .any(|path| sqlite_files::is_sqlite_file(path))
+                })
+            })
+            .on_drop(cx.listener(|this, paths: &ExternalPaths, window, cx| {
+                this.open_sqlite_files(paths.paths().to_vec(), window, cx)
+            }))
             .child(self.title_bar(cx))
             .child(
                 div()

@@ -18,6 +18,25 @@
   <string>Cellar</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
+  <key>CFBundleDocumentTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleTypeExtensions</key>
+      <array>
+        <string>db</string>
+        <string>db3</string>
+        <string>sdb</string>
+        <string>sqlite</string>
+        <string>sqlite3</string>
+      </array>
+      <key>CFBundleTypeName</key>
+      <string>SQLite Database</string>
+      <key>CFBundleTypeRole</key>
+      <string>Editor</string>
+      <key>LSHandlerRank</key>
+      <string>Alternate</string>
+    </dict>
+  </array>
   <key>CFBundleShortVersionString</key>
   <string>0.0.0</string>
   <key>CFBundleVersion</key>

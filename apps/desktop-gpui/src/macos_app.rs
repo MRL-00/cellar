@@ -1,6 +1,9 @@
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
+#[cfg(target_os = "macos")]
+use gpui::Application;
+
 static PUBLISH_SEQ: AtomicU64 = AtomicU64::new(0);
 
 const INFO_PLIST: &[u8] = include_bytes!("../macos/Info.plist");
@@ -29,6 +32,27 @@ pub fn relaunch_from_app_bundle() {
 
 #[cfg(not(target_os = "macos"))]
 pub fn relaunch_from_app_bundle() {}
+
+#[cfg(target_os = "macos")]
+pub fn register_open_file_handler(
+    application: &Application,
+) -> async_channel::Receiver<Vec<PathBuf>> {
+    let (sender, receiver) = async_channel::unbounded();
+    application.on_open_urls(move |urls| {
+        let paths = urls
+            .into_iter()
+            .filter_map(|url| file_url_to_path(&url))
+            .collect::<Vec<_>>();
+        if !paths.is_empty() {
+            let _ = sender.try_send(paths);
+        }
+    });
+    receiver
+}
+
+fn file_url_to_path(value: &str) -> Option<PathBuf> {
+    url::Url::parse(value).ok()?.to_file_path().ok()
+}
 
 fn launch_location(exe: &Path) -> LaunchLocation {
     let macos = exe.parent();
@@ -103,7 +127,10 @@ fn needs_copy(src: &Path, dest: &Path) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{launch_location, publish_file, stage_app_bundle, LaunchLocation, INFO_PLIST};
+    use super::{
+        file_url_to_path, launch_location, publish_file, stage_app_bundle, LaunchLocation,
+        INFO_PLIST,
+    };
     use std::fs;
     use std::path::Path;
 
@@ -124,6 +151,15 @@ mod tests {
     }
 
     #[test]
+    fn decodes_file_urls_without_losing_spaces() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("customer data.sqlite");
+        let url = url::Url::from_file_path(&path).unwrap();
+
+        assert_eq!(file_url_to_path(url.as_str()), Some(path));
+    }
+
+    #[test]
     fn stages_plist_icon_and_binary() {
         let dir = tempfile::tempdir().unwrap();
         let exe = dir.path().join("cellar-desktop-gpui");
@@ -135,6 +171,8 @@ mod tests {
         assert!(plist.contains("<key>CFBundleName</key>"));
         assert!(plist.contains("<key>CFBundleDisplayName</key>"));
         assert!(plist.contains("<string>Cellar</string>"));
+        assert!(plist.contains("<key>CFBundleDocumentTypes</key>"));
+        assert!(plist.contains("<string>sqlite3</string>"));
         assert_eq!(
             fs::read(dir.path().join("Cellar.app/Contents/Resources/icon.icns")).unwrap(),
             b"icns"
