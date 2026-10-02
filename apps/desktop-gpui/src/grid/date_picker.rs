@@ -112,6 +112,7 @@ pub(super) fn picker(
 ) -> AnyElement {
     let picker_height = editor.picker_height();
     div()
+        .occlude()
         .absolute()
         .left(px(left))
         .top(px(top))
