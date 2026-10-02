@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.11
+
+### Bug fixes
+
+- **Clicking inside a cell editor keeps it open** — clicking or
+  double-clicking the text of a cell you are editing no longer commits and
+  closes the editor. Clicking another cell still commits the edit.
+- **Double-click selects the whole value** — double-clicking inside the cell
+  editor selects the entire value, ready to copy or replace.
+- **Date picker clicks stay in the picker** — clicking empty space in the
+  date picker no longer selects or opens the cell behind it.
+
 ## 1.0.10
 
 ### Bug fixes
