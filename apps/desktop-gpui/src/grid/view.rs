@@ -5,6 +5,7 @@ use gpui::{
     MouseButton, Render, ScrollWheelEvent, WeakEntity, Window,
 };
 use gpui_component::{
+    input::SelectAll,
     scroll::{Scrollbar, ScrollbarShow},
     Icon,
 };
@@ -293,6 +294,10 @@ impl Render for DataGrid {
                 element
                     .child(
                         div()
+                            // Clicks inside the editor must not reach the cell
+                            // beneath it, whose mouse-down selects the cell and
+                            // refocuses the grid, blurring and committing the edit.
+                            .occlude()
                             .absolute()
                             .left(px(left))
                             .top(px(top))
@@ -303,6 +308,13 @@ impl Render for DataGrid {
                             .bg(PANEL_RAISED)
                             .border_1()
                             .border_color(ACCENT)
+                            // Runs after the input's own double-click word
+                            // selection; a cell value is selected as a whole.
+                            .on_mouse_down(MouseButton::Left, |event, window, cx| {
+                                if event.click_count >= 2 {
+                                    window.dispatch_action(Box::new(SelectAll), cx);
+                                }
+                            })
                             .child(crate::widgets::compact_input(&state).flex_1()),
                     )
                     .when_some(date, |element, date| {
