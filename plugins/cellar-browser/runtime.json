@@ -1,0 +1,9 @@
+{
+  "version": "0.5.2",
+  "artifacts": {
+    "macos-arm64": {
+      "file": "cellar-plugin-0.5.2-macos-arm64.tar.gz",
+      "sha256": "2c1f81e0d76eb6691a1fe46090a6f8b1c53bf457c10833dc0969f867c4eff2dd"
+    }
+  }
+}

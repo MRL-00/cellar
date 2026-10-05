@@ -1,0 +1,40 @@
+{
+  "name": "cellar-browser",
+  "version": "0.5.2",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit && node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "test:ui": "playwright test",
+    "fixtures": "python3 scripts/fixtures.py",
+    "preview": "node --import tsx server/preview.ts",
+    "start": "node --import tsx server/mcp.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "@modelcontextprotocol/ext-apps": "^1.2.2",
+    "@codemirror/view": "^6.40.0",
+    "@codemirror/state": "^6.5.4",
+    "@codemirror/lang-sql": "^6.10.0",
+    "codemirror": "^6.0.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zod": "^3.25.76",
+    "@codemirror/language": "6.12.4",
+    "@lezer/highlight": "1.2.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^18.3.1",
+    "@types/react-dom": "^18.3.1",
+    "@playwright/test": "^1.58.2",
+    "esbuild": "^0.25.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "eslint": "^9.0.0",
+    "typescript-eslint": "^8.0.0"
+  }
+}

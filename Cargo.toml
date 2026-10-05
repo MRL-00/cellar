@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/cellar-extension-service",
     "apps/desktop-gpui",
     "crates/cellar-ai",
     "crates/cellar-core",

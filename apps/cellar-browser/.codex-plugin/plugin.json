@@ -1,0 +1,29 @@
+{
+  "name": "cellar-browser",
+  "version": "0.5.2",
+  "description": "Connect, browse, query and review database edits in a Cellar workspace.",
+  "author": {
+    "name": "Matt List"
+  },
+  "repository": "https://github.com/MRL-00/cellar",
+  "license": "MIT",
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Cellar",
+    "shortDescription": "Browse, query and edit databases in Codex",
+    "longDescription": "A local Cellar workspace for SQLite, PostgreSQL, Supabase and Neon, with custom connections, file import, filters, SQL, schema inspection and reviewed row commits.",
+    "developerName": "Matt List",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive"
+    ],
+    "defaultPrompt": [
+      "Open the Cellar database workspace."
+    ],
+    "brandColor": "#a78bfa",
+    "composerIcon": "./assets/cellar-icon.png",
+    "logo": "./assets/cellar-icon.png",
+    "logoDark": "./assets/cellar-icon.png"
+  }
+}

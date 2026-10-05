@@ -1,0 +1,16 @@
+import { build } from 'esbuild';
+import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+await mkdir('dist', { recursive: true });
+const native = await readFile('../desktop-gpui/src/assets.rs','utf8');
+const icons = Object.fromEntries([...native.matchAll(/((?:"icons\/[^"\n]+\.svg"\s*(?:\|\s*)?)+)\s*=>\s*\{\s*r#"([\s\S]*?)"#/g)].flatMap(match=>[...match[1].matchAll(/"icons\/([^"\n]+)\.svg"/g)].map(name=>[name[1],match[2].replace('<svg ','<svg stroke-linecap="round" stroke-linejoin="round" ')])));
+for(const engine of ['postgres','mysql','sqlite','supabase','neon','planetscale','firestore','convex','cosmos','mssql','azure'])icons['engine-'+engine]=await readFile('../desktop-gpui/assets/engines/'+engine+'.svg','utf8');
+if(!icons.table||!icons.database||!icons.search||!icons.sparkles||icons.sparkles!==icons.bot)throw new Error('Native Cellar icon extraction failed');
+await build({ entryPoints: ['ui/main.tsx'], bundle: true, format: 'esm', outfile: 'dist/app.js', minify: true, plugins:[{name:'cellar-native-icons',setup(plugin){plugin.onResolve({filter:/^cellar-native-icons$/},()=>({path:'icons',namespace:'cellar'}));plugin.onLoad({filter:/.*/,namespace:'cellar'},()=>({contents:`export const icons=${JSON.stringify(icons)}`,loader:'js'}));}}] });
+const js = (await readFile('dist/app.js', 'utf8')).replaceAll('</script', '<\\/script');
+const faces=[['Cellar Inter','inter/inter-latin-wght-normal.woff2'],['JetBrains Mono','jetbrains-mono/jetbrains-mono-latin-wght-normal.woff2']];
+const fonts=await Promise.all(faces.map(async([name,path])=>`@font-face{font-family:'${name}';font-style:normal;font-weight:100 900;font-display:swap;src:url(data:font/woff2;base64,${(await readFile('../desktop-gpui/assets/fonts/'+path)).toString('base64')}) format('woff2');}`));
+const css = fonts.join('')+await readFile('ui/style.css', 'utf8');
+await writeFile('dist/index.html', `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cellar</title><style>${css}</style></head><body><div id="root"></div><script type="module">${js}</script></body></html>`);
+await build({ entryPoints: ['server/mcp.ts'], bundle: true, platform: 'node', format: 'esm', outfile: 'dist/mcp.mjs', banner: { js: "import { createRequire as cellarCreateRequire } from 'node:module'; const require = cellarCreateRequire(import.meta.url);" } });
+await mkdir('bin', { recursive: true });
+await copyFile(process.env.CELLAR_SERVICE_BINARY ?? '../../target/debug/cellar-extension-service', 'bin/cellar-extension-service');
