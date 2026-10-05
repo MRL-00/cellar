@@ -27,3 +27,13 @@ target/
 *.updater.key.pub
 tauri-signing-key*
 prototypes/target/
+
+# Cellar plugin development and release artifacts
+apps/cellar-browser/bin/
+apps/cellar-browser/.fixtures/
+apps/cellar-browser/.evidence/
+apps/cellar-browser/test-results/
+apps/cellar-browser/playwright-report/
+release-artifacts/
+apps/cellar-browser/assets/*-dark.png
+apps/cellar-browser/assets/*-light.png

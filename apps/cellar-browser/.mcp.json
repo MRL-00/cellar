@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "cellar-browser": {
+      "command": "/bin/sh",
+      "args": ["./scripts/start.sh"],
+      "cwd": ".",
+      "env_vars": ["PATH", "CODEX_MCP_NODE_PATH", "HOME", "CELLAR_EXTENSION_STATE"],
+      "startup_timeout_sec": 15,
+      "tool_timeout_sec": 15
+    }
+  }
+}

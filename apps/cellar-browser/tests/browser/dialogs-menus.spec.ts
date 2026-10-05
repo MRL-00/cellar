@@ -1,0 +1,95 @@
+import {test,expect} from '@playwright/test';
+import {resolve} from 'node:path';
+
+test('connection editor matches release geometry, tabs and honest capabilities in both themes',async({page})=>{
+  await page.goto('/');await expect(page.getByRole('grid')).toBeVisible();
+  await expect(page.getByRole('button',{name:'Find databases in this chat',exact:true})).toBeDisabled();
+  await page.getByRole('button',{name:'＋ Add connection',exact:true}).click();
+  const dialog=page.getByRole('dialog',{name:'New connection',exact:true});
+  await expect(dialog).toBeVisible();expect((await dialog.boundingBox())!.width).toBe(760);
+  await expect(dialog.locator('.engine-picker button')).toHaveCount(11);
+  await expect(dialog.getByRole('button',{name:'PostgreSQL',exact:true})).toHaveAttribute('aria-pressed','true');
+  await expect(dialog.getByRole('button',{name:'MySQL',exact:true})).toBeDisabled();
+  await expect(dialog.getByRole('tab')).toHaveText(['General','SSH tunnel','SSL / TLS','Options']);
+  await expect(dialog.getByRole('button',{name:'Test connection',exact:true})).toBeDisabled();
+  await expect(dialog.getByRole('button',{name:'Save',exact:true})).toBeDisabled();
+  await dialog.getByLabel('Connection name').fill('Synthetic UI review');
+  await dialog.getByLabel('Database name').fill('synthetic_fixture');
+  await dialog.getByLabel('Database user').fill('fixture_user');
+  await dialog.getByRole('button',{name:'prod',exact:true}).click();
+  await dialog.getByRole('tab',{name:'Options',exact:true}).click();
+  await dialog.getByLabel('Enable editing').check();await expect(dialog).toContainText('Every commit requires SQL review');
+  await dialog.getByRole('tab',{name:'SSL / TLS',exact:true}).click();
+  await expect(dialog.getByRole('button',{name:'Verify Full',exact:true})).toHaveAttribute('aria-pressed','true');
+  await dialog.getByLabel('Root certificate').fill('Synthetic certificate text only');
+  await dialog.getByRole('tab',{name:'SSH tunnel',exact:true}).click();
+  await expect(dialog.getByRole('checkbox')).toBeDisabled();
+  await dialog.getByRole('tab',{name:'General',exact:true}).click();
+  await expect(dialog.getByLabel('Connection name')).toHaveValue('Synthetic UI review');
+  if(process.env.CELLAR_CAPTURE_SCREENSHOTS==='1'){
+    await page.screenshot({path:'assets/cellar-connection-dark.png'});
+    await page.evaluate(()=>document.documentElement.dataset.theme='light');
+    await page.screenshot({path:'assets/cellar-connection-light.png'});
+  }
+  await dialog.getByRole('button',{name:'Save',exact:true}).focus();await page.keyboard.press('Tab');
+  await expect(dialog.getByRole('button',{name:'Close connection editor'})).toBeFocused();
+  await page.keyboard.press('Escape');await expect(dialog).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Toggle AI Assistant',exact:true})).toHaveCount(0);
+});
+
+test('native sidebar, table, connection and tab menus keep order and safe tab closure',async({page})=>{
+  await page.goto('/');await expect(page.getByRole('grid')).toBeVisible();
+  await page.getByRole('button',{name:'Connection actions',exact:true}).click();
+  let menu=page.getByRole('menu',{name:'Connection actions',exact:true});
+  await expect(menu.getByRole('menuitem')).toHaveText(['New connection','New folder','Import from DataGrip','Import from TablePlus','Refresh connected schemas','Organize connections…']);
+  if(process.env.CELLAR_CAPTURE_SCREENSHOTS==='1')await page.screenshot({path:'assets/cellar-sidebar-menu.png'});
+  await expect(menu.getByRole('menuitem',{name:'Import from DataGrip'})).toBeDisabled();
+  await page.keyboard.press('Escape');await expect(menu).toHaveCount(0);
+  await page.getByRole('button',{name:/▦ orders/}).click({button:'right'});
+  menu=page.getByRole('menu',{name:'Table menu',exact:true});
+  await expect(menu.getByRole('menuitem')).toHaveText(['Open','Query SELECT *','Import data…','Find Usages','Copy qualified name','Copy name']);
+  await menu.getByRole('menuitem',{name:'Open',exact:true}).click();
+  await page.getByRole('button',{name:'＋ New SQL query',exact:true}).click();
+  await page.locator('.tab').first().click({button:'right'});
+  menu=page.getByRole('menu',{name:'Tab menu',exact:true});
+  await menu.getByRole('menuitem',{name:'Close Tabs to the Right',exact:true}).click();
+  await expect(page.locator('.tab')).toHaveCount(1);
+  await page.locator('.connection-row').first().click({button:'right'});
+  menu=page.getByRole('menu',{name:'Connection menu',exact:true});
+  await expect(menu.getByRole('menuitem')).toHaveText(['New SQL query','Edit…','Duplicate','Move to folder…','Move to new folder','Reconnect','Disconnect','Remove']);
+  await expect(menu.getByRole('menuitem',{name:'Disconnect',exact:true})).toBeDisabled();
+});
+
+test('saved synthetic profiles retain native editor options and folder colors persist',async({page})=>{
+  await page.goto('/');await expect(page.getByRole('grid')).toBeVisible();
+  await page.getByRole('button',{name:'＋ Add connection',exact:true}).click();
+  let dialog=page.getByRole('dialog',{name:'New connection',exact:true});
+  await dialog.getByRole('button',{name:'SQLite',exact:true}).click();
+  await dialog.getByLabel('Connection name').fill('Synthetic modal fixture');
+  await dialog.getByLabel('SQLite path').fill(resolve('.fixtures/demo.sqlite'));
+  await dialog.getByRole('button',{name:'Accent #4f8ff7',exact:true}).click();
+  await dialog.getByRole('button',{name:'local',exact:true}).click();
+  await dialog.getByRole('tab',{name:'Options',exact:true}).click();
+  await dialog.getByLabel('Application name').fill('synthetic-ui-test');
+  await dialog.getByRole('button',{name:'Save',exact:true}).click();await expect(dialog).toHaveCount(0);
+  await expect(page.getByRole('grid')).toBeVisible();
+  await page.getByRole('button',{name:'Edit connection',exact:true}).click();
+  dialog=page.getByRole('dialog',{name:'Edit connection',exact:true});
+  await expect(dialog.getByLabel('Connection name')).toHaveValue('Synthetic modal fixture');
+  await expect(dialog.getByRole('button',{name:'Accent #4f8ff7',exact:true})).toHaveAttribute('aria-pressed','true');
+  await dialog.getByRole('tab',{name:'Options',exact:true}).click();
+  await expect(dialog.getByLabel('Application name')).toHaveValue('synthetic-ui-test');
+  await expect(dialog.getByLabel('Enable editing')).not.toBeChecked();
+  if(process.env.CELLAR_CAPTURE_SCREENSHOTS==='1')await page.screenshot({path:'assets/cellar-edit-connection.png'});
+  await page.keyboard.press('Escape');
+  await page.getByRole('button',{name:'Connection actions',exact:true}).click();
+  await page.getByRole('menuitem',{name:'New folder',exact:true}).click();
+  dialog=page.getByRole('dialog',{name:'Organize connections',exact:true});
+  await dialog.getByLabel('Folder name',{exact:true}).fill('Synthetic color folder');
+  await dialog.getByRole('button',{name:'New folder',exact:true}).click();await dialog.getByRole('button',{name:'Done',exact:true}).click();
+  await page.locator('.folder-row').filter({hasText:'Synthetic color folder'}).click({button:'right'});
+  await page.getByRole('menuitem',{name:'Set color…',exact:true}).click();
+  await page.getByRole('menuitem',{name:'Blue',exact:true}).click();
+  await page.reload();await expect(page.getByRole('grid')).toBeVisible();
+  await expect(page.locator('.folder-row').filter({hasText:'Synthetic color folder'})).toHaveCSS('color','rgb(79, 143, 247)');
+});

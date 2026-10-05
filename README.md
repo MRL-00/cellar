@@ -10,6 +10,12 @@ It is also early-access software. The useful database workflow is here, but ther
 
 ## Download
 
+### Cellar for Codex
+
+Browse, query and edit databases inside Codex with the **Cellar** plugin. The Apple Silicon macOS preview is distributed through a versioned GitHub marketplace. See [installation, supported workflows and limitations](apps/cellar-browser/README.md). The plugin has its own version and release assets, separate from the native desktop app.
+
+### Desktop app
+
 [Download the latest release](https://github.com/MRL-00/cellar/releases/latest). The signed build currently supports Apple Silicon Macs running macOS 13 or newer.
 
 Windows and Linux builds are checked in CI, but release packaging for them is not ready yet. Cellar 0.3.5 was the final Intel Mac release.

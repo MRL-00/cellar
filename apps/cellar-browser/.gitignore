@@ -1,0 +1,5 @@
+.fixtures/
+bin/
+test-results/
+playwright-report/
+*.local.json

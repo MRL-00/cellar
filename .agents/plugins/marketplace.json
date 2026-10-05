@@ -1,0 +1,10 @@
+{
+  "name": "cellar",
+  "interface": {"displayName": "Cellar"},
+  "plugins": [{
+    "name": "cellar-browser",
+    "source": {"source": "local", "path": "./plugins/cellar-browser"},
+    "policy": {"installation": "AVAILABLE", "authentication": "ON_INSTALL"},
+    "category": "Developer Tools"
+  }]
+}

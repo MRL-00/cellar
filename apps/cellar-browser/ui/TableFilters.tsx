@@ -1,0 +1,19 @@
+import {useState} from 'react';
+import {Presets} from './Presets.js';
+import {Icon} from './Shell.js';
+import type {Filter,Tab} from './types.js';
+
+export function TableFilters({connection,tab,busy,column,operator,value,onColumn,onOperator,onValue,onFilter,onReload}:{connection:string;tab:Tab;busy:boolean;column:string;operator:Filter['operator'];value:string;onColumn:(value:string)=>void;onOperator:(value:Filter['operator'])=>void;onValue:(value:string)=>void;onFilter:()=>void;onReload:(patch:Partial<Tab>)=>void}) {
+  const [composing,setComposing]=useState(false);
+  const [quick,setQuick]=useState('');
+  const columns=tab.table?.columns??[];
+  const textColumns=columns.filter(item=>/text|char|string/i.test(item.type));
+  const [quickColumn,setQuickColumn]=useState(textColumns[0]?.name??'');
+  function quickFilter(){
+    const target=/^\d+$/.test(quick)?columns.find(item=>item.name==='id'):columns.find(item=>item.name===quickColumn);
+    if(!target||!quick)return;
+    onReload({filters:[...tab.filters,{column:target.name,operator:/^\d+$/.test(quick)?'equals':'contains',value:quick}],offset:0});
+    setQuick('');
+  }
+  return <><div className="filter-bar native-filter"><button aria-label="↻ Refresh" title="Refresh" disabled={busy} onClick={()=>onReload({})}><Icon name="refresh"/></button><label className="quick-filter"><input aria-label="Quick filter" placeholder="Quick filter (id or text)…" value={quick} disabled={busy} onChange={event=>setQuick(event.target.value)} onKeyDown={event=>{if(event.key==='Enter')quickFilter();}}/></label>{textColumns.length>0&&<select className="quick-column" aria-label="Quick filter column" value={quickColumn} onChange={event=>setQuickColumn(event.target.value)}>{textColumns.map(item=><option key={item.name}>{item.name}</option>)}</select>}<span className="filter-divider"/><button aria-expanded={composing} onClick={()=>setComposing(!composing)}><Icon name="filter"/>where</button><button aria-label="Add filter condition" onClick={()=>setComposing(true)}>＋ add</button><span className="filter-divider"/><label className="sort-field">↓ order by <select aria-label="Sort column" disabled={busy} value={tab.sort??''} onChange={event=>onReload({sort:event.target.value||undefined,offset:0})}><option value="">—</option>{columns.map(column=><option key={column.name}>{column.name}</option>)}</select></label><button aria-label="Sort direction" disabled={busy||!tab.sort} onClick={()=>onReload({descending:!tab.descending,offset:0})}>{tab.descending?'↓':'↑'}</button><Presets key={`${connection}.${tab.table?.schema}.${tab.table?.name}`} connection={connection} tab={tab} busy={busy} onReload={onReload}/><span className="page-rows">{tab.result?.rows.length??0} / 100 <small>page rows</small></span></div>{composing&&<div className="filter-bar filter-composer"><select aria-label="Filter column" value={column} onChange={event=>onColumn(event.target.value)}>{columns.map(column=><option key={column.name}>{column.name}</option>)}</select><select aria-label="Filter operator" value={operator} onChange={event=>onOperator(event.target.value as Filter['operator'])}>{[['contains','contains'],['equals','equals'],['notEquals','not equals'],['notContains','does not contain'],['startsWith','starts with'],['endsWith','ends with'],['like','LIKE pattern'],['greaterThan','>'],['greaterThanOrEqual','≥'],['lessThan','<'],['lessThanOrEqual','≤'],['isNull','is NULL'],['isNotNull','is not NULL']].map(([value,label])=><option key={value} value={value}>{label}</option>)}</select><input aria-label="Filter value" value={value} placeholder="Filter value" disabled={operator==='isNull'||operator==='isNotNull'} onChange={event=>onValue(event.target.value)} onKeyDown={event=>{if(event.key==='Enter')onFilter();}}/><button disabled={busy||tab.filters.length>=12} onClick={onFilter}>＋ Filter</button><button onClick={()=>setComposing(false)}>Done</button></div>}</>;
+}
