@@ -1004,6 +1004,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tree-sitter-sequel",
+ "url",
  "uuid",
 ]
 
