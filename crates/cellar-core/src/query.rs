@@ -463,6 +463,20 @@ pub struct TableBrowseRequest {
     pub include_total: bool,
 }
 
+/// A bounded lookup used when a table grid follows a foreign-key value. The
+/// runtime validates the referenced table and columns against introspected
+/// metadata before constructing the dialect-specific SELECT. Values remain
+/// typed all the way to the driver's native parameter binder.
+#[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq)]
+pub struct ForeignKeyLookupRequest {
+    pub connection_id: String,
+    pub database: String,
+    pub schema: String,
+    pub table: String,
+    pub columns: Vec<String>,
+    pub values: Vec<CellValue>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]
 pub struct TableSortClause {
     pub column: String,

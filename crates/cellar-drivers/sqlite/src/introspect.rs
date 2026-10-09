@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use cellar_core::error::{CellarError, CellarResult};
 use cellar_core::schema::{Column, Database, ForeignKey, Index, Schema, Table, View};
 use cellar_core::table_browse::mark_primary_keys;
@@ -101,6 +103,24 @@ async fn list_columns(pool: &SqlitePool, table: &str) -> CellarResult<(Vec<Colum
     Ok((columns, pk_parts.into_iter().map(|(_, n)| n).collect()))
 }
 
+/// Resolve a parent's primary-key columns in SQLite's declared key order.
+/// `pk` is the 1-based position within a composite key, which is distinct
+/// from the table declaration order returned by `cid`.
+async fn list_primary_key_columns(pool: &SqlitePool, table: &str) -> CellarResult<Vec<String>> {
+    let rows = sqlx::query(
+        "SELECT name, pk FROM pragma_table_info(?1) \
+         WHERE pk > 0 ORDER BY pk",
+    )
+    .bind(table)
+    .fetch_all(pool)
+    .await
+    .map_err(intro_err)?;
+
+    rows.into_iter()
+        .map(|row| row.try_get("name").map_err(intro_err))
+        .collect()
+}
+
 async fn list_foreign_keys(pool: &SqlitePool, table: &str) -> CellarResult<Vec<ForeignKey>> {
     let rows = sqlx::query(
         "SELECT id, seq, \"table\", \"from\", \"to\" \
@@ -112,14 +132,35 @@ async fn list_foreign_keys(pool: &SqlitePool, table: &str) -> CellarResult<Vec<F
     .map_err(intro_err)?;
 
     let mut out: Vec<ForeignKey> = Vec::new();
+    let mut parent_primary_keys: BTreeMap<String, Vec<String>> = BTreeMap::new();
     let mut last_id: Option<i64> = None;
     for r in rows {
         let id: i64 = r.try_get("id").map_err(intro_err)?;
+        let seq: i64 = r.try_get("seq").map_err(intro_err)?;
         let ref_table: String = r.try_get("table").map_err(intro_err)?;
         let from: String = r.try_get("from").map_err(intro_err)?;
         // `to` is NULL when the FK references the parent's implicit primary
-        // key; keep the constraint and skip the unnamed referenced column.
+        // key. Resolve that key by SQLite's PK ordinal rather than the
+        // parent's declaration order; leave it unavailable only when the
+        // parent metadata cannot resolve the requested ordinal.
         let to: Option<String> = r.try_get("to").map_err(intro_err)?;
+        let referenced_column = match to.filter(|column| !column.is_empty()) {
+            Some(column) => Some(column),
+            None => {
+                if !parent_primary_keys.contains_key(&ref_table) {
+                    let columns = list_primary_key_columns(pool, &ref_table).await?;
+                    parent_primary_keys.insert(ref_table.clone(), columns);
+                }
+                parent_primary_keys
+                    .get(&ref_table)
+                    .and_then(|columns| {
+                        usize::try_from(seq)
+                            .ok()
+                            .and_then(|index| columns.get(index))
+                    })
+                    .cloned()
+            }
+        };
 
         if last_id != Some(id) {
             // SQLite foreign keys have no names; synthesize a stable one.
@@ -134,8 +175,8 @@ async fn list_foreign_keys(pool: &SqlitePool, table: &str) -> CellarResult<Vec<F
         }
         let fk = out.last_mut().expect("just pushed");
         fk.columns.push(from);
-        if let Some(to) = to {
-            fk.referenced_columns.push(to);
+        if let Some(column) = referenced_column {
+            fk.referenced_columns.push(column);
         }
     }
     Ok(out)

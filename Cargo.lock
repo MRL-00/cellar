@@ -1064,6 +1064,7 @@ version = "1.0.11"
 dependencies = [
  "async-trait",
  "cellar-core",
+ "cellar-sql",
  "chrono",
  "futures",
  "serde",
@@ -1102,6 +1103,7 @@ version = "1.0.11"
 dependencies = [
  "async-trait",
  "cellar-core",
+ "cellar-sql",
  "chrono",
  "futures",
  "serde",
@@ -1118,6 +1120,7 @@ dependencies = [
  "async-trait",
  "cellar-core",
  "cellar-diff",
+ "cellar-sql",
  "chrono",
  "futures-util",
  "thiserror 1.0.69",

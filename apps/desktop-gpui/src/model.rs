@@ -12,7 +12,7 @@ mod splits;
 pub use crate::workspace_model::{
     ErDiagramState, ErDiagramTarget, QueryState, QueryTarget, SchemaCompareConfig,
     SchemaCompareSource, SchemaCompareState, TabKind, TableLoadState, TablePage, TableTarget,
-    WorkspaceTab,
+    TableLookupContext, WorkspaceTab,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -121,6 +121,7 @@ pub struct AppModel {
     next_tab_id: u64,
     next_query_number: u64,
     table_load_generations: HashMap<u64, u64>,
+    table_lookup_contexts: HashMap<u64, TableLookupContext>,
 }
 
 impl AppModel {
@@ -146,6 +147,7 @@ impl AppModel {
             next_tab_id: 1,
             next_query_number: 1,
             table_load_generations: HashMap::new(),
+            table_lookup_contexts: HashMap::new(),
         }
     }
 
@@ -184,6 +186,8 @@ impl AppModel {
             }
         });
         self.table_load_generations
+            .retain(|tab_id, _| self.tabs.iter().any(|tab| tab.id == *tab_id));
+        self.table_lookup_contexts
             .retain(|tab_id, _| self.tabs.iter().any(|tab| tab.id == *tab_id));
         if self.active_connection.as_deref() == Some(id) {
             self.active_connection = self.connections.first().map(|config| config.id.clone());
@@ -379,11 +383,21 @@ impl AppModel {
     /// Open a table or focus its existing tab. The boolean is true only when
     /// the caller must start the first page load.
     pub fn open_table(&mut self, target: TableTarget) -> (u64, bool) {
-        if let Some(tab) = self
-            .tabs
-            .iter()
-            .find(|tab| matches!(&tab.kind, TabKind::Table { target: open, .. } if open == &target))
-        {
+        self.open_table_with_lookup(target, None)
+    }
+
+    /// Open a table tab with an optional immutable lookup context. Context is
+    /// part of tab identity, allowing two FK links into the same table to
+    /// remain independently focused and filtered.
+    pub fn open_table_with_lookup(
+        &mut self,
+        target: TableTarget,
+        lookup: Option<TableLookupContext>,
+    ) -> (u64, bool) {
+        if let Some(tab) = self.tabs.iter().find(|tab| {
+            matches!(&tab.kind, TabKind::Table { target: open, .. } if open == &target)
+                && self.table_lookup_contexts.get(&tab.id) == lookup.as_ref()
+        }) {
             let id = tab.id;
             self.activate_tab(id, false);
             return (id, false);
@@ -402,8 +416,15 @@ impl AppModel {
                 page: TablePage::default(),
             },
         });
+        if let Some(lookup) = lookup {
+            self.table_lookup_contexts.insert(id, lookup);
+        }
         self.activate_tab(id, true);
         (id, ready)
+    }
+
+    pub fn table_lookup_context(&self, tab_id: u64) -> Option<&TableLookupContext> {
+        self.table_lookup_contexts.get(&tab_id)
     }
 
     pub fn next_table_load(&mut self, tab_id: u64) -> u64 {
@@ -688,6 +709,7 @@ impl AppModel {
         }
         self.reconcile_split();
         self.table_load_generations.remove(&id);
+        self.table_lookup_contexts.remove(&id);
     }
 }
 
