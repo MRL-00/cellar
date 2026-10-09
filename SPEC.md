@@ -347,7 +347,9 @@ The grid is the most important component in the product. It must handle large re
   keeps that exact lookup restriction while paging, sorting, and reloading.
 - Navigation is unavailable for NULL or partially NULL keys, inserted/deleted
   rows, pending edits to key columns, incomplete metadata, cross-catalog
-  references, and unsupported driver or value types. When a column belongs to
+  references, and unsupported driver or value types (including boolean, binary,
+  and JSON keys that cannot be preserved by text-based destination filters).
+  When a column belongs to
   multiple relationships, the grid offers an explicit target picker and
   explains any relationship whose metadata or value is unavailable; it never
   commits or discards edits implicitly. Known unsupported cross-catalog links

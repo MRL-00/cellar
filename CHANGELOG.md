@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Bug fixes
+
+- **Foreign-key navigation filters and labels** — boolean keys now report an
+  unsupported value instead of opening an incorrectly filtered table, and
+  unnamed relationships no longer show a duplicated “Open” label.
+  ([#199](https://github.com/MRL-00/cellar/pull/199), [pending])
+
 ## 1.0.11
 
 ### Bug fixes

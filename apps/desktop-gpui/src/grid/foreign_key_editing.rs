@@ -127,7 +127,10 @@ impl EditableGrid {
             if value.is_null() {
                 return Err("NULL foreign-key values do not identify a referenced row".into());
             }
-            if matches!(value, CellValue::Bytes(_) | CellValue::Json(_)) {
+            if matches!(
+                value,
+                CellValue::Bool(_) | CellValue::Bytes(_) | CellValue::Json(_)
+            ) {
                 return Err(
                     "This foreign-key value type cannot be carried into a bounded table filter"
                         .into(),

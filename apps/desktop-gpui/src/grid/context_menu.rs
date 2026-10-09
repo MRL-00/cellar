@@ -72,7 +72,7 @@ impl DataGrid {
             match self.foreign_key_navigation_options(row, column) {
                 Ok(options) => {
                     for option in options {
-                        let label = format!("Open {}", option.label);
+                        let label = option.label;
                         match option.lookup {
                             Ok((lookup, focus_column)) => {
                                 let navigation_grid = grid.clone();

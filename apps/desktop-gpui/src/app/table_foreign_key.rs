@@ -133,8 +133,8 @@ impl CellarApp {
 
 fn lookup_value_text(value: &CellValue) -> Option<String> {
     match value {
-        CellValue::Null => None,
-        CellValue::Bool(value) => Some(value.to_string()),
+        // Text filters cannot preserve native boolean binding across engines.
+        CellValue::Null | CellValue::Bool(_) => None,
         CellValue::Int(value) => Some(value.to_string()),
         CellValue::Float(value) if value.is_finite() => Some(value.to_string()),
         CellValue::Float(_) => None,
@@ -152,5 +152,22 @@ fn lookup_value_text(value: &CellValue) -> Option<String> {
         CellValue::Time(value) => Some(value.to_string()),
         CellValue::Timestamp(value) => Some(value.to_string()),
         CellValue::TimestampTz(value) => Some(value.to_rfc3339()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::lookup_value_text;
+    use cellar_core::value::CellValue;
+
+    #[test]
+    fn boolean_foreign_keys_cannot_be_converted_to_text_filters() {
+        assert_eq!(lookup_value_text(&CellValue::Bool(true)), None);
+        assert_eq!(lookup_value_text(&CellValue::Bool(false)), None);
+        assert_eq!(lookup_value_text(&CellValue::Int(1)), Some("1".into()));
+        assert_eq!(
+            lookup_value_text(&CellValue::Text("true".into())),
+            Some("true".into())
+        );
     }
 }
