@@ -79,7 +79,8 @@ jobs:
           || startsWith(github.event.comment.body, '@open-code-review')
         )
       )
-    runs-on: [self-hosted, Linux, X64, ubuntu-vm]
+    # pull_request_target runs for fork PRs without approval, so keep it off our own machines.
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
       # Prevent the pinned CLI from replacing itself between action steps.
