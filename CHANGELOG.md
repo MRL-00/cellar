@@ -14,7 +14,7 @@
   context menu, or ⌘G. Columns in several relationships ask which target to
   open, and composite keys match on every key column. Boolean key values
   report that they are not supported instead of opening a wrongly filtered
-  table.
+  table. Thanks to @edlundin (#199).
 
 ## 1.0.11
 
