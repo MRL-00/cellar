@@ -126,14 +126,16 @@
 - **TablePlus connection import** — discover and import saved TablePlus
   connections in one step, preserve groups as sidebar folders, map SSL modes,
   and clearly identify SSH-tunnelled connections that are not yet supported.
+  Thanks to @ayarse (#179).
 
 ### Bug fixes
 
 - **Reliable TablePlus discovery** — scan results now reach the import dialog,
   Windows uses the correct TablePlus data directory, and a folder's own
-  connection is retained when it shares the folder name.
+  connection is retained when it shares the folder name. Thanks to @ayarse
+  (#179).
 - **Unsigned MySQL schema browsing** — tables with unsigned integer metadata
-  no longer fail during schema introspection.
+  no longer fail during schema introspection. Thanks to @rvcas (#178).
 
 ## 1.0.3
 
@@ -141,6 +143,7 @@
 
 - **Aurora MySQL schema browsing** — connections to Aurora MySQL no longer
   fail during schema introspection when textual metadata is reported as binary.
+  Thanks to @rvcas (#170).
 
 ## 1.0.2
 
