@@ -99,6 +99,13 @@ jobs:
             -t cert \
             -f pkcs12 \
             -k "$keychain_path"
+          # Self-hosted runners lack Apple's Developer ID intermediates, so
+          # codesign cannot build the certificate chain without them.
+          for ca in DeveloperIDCA DeveloperIDG2CA; do
+            curl -fsSL -o "$RUNNER_TEMP/$ca.cer" \
+              "https://www.apple.com/certificateauthority/$ca.cer"
+            security import "$RUNNER_TEMP/$ca.cer" -k "$keychain_path"
+          done
           security list-keychains -d user -s "$keychain_path"
           security default-keychain -s "$keychain_path"
           security set-key-partition-list \
