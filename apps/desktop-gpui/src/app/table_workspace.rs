@@ -1,6 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
 use cellar_core::{
+    driver::Engine,
     query::{
         QueryResultSummary, SortDirection, TableBrowseRequest, TableFilterClause,
         TableFilterOperator, TableSortClause,
@@ -23,7 +24,8 @@ use super::{
 use cellar_desktop_gpui::{
     grid::{DataGrid, DataGridEvent},
     model::{
-        TabKind, TableLoadState, TablePage, TableTarget, WorkspaceTab, TABLE_METADATA_UNAVAILABLE,
+        TabKind, TableLoadState, TableLookupContext, TablePage, TableTarget, WorkspaceTab,
+        TABLE_METADATA_UNAVAILABLE,
     },
     theme::{ACCENT, FG_MUTED, INSET, PROD, WARN},
 };
@@ -35,7 +37,19 @@ impl CellarApp {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let (tab_id, should_load) = self.model.open_table(target.clone());
+        self.open_table_with_lookup(target, None, window, cx);
+    }
+
+    fn open_table_with_lookup(
+        &mut self,
+        target: TableTarget,
+        lookup: Option<TableLookupContext>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let (tab_id, should_load) = self
+            .model
+            .open_table_with_lookup(target.clone(), lookup.clone());
         if let Some(layout) = self.table_layouts.get(&table_layout_key(&target)).cloned() {
             self.grid_layouts.entry(tab_id).or_insert(layout);
         }
@@ -81,6 +95,16 @@ impl CellarApp {
         if should_load {
             self.start_table_load(tab_id, target, TablePage::default(), cx);
         }
+    }
+
+    pub(super) fn open_lookup_table(
+        &mut self,
+        target: TableTarget,
+        lookup: TableLookupContext,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.open_table_with_lookup(target, Some(lookup), window, cx);
     }
 
     pub(super) fn resume_table_loads(&mut self, connection_id: &str, cx: &mut Context<Self>) {
@@ -429,7 +453,13 @@ impl CellarApp {
         let registry = Arc::clone(&self.registry);
         let runtime = Arc::clone(&self.runtime);
         let sort = self.table_sorts.get(&tab_id).cloned();
+        let lookup_browse = self.model.table_lookup_context(tab_id).is_some();
         let mut filters = self.table_filters.get(&tab_id).cloned().unwrap_or_default();
+        if let Some(lookup) = self.model.table_lookup_context(tab_id) {
+            let mut constrained = lookup.filters.clone();
+            constrained.extend(filters);
+            filters = constrained;
+        }
         if let Some(value) = self.table_quick_filters.get(&tab_id) {
             if let Some(filter) = quick_filter_clause(
                 &table,
@@ -450,7 +480,7 @@ impl CellarApp {
                 sorts: sort.clone().into_iter().collect(),
                 filters,
                 primary_key_fallback_ordering: true,
-                include_total: page.total_rows.is_none(),
+                include_total: page.total_rows.is_none() && !lookup_browse,
             };
             let result = runtime
                 .spawn(async move { registry.browse_table(request).await })
@@ -489,13 +519,36 @@ impl CellarApp {
                                 .position(|column| column.name == sort.column)
                                 .map(|index| (index, sort.direction))
                         });
+                        let focus_column = this
+                            .model
+                            .table_lookup_context(tab_id)
+                            .map(|lookup| lookup.focus_column.clone())
+                            .and_then(|column| {
+                                result.columns.iter().position(|meta| meta.name == column)
+                            });
+                        let source_engine = this
+                            .model
+                            .connections()
+                            .iter()
+                            .find(|connection| connection.id == target.connection_id)
+                            .map(|connection| connection.engine.family())
+                            .unwrap_or(Engine::Postgres);
                         let null_display = this.preferences.grid.null_display.clone();
                         let stripe_rows = this.preferences.grid.stripe_rows;
                         let first_result = !this.grids.contains_key(&tab_id);
                         let grid = cx.new(|cx| {
-                            let mut grid =
-                                DataGrid::new_table(result, target, table, grid_sort, cx);
+                            let mut grid = DataGrid::new_table(
+                                result,
+                                target,
+                                table,
+                                grid_sort,
+                                source_engine,
+                                cx,
+                            );
                             grid.set_display_preferences(null_display, stripe_rows, cx);
+                            if let Some(column) = focus_column {
+                                grid.scroll_to_cell(0, column, cx);
+                            }
                             grid
                         });
                         if let Some(layout) = this.grid_layouts.get(&tab_id) {
@@ -516,6 +569,13 @@ impl CellarApp {
                                 this.start_find_usages_for(target, column, false, cx)
                             }
                             DataGridEvent::LayoutChanged => this.store_grid_layout(tab_id, cx),
+                            DataGridEvent::NavigateForeignKey {
+                                source,
+                                lookup,
+                                focus_column,
+                            } => {
+                                this.navigate_foreign_key(tab_id, source, lookup, focus_column, cx)
+                            }
                         })
                         .detach();
                         this.grids.insert(tab_id, grid.clone());
@@ -625,7 +685,6 @@ impl CellarApp {
             .child(self.table_footer(tab_id, page, grid, reloading, cx))
             .into_any_element()
     }
-
 }
 
 pub(super) fn table_layout_key(target: &TableTarget) -> String {
@@ -682,8 +741,6 @@ fn next_filter_operator(operator: TableFilterOperator, data_type: &str) -> Table
         .unwrap_or(0);
     operators[(index + 1) % operators.len()]
 }
-
-
 
 #[cfg(test)]
 mod tests {

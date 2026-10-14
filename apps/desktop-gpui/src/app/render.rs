@@ -2,6 +2,9 @@ use super::*;
 
 impl Render for CellarApp {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if let Some((target, lookup)) = self.pending_foreign_key_navigation.take() {
+            self.open_lookup_table(target, lookup, window, cx);
+        }
         let app = cx.weak_entity();
         let mut interface_font = gpui::font(self.preferences.interface_font.clone());
         interface_font.features = gpui::FontFeatures(Arc::new(vec![

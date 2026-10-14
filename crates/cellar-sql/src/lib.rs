@@ -20,7 +20,7 @@ mod references;
 mod safety;
 mod statements;
 
-pub use params::{order_values, prepare, ParamError, PreparedStatement};
+pub use params::{order_values, prepare, prepare_native, ParamError, PreparedStatement};
 pub use references::{find_references, Reference};
 pub use safety::{destructive_reason, sql_contains_credentials};
 pub use statements::{split_statements, statement_at_offset, SqlStatement};

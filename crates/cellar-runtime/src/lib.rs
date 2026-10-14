@@ -17,6 +17,7 @@ pub mod connection_import;
 pub mod csv_import;
 pub mod datagrip;
 pub mod export;
+mod foreign_key;
 pub mod history;
 pub mod query_templates;
 mod support;

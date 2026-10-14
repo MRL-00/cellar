@@ -1,10 +1,10 @@
-use std::time::Instant;
+use std::{borrow::Cow, collections::HashMap, time::Instant};
 
-use cellar_core::error::CellarResult;
+use cellar_core::error::{CellarError, CellarResult};
 use cellar_core::query::{NoticeCapture, Query, QueryResult, QueryResultPage, QueryResultSummary};
-use cellar_core::value::{ColumnMeta, Row};
+use cellar_core::value::{CellValue, ColumnMeta, Row};
 use futures::TryStreamExt;
-use sqlx::{Column as _, Executor as _, Row as _, TypeInfo as _};
+use sqlx::{Column as _, Executor as _, Row as _, Sqlite, TypeInfo as _};
 
 use crate::connect::SqliteConnection;
 use crate::decode::decode_cell;
@@ -62,7 +62,12 @@ where
     // the affected-row count for DML (INSERT/UPDATE/DELETE). fetch alone drops
     // it, so those statements would never report a count.
     #[allow(deprecated)]
-    let mut stream = sqlx::query(&query.sql).fetch_many(&mut *acquired);
+    let (prepared_sql, bind_values) = prepare_query(query)?;
+    let mut statement = sqlx::query(prepared_sql.as_ref());
+    for value in &bind_values {
+        statement = bind_value(statement, value)?;
+    }
+    let mut stream = statement.fetch_many(&mut *acquired);
     let mut columns: Option<Vec<ColumnMeta>> = None;
     let mut page_rows: Vec<Row> = Vec::with_capacity(max_rows.min(page_size).min(10_000));
     let mut truncated = false;
@@ -123,7 +128,7 @@ where
         && cellar_core::query::statement_may_return_rows(&query.sql)
     {
         let described = (&mut *acquired)
-            .describe(&query.sql)
+            .describe(prepared_sql.as_ref())
             .await
             .map_err(query_sqlx_err)?;
         if !described.columns().is_empty() {
@@ -178,6 +183,48 @@ where
             row_count: rows_output as u64,
         },
     ))
+}
+
+fn prepare_query(query: &Query) -> CellarResult<(Cow<'_, str>, Vec<&CellValue>)> {
+    if query.params.is_empty() {
+        return Ok((Cow::Borrowed(query.sql.as_str()), Vec::new()));
+    }
+    let prepared = cellar_sql::prepare_native(&query.sql, cellar_core::driver::Engine::Sqlite)
+        .map_err(|e| CellarError::query(e.to_string()))?;
+    let by_name: HashMap<&str, &CellValue> = query
+        .params
+        .iter()
+        .map(|param| (param.name.as_str(), &param.value))
+        .collect();
+    let values = cellar_sql::order_values(&prepared.bind_parameters, &by_name)
+        .map_err(|e| CellarError::query(e.to_string()))?
+        .into_iter()
+        .copied()
+        .collect();
+    Ok((Cow::Owned(prepared.sql), values))
+}
+
+fn bind_value<'q>(
+    query: sqlx::query::Query<'q, Sqlite, sqlx::sqlite::SqliteArguments<'q>>,
+    value: &'q CellValue,
+) -> CellarResult<sqlx::query::Query<'q, Sqlite, sqlx::sqlite::SqliteArguments<'q>>> {
+    Ok(match value {
+        CellValue::Null => query.bind(Option::<&str>::None),
+        CellValue::Bool(value) => query.bind(*value),
+        CellValue::Int(value) => query.bind(*value),
+        CellValue::Float(value) => query.bind(*value),
+        // SQLite has dynamic typing. Binding the original decimal text keeps
+        // its precision while SQLite applies the column's affinity.
+        CellValue::Numeric(value) => query.bind(value.as_str()),
+        CellValue::Text(value) => query.bind(value.as_str()),
+        CellValue::Bytes(value) => query.bind(value.as_slice()),
+        CellValue::Json(value) => query.bind(value),
+        CellValue::Uuid(value) => query.bind(value.to_string()),
+        CellValue::Date(value) => query.bind(*value),
+        CellValue::Time(value) => query.bind(*value),
+        CellValue::Timestamp(value) => query.bind(*value),
+        CellValue::TimestampTz(value) => query.bind(*value),
+    })
 }
 
 fn query_sqlx_err(err: sqlx::Error) -> cellar_core::error::CellarError {

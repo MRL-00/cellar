@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, sync::Arc};
 
-use cellar_core::{query::QueryResult, schema::Table, value::CellValue};
+use cellar_core::{driver::Engine, query::QueryResult, schema::Table, value::CellValue};
 use cellar_diff::{CellAssignment, DiffColumn, DiffValue, RowChange, TableChangeRequest};
 
 use crate::model::TableTarget;
@@ -19,15 +19,26 @@ struct PendingRow {
 }
 
 pub(super) struct EditableGrid {
-    target: TableTarget,
-    table: Table,
+    pub(super) target: TableTarget,
+    pub(super) table: Table,
+    source_engine: Engine,
     row_keys: Arc<Vec<Option<(String, Vec<CellAssignment>)>>>,
     pending: Arc<BTreeMap<String, PendingRow>>,
     next_insert: u64,
 }
 
 impl EditableGrid {
+    #[cfg(test)]
     pub(super) fn new(target: TableTarget, table: Table, result: &QueryResult) -> Self {
+        Self::new_with_source_engine(target, table, result, Engine::Postgres)
+    }
+
+    pub(super) fn new_with_source_engine(
+        target: TableTarget,
+        table: Table,
+        result: &QueryResult,
+        source_engine: Engine,
+    ) -> Self {
         let row_keys = result
             .rows
             .iter()
@@ -36,6 +47,7 @@ impl EditableGrid {
         Self {
             target,
             table,
+            source_engine,
             row_keys: Arc::new(row_keys),
             pending: Arc::new(BTreeMap::new()),
             next_insert: 1,
@@ -44,6 +56,10 @@ impl EditableGrid {
 
     pub(super) fn can_edit(&self) -> bool {
         !self.table.primary_key.is_empty()
+    }
+
+    pub(super) fn source_engine(&self) -> Engine {
+        self.source_engine
     }
 
     pub(super) fn column_flags(&self, name: &str) -> (bool, bool) {

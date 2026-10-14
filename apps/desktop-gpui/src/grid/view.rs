@@ -2,7 +2,7 @@ use std::{collections::BTreeSet, ops::Range, sync::Arc};
 
 use gpui::{
     canvas, div, prelude::*, px, uniform_list, Context, DispatchPhase, HitboxBehavior, IntoElement,
-    MouseButton, Render, ScrollWheelEvent, WeakEntity, Window,
+    MouseButton, Render, ScrollWheelEvent, SharedString, WeakEntity, Window,
 };
 use gpui_component::{
     input::SelectAll,
@@ -14,7 +14,7 @@ use super::{
     date_picker, json::JsonPalette, row::header_cell, row::GridRow, width_sum, DataGrid,
     EditableGrid, ROW_NUMBER_WIDTH,
 };
-use crate::theme::{ui_px, ui_scale, ACCENT, GRID_LINE, PANEL, PANEL_RAISED};
+use crate::theme::{ui_px, ui_scale, ACCENT, FG, FG_MUTED, GRID_LINE, PANEL, PANEL_RAISED};
 
 const GRID_HEADER_HEIGHT: f32 = 26.;
 const SCROLLBAR_SIZE: f32 = 16.;
@@ -98,6 +98,18 @@ impl Render for DataGrid {
                 .map(EditableGrid::display_values)
                 .unwrap_or_default(),
         );
+        let foreign_key_columns = Arc::new(
+            self.editable
+                .as_ref()
+                .map(|editable| editable.foreign_key_columns(&result))
+                .unwrap_or_default(),
+        );
+        let foreign_key_unavailable_columns = Arc::new(
+            self.editable
+                .as_ref()
+                .map(|editable| editable.foreign_key_unavailable_columns(&result))
+                .unwrap_or_default(),
+        );
         let deleted = Arc::new(
             self.editable
                 .as_ref()
@@ -118,9 +130,98 @@ impl Render for DataGrid {
         let selection = self.selection;
         let cell_selection = self.cell_selection();
         let grid = cx.weak_entity();
+        let foreign_key_picker = self.foreign_key_picker.as_ref().map(|picker| {
+            let options = picker.options.clone();
+            let close_grid = grid.clone();
+            let source_grid = grid.clone();
+            let picker_id = SharedString::from(format!(
+                "foreign-key-picker:{}:{}",
+                picker.row, picker.column
+            ));
+            div()
+                .id("foreign-key-picker-backdrop")
+                .absolute()
+                .inset_0()
+                .flex()
+                .items_center()
+                .justify_center()
+                .bg(gpui::rgba(0x00000059))
+                .on_mouse_down(MouseButton::Left, move |_, _, cx| {
+                    close_grid
+                        .update(cx, |grid, cx| {
+                            grid.foreign_key_picker = None;
+                            cx.notify();
+                        })
+                        .ok();
+                })
+                .child(
+                    div()
+                        .id(picker_id)
+                        .min_w(px(320.))
+                        .max_w(px(560.))
+                        .rounded(px(6.))
+                        .border_1()
+                        .border_color(ACCENT)
+                        .bg(PANEL_RAISED)
+                        .shadow_lg()
+                        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                        .child(
+                            div()
+                                .px_3()
+                                .py_2()
+                                .border_b_1()
+                                .border_color(GRID_LINE)
+                                .text_color(FG)
+                                .child("Choose a foreign-key relationship"),
+                        )
+                        .children(options.into_iter().enumerate().map(|(index, option)| {
+                            let option_id =
+                                SharedString::from(format!("foreign-key-option:{index}"));
+                            let item_grid = source_grid.clone();
+                            let label = option.label.clone();
+                            match option.lookup {
+                                Ok((lookup, focus_column)) => div()
+                                    .id(option_id)
+                                    .tab_index(0)
+                                    .cursor_pointer()
+                                    .px_3()
+                                    .py_2()
+                                    .text_color(FG)
+                                    .hover(|style| style.bg(PANEL))
+                                    .child(label)
+                                    .on_click(move |_, _, cx| {
+                                        item_grid
+                                            .update(cx, |grid, cx| {
+                                                grid.select_foreign_key_option(
+                                                    Ok((lookup.clone(), focus_column.clone())),
+                                                    cx,
+                                                );
+                                            })
+                                            .ok();
+                                    })
+                                    .into_any_element(),
+                                Err(reason) => div()
+                                    .id(option_id)
+                                    .px_3()
+                                    .py_2()
+                                    .text_color(FG_MUTED)
+                                    .child(label)
+                                    .child(
+                                        div()
+                                            .text_size(ui_px(11.))
+                                            .child(format!("Unavailable: {reason}")),
+                                    )
+                                    .into_any_element(),
+                            }
+                        })),
+                )
+                .into_any_element()
+        });
         let row_grid = grid.clone();
         let row_deleted = Arc::clone(&deleted);
         let row_inserted = Arc::clone(&inserted);
+        let row_foreign_key_columns = Arc::clone(&foreign_key_columns);
+        let row_foreign_key_unavailable_columns = Arc::clone(&foreign_key_unavailable_columns);
         let null_display = Arc::clone(&self.null_display);
         let stripe_rows = self.stripe_rows;
         let resize_grid = grid.clone();
@@ -203,6 +304,10 @@ impl Render for DataGrid {
                                         cell_selection,
                                         row_selected: this.selected_rows.contains(&row),
                                         pending: Arc::clone(&pending),
+                                        foreign_key_columns: Arc::clone(&row_foreign_key_columns),
+                                        foreign_key_unavailable_columns: Arc::clone(
+                                            &row_foreign_key_unavailable_columns,
+                                        ),
                                         deleted: row_deleted.contains(&row),
                                         inserted: row_inserted.contains(&row),
                                         editable,
@@ -335,5 +440,6 @@ impl Render for DataGrid {
                         ))
                     })
             })
+            .when_some(foreign_key_picker, |element, picker| element.child(picker))
     }
 }

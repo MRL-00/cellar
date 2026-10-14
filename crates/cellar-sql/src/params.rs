@@ -33,12 +33,15 @@ pub enum ParamError {
 /// A statement rewritten for native binding plus its parameters in bind order.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreparedStatement {
-    /// SQL with every placeholder rewritten to Postgres positional form
-    /// (`$1..$N`) in first-appearance order. Repeated names collapse to one
-    /// position.
+    /// SQL with every placeholder rewritten to the requested native form.
     pub sql: String,
-    /// Distinct parameters in bind order. `parameters[k]` binds to `$（k+1)`.
+    /// Distinct parameters in first-appearance order. These are the parameters
+    /// exposed to the UI and the protocols whose named placeholders can be
+    /// reused (`$N` and `@PN`).
     pub parameters: Vec<DetectedParameter>,
+    /// Every placeholder occurrence in SQL order. Question-mark protocols
+    /// (`?`) need one value for each occurrence, including repeated names.
+    pub bind_parameters: Vec<DetectedParameter>,
 }
 
 /// Pick the sqlparser dialect that matches a Cellar engine. Detection is
@@ -61,6 +64,35 @@ fn dialect_for(engine: Engine) -> Box<dyn Dialect> {
 /// with different placeholder syntax, but Postgres is the only driver wired to
 /// this path today.
 pub fn prepare(sql: &str, engine: Engine) -> Result<PreparedStatement, ParamError> {
+    prepare_with_placeholders(sql, engine, PlaceholderStyle::Postgres)
+}
+
+/// Prepare a statement with placeholders accepted by the target driver's
+/// native protocol. Postgres keeps `$N`; MySQL and SQLite use `?`; SQL Server
+/// uses `@PN`. Keeping this conversion in the tokenizer-backed path means a
+/// value-looking token inside a quoted literal is never rewritten.
+pub fn prepare_native(sql: &str, engine: Engine) -> Result<PreparedStatement, ParamError> {
+    let style = match engine.family() {
+        Engine::Postgres => PlaceholderStyle::Postgres,
+        Engine::MySql | Engine::Sqlite => PlaceholderStyle::Question,
+        Engine::Mssql => PlaceholderStyle::SqlServer,
+        _ => PlaceholderStyle::Postgres,
+    };
+    prepare_with_placeholders(sql, engine, style)
+}
+
+#[derive(Clone, Copy)]
+enum PlaceholderStyle {
+    Postgres,
+    Question,
+    SqlServer,
+}
+
+fn prepare_with_placeholders(
+    sql: &str,
+    engine: Engine,
+    placeholder_style: PlaceholderStyle,
+) -> Result<PreparedStatement, ParamError> {
     let dialect = dialect_for(engine);
     let raw_tokens = Tokenizer::new(dialect.as_ref(), sql)
         .tokenize()
@@ -89,6 +121,7 @@ pub fn prepare(sql: &str, engine: Engine) -> Result<PreparedStatement, ParamErro
     }
 
     let mut parameters: Vec<DetectedParameter> = Vec::new();
+    let mut bind_parameters: Vec<DetectedParameter> = Vec::new();
     let mut ordinal_of: HashMap<String, u32> = HashMap::new();
     let mut out = String::with_capacity(sql.len());
 
@@ -119,13 +152,24 @@ pub fn prepare(sql: &str, engine: Engine) -> Result<PreparedStatement, ParamErro
                 ordinal
             }
         };
-        out.push('$');
-        out.push_str(&ordinal.to_string());
+        bind_parameters.push(parameters[ordinal as usize - 1].clone());
+        match placeholder_style {
+            PlaceholderStyle::Postgres => {
+                out.push('$');
+                out.push_str(&ordinal.to_string());
+            }
+            PlaceholderStyle::Question => out.push('?'),
+            PlaceholderStyle::SqlServer => {
+                out.push_str("@P");
+                out.push_str(&ordinal.to_string());
+            }
+        }
     }
 
     Ok(PreparedStatement {
         sql: out,
         parameters,
+        bind_parameters,
     })
 }
 

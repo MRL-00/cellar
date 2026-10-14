@@ -3,6 +3,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use cellar_core::{
+    driver::Engine,
     query::{NoticeCapture, QueryResult},
     schema::{Column, Table},
     value::{CellValue, ColumnMeta},
@@ -71,7 +72,7 @@ fn users_grid(cx: &mut gpui::Context<DataGrid>) -> DataGrid {
         truncated: false,
         total_rows: Some(1),
     };
-    DataGrid::new_table(result, target, table, None, cx)
+    DataGrid::new_table(result, target, table, None, Engine::Postgres, cx)
 }
 
 fn row_y() -> gpui::Pixels {

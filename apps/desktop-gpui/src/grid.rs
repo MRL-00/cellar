@@ -2,6 +2,8 @@ mod context_menu;
 mod date_picker;
 mod editing;
 mod export;
+mod foreign_key;
+mod foreign_key_editing;
 mod json;
 mod keyboard;
 mod layout;
@@ -18,7 +20,11 @@ pub use row::column_type_icon;
 use std::{collections::BTreeSet, ops::Range, sync::Arc};
 
 use cellar_core::{
-    query::{NoticeCapture, QueryResult, QueryResultPage, QueryResultSummary, SortDirection},
+    driver::Engine,
+    query::{
+        ForeignKeyLookupRequest, NoticeCapture, QueryResult, QueryResultPage, QueryResultSummary,
+        SortDirection,
+    },
     schema::Table,
 };
 use cellar_diff::TableChangeRequest;
@@ -99,6 +105,11 @@ pub enum DataGridEvent {
     /// Column widths or order changed. Hosts persist the layout so a resized
     /// column survives paging, sorting, and tab switches.
     LayoutChanged,
+    NavigateForeignKey {
+        source: TableTarget,
+        lookup: ForeignKeyLookupRequest,
+        focus_column: String,
+    },
 }
 
 pub struct DataGrid {
@@ -123,6 +134,7 @@ pub struct DataGrid {
     suppress_sort: bool,
     reloading: bool,
     edit_error: Option<String>,
+    foreign_key_picker: Option<foreign_key::ForeignKeyPicker>,
     export_message: Option<Result<String, String>>,
     null_display: Arc<str>,
     stripe_rows: bool,
@@ -151,6 +163,7 @@ impl DataGrid {
             suppress_sort: false,
             reloading: false,
             edit_error: None,
+            foreign_key_picker: None,
             export_message: None,
             null_display: Arc::from("NULL"),
             stripe_rows: false,
@@ -179,9 +192,10 @@ impl DataGrid {
         target: TableTarget,
         table: Table,
         sort: Option<(usize, SortDirection)>,
+        source_engine: Engine,
         cx: &mut Context<Self>,
     ) -> Self {
-        let editable = EditableGrid::new(target, table, &result);
+        let editable = EditableGrid::new_with_source_engine(target, table, &result, source_engine);
         Self {
             editable: Some(editable),
             sort,
