@@ -17,9 +17,9 @@ jobs:
       matrix:
         include:
           - name: macOS
-            os: macos-latest
+            os: [self-hosted, macOS, ARM64, mac-mini]
           - name: Linux
-            os: ubuntu-latest
+            os: [self-hosted, Linux, X64, ubuntu-vm]
           - name: Windows
             os: windows-latest
     if: ${{ matrix.name == 'macOS' || github.event_name == 'push' }}

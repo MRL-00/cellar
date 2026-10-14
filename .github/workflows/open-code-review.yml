@@ -79,6 +79,7 @@ jobs:
           || startsWith(github.event.comment.body, '@open-code-review')
         )
       )
+    # pull_request_target runs for fork PRs without approval, so keep it off our own machines.
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
