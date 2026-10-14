@@ -1,13 +1,20 @@
 # Changelog
 
-## Unreleased
+## 1.0.12
 
-### Bug fixes
+### Features
 
-- **Foreign-key navigation filters and labels** — boolean keys now report an
-  unsupported value instead of opening an incorrectly filtered table, and
-  unnamed relationships no longer show a duplicated “Open” label.
-  ([#199](https://github.com/MRL-00/cellar/pull/199), [pending])
+- **Open SQLite files from Finder** — Cellar is now an Open With option for
+  `.db`, `.db3`, `.sdb`, `.sqlite`, and `.sqlite3` files. Double-clicking a
+  file, dropping it on the Dock icon, or dragging it into the window creates
+  and connects a SQLite connection, and reuses the existing one if the same
+  file is already saved.
+- **Jump to foreign-key rows** — follow a foreign-key value to the row it
+  references in a new, pre-filtered table tab, from the cell's link icon, its
+  context menu, or ⌘G. Columns in several relationships ask which target to
+  open, and composite keys match on every key column. Boolean key values
+  report that they are not supported instead of opening a wrongly filtered
+  table.
 
 ## 1.0.11
 
