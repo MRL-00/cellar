@@ -22,7 +22,9 @@ jobs:
       matrix:
         include:
           - label: macOS Apple Silicon
-            platform: [self-hosted, macOS, ARM64, mac-mini]
+            # codesign fails with errSecInternalComponent on the self-hosted
+            # mac-mini runner, so signed releases stay on GitHub-hosted macOS.
+            platform: macos-latest
             rust-targets: aarch64-apple-darwin
             stable-asset-name: Cellar-mac-arm64.dmg
 
