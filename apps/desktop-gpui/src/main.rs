@@ -29,9 +29,10 @@ fn main() {
     let preferences = runtime.block_on(Preferences::load_legacy());
     let restored_session = SessionState::load();
 
-    Application::new()
-        .with_assets(assets::Assets)
-        .run(move |cx: &mut App| {
+    let application = Application::new().with_assets(assets::Assets);
+    #[cfg(target_os = "macos")]
+    let open_file_receiver = macos_app::register_open_file_handler(&application);
+    application.run(move |cx: &mut App| {
             cx.text_system()
                 .add_fonts(vec![
                     Cow::Borrowed(include_bytes!("../assets/fonts/geist/Geist-Variable.woff2")),
@@ -131,6 +132,25 @@ fn main() {
                         app.initialize_ai(cx);
                         app.initialize_updater(cx);
                     });
+                    #[cfg(target_os = "macos")]
+                    {
+                        let app = app.clone();
+                        let receiver = open_file_receiver.clone();
+                        window
+                            .spawn(cx, async move |cx| {
+                                while let Ok(paths) = receiver.recv().await {
+                                    if app
+                                        .update_in(cx, |app, window, cx| {
+                                            app.open_sqlite_files(paths, window, cx)
+                                        })
+                                        .is_err()
+                                    {
+                                        break;
+                                    }
+                                }
+                            })
+                            .detach();
+                    }
                     app_menu::setup(&app, cx);
                     cx.new(|cx| Root::new(app, window, cx))
                 },

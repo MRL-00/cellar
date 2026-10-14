@@ -34,6 +34,7 @@ tar = "0.4"
 tempfile = "3"
 tokio = { workspace = true }
 tree-sitter-sequel = "=0.3.11"
+url = "2"
 uuid = { version = "1", features = ["v4"] }
 lsp-types = { version = "0.97", features = ["proposed"] }
 

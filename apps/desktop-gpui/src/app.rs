@@ -57,6 +57,7 @@ mod sidebar_drag;
 pub(crate) mod sidebar_layout;
 mod sidebar_menu;
 mod sql_completion;
+mod sqlite_files;
 mod status_bar;
 mod tab_context_menu;
 mod table_column_menus;
@@ -82,8 +83,8 @@ use cellar_core::{
 use cellar_runtime::history::{HistoryStore, QueryHistoryRecord};
 use cellar_runtime::ConnectionRegistry;
 use gpui::{
-    div, prelude::*, px, Bounds, Context, Entity, FocusHandle, KeyDownEvent, MouseButton,
-    MouseDownEvent, Pixels, Render, SharedString, Subscription, Window,
+    div, prelude::*, px, Bounds, Context, Entity, ExternalPaths, FocusHandle, KeyDownEvent,
+    MouseButton, MouseDownEvent, Pixels, Render, SharedString, Subscription, Window,
 };
 use gpui_component::{
     input::InputState,
@@ -229,6 +230,7 @@ pub struct CellarApp {
     query_database_menu: Option<shell::QueryDatabaseMenu>,
     pending_foreign_key_navigation: Option<(TableTarget, TableLookupContext)>,
     last_titlebar_press: Option<Instant>,
+    opening_sqlite_files: HashSet<std::path::PathBuf>,
 }
 
 impl CellarApp {
@@ -417,6 +419,7 @@ impl CellarApp {
             query_database_menu: None,
             pending_foreign_key_navigation: None,
             last_titlebar_press: None,
+            opening_sqlite_files: HashSet::new(),
         }
     }
 
