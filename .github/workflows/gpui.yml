@@ -15,14 +15,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - name: macOS
-            os: [self-hosted, macOS, ARM64, mac-mini]
-          - name: Linux
-            os: [self-hosted, Linux, X64, ubuntu-vm]
-          - name: Windows
-            os: windows-latest
-    if: ${{ matrix.name == 'macOS' || github.event_name == 'push' }}
+        # Pull requests build macOS only; pushes to main build every platform.
+        # A job-level `if` can't read `matrix`, so the event picks the list here.
+        include: ${{ fromJSON(github.event_name == 'push' && '[{"name":"macOS","os":["self-hosted","macOS","ARM64","mac-mini"]},{"name":"Linux","os":["self-hosted","Linux","X64","ubuntu-vm"]},{"name":"Windows","os":"windows-latest"}]' || '[{"name":"macOS","os":["self-hosted","macOS","ARM64","mac-mini"]}]') }}
 
     steps:
       - name: Checkout
