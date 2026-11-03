@@ -760,7 +760,11 @@ impl CellarApp {
                         Input::new(editor)
                             .h_full()
                             .appearance(false)
-                            .line_height(ui_px(21.7)),
+                            // Match the grid and panels; the component default
+                            // (text_sm of a 16px rem) renders larger.
+                            .font_family(cellar_desktop_gpui::theme::mono_font())
+                            .text_size(ui_px(13.))
+                            .line_height(ui_px(20.)),
                     )
                     .child(query_ai_strip()),
             )

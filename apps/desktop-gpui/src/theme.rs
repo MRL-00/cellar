@@ -125,6 +125,18 @@ pub fn accent(alpha: f32) -> Rgba {
     }
 }
 
+/// Overrides gpui-component colours that sit too close to Cellar's panels:
+/// text selection follows the accent, and the component "accent" (menu hover
+/// and inline code background) becomes a visible foreground wash.
+pub fn tint_component_theme(theme: &mut gpui_component::Theme, light: bool) {
+    theme.selection = accent(if light { 0.28 } else { 0.4 }).into();
+    theme.accent = Rgba {
+        a: if light { 0.07 } else { 0.10 },
+        ..FG.rgba()
+    }
+    .into();
+}
+
 pub fn accent_soft() -> Rgba {
     accent(if LIGHT.load(Ordering::Relaxed) {
         0.10

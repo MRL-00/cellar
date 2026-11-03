@@ -474,6 +474,7 @@ impl CellarApp {
         theme.font_family = self.preferences.interface_font.clone().into();
         theme.mono_font_size = px(14. * scale);
         theme.mono_font_family = self.preferences.mono_font.clone().into();
+        cellar_desktop_gpui::theme::tint_component_theme(theme, light);
         let editor = std::sync::Arc::make_mut(&mut theme.highlight_theme);
         editor.style.editor_background = Some(INSET.rgba().into());
         editor.style.editor_foreground = Some(FG.rgba().into());
