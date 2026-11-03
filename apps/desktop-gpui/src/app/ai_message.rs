@@ -1,10 +1,20 @@
-use gpui::{div, prelude::*, px, AnyElement, ClipboardItem, Context, SharedString, Window};
-use gpui_component::{scroll::ScrollableElement, Icon};
+use std::ops::Range;
+
+use gpui::{
+    div, prelude::*, rems, AnyElement, App, ClipboardItem, Context, HighlightStyle, SharedString,
+    StyledText, Window,
+};
+use gpui_component::{
+    highlighter::SyntaxHighlighter,
+    scroll::ScrollableElement,
+    text::{TextView, TextViewStyle},
+    ActiveTheme, Icon,
+};
 
 use super::CellarApp;
 use cellar_desktop_gpui::{
     model::{QueryTarget, TabKind},
-    theme::{ACCENT, BORDER, FG, FG_MUTED, FG_SECONDARY, INSET, PANEL_RAISED},
+    theme::{ui_px, ACCENT, BORDER, FG, FG_MUTED, FG_SECONDARY, INSET, PANEL_RAISED},
 };
 
 #[derive(Debug, PartialEq)]
@@ -18,15 +28,21 @@ impl CellarApp {
         &self,
         content: &str,
         message_index: usize,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
         div()
             .flex()
             .flex_col()
-            .gap_2()
+            .gap(ui_px(10.))
             .children(parse_segments(content).into_iter().enumerate().map(
                 |(segment_index, segment)| match segment {
-                    Segment::Text(text) => render_text(text),
+                    Segment::Text(text) => render_text(
+                        SharedString::from(format!("ai-text-{message_index}-{segment_index}")),
+                        text,
+                        window,
+                        cx,
+                    ),
                     Segment::Code { language, code } => {
                         self.render_ai_code(language, code, message_index, segment_index, cx)
                     }
@@ -44,43 +60,49 @@ impl CellarApp {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let sql = is_sql_language(&language);
-        let runnable = sql && can_run_from_ai(&code);
+        let runnable = sql && (self.ai.allow_writes || can_run_from_ai(&code));
         let id = move |action| {
             SharedString::from(format!("ai-{action}-{message_index}-{segment_index}"))
         };
+        let highlighted = highlight_code(&code, if sql { "sql" } else { &language }, cx);
         div()
             .overflow_hidden()
-            .rounded(px(5.))
+            .rounded(ui_px(8.))
             .border_1()
             .border_color(BORDER)
             .bg(INSET)
             .child(
                 div()
-                    .h(px(25.))
+                    .h(ui_px(30.))
                     .flex()
                     .items_center()
                     .justify_between()
-                    .border_b_1()
-                    .border_color(BORDER)
-                    .px_2()
+                    .bg(PANEL_RAISED)
+                    .pl(ui_px(12.))
+                    .pr(ui_px(6.))
                     .child(
                         div()
-                            .font_family(cellar_desktop_gpui::theme::mono_font())
-                            .text_size(px(10.5))
-                            .text_color(FG_MUTED)
+                            .flex()
+                            .items_center()
+                            .gap(ui_px(6.))
+                            .text_size(ui_px(11.5))
+                            .text_color(FG_SECONDARY)
+                            .child(Icon::empty().path("icons/bracket.svg").size(ui_px(11.)))
                             .child(if language.is_empty() {
-                                "code".to_owned()
+                                "Code".to_owned()
+                            } else if sql {
+                                "SQL".to_owned()
                             } else {
-                                language.to_uppercase()
+                                language.clone()
                             }),
                     )
                     .child(
                         div()
                             .flex()
                             .items_center()
-                            .gap_1()
+                            .gap(ui_px(2.))
                             .child(
-                                code_action(id("copy"), "icons/copy.svg", "copy", true).on_click({
+                                code_action(id("copy"), "icons/copy.svg", "Copy", true).on_click({
                                     let code = code.clone();
                                     move |_, _, cx| {
                                         cx.write_to_clipboard(ClipboardItem::new_string(
@@ -92,7 +114,7 @@ impl CellarApp {
                             .when(sql, |element| {
                                 element
                                     .child(
-                                        code_action(id("insert"), "icons/edit.svg", "insert", true)
+                                        code_action(id("insert"), "icons/edit.svg", "Insert", true)
                                             .on_click(cx.listener({
                                                 let code = code.clone();
                                                 move |this, _, window, cx| {
@@ -104,7 +126,7 @@ impl CellarApp {
                                         code_action(
                                             id("run"),
                                             "icons/play-small.svg",
-                                            "run",
+                                            "Run",
                                             runnable,
                                         )
                                         .when(
@@ -124,14 +146,16 @@ impl CellarApp {
             )
             .child(
                 div()
+                    .id(id("code"))
                     .overflow_x_scrollbar()
-                    .px(px(10.))
-                    .py_2()
+                    .px(ui_px(12.))
+                    .py(ui_px(10.))
                     .font_family(cellar_desktop_gpui::theme::mono_font())
-                    .text_size(px(13.))
+                    .text_size(ui_px(12.5))
+                    .line_height(ui_px(19.))
                     .text_color(FG)
                     .whitespace_nowrap()
-                    .child(code),
+                    .child(highlighted),
             )
             .into_any_element()
     }
@@ -191,7 +215,7 @@ impl CellarApp {
     }
 
     fn run_ai_sql(&mut self, sql: &str, window: &mut Window, cx: &mut Context<Self>) {
-        if !can_run_from_ai(sql) {
+        if !self.ai.allow_writes && !can_run_from_ai(sql) {
             return;
         }
         if let Some(tab_id) = self.insert_ai_sql(sql, window, cx) {
@@ -200,45 +224,148 @@ impl CellarApp {
     }
 }
 
-fn render_text(text: String) -> AnyElement {
+fn render_text(
+    id: SharedString,
+    text: String,
+    window: &mut Window,
+    cx: &mut Context<CellarApp>,
+) -> AnyElement {
+    let style = TextViewStyle {
+        paragraph_gap: rems(0.6),
+        heading_base_font_size: ui_px(13.),
+        highlight_theme: cx.theme().highlight_theme.clone(),
+        is_dark: cx.theme().is_dark(),
+        ..TextViewStyle::default()
+    };
     div()
-        .text_size(px(13.))
-        .text_color(FG_SECONDARY)
-        .children(
-            text.lines()
-                .filter(|line| !line.trim().is_empty())
-                .map(|line| {
-                    let trimmed = line.trim();
-                    let (heading, body) = if let Some(body) = trimmed
-                        .strip_prefix("#### ")
-                        .or_else(|| trimmed.strip_prefix("### "))
-                        .or_else(|| trimmed.strip_prefix("## "))
-                        .or_else(|| trimmed.strip_prefix("# "))
-                    {
-                        (true, body)
-                    } else {
-                        (
-                            false,
-                            trimmed
-                                .strip_prefix("- ")
-                                .or_else(|| trimmed.strip_prefix("* "))
-                                .unwrap_or(trimmed),
-                        )
-                    };
-                    div()
-                        .when(heading, |line| {
-                            line.font_weight(gpui::FontWeight::SEMIBOLD)
-                                .text_color(FG)
-                                .pt_1()
-                        })
-                        .when(
-                            trimmed.starts_with("- ") || trimmed.starts_with("* "),
-                            |line| line.pl_3().child("- "),
-                        )
-                        .child(strip_inline_markdown(body))
-                }),
+        .text_size(ui_px(13.))
+        .line_height(ui_px(20.))
+        .text_color(FG)
+        .child(
+            TextView::markdown(id, text, window, cx)
+                .style(style)
+                .selectable(true),
         )
         .into_any_element()
+}
+
+/// Colors code with the same tree-sitter grammar and theme as the query editor.
+fn highlight_code(code: &str, language: &str, cx: &App) -> StyledText {
+    let mut highlighter = SyntaxHighlighter::new(&language.to_ascii_lowercase());
+    highlighter.update(None, &ropey::Rope::from_str(code));
+    let theme = &cx.theme().highlight_theme;
+    let mut styles = highlighter.styles(&(0..code.len()), theme);
+    if language.eq_ignore_ascii_case("sql") {
+        styles = fill_sql_keywords(code, styles, theme.style("keyword").unwrap_or_default());
+    }
+    StyledText::new(code.to_owned()).with_highlights(styles)
+}
+
+/// The SQL grammar stops recognising keywords after dialect syntax it lacks,
+/// such as T-SQL `TOP`, leaving the rest of the statement uncoloured. Colour
+/// known keywords that the grammar left unstyled.
+fn fill_sql_keywords(
+    code: &str,
+    styles: Vec<(Range<usize>, HighlightStyle)>,
+    keyword: HighlightStyle,
+) -> Vec<(Range<usize>, HighlightStyle)> {
+    const KEYWORDS: &[&str] = &[
+        "ALL",
+        "AND",
+        "APPLY",
+        "AS",
+        "ASC",
+        "BEGIN",
+        "BETWEEN",
+        "BY",
+        "CASE",
+        "COMMIT",
+        "CROSS",
+        "DECLARE",
+        "DELETE",
+        "DESC",
+        "DISTINCT",
+        "ELSE",
+        "END",
+        "EXISTS",
+        "FETCH",
+        "FROM",
+        "FULL",
+        "GROUP",
+        "HAVING",
+        "IN",
+        "INNER",
+        "INSERT",
+        "INTO",
+        "IS",
+        "JOIN",
+        "LEFT",
+        "LIKE",
+        "LIMIT",
+        "MERGE",
+        "NEXT",
+        "NOT",
+        "NULL",
+        "OFFSET",
+        "ON",
+        "ONLY",
+        "OR",
+        "ORDER",
+        "OUTER",
+        "OUTPUT",
+        "OVER",
+        "PARTITION",
+        "PERCENT",
+        "RIGHT",
+        "ROLLBACK",
+        "ROWS",
+        "SELECT",
+        "SET",
+        "THEN",
+        "TIES",
+        "TOP",
+        "TRAN",
+        "TRANSACTION",
+        "UNION",
+        "UPDATE",
+        "VALUES",
+        "WHEN",
+        "WHERE",
+        "WITH",
+    ];
+    let mut per_byte = vec![HighlightStyle::default(); code.len()];
+    for (range, style) in styles {
+        per_byte[range].fill(style);
+    }
+    let is_word = |byte: u8| byte.is_ascii_alphanumeric() || byte == b'_';
+    let bytes = code.as_bytes();
+    let mut index = 0;
+    while index < bytes.len() {
+        let start = index;
+        while index < bytes.len() && is_word(bytes[index]) {
+            index += 1;
+        }
+        if index == start {
+            index += 1;
+            continue;
+        }
+        let word = code[start..index].to_ascii_uppercase();
+        let unstyled = per_byte[start..index]
+            .iter()
+            .all(|style| *style == HighlightStyle::default());
+        if unstyled && KEYWORDS.contains(&word.as_str()) {
+            per_byte[start..index].fill(keyword);
+        }
+    }
+    // Runs only break at grammar ranges or ASCII word edges: char boundaries.
+    let mut runs: Vec<(Range<usize>, HighlightStyle)> = Vec::new();
+    for (index, style) in per_byte.into_iter().enumerate() {
+        match runs.last_mut() {
+            Some((range, last)) if *last == style => range.end = index + 1,
+            _ => runs.push((index..index + 1, style)),
+        }
+    }
+    runs
 }
 
 fn code_action(
@@ -249,22 +376,22 @@ fn code_action(
 ) -> gpui::Stateful<gpui::Div> {
     div()
         .id(id)
-        .h(px(20.))
+        .h(ui_px(22.))
         .flex()
         .items_center()
-        .gap_1()
-        .rounded(px(3.))
-        .px_1()
-        .text_size(px(11.))
-        .text_color(if label == "run" { ACCENT } else { FG_MUTED })
+        .gap(ui_px(4.))
+        .rounded(ui_px(4.))
+        .px(ui_px(6.))
+        .text_size(ui_px(11.5))
+        .text_color(if label == "Run" { ACCENT } else { FG_MUTED })
         .opacity(if enabled { 1. } else { 0.4 })
         .when(enabled, |button| {
             button
                 .tab_index(0)
                 .cursor_pointer()
-                .hover(|style| style.bg(PANEL_RAISED))
+                .hover(|style| style.bg(INSET).text_color(FG))
         })
-        .child(Icon::empty().path(icon).size(px(10.)))
+        .child(Icon::empty().path(icon).size(ui_px(11.)))
         .child(label)
 }
 
@@ -330,13 +457,39 @@ fn can_run_from_ai(sql: &str) -> bool {
     read_only && !write
 }
 
-fn strip_inline_markdown(text: &str) -> String {
-    text.replace("**", "").replace('`', "")
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{can_run_from_ai, parse_segments, Segment};
+    use super::{can_run_from_ai, fill_sql_keywords, parse_segments, Segment};
+    use gpui::{FontWeight, HighlightStyle};
+
+    #[test]
+    fn keywords_the_grammar_missed_are_coloured_outside_strings() {
+        let code = "SELECT TOP 5 * FROM t WHERE n = 'by' ORDER BY n DESC;";
+        let keyword = HighlightStyle {
+            font_weight: Some(FontWeight::BOLD),
+            ..Default::default()
+        };
+        let string = HighlightStyle {
+            font_weight: Some(FontWeight::LIGHT),
+            ..Default::default()
+        };
+        let quote = code.find("'by'").unwrap();
+        let runs = fill_sql_keywords(
+            code,
+            vec![(0..6, keyword), (quote..quote + 4, string)],
+            keyword,
+        );
+        let coloured = runs
+            .iter()
+            .filter(|(_, style)| *style == keyword)
+            .map(|(range, _)| &code[range.clone()])
+            .collect::<Vec<_>>();
+        assert_eq!(
+            coloured,
+            ["SELECT", "TOP", "FROM", "WHERE", "ORDER", "BY", "DESC"]
+        );
+        assert_eq!(runs.last().unwrap().0.end, code.len());
+    }
 
     #[test]
     fn parses_fences_and_only_runs_read_only_sql() {

@@ -27,26 +27,26 @@ pub(super) fn clean_history(messages: &[AiMessage]) -> Vec<(AiRole, String)> {
 #[cfg(test)]
 mod tests {
     use super::clean_history;
-    use crate::app::ai::{AiMessage, AiRole, AiTopic};
+    use crate::app::ai::{AiMessage, AiRole};
 
     #[test]
     fn failed_ai_turns_do_not_poison_provider_history() {
         let messages = vec![
             AiMessage {
                 role: AiRole::User,
-                topic: AiTopic::Ask,
                 content: "visible".into(),
                 api_content: Some("context + visible".into()),
                 error: false,
                 total_tokens: None,
+                model: None,
             },
             AiMessage {
                 role: AiRole::Model,
-                topic: AiTopic::Ask,
                 content: "failed".into(),
                 api_content: None,
                 error: true,
                 total_tokens: None,
+                model: None,
             },
         ];
         assert!(clean_history(&messages).is_empty());

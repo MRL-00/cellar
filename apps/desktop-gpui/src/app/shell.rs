@@ -552,8 +552,8 @@ impl CellarApp {
         }
     }
 
-    pub(super) fn ai_panel(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        self.render_ai_panel(cx)
+    pub(super) fn ai_panel(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.render_ai_panel(window, cx)
     }
 
     pub(crate) fn toggle_sidebar(&mut self, cx: &mut Context<Self>) {

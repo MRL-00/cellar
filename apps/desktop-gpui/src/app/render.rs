@@ -240,7 +240,7 @@ impl Render for CellarApp {
                                     }),
                             )
                             .when(self.right_panel_open, |element| {
-                                element.child(self.ai_panel(cx))
+                                element.child(self.ai_panel(window, cx))
                             })
                     }),
             )

@@ -11,7 +11,7 @@ use cellar_ai::{
         OpenAiLoginStart, OpenAiOAuthStatus, OpenAiService,
     },
 };
-use gpui::{AppContext, Context, Entity, Subscription, Window};
+use gpui::{AppContext, Context, Entity, ScrollHandle, Subscription, Window};
 use gpui_component::input::InputState;
 use serde::{Deserialize, Serialize};
 
@@ -24,7 +24,9 @@ Rules:
 - The user works against a real database. Prefer correct, dialect-appropriate SQL over generic advice.
 - When you return SQL, put it in a single fenced ```sql code block so the app can render and gate it.
 - Use the schema context provided. Never invent table or column names; ask when one is missing.
-- Cellar runs queries read-only by default. Flag destructive statements explicitly.
+- Infer what the user wants (write, explain, optimize or migrate SQL) from their message.
+- Each request states whether the session is read-only or read-write. In read-only sessions, return only read-only SQL.
+- Flag destructive statements explicitly.
 - Be concise and technical. The user understands SQL."#;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -46,28 +48,6 @@ impl AiProvider {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(super) enum AiTopic {
-    Generate,
-    Explain,
-    Optimize,
-    Migrate,
-    #[default]
-    Ask,
-}
-
-impl AiTopic {
-    pub(super) fn label(self) -> &'static str {
-        match self {
-            Self::Generate => "generate",
-            Self::Explain => "explain",
-            Self::Optimize => "optimize",
-            Self::Migrate => "migrate",
-            Self::Ask => "ask",
-        }
-    }
-}
-
 #[derive(Clone, Debug)]
 pub(super) struct AiModel {
     pub id: String,
@@ -77,11 +57,12 @@ pub(super) struct AiModel {
 #[derive(Clone, Debug)]
 pub(super) struct AiMessage {
     pub role: AiRole,
-    pub topic: AiTopic,
     pub content: String,
     pub api_content: Option<String>,
     pub error: bool,
     pub total_tokens: Option<u64>,
+    /// The model that produced a reply; `None` for user turns.
+    pub model: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -97,6 +78,7 @@ struct PersistedAi {
     model_id: Option<String>,
     openai_chatgpt: bool,
     deepseek_thinking: bool,
+    allow_writes: bool,
 }
 
 impl Default for PersistedAi {
@@ -106,6 +88,7 @@ impl Default for PersistedAi {
             model_id: None,
             openai_chatgpt: false,
             deepseek_thinking: true,
+            allow_writes: false,
         }
     }
 }
@@ -118,8 +101,13 @@ pub(super) struct AiState {
     pub models_loading: bool,
     pub error: Option<String>,
     pub messages: Vec<AiMessage>,
+    /// Scroll state of the message list; it follows new messages while the
+    /// user is reading the bottom.
+    pub messages_scroll: ScrollHandle,
     pub sending: bool,
-    pub topic: AiTopic,
+    /// Lets the assistant propose and run write statements. Off by default;
+    /// the query runner still confirms destructive and PROD statements.
+    pub allow_writes: bool,
     pub draft: Entity<InputState>,
     pub key: Entity<InputState>,
     pub key_visible: bool,
@@ -141,8 +129,8 @@ impl AiState {
         let saved = load_ai();
         let draft = cx.new(|cx| {
             InputState::new(window, cx)
-                .multi_line(true)
-                .placeholder("Configure a provider in AI settings to start…")
+                .auto_grow(2, 10)
+                .placeholder("Ask about your data, or describe the SQL you need…")
         });
         let key = cx.new(|cx| {
             InputState::new(window, cx)
@@ -159,8 +147,9 @@ impl AiState {
             models_loading: false,
             error: None,
             messages: Vec::new(),
+            messages_scroll: ScrollHandle::new(),
             sending: false,
-            topic: AiTopic::Ask,
+            allow_writes: saved.allow_writes,
             draft,
             key,
             key_visible: false,
@@ -540,32 +529,19 @@ impl CellarApp {
         cx.notify();
     }
 
-    pub(super) fn cycle_ai_model(&mut self, cx: &mut Context<Self>) {
-        if self.ai.models.is_empty() {
+    pub(super) fn select_ai_model(&mut self, model_id: String, cx: &mut Context<Self>) {
+        if self.ai.model_id.as_ref() == Some(&model_id) {
             return;
         }
-        let index = self
-            .ai
-            .models
-            .iter()
-            .position(|model| Some(&model.id) == self.ai.model_id.as_ref())
-            .unwrap_or(0);
-        self.ai.model_id = Some(
-            self.ai.models[(index + 1) % self.ai.models.len()]
-                .id
-                .clone(),
-        );
+        self.ai.model_id = Some(model_id);
         self.ai.openai_thread_id = None;
         self.persist_ai();
         cx.notify();
     }
 
-    pub(super) fn set_ai_topic(&mut self, topic: AiTopic, cx: &mut Context<Self>) {
-        self.ai.topic = if self.ai.topic == topic {
-            AiTopic::Ask
-        } else {
-            topic
-        };
+    pub(super) fn set_ai_allow_writes(&mut self, allow_writes: bool, cx: &mut Context<Self>) {
+        self.ai.allow_writes = allow_writes;
+        self.persist_ai();
         cx.notify();
     }
 
@@ -588,16 +564,17 @@ impl CellarApp {
         if text.is_empty() {
             return;
         }
-        let topic = self.ai.topic;
-        let prompt = self.build_ai_prompt(topic, &text, cx);
+        let prompt = self.build_ai_prompt(&text, cx);
         self.ai.messages.push(AiMessage {
             role: AiRole::User,
-            topic,
             content: text,
             api_content: Some(prompt),
             error: false,
             total_tokens: None,
+            model: None,
         });
+        let reply_model = model.clone();
+        self.ai.messages_scroll.scroll_to_bottom();
         let history = clean_history(&self.ai.messages);
         let provider = self.ai.provider;
         let chatgpt = self.ai.openai_chatgpt;
@@ -715,20 +692,20 @@ impl CellarApp {
                         this.ai.openai_thread_id = thread;
                         this.ai.messages.push(AiMessage {
                             role: AiRole::Model,
-                            topic,
                             content,
                             api_content: None,
                             error: false,
                             total_tokens: tokens,
+                            model: Some(reply_model),
                         });
                     }
                     Err(error) => this.ai.messages.push(AiMessage {
                         role: AiRole::Model,
-                        topic,
                         content: error,
                         api_content: None,
                         error: true,
                         total_tokens: None,
+                        model: Some(reply_model),
                     }),
                 }
                 this.ai_task = None;
@@ -745,6 +722,7 @@ impl CellarApp {
             model_id: self.ai.model_id.clone(),
             openai_chatgpt: self.ai.openai_chatgpt,
             deepseek_thinking: self.ai.deepseek_thinking,
+            allow_writes: self.ai.allow_writes,
         };
         if let (Some(path), Ok(bytes)) = (ai_path(), serde_json::to_vec_pretty(&value)) {
             let _ = super::setup_transfer::write_setup(&path, &bytes);

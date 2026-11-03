@@ -1,7 +1,7 @@
 use cellar_core::schema::Table;
 use gpui::Context;
 
-use super::{ai::AiTopic, CellarApp};
+use super::CellarApp;
 use cellar_desktop_gpui::model::TabKind;
 
 #[derive(Clone, Debug)]
@@ -161,18 +161,16 @@ impl CellarApp {
         (context, chips)
     }
 
-    pub(super) fn build_ai_prompt(&self, topic: AiTopic, text: &str, cx: &Context<Self>) -> String {
-        let instruction = match topic {
-            AiTopic::Generate => "Generate a SQL query for the request. Return one ```sql block, then one sentence explaining it. Use only the schema context.",
-            AiTopic::Explain => "Explain the SQL or answer the data question with one read-only SQL query in a ```sql block. Use only the schema context.",
-            AiTopic::Optimize => "Optimize the SQL. Return an improved ```sql block and a short list of changes while preserving the result set.",
-            AiTopic::Migrate => "Draft the SQL migration in a ```sql block. Flag destructive or irreversible steps and transaction safety.",
-            AiTopic::Ask => "",
+    pub(super) fn build_ai_prompt(&self, text: &str, cx: &Context<Self>) -> String {
+        let mode = if self.ai.allow_writes {
+            "Session: read-write. Write statements are allowed; the user reviews and confirms them before they run."
+        } else {
+            "Session: read-only. Return only read-only SQL; if the request needs a write, say the user can switch the assistant to read-write."
         };
         let (context, _) = self.ai_context(cx);
         let now = chrono::Local::now();
         [
-            (!instruction.is_empty()).then_some(instruction.to_owned()),
+            Some(mode.to_owned()),
             Some(format!(
                 "Today: {} ({}). Current year: {}.",
                 now.format("%Y-%m-%d"),
