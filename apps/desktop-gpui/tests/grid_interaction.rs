@@ -5,7 +5,7 @@ use cellar_core::{
     value::{CellValue, ColumnMeta},
 };
 use cellar_desktop_gpui::{grid::DataGrid, theme};
-use gpui::{point, px, Modifiers, TestAppContext};
+use gpui::{point, px, Modifiers, ScrollDelta, ScrollWheelEvent, TestAppContext, TouchPhase};
 use gpui_component::input::Copy;
 
 const HEADER_HEIGHT: f32 = 26.;
@@ -160,4 +160,53 @@ fn a_clicked_cell_copies_tsv_with_a_header(cx: &mut TestAppContext) {
 
     let text = clipboard_text(cx);
     assert_eq!(text, "mssite\r\n2f0c0fc6-9a7c-4f3b-9d10-6d0a1f3e8b21");
+}
+
+fn wide_result() -> QueryResult {
+    let names = (0..40)
+        .map(|index| format!("c{index:02}"))
+        .collect::<Vec<_>>();
+    QueryResult {
+        columns: names.iter().map(|name| column(name, "text")).collect(),
+        rows: vec![names
+            .iter()
+            .map(|name| CellValue::Text(format!("{name}-value")))
+            .collect()],
+        ..sample_result()
+    }
+}
+
+/// Shift-wheels twice, the second time at `second_x` (or near the right edge),
+/// then reports which column header a click at a fixed point copies, which
+/// identifies the horizontal scroll position.
+fn column_after_shift_wheels(cx: &mut TestAppContext, second_x: Option<f32>) -> String {
+    init_components(cx);
+    let (_grid, cx) = cx.add_window_view(|_, cx| DataGrid::new(wide_result(), cx));
+    let width = f32::from(cx.update(|window, _| window.viewport_size().width));
+    let row_y = first_row_gutter().y;
+    for x in [200., second_x.unwrap_or(width - 40.)] {
+        cx.simulate_event(ScrollWheelEvent {
+            position: point(px(x), row_y),
+            delta: ScrollDelta::Pixels(point(px(0.), px(-300.))),
+            modifiers: Modifiers::shift(),
+            touch_phase: TouchPhase::Moved,
+        });
+    }
+    cx.simulate_click(point(px(200.), row_y), Modifiers::default());
+    cx.simulate_keystrokes(&secondary("c"));
+    clipboard_text(cx)
+        .lines()
+        .next()
+        .unwrap_or_default()
+        .to_owned()
+}
+
+#[gpui::test]
+fn shift_wheel_scrolls_columns_wherever_the_pointer_is(cx: &mut TestAppContext) {
+    // The first scroll used to move the wheel catcher with the content, so a
+    // second wheel at some pointer positions fell through to vertical scroll.
+    let near_left = column_after_shift_wheels(cx, Some(200.));
+    let near_right = column_after_shift_wheels(cx, None);
+    assert_ne!(near_left, "c00", "shift-wheel did not scroll the grid");
+    assert_eq!(near_right, near_left);
 }

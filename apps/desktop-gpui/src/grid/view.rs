@@ -21,11 +21,7 @@ const SCROLLBAR_SIZE: f32 = 16.;
 
 impl DataGrid {
     /// Header cells for the visible portion of the horizontally scrolling grid.
-    fn header(
-        &self,
-        columns: Range<usize>,
-        grid: WeakEntity<DataGrid>,
-    ) -> impl IntoElement {
+    fn header(&self, columns: Range<usize>, grid: WeakEntity<DataGrid>) -> impl IntoElement {
         let total_columns = self.result.columns.len();
         let total_width = ROW_NUMBER_WIDTH + width_sum(&self.column_widths, 0..total_columns);
         div()
@@ -324,40 +320,40 @@ impl Render for DataGrid {
                         .min_h_0()
                         .w(px(total_width))
                         .track_scroll(self.vertical_scroll.clone()),
-                    )
-                    .child(
-                        canvas(
-                            |bounds, window, _| {
-                                window.insert_hitbox(bounds, HitboxBehavior::Normal)
-                            },
-                            move |_, hitbox, window, _| {
-                                window.on_mouse_event(
-                                    move |event: &ScrollWheelEvent, phase, window, cx| {
-                                        // Respect occluding overlays such as modal backdrops.
-                                        if phase != DispatchPhase::Capture
-                                            || !hitbox.should_handle_scroll(window)
-                                        {
-                                            return;
-                                        }
-                                        wheel_grid
-                                            .update(cx, |grid, cx| {
-                                                if super::wheel::apply_horizontal_wheel(
-                                                    &grid.horizontal_scroll,
-                                                    event,
-                                                    window.line_height(),
-                                                ) {
-                                                    cx.stop_propagation();
-                                                    cx.notify();
-                                                }
-                                            })
-                                            .ok();
-                                    },
-                                );
-                            },
-                        )
-                        .absolute()
-                        .inset_0(),
                     ),
+            )
+            // Outside the scroller: its children move with the horizontal
+            // offset, which would slide this wheel catcher off the viewport.
+            .child(
+                canvas(
+                    |bounds, window, _| window.insert_hitbox(bounds, HitboxBehavior::Normal),
+                    move |_, hitbox, window, _| {
+                        window.on_mouse_event(
+                            move |event: &ScrollWheelEvent, phase, window, cx| {
+                                // Respect occluding overlays such as modal backdrops.
+                                if phase != DispatchPhase::Capture
+                                    || !hitbox.should_handle_scroll(window)
+                                {
+                                    return;
+                                }
+                                wheel_grid
+                                    .update(cx, |grid, cx| {
+                                        if super::wheel::apply_horizontal_wheel(
+                                            &grid.horizontal_scroll,
+                                            event,
+                                            window.line_height(),
+                                        ) {
+                                            cx.stop_propagation();
+                                            cx.notify();
+                                        }
+                                    })
+                                    .ok();
+                            },
+                        );
+                    },
+                )
+                .absolute()
+                .inset_0(),
             )
             .child(
                 div()
