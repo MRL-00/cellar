@@ -1,5 +1,36 @@
 # Changelog
 
+## 1.0.13
+
+### Features
+
+- **AI assistant reads like a chat** — your messages sit in bubbles on the
+  right and replies run full width with formatted text, inline code, and
+  syntax-highlighted SQL blocks with Copy, Insert, and Run. Each reply shows
+  the model that wrote it and its token count, and the list follows new
+  messages unless you have scrolled up.
+- **Pick a model from a list** — the model control opens a dropdown of every
+  available model instead of cycling through them on click.
+- **Read-only or read-write assistant** — choose whether the assistant may
+  propose and run write statements. It stays read-only by default, and
+  destructive or PROD statements still need confirmation before they run.
+- **Just ask** — the generate, explain, optimize, and migrate buttons are
+  gone; the assistant works out what you want from your message.
+
+### Bug fixes
+
+- **Enter sends** — Enter sends the message and Shift+Enter adds a new line.
+  The message box wraps long text and grows as you type.
+- **Shift-scroll keeps scrolling sideways** — Shift+wheel in the results and
+  table grids no longer turns into vertical scrolling after the first scroll.
+- **Typing in the SQL editor no longer crashes** — suggestions now match the
+  word you are typing, which also fixes a crash when a suggestion was shorter
+  than the typed text.
+- **Consistent editor text** — the SQL editor uses the monospace font at the
+  same size as the rest of the app.
+- **Visible selection** — selected text uses your accent colour, and menu
+  hover is easier to see.
+
 ## 1.0.12
 
 ### Features
