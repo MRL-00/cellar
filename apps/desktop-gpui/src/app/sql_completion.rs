@@ -155,7 +155,7 @@ impl CompletionProvider for SqlCompletionProvider {
             start: text.offset_to_position(start),
             end: text.offset_to_position(offset),
         };
-        let mut items = self.items(&sql, offset);
+        let mut items = matching(self.items(&sql, offset), &sql[start..offset.min(sql.len())]);
         for item in &mut items {
             let new_text = item
                 .insert_text
@@ -171,6 +171,30 @@ impl CompletionProvider for SqlCompletionProvider {
             .last()
             .is_some_and(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '$' | '.'))
     }
+}
+
+/// Keeps the items whose label, or its last dotted segment, starts with the
+/// word being typed. Each kept item's `filter_text` is the matched prefix:
+/// the completion menu highlights that many bytes of the label, and without
+/// it falls back to the whole typed query, which can outrun a short label.
+fn matching(items: Vec<CompletionItem>, word: &str) -> Vec<CompletionItem> {
+    let word = word.trim_start_matches('"');
+    items
+        .into_iter()
+        .filter_map(|mut item| {
+            let label = item.label.to_ascii_lowercase();
+            let starts = |text: &str| text.starts_with(&word.to_ascii_lowercase());
+            let prefix = if starts(&label) {
+                item.label.get(..word.len()).unwrap_or_default().to_owned()
+            } else if label.rsplit_once('.').is_some_and(|(_, last)| starts(last)) {
+                String::new()
+            } else {
+                return None;
+            };
+            item.filter_text = Some(prefix);
+            Some(item)
+        })
+        .collect()
 }
 
 fn item(label: impl Into<String>, kind: CompletionItemKind) -> CompletionItem {
@@ -358,6 +382,29 @@ mod tests {
                 .map(|item| item.label.as_str())
                 .collect::<Vec<_>>(),
             ["email"]
+        );
+    }
+
+    #[test]
+    fn typed_words_filter_items_and_bound_the_menu_highlight() {
+        let items = matching(
+            vec![
+                item("id", CompletionItemKind::FIELD),
+                item("customers", CompletionItemKind::CLASS),
+                item("public.Customer_notes", CompletionItemKind::CLASS),
+            ],
+            "Custom",
+        );
+        let kept = items
+            .iter()
+            .map(|item| (item.label.as_str(), item.filter_text.as_deref()))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            kept,
+            [
+                ("customers", Some("custom")),
+                ("public.Customer_notes", Some(""))
+            ]
         );
     }
 }
