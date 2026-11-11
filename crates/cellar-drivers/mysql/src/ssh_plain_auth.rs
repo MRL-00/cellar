@@ -88,16 +88,17 @@ impl Handshake {
     /// Parse an AuthSwitchRequest, rejecting it before SQLx sees it if the
     /// requested plugin cannot be carried safely over the remote leg.
     fn switch(response: &[u8], remote_tls: bool) -> CellarResult<Self> {
-        let end = response[1..]
+        // 0xfe, NUL-terminated plugin name, plugin data (optionally NUL-ended).
+        // Checked accessors only: a truncated packet is a protocol error.
+        let (_, body) = response.split_first().ok_or_else(protocol_error)?;
+        let name_end = body
             .iter()
             .position(|b| *b == 0)
-            .ok_or_else(protocol_error)?
-            + 1;
-        let plugin = Plugin::parse(&response[1..end]).check(remote_tls)?;
-        let nonce = response[end + 1..]
-            .strip_suffix(&[0])
-            .unwrap_or(&response[end + 1..])
-            .to_vec();
+            .ok_or_else(protocol_error)?;
+        let (name, rest) = body.split_at(name_end);
+        let plugin = Plugin::parse(name).check(remote_tls)?;
+        let (_, data) = rest.split_first().ok_or_else(protocol_error)?;
+        let nonce = data.strip_suffix(&[0]).unwrap_or(data).to_vec();
         // Relayed plugins may carry no challenge (AWS Aurora clear password).
         if plugin != Plugin::Other && nonce.len() != 20 {
             return Err(protocol_error());
@@ -171,13 +172,14 @@ pub(super) async fn authenticate<L: TunnelStream, R: TunnelStream + ?Sized>(
     }
     loop {
         let response = rs.read(remote).await?;
-        if response[0] == 0xfe {
+        let kind = *response.first().ok_or_else(protocol_error)?;
+        if kind == 0xfe {
             // Validate switches before asking SQLx for any new credentials.
             handshake = Handshake::switch(&response, remote_tls)?;
         }
         ls.write(local, &response).await?;
         let fast_auth_ok = handshake.plugin == Plugin::CachingSha2 && response.as_slice() == [1, 3];
-        match response[0] {
+        match kind {
             0x00 | 0xff => return Ok(()),
             // Fast-auth success: the server sends OK next, the client is silent.
             0x01 if fast_auth_ok => {}
@@ -258,10 +260,10 @@ async fn send_encrypted<R: TunnelStream + ?Sized>(
         return Err(protocol_error());
     }
     let response = sequence.read(remote).await?;
-    if response[0] != 1 {
+    let Some((&1, pem)) = response.split_first() else {
         return Err(protocol_error());
-    }
-    let pem = std::str::from_utf8(&response[1..]).map_err(|_| protocol_error())?;
+    };
+    let pem = std::str::from_utf8(pem).map_err(|_| protocol_error())?;
     let key = RsaPublicKey::from_public_key_pem(pem).map_err(|_| protocol_error())?;
     let encoded: Vec<_> = password
         .iter()

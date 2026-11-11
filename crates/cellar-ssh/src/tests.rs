@@ -86,7 +86,10 @@ impl server::Handler for MockSsh {
         reply: ChannelOpenHandle,
         _: &mut Session,
     ) -> Result<(), Self::Error> {
-        // Test servers never connect to external endpoints.
+        // Test servers never connect to external endpoints. Returning without
+        // accepting drops `reply`, and russh's ChannelOpenHandle Drop sends
+        // ChannelOpenFailure::AdministrativelyProhibited to the client: this
+        // is how the mock refuses a channel, not a silent hang.
         if host != "127.0.0.1" {
             return Ok(());
         }
@@ -596,16 +599,25 @@ fn private_key_paths_expand_only_leading_home_references() {
 async fn stalled_ssh_startup_times_out_and_closes_socket() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
+    let (opened, open_done) = tokio::sync::oneshot::channel::<()>();
     let stalled = tokio::spawn(async move {
-        let (mut stream, _) = listener.accept().await.unwrap();
-        let mut bytes = Vec::new();
-        stream.read_to_end(&mut bytes).await.unwrap();
-        bytes
+        tokio::select! {
+            accepted = listener.accept() => {
+                let (mut stream, _) = accepted.unwrap();
+                let mut bytes = Vec::new();
+                stream.read_to_end(&mut bytes).await.unwrap();
+            }
+            // With paused time the deadline can fire before the TCP connect
+            // completes; then no socket exists and there is nothing to close.
+            _ = open_done => {}
+        }
     });
     let config = config(host(port, "user"), ([127, 0, 0, 1], 5432).into());
     let result = SshTunnel::open(&config, &ConnectionSecrets::default()).await;
     assert!(matches!(result, Err(CellarError::Timeout(_))));
-    // EOF proves cancellation shut down the socket. With paused time the
-    // deadline may fire before russh schedules its identification write.
-    let _bytes_before_eof = stalled.await.unwrap();
+    let _ = opened.send(());
+    // If a connection was accepted, EOF proves cancellation shut the socket
+    // down. With paused time the deadline may fire before russh schedules its
+    // identification write, so the bytes read before EOF are not asserted.
+    stalled.await.unwrap();
 }

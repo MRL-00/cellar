@@ -163,6 +163,10 @@ impl TlsBridge {
     }
 }
 
+/// Standard client SSL-mode semantics, matching libpq/MySQL clients and the
+/// direct SQLx path: Prefer and Require encrypt without authenticating the
+/// server certificate (Prefer also accepts a server without TLS); VerifyCa
+/// checks the chain; VerifyFull also checks the original database host name.
 fn configure_remote(builder: &mut native_tls::TlsConnectorBuilder, mode: SslMode) {
     builder.danger_accept_invalid_certs(!matches!(mode, SslMode::VerifyCa | SslMode::VerifyFull));
     builder.danger_accept_invalid_hostnames(mode != SslMode::VerifyFull);
