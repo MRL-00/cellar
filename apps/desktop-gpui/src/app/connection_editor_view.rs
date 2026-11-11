@@ -42,10 +42,7 @@ impl CellarApp {
             .justify_center()
             .pt(gpui::relative(0.08))
             .bg(cellar_desktop_gpui::theme::overlay())
-            .on_click(cx.listener(|this, _, _, cx| {
-                this.connection_editor = None;
-                cx.notify();
-            }))
+            .on_click(|_, _, cx| cx.stop_propagation())
             .on_scroll_wheel(|_, _, cx| cx.stop_propagation())
             .child(
                 div()
@@ -402,139 +399,133 @@ fn editor_footer(
     cx: &mut Context<CellarApp>,
 ) -> AnyElement {
     div()
-        .h(px(44.))
         .flex_shrink_0()
         .flex()
-        .items_center()
-        .justify_between()
-        .gap_3()
+        .flex_col()
         .border_t_1()
         .border_color(BORDER)
         .bg(PANEL_MUTED)
-        .px_3()
-        .child(
-            div()
-                .flex()
-                .items_center()
-                .gap_2()
-                .child(
-                    action_button(
-                        "test-connection",
-                        "icons/power.svg",
-                        if editor.busy == Some(EditorBusy::Testing) {
-                            "Testing…"
-                        } else {
-                            "Test connection"
-                        },
-                        false,
-                        editor.busy.is_none(),
-                    )
-                    .when(editor.busy.is_none(), |button| {
-                        button
-                            .on_click(cx.listener(|this, _, _, cx| this.test_edited_connection(cx)))
-                    }),
-                )
-                .child(test_pill(editor)),
+        .when(
+            editor.busy.is_none() && editor.message.is_some(),
+            |footer| footer.child(connection_feedback(editor)),
         )
         .child(
             div()
+                .h(px(44.))
+                .flex_shrink_0()
                 .flex()
                 .items_center()
-                .gap_2()
+                .justify_between()
+                .gap_3()
+                .px_3()
                 .child(
-                    action_button("cancel-connection-editor", "", "Cancel", false, true).on_click(
-                        cx.listener(|this, _, _, cx| {
-                            this.connection_editor = None;
-                            cx.notify();
+                    div().flex().items_center().gap_2().child(
+                        action_button(
+                            "test-connection",
+                            "icons/power.svg",
+                            if editor.busy == Some(EditorBusy::Testing) {
+                                "Testing…"
+                            } else {
+                                "Test connection"
+                            },
+                            false,
+                            editor.busy.is_none(),
+                        )
+                        .when(editor.busy.is_none(), |button| {
+                            button.on_click(
+                                cx.listener(|this, _, _, cx| this.test_edited_connection(cx)),
+                            )
                         }),
                     ),
                 )
                 .child(
-                    action_button(
-                        "save-connection",
-                        "icons/plus.svg",
-                        if editor.busy == Some(EditorBusy::Saving) {
-                            "Saving…"
-                        } else if existing {
-                            "Save changes"
-                        } else {
-                            "Save"
-                        },
-                        true,
-                        can_save && editor.busy.is_none(),
-                    )
-                    .when(can_save && editor.busy.is_none(), |button| {
-                        button
-                            .on_click(cx.listener(|this, _, _, cx| this.save_edited_connection(cx)))
-                    }),
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap_2()
+                        .child(
+                            action_button("cancel-connection-editor", "", "Cancel", false, true)
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.connection_editor = None;
+                                    cx.notify();
+                                })),
+                        )
+                        .child(
+                            action_button(
+                                "save-connection",
+                                "icons/plus.svg",
+                                if editor.busy == Some(EditorBusy::Saving) {
+                                    "Saving…"
+                                } else if existing {
+                                    "Save changes"
+                                } else {
+                                    "Save"
+                                },
+                                true,
+                                can_save && editor.busy.is_none(),
+                            )
+                            .when(
+                                can_save && editor.busy.is_none(),
+                                |button| {
+                                    button.on_click(
+                                        cx.listener(|this, _, _, cx| {
+                                            this.save_edited_connection(cx)
+                                        }),
+                                    )
+                                },
+                            ),
+                        ),
                 ),
         )
         .into_any_element()
 }
 
-fn test_pill(editor: &ConnectionEditor) -> AnyElement {
-    if editor.busy == Some(EditorBusy::Testing) {
-        return div()
-            .flex()
-            .items_center()
-            .gap_1()
-            .text_size(px(12.))
-            .text_color(FG_MUTED)
-            .child(div().size(px(6.)).rounded_full().bg(ACCENT))
-            .child("contacting…")
-            .into_any_element();
-    }
-    match editor.message.as_ref() {
-        Some(Ok(value)) => {
-            let (duration, version) = value.split_once(" · ").unwrap_or((value, ""));
+fn connection_feedback(editor: &ConnectionEditor) -> AnyElement {
+    let (message, color, icon) = match editor.message.as_ref() {
+        Some(Ok(message)) => (message, FG_SECONDARY, "icons/check.svg"),
+        Some(Err(message)) => (message, WARN, "icons/triangle-alert.svg"),
+        None => return div().into_any_element(),
+    };
+    // Use intrinsic height: overflow_y_scrollbar's full-height wrapper would
+    // consume the footer's space and push its action row out of the modal.
+    div()
+        .id("connection-feedback")
+        .relative()
+        .w_full()
+        .min_w_0()
+        .flex_shrink_0()
+        .max_h(px(144.))
+        .overflow_y_scroll()
+        .track_scroll(&editor.feedback_scroll)
+        .vertical_scrollbar(&editor.feedback_scroll)
+        .border_b_1()
+        .border_color(BORDER_DIVIDER)
+        .px_3()
+        .py_2()
+        .child(
             div()
                 .flex()
-                .items_center()
-                .gap(px(6.))
-                .text_size(px(12.))
+                .items_start()
+                .gap_2()
                 .child(
-                    div()
-                        .h(px(15.))
-                        .flex()
-                        .items_center()
-                        .gap_1()
-                        .rounded(px(3.))
-                        .bg(cellar_desktop_gpui::theme::accent_soft())
-                        .px(px(6.))
-                        .font_weight(gpui::FontWeight::MEDIUM)
-                        .text_color(ACCENT)
-                        .child(Icon::empty().path("icons/check.svg").size(px(10.)))
-                        .child("Connection successful"),
+                    Icon::empty()
+                        .path(icon)
+                        .size(px(12.))
+                        .flex_shrink_0()
+                        .text_color(color),
                 )
                 .child(
                     div()
-                        .font_family(cellar_desktop_gpui::theme::mono_font())
-                        .text_color(FG_SECONDARY)
-                        .child(duration.to_owned()),
-                )
-                .child(div().text_color(FG_MUTED).child("·"))
-                .when(!version.is_empty(), |element| {
-                    element.child(
-                        div()
-                            .font_family(cellar_desktop_gpui::theme::mono_font())
-                            .text_color(FG_SECONDARY)
-                            .child(version.to_owned()),
-                    )
-                })
-                .into_any_element()
-        }
-        Some(Err(error)) => div()
-            .max_w(px(420.))
-            .flex()
-            .items_center()
-            .gap_1()
-            .truncate()
-            .text_color(WARN)
-            .child(Icon::empty().path("icons/triangle-alert.svg").size(px(10.)))
-            .child(error.clone())
-            .into_any_element(),
-        None => div().into_any_element(),
-    }
+                        .flex_1()
+                        .min_w_0()
+                        .whitespace_normal()
+                        .text_size(px(12.))
+                        .line_height(px(18.))
+                        .text_color(color)
+                        .child(message.clone()),
+                ),
+        )
+        .into_any_element()
 }
 
 fn form_row(label: &'static str, hint: Option<&'static str>, content: AnyElement) -> AnyElement {

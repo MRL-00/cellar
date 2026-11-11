@@ -4,7 +4,7 @@ use std::{
 };
 
 use cellar_core::driver::{ConnectionConfig, Engine, EnvTag, SslMode};
-use gpui::{AppContext, Context, Entity, Window};
+use gpui::{AppContext, Context, Entity, ScrollHandle, Window};
 use gpui_component::input::InputState;
 
 use super::{
@@ -58,6 +58,7 @@ pub(super) struct ConnectionEditor {
     pub(super) color: Entity<InputState>,
     pub(super) busy: Option<EditorBusy>,
     pub(super) message: Option<Result<String, String>>,
+    pub(super) feedback_scroll: ScrollHandle,
 }
 
 impl ConnectionEditor {
@@ -148,6 +149,7 @@ impl ConnectionEditor {
             original: config,
             busy: None,
             message: None,
+            feedback_scroll: ScrollHandle::new(),
         }
     }
 

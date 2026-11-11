@@ -240,7 +240,7 @@ Per-engine form. Common fields: host, port, database, user, password, SSL mode. 
 
 Optional: SSH tunnel (host, port, user, key file / password), HTTP proxy, custom JDBC-style connection string override.
 
-Test connection button. Save to keychain.
+Test connection button. Save to keychain. Clicking outside the connection editor does not dismiss it; use Cancel, Close, or a successful save. Connection feedback is displayed separately from the action buttons, wraps to the editor width, and scrolls for long diagnostics.
 
 #### Connection tagging
 
