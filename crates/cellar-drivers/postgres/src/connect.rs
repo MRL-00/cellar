@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::str::FromStr;
 
 use async_trait::async_trait;
-use cellar_core::driver::{Connection, ConnectionConfig, DriverInfo, SslMode};
+use cellar_core::driver::{Connection, ConnectionConfig, ConnectionSecrets, DriverInfo, SslMode};
 use cellar_core::error::{CellarError, CellarResult};
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions, PgSslMode};
 use sqlx::{Error as SqlxError, PgPool, Row};
@@ -29,6 +29,7 @@ pub struct PgConnection {
     /// only in process memory for the session — never on disk.
     config: ConnectionConfig,
     password: Option<String>,
+    tunnel: Option<crate::ssh::SshTunnel>,
     /// Lazily-opened pools for databases other than the default, keyed by
     /// database name. Reused across introspection and queries, closed when the
     /// connection is dropped.
@@ -62,7 +63,13 @@ impl PgConnection {
         }
         let mut sibling = self.config.clone();
         sibling.database = database.to_string();
-        let pool = build_pool(&sibling, self.password.as_deref(), DEFAULT_POOL_SIZE).await?;
+        let pool = build_pool(
+            &sibling,
+            self.password.as_deref(),
+            DEFAULT_POOL_SIZE,
+            self.tunnel.as_ref(),
+        )
+        .await?;
         guard.insert(database.to_string(), pool.clone());
         Ok(pool)
     }
@@ -108,6 +115,9 @@ impl Connection for PgConnection {
         for pool in guard.values() {
             pool.close().await;
         }
+        if let Some(tunnel) = &self.tunnel {
+            tunnel.close().await;
+        }
         Ok(())
     }
 
@@ -120,7 +130,24 @@ pub async fn open_pool(
     config: &ConnectionConfig,
     password: Option<&str>,
 ) -> CellarResult<PgConnection> {
-    let pool = build_pool(config, password, DEFAULT_POOL_SIZE).await?;
+    let secrets = ConnectionSecrets {
+        password: password.map(str::to_owned),
+        ..Default::default()
+    };
+    open_pool_with_secrets(config, &secrets).await
+}
+
+pub async fn open_pool_with_secrets(
+    config: &ConnectionConfig,
+    secrets: &ConnectionSecrets,
+) -> CellarResult<PgConnection> {
+    let tunnel = if config.ssh.is_some() {
+        Some(crate::ssh::open(config, secrets).await?)
+    } else {
+        None
+    };
+    let password = secrets.password.as_deref();
+    let pool = build_pool(config, password, DEFAULT_POOL_SIZE, tunnel.as_ref()).await?;
 
     let version = sqlx::query("SELECT version() AS v")
         .fetch_one(&pool)
@@ -142,6 +169,7 @@ pub async fn open_pool(
         pool,
         config: config.clone(),
         password: password.map(|p| p.to_string()),
+        tunnel,
         siblings: Mutex::new(HashMap::new()),
         active_queries: std::sync::Mutex::new(HashMap::new()),
     })
@@ -151,16 +179,51 @@ async fn build_pool(
     config: &ConnectionConfig,
     password: Option<&str>,
     max_connections: u32,
+    tunnel: Option<&crate::ssh::SshTunnel>,
 ) -> CellarResult<PgPool> {
-    let mut opts = PgConnectOptions::from_str(&format!(
-        "postgres://{user}@{host}:{port}/{db}",
-        user = config.user,
-        host = config.host,
-        port = config.port,
-        db = config.database,
-    ))
-    .map_err(|e| CellarError::invalid_config(e.to_string()))?
-    .ssl_mode(map_ssl_mode(config.ssl_mode));
+    let opts = connect_options(config, password, tunnel)?;
+    PgPoolOptions::new()
+        .max_connections(max_connections)
+        .connect_with(opts)
+        .await
+        .map_err(|error| {
+            tunnel
+                .and_then(|t| t.take_error())
+                .unwrap_or_else(|| map_sqlx_err_for_connect(error))
+        })
+}
+
+pub(crate) fn connect_options(
+    config: &ConnectionConfig,
+    password: Option<&str>,
+    tunnel: Option<&crate::ssh::SshTunnel>,
+) -> CellarResult<PgConnectOptions> {
+    // Build an escaped URL so sqlx retains its original-host pgpass lookup;
+    // only then point the socket at the loopback TLS bridge.
+    let mut url = url::Url::parse("postgres://localhost").expect("static PostgreSQL URL");
+    match config.host.parse::<std::net::IpAddr>() {
+        Ok(ip) => url
+            .set_ip_host(ip)
+            .map_err(|_| CellarError::invalid_config("invalid database host"))?,
+        Err(_) => url
+            .set_host(Some(&config.host))
+            .map_err(|_| CellarError::invalid_config("invalid database host"))?,
+    }
+    url.set_port(Some(config.port))
+        .map_err(|_| CellarError::invalid_config("invalid database port"))?;
+    url.set_username(&config.user.replace('%', "%25"))
+        .map_err(|_| CellarError::invalid_config("invalid database user"))?;
+    url.set_path(&config.database.replace('%', "%25"));
+    let mut opts = PgConnectOptions::from_str(url.as_str())
+        .map_err(|_| CellarError::invalid_config("invalid PostgreSQL connection options"))?
+        .host(&config.host)
+        .ssl_mode(map_ssl_mode(config.ssl_mode));
+    if let Some(tunnel) = tunnel {
+        opts = opts
+            .host("127.0.0.1")
+            .port(tunnel.address().port())
+            .ssl_mode(PgSslMode::Disable);
+    }
     if let Some(p) = password {
         opts = opts.password(p);
     }
@@ -168,11 +231,7 @@ async fn build_pool(
         opts = opts.application_name(name);
     }
 
-    PgPoolOptions::new()
-        .max_connections(max_connections)
-        .connect_with(opts)
-        .await
-        .map_err(map_sqlx_err_for_connect)
+    Ok(opts)
 }
 
 fn map_ssl_mode(mode: SslMode) -> PgSslMode {

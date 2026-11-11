@@ -8,6 +8,7 @@ publish = false
 
 [dependencies]
 cellar-core = { path = "../../cellar-core" }
+cellar-ssh = { path = "../../cellar-ssh" }
 cellar-sql = { path = "../../cellar-sql" }
 cellar-diff = { path = "../../cellar-diff" }
 chrono = { version = "0.4", default-features = false }

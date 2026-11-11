@@ -1,6 +1,6 @@
 use std::{
     sync::Arc,
-    time::{Instant, SystemTime, UNIX_EPOCH},
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 use cellar_core::driver::{ConnectionConfig, Engine, EnvTag, SslMode};
@@ -12,6 +12,9 @@ use super::{
     connection_editor_support::*,
     CellarApp,
 };
+
+mod ssh;
+pub(super) use ssh::{SshHostEditor, SshSecretField};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum ConnectionTab {
@@ -46,6 +49,9 @@ pub(super) struct ConnectionEditor {
     pub(super) engine: Engine,
     pub(super) tab: ConnectionTab,
     pub(super) ssh: bool,
+    pub(super) ssh_server: SshHostEditor,
+    pub(super) ssh_jump_enabled: bool,
+    pub(super) ssh_jump: SshHostEditor,
     pub(super) ssl_mode: SslMode,
     pub(super) env_tag: EnvTag,
     pub(super) name: Entity<InputState>,
@@ -72,6 +78,22 @@ impl ConnectionEditor {
             .map(|config| config.engine)
             .unwrap_or(Engine::Postgres);
         let existing = config.is_some();
+        let ssh_server = SshHostEditor::new(
+            config
+                .as_ref()
+                .and_then(|c| c.ssh.as_ref())
+                .map(|s| &s.server),
+            window,
+            cx,
+        );
+        let ssh_jump = SshHostEditor::new(
+            config
+                .as_ref()
+                .and_then(|c| c.ssh.as_ref())
+                .and_then(|s| s.jump_host.as_ref()),
+            window,
+            cx,
+        );
         let mut value = |value: String, placeholder: String, cx: &mut Context<CellarApp>| {
             cx.new(|cx| {
                 InputState::new(window, cx)
@@ -82,7 +104,13 @@ impl ConnectionEditor {
         Self {
             engine,
             tab: ConnectionTab::General,
-            ssh: false,
+            ssh: config.as_ref().is_some_and(|c| c.ssh.is_some()),
+            ssh_server,
+            ssh_jump_enabled: config
+                .as_ref()
+                .and_then(|c| c.ssh.as_ref())
+                .is_some_and(|s| s.jump_host.is_some()),
+            ssh_jump,
             ssl_mode: config
                 .as_ref()
                 .map(|config| config.ssl_mode)
@@ -198,6 +226,7 @@ impl ConnectionEditor {
             port,
             database,
             user,
+            ssh: self.ssh_config(cx)?,
             ssl_mode: self.ssl_mode,
             env_tag: Some(self.env_tag),
             application_name: optional_text(&self.application_name, cx),
@@ -213,6 +242,7 @@ impl CellarApp {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.dismiss_connection_editor();
         self.connection_editor = Some(ConnectionEditor::new(config, window, cx));
         if let Some(editor) = &self.connection_editor {
             editor.name.update(cx, |name, cx| name.focus(window, cx));
@@ -230,6 +260,9 @@ impl CellarApp {
             return;
         };
         editor.engine = engine;
+        if !engine.supports_ssh() {
+            editor.ssh = false;
+        }
         editor.ssl_mode = default_ssl(editor.engine);
         editor.port.update(cx, |port, cx| {
             port.set_value(default_port(editor.engine).to_string(), window, cx)
@@ -280,6 +313,7 @@ impl CellarApp {
             return;
         };
         editor.ssh = !editor.ssh;
+        editor.message = None;
         cx.notify();
     }
 
@@ -337,9 +371,12 @@ impl CellarApp {
         };
         let mut editor = ConnectionEditor::new(Some(config.clone()), window, cx);
         editor.original = None;
+        editor.ssh_server.forget_saved_secrets();
+        editor.ssh_jump.forget_saved_secrets();
         editor.name.update(cx, |name, cx| {
             name.set_value(format!("{} Copy", config.name), window, cx)
         });
+        self.dismiss_connection_editor();
         self.connection_editor = Some(editor);
         if let Some(editor) = &self.connection_editor {
             editor.name.update(cx, |name, cx| name.focus(window, cx));
@@ -380,7 +417,7 @@ impl CellarApp {
         );
     }
 
-    pub(super) fn test_edited_connection(&mut self, cx: &mut Context<Self>) {
+    pub(super) fn test_edited_connection(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(editor) = &self.connection_editor else {
             return;
         };
@@ -395,38 +432,12 @@ impl CellarApp {
                 return;
             }
         };
-        let password = optional_text(&editor.password, cx);
-        self.connection_editor.as_mut().unwrap().busy = Some(EditorBusy::Testing);
-        let registry = Arc::clone(&self.registry);
-        let runtime = Arc::clone(&self.runtime);
-        let started = Instant::now();
-        cx.spawn(async move |this, cx| {
-            let result = runtime
-                .spawn(async move { registry.test_with_secret(&config, password).await })
-                .await
-                .map_err(|error| format!("connection test task failed: {error}"))
-                .and_then(|result| {
-                    result
-                        .map(|info| {
-                            format!(
-                                "{} ms · {}",
-                                started.elapsed().as_millis(),
-                                super::shell_widgets::short_driver_version(&info.version)
-                            )
-                        })
-                        .map_err(|error| error.to_string())
-                });
-            this.update(cx, |this, cx| {
-                if let Some(editor) = &mut this.connection_editor {
-                    editor.busy = None;
-                    editor.message = Some(result);
-                }
-                cx.notify();
-            })
-            .ok();
-        })
-        .detach();
-        cx.notify();
+        let snapshot = super::ssh_trust::EditorTest {
+            editor_id: editor.name.entity_id(),
+            config,
+            secrets: editor.secrets(cx),
+        };
+        self.run_editor_test(snapshot, window, cx);
     }
 
     pub(super) fn save_edited_connection(&mut self, cx: &mut Context<Self>) {
@@ -444,16 +455,14 @@ impl CellarApp {
                 return;
             }
         };
-        let password = optional_text(&editor.password, cx);
+        let secrets = editor.secrets(cx);
         self.connection_editor.as_mut().unwrap().busy = Some(EditorBusy::Saving);
         let registry = Arc::clone(&self.registry);
         let runtime = Arc::clone(&self.runtime);
         cx.spawn(async move |this, cx| {
             let result = runtime
                 .spawn(async move {
-                    let saved = registry
-                        .save_with_secret(config, password.as_deref())
-                        .await?;
+                    let saved = registry.save_with_secrets(config, &secrets).await?;
                     registry.disconnect(&saved.id).await?;
                     Ok::<_, cellar_core::error::CellarError>(saved)
                 })

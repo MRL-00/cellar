@@ -13,6 +13,11 @@ use cellar_desktop_gpui::theme::{
 };
 use cellar_desktop_gpui::widgets::compact_input;
 
+mod labels;
+mod ssh;
+use labels::*;
+use ssh::ssh_panel;
+
 const SWATCHES: [(&str, u32); 7] = [
     ("#4f8ff7", 0x4f8ff7),
     ("#f6a44a", 0xf6a44a),
@@ -133,8 +138,9 @@ fn editor_header(existing: bool, cx: &mut Context<CellarApp>) -> AnyElement {
                         .size(px(13.))
                         .text_color(FG_MUTED),
                 )
-                .on_click(cx.listener(|this, _, _, cx| {
-                    this.connection_editor = None;
+                .on_click(cx.listener(|this, _, window, cx| {
+                    this.dismiss_connection_editor();
+                    this.show_next_pending_connection_error(window, cx);
                     cx.notify();
                 })),
         )
@@ -316,27 +322,6 @@ fn general_panel(editor: &ConnectionEditor, cx: &mut Context<CellarApp>) -> AnyE
         .into_any_element()
 }
 
-fn ssh_panel(editor: &ConnectionEditor, cx: &mut Context<CellarApp>) -> AnyElement {
-    div()
-        .flex()
-        .flex_col()
-        .gap(px(10.))
-        .child(form_row(
-            "Use SSH tunnel",
-            None,
-            toggle("connection-ssh-toggle", editor.ssh)
-                .on_click(cx.listener(|this, _, _, cx| this.toggle_connection_ssh(cx)))
-                .into_any_element(),
-        ))
-        .child(
-            div()
-                .text_size(px(12.))
-                .text_color(FG_MUTED)
-                .child("SSH tunneling lands in a follow-up slice. Connect directly for now."),
-        )
-        .into_any_element()
-}
-
 fn ssl_panel(editor: &ConnectionEditor, cx: &mut Context<CellarApp>) -> AnyElement {
     let enabled = editor.ssl_mode != SslMode::Disable;
     div()
@@ -432,9 +417,9 @@ fn editor_footer(
                             editor.busy.is_none(),
                         )
                         .when(editor.busy.is_none(), |button| {
-                            button.on_click(
-                                cx.listener(|this, _, _, cx| this.test_edited_connection(cx)),
-                            )
+                            button.on_click(cx.listener(|this, _, window, cx| {
+                                this.test_edited_connection(window, cx)
+                            }))
                         }),
                     ),
                 )
@@ -446,7 +431,7 @@ fn editor_footer(
                         .child(
                             action_button("cancel-connection-editor", "", "Cancel", false, true)
                                 .on_click(cx.listener(|this, _, _, cx| {
-                                    this.connection_editor = None;
+                                    this.dismiss_connection_editor();
                                     cx.notify();
                                 })),
                         )
@@ -740,88 +725,5 @@ fn can_save(editor: &ConnectionEditor, cx: &Context<CellarApp>) -> bool {
         Engine::Convex => host,
         Engine::Firestore => host && database,
         _ => host && database && user,
-    }
-}
-
-fn engine_label(engine: Engine) -> &'static str {
-    match engine {
-        Engine::Postgres => "PostgreSQL",
-        Engine::MySql => "MySQL",
-        Engine::Mssql => "SQL Server",
-        Engine::Azure => "Azure SQL",
-        Engine::Sqlite => "SQLite",
-        Engine::Firestore => "Firestore",
-        Engine::Convex => "Convex",
-        Engine::Cosmos => "Cosmos DB",
-        Engine::Supabase => "Supabase",
-        Engine::Neon => "Neon",
-        Engine::PlanetScale => "PlanetScale",
-    }
-}
-
-fn engine_rgb(engine: Engine) -> u32 {
-    u32::from_str_radix(&engine_color(engine)[1..], 16).unwrap_or(0xa78bfa)
-}
-
-fn host_label(engine: Engine) -> &'static str {
-    match engine {
-        Engine::Firestore => "API host",
-        Engine::Convex => "Deployment host",
-        Engine::Cosmos => "Account endpoint",
-        _ => "Host",
-    }
-}
-
-fn database_label(engine: Engine) -> &'static str {
-    match engine {
-        Engine::Sqlite => "Database file",
-        Engine::Firestore => "Project ID",
-        Engine::Cosmos => "Database",
-        _ => "Database",
-    }
-}
-
-fn password_label(engine: Engine) -> &'static str {
-    match engine {
-        Engine::Firestore => "Credentials",
-        Engine::Convex => "Deploy key",
-        Engine::Cosmos => "Primary key",
-        _ => "Password",
-    }
-}
-
-fn password_hint(editor: &ConnectionEditor) -> &'static str {
-    match (editor.original.is_some(), editor.engine) {
-        (true, Engine::Firestore) => "Leave blank to keep saved JSON/token",
-        (false, Engine::Firestore) => {
-            "Leave blank for emulator; JSON/token is stored in OS keychain"
-        }
-        (true, Engine::Convex) => "Leave blank to keep the saved deploy key",
-        (false, Engine::Convex) => "Leave blank for a local backend; stored in OS keychain",
-        (true, Engine::Cosmos) => "Leave blank to keep the saved account key",
-        (false, Engine::Cosmos) => {
-            "Account primary key from the Azure portal; stored in OS keychain"
-        }
-        (true, _) => "Leave blank to keep the saved password",
-        (false, _) => "Stored in OS keychain",
-    }
-}
-
-fn ssl_mode_label(mode: SslMode) -> &'static str {
-    match mode {
-        SslMode::Disable => "disable",
-        SslMode::Prefer => "prefer",
-        SslMode::Require => "require",
-        SslMode::VerifyCa => "verify-ca",
-        SslMode::VerifyFull => "verify-full",
-    }
-}
-
-fn env_label(env: EnvTag) -> &'static str {
-    match env {
-        EnvTag::Prod => "prod",
-        EnvTag::Staging => "staging",
-        EnvTag::Dev => "dev",
-        EnvTag::Local => "local",
     }
 }

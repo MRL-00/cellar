@@ -27,6 +27,19 @@ pub(super) fn should_evict_connection(err: &CellarError) -> bool {
     )
 }
 
+/// After opening `fresh`, decide whether a pool another connect stored for the
+/// same id meanwhile wins. Replace it only when `fresh` matches the saved
+/// settings and it does not, so a stale attempt never evicts a current pool.
+/// A deleted config (`saved` is `None`) compares against `fresh`.
+pub(super) fn keep_existing_pool(
+    existing: &ConnectionConfig,
+    fresh: &ConnectionConfig,
+    saved: Option<&ConnectionConfig>,
+) -> bool {
+    let saved = saved.unwrap_or(fresh);
+    existing == saved || fresh != saved
+}
+
 pub(super) fn reconnectable_error(err: CellarError) -> CellarError {
     CellarError::NotConnected(format!(
         "The database connection was lost and the stale pool was closed. Reconnect and retry the action. Last error: {err}"

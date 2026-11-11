@@ -185,7 +185,7 @@ impl Render for CellarApp {
                         this.command_palette_subscription = None;
                         cx.notify();
                         cx.stop_propagation();
-                    } else if this.connection_editor.take().is_some()
+                    } else if this.dismiss_connection_editor()
                         || this.connection_import.take().is_some()
                         || this.data_import.take().is_some()
                         || this.commit_review.take().is_some()
