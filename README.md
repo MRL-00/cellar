@@ -33,6 +33,20 @@ AI support is being built around your own provider account. Context stays visibl
 
 There is no Cellar account or cloud sync. Database credentials and provider keys are stored through the operating system keychain, and telemetry is off by default.
 
+## SQL databases over SSH
+
+SSH tunneling is supported for PostgreSQL/Supabase/Neon, MySQL/PlanetScale, and SQL Server. Azure SQL, SQLite, and HTTP-based drivers do not support SSH tunnels. Direct Azure SQL connections remain available; saved Azure SQL tunnel settings are rejected rather than silently connecting directly.
+
+In the connection editor, keep **General → Host / Port** set to the database address as seen from the SSH server. Enable **SSH tunnel**, enter the SSH server's host, port and user, then choose **SSH agent**, **Private key**, or **Password**. Encrypted private keys support a separate passphrase.
+
+Enable **Use jump host** when the SSH server is reachable only through a bastion. The jump host has its own host, port, user, authentication method and credentials; they need not match the SSH server.
+
+For an unknown SSH server or jump host, Cellar displays its host, port, key algorithm, and SHA256 fingerprint. Verify that fingerprint with your server administrator or another independent trusted source before choosing **Trust & Connect** (or **Trust & Test**). Confirmation appends the key to `~/.ssh/known_hosts` and retries; **Cancel** writes nothing. Jump hosts and SSH servers are confirmed separately. Existing trusted entries are reused. Changed or revoked keys remain blocked and cannot be overridden in this dialog; SSH host certificates are not supported yet. SSH-agent authentication uses your local agent; agent forwarding is not required. Passwords and key passphrases are stored in the OS keychain; blank credential fields preserve saved values, and **Clear saved password / passphrase** removes them on save. Secrets for an SSH hop or authentication method you no longer use are removed when you save. **Test connection** uses the same tunnel settings as a saved connection.
+
+The SSL mode applies to the database connection inside the tunnel, checked against the database host from **General**, not the SSH server. **Prefer** and **Require** encrypt the connection but do not verify the database certificate, matching standard PostgreSQL and MySQL clients; **Prefer** also connects to a server without TLS. For MySQL over SSH, Prefer without server TLS still protects the password with the server's RSA key, as `caching_sha2_password` and `sha256_password` do. Use **Verify CA** or **Verify full** when the certificate must be authenticated.
+
+Downgrade caveat: older Cellar builds ignore SSH settings and would connect directly to the database host. Do not open SSH-configured connections with an older version.
+
 ## Build it
 
 Prerequisites:

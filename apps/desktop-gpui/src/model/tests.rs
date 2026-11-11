@@ -16,10 +16,37 @@ fn config(id: &str) -> ConnectionConfig {
         user: "cellar".into(),
         database: "cellar".into(),
         ssl_mode: SslMode::Prefer,
+        ssh: None,
         env_tag: None,
         application_name: None,
         color: None,
     }
+}
+
+#[test]
+fn connection_revisions_invalidate_same_id_saves_and_delete_readd() {
+    let original = config("saved");
+    let mut model = AppModel::new(vec![original.clone(), config("other")]);
+    let initial = model.connection_revision("saved").unwrap();
+    let other = model.connection_revision("other").unwrap();
+    let mut replacement = original.clone();
+    replacement.host = "new.example".into();
+    model.upsert_connection(replacement.clone());
+    assert!(!model.connection_revision_is_current("saved", initial));
+    let edited = model.connection_revision("saved").unwrap();
+
+    // Credential-only saves have identical public metadata, but still invalidate
+    // connection results and trust challenges from before the save.
+    model.upsert_connection(replacement.clone());
+    assert!(!model.connection_revision_is_current("saved", edited));
+    let credentials_changed = model.connection_revision("saved").unwrap();
+    model.remove_connection("saved");
+    assert_eq!(model.connection_revision("saved"), None);
+    assert!(!model.connection_revision_is_current("saved", credentials_changed));
+    model.upsert_connection(replacement);
+    assert!(!model.connection_revision_is_current("saved", credentials_changed));
+    assert!(model.connection_revision_is_current("other", other));
+    assert_eq!(model.connection_revision("missing"), None);
 }
 
 #[test]
@@ -199,9 +226,17 @@ fn opening_a_table_before_connect_does_not_request_a_load() {
         table: "users".into(),
     };
     let (tab_id, should_load) = model.open_table(target.clone());
-    assert!(!should_load, "browse must wait until schema metadata exists");
+    assert!(
+        !should_load,
+        "browse must wait until schema metadata exists"
+    );
     assert!(matches!(
-        &model.tabs().iter().find(|tab| tab.id == tab_id).unwrap().kind,
+        &model
+            .tabs()
+            .iter()
+            .find(|tab| tab.id == tab_id)
+            .unwrap()
+            .kind,
         super::TabKind::Table {
             state: TableLoadState::Loading,
             ..

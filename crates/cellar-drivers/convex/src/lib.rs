@@ -51,6 +51,7 @@ impl Driver for ConvexDriver {
         config: &ConnectionConfig,
         secret: Option<&str>,
     ) -> CellarResult<Box<dyn Connection>> {
+        config.reject_ssh()?;
         let connection = ConvexConnection::open(config, secret).await?;
         Ok(Box::new(connection))
     }
@@ -516,6 +517,7 @@ mod tests {
             database: "".into(),
             user: "".into(),
             ssl_mode: SslMode::Require,
+            ssh: None,
             env_tag: None,
             application_name: Some("cellar-test".into()),
             color: None,

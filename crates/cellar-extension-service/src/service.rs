@@ -100,6 +100,7 @@ pub async fn run(request: Request) -> Result<Value, String> {
         .iter()
         .find(|profile| Some(&profile.config.id) == request.connection.as_ref())
         .ok_or("Unknown connection alias")?;
+    profiles::reject_ssh(config)?;
     if request.action == "commit" && !config.allow_edits {
         return Err("Enable editing in this connection's settings before committing".into());
     }
@@ -682,6 +683,20 @@ mod tests {
             run(request).await.unwrap_err(),
             "Project connections are read-only"
         );
+    }
+
+    #[tokio::test]
+    async fn ssh_profiles_are_rejected_before_connecting() {
+        // Unroutable host: a direct-connection bypass would not return this error.
+        let profile = json!({"id":"project-ssh","name":"SSH","engine":"postgres",
+            "host":"db.invalid","port":5432,"database":"app","user":"app",
+            "ssl_mode":"disable","env_tag":null,"application_name":null,"color":null,
+            "ssh":{"server":{"host":"bastion.invalid","port":22,"user":"u",
+                "auth_method":"agent","private_key_path":null},"jump_host":null}});
+        let request: Request = serde_json::from_value(json!({"action":"schema",
+            "connection":"project-ssh","session_profile":profile}))
+        .unwrap();
+        assert_eq!(run(request).await.unwrap_err(), profiles::SSH_UNSUPPORTED);
     }
 
     #[tokio::test]

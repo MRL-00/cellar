@@ -3,7 +3,7 @@
 //! materialized query execution with type-aware cell decoding.
 
 use async_trait::async_trait;
-use cellar_core::driver::{Connection, ConnectionConfig, Driver, Engine};
+use cellar_core::driver::{Connection, ConnectionConfig, ConnectionSecrets, Driver, Engine};
 use cellar_core::error::CellarResult;
 use cellar_core::query::{
     PlanMode, Query, QueryPlan, QueryResult, QueryResultPage, QueryResultSummary,
@@ -18,10 +18,12 @@ mod decode;
 mod introspect;
 mod query;
 mod runtime;
+mod ssh;
+mod ssh_tls;
 mod table_browse;
 mod usages;
 
-pub use connect::{open_pool, PgConnection};
+pub use connect::{open_pool, open_pool_with_secrets, PgConnection};
 pub use usages::search_usages;
 
 /// Zero-sized handle. Construct once per process and reuse — drivers carry no
@@ -87,6 +89,14 @@ impl Driver for PostgresDriver {
     ) -> CellarResult<Box<dyn Connection>> {
         let pg = open_pool(config, password).await?;
         Ok(Box::new(pg))
+    }
+
+    async fn connect_with_secrets(
+        &self,
+        config: &ConnectionConfig,
+        secrets: &ConnectionSecrets,
+    ) -> CellarResult<Box<dyn Connection>> {
+        Ok(Box::new(open_pool_with_secrets(config, secrets).await?))
     }
 
     async fn introspect(&self, conn: &dyn Connection) -> CellarResult<Vec<Database>> {

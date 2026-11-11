@@ -23,6 +23,7 @@ cellar-core = { path = "../cellar-core" }
 cellar-diff = { path = "../cellar-diff" }
 cellar-sql = { path = "../cellar-sql" }
 cellar-secrets = { path = "../cellar-secrets" }
+cellar-ssh = { path = "../cellar-ssh" }
 cellar-driver-convex = { path = "../cellar-drivers/convex" }
 cellar-driver-cosmos = { path = "../cellar-drivers/cosmos" }
 cellar-driver-firestore = { path = "../cellar-drivers/firestore" }

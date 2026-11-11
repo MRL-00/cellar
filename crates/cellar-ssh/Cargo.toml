@@ -1,0 +1,22 @@
+[package]
+name = "cellar-ssh"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Cellar - shared native SSH transport"
+publish = false
+
+[dependencies]
+cellar-core = { path = "../cellar-core" }
+tokio = { workspace = true }
+thiserror = { workspace = true }
+hmac = "0.12"
+sha1 = "0.10"
+russh = { version = "0.64.1", default-features = false, features = ["ring", "rsa"] }
+dirs = "6"
+
+[dev-dependencies]
+tempfile = "3"
+rand = "0.10"
+futures = "0.3"
+tokio = { workspace = true, features = ["test-util"] }

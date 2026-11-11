@@ -12,7 +12,7 @@ pub mod value;
 
 pub use driver::{Connection, ConnectionConfig, Driver, DriverInfo, Engine, EnvTag, SslMode};
 pub use er::{ErColumn, ErEdge, ErGraph, ErNode};
-pub use error::{CellarError, CellarResult};
+pub use error::{CellarError, CellarResult, SshHostKey};
 pub use query::{
     DatabaseNotice, DetectedParameter, NoticeCapture, NoticeSeverity, ParameterStyle, PlanDetail,
     PlanMode, PlanNode, Query, QueryParam, QueryPlan, QueryResult, QueryResultPage,
@@ -29,6 +29,29 @@ mod tests {
     use super::*;
     use chrono::NaiveDate;
     use serde_json::json;
+
+    #[test]
+    fn ssh_capability_follows_network_sql_families() {
+        for engine in [
+            Engine::Postgres,
+            Engine::Supabase,
+            Engine::Neon,
+            Engine::MySql,
+            Engine::PlanetScale,
+            Engine::Mssql,
+        ] {
+            assert!(engine.supports_ssh(), "{engine:?}");
+        }
+        for engine in [
+            Engine::Azure,
+            Engine::Sqlite,
+            Engine::Firestore,
+            Engine::Convex,
+            Engine::Cosmos,
+        ] {
+            assert!(!engine.supports_ssh(), "{engine:?}");
+        }
+    }
 
     #[test]
     fn round_trips_a_database_tree() {

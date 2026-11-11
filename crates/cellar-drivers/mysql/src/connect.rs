@@ -1,9 +1,10 @@
 use std::any::Any;
-use std::str::FromStr;
 
+use crate::ssh_tls::TlsBridge;
 use async_trait::async_trait;
-use cellar_core::driver::{Connection, ConnectionConfig, DriverInfo, SslMode};
+use cellar_core::driver::{Connection, ConnectionConfig, ConnectionSecrets, DriverInfo, SslMode};
 use cellar_core::error::{CellarError, CellarResult};
+use cellar_ssh::SshTunnel;
 use sqlx::mysql::{MySqlConnectOptions, MySqlPoolOptions, MySqlSslMode};
 use sqlx::{Error as SqlxError, MySqlPool, Row};
 
@@ -13,6 +14,7 @@ pub struct MySqlConnection {
     info: DriverInfo,
     pool: MySqlPool,
     config: ConnectionConfig,
+    tunnel: Option<SshTunnel>,
 }
 
 impl MySqlConnection {
@@ -43,6 +45,9 @@ impl Connection for MySqlConnection {
 
     async fn close(&self) -> CellarResult<()> {
         self.pool.close().await;
+        if let Some(tunnel) = &self.tunnel {
+            tunnel.close().await;
+        }
         Ok(())
     }
 
@@ -55,7 +60,50 @@ pub async fn open_pool(
     config: &ConnectionConfig,
     password: Option<&str>,
 ) -> CellarResult<MySqlConnection> {
-    let pool = build_pool(config, password, DEFAULT_POOL_SIZE).await?;
+    open_pool_with_secrets(
+        config,
+        &ConnectionSecrets {
+            password: password.map(str::to_owned),
+            ..Default::default()
+        },
+    )
+    .await
+}
+
+pub async fn open_pool_with_secrets(
+    config: &ConnectionConfig,
+    secrets: &ConnectionSecrets,
+) -> CellarResult<MySqlConnection> {
+    let mut opts = connect_options(config, secrets.password.as_deref());
+    let tunnel = if config.ssh.is_some() {
+        let tunnel = if config.ssl_mode == SslMode::Disable {
+            SshTunnel::open(config, secrets).await?
+        } else {
+            let bridge = TlsBridge::new(config)?;
+            opts = bridge.local_options(opts);
+            SshTunnel::open_with(config, secrets, move |local, remote| {
+                let bridge = bridge.clone();
+                async move { bridge.forward(local, remote).await }
+            })
+            .await?
+        };
+        opts = opts
+            .host(&tunnel.address().ip().to_string())
+            .port(tunnel.address().port());
+        Some(tunnel)
+    } else {
+        None
+    };
+    let pool = MySqlPoolOptions::new()
+        .max_connections(DEFAULT_POOL_SIZE)
+        .connect_with(opts)
+        .await
+        .map_err(|error| {
+            tunnel
+                .as_ref()
+                .and_then(SshTunnel::take_error)
+                .unwrap_or_else(|| map_sqlx_err_for_connect(error))
+        })?;
 
     let version = sqlx::query("SELECT VERSION() AS v")
         .fetch_one(&pool)
@@ -76,32 +124,25 @@ pub async fn open_pool(
         },
         pool,
         config: config.clone(),
+        tunnel,
     })
 }
 
-async fn build_pool(
-    config: &ConnectionConfig,
-    password: Option<&str>,
-    max_connections: u32,
-) -> CellarResult<MySqlPool> {
-    let mut opts = MySqlConnectOptions::from_str(&format!(
-        "mysql://{user}@{host}:{port}/{db}",
-        user = config.user,
-        host = config.host,
-        port = config.port,
-        db = config.database,
-    ))
-    .map_err(|e| CellarError::invalid_config(e.to_string()))?
-    .ssl_mode(map_ssl_mode(config.ssl_mode));
+fn connect_options(config: &ConnectionConfig, password: Option<&str>) -> MySqlConnectOptions {
+    let mut opts = MySqlConnectOptions::new()
+        .host(&config.host)
+        .port(config.port)
+        .username(&config.user)
+        .ssl_mode(map_ssl_mode(config.ssl_mode));
+    // An empty database means none selected, as with the former URL path.
+    if !config.database.is_empty() {
+        opts = opts.database(&config.database);
+    }
     if let Some(p) = password {
         opts = opts.password(p);
     }
 
-    MySqlPoolOptions::new()
-        .max_connections(max_connections)
-        .connect_with(opts)
-        .await
-        .map_err(map_sqlx_err_for_connect)
+    opts
 }
 
 fn map_ssl_mode(mode: SslMode) -> MySqlSslMode {

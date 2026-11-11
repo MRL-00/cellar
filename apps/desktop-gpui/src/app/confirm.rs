@@ -13,6 +13,7 @@ pub(super) enum ConfirmAction {
     RemoveConnection(String),
     Analyze(u64),
     Reconnect(String),
+    TrustSsh(super::ssh_trust::SshTrustPrompt),
 }
 
 pub(super) struct Confirmation {
@@ -44,6 +45,20 @@ impl CellarApp {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        // A separately requested confirmation must not discard an in-memory
+        // SSH retry (including the editor's credential snapshot).
+        if matches!(
+            self.confirmation.as_ref().map(|c| &c.action),
+            Some(ConfirmAction::TrustSsh(_))
+        ) {
+            if let Some(Confirmation {
+                action: ConfirmAction::TrustSsh(prompt),
+                ..
+            }) = self.confirmation.take()
+            {
+                self.pending_ssh_trust.push_front(prompt);
+            }
+        }
         self.confirmation = Some(confirmation);
         self.confirmation_focus.focus(window);
         cx.notify();
@@ -59,8 +74,11 @@ impl CellarApp {
             return;
         };
         let skip_pending = skip_pending_connection_errors(confirmed, &confirmation.action);
-        if confirmed {
+        if let ConfirmAction::TrustSsh(prompt) = confirmation.action {
+            self.resolve_ssh_trust(prompt, confirmed, window, cx);
+        } else if confirmed {
             match confirmation.action {
+                ConfirmAction::TrustSsh(_) => unreachable!(),
                 ConfirmAction::Dismiss => {}
                 ConfirmAction::RemoveConnection(id) => {
                     self.delete_connection_confirmed(id, window, cx)
@@ -83,6 +101,9 @@ impl CellarApp {
         cx: &mut Context<Self>,
     ) {
         while self.confirmation.is_none() {
+            if self.show_next_ssh_trust(window, cx) {
+                return;
+            }
             let Some(id) = dequeue_pending_connection_error(&mut self.pending_connection_errors)
             else {
                 return;
@@ -167,7 +188,13 @@ impl CellarApp {
                             .text_color(FG_SECONDARY)
                             .text_size(ui_px(14.))
                             .line_height(ui_px(23.))
-                            .child(confirmation.message.clone()),
+                            .whitespace_normal()
+                            .children(
+                                confirmation
+                                    .message
+                                    .lines()
+                                    .map(|line| div().min_w_0().child(line.to_owned())),
+                            ),
                     )
                     .child(
                         div()
@@ -269,7 +296,9 @@ fn skip_pending_connection_errors(confirmed: bool, action: &ConfirmAction) -> bo
     confirmed
         && matches!(
             action,
-            ConfirmAction::Reconnect(_) | ConfirmAction::RemoveConnection(_)
+            ConfirmAction::Reconnect(_)
+                | ConfirmAction::RemoveConnection(_)
+                | ConfirmAction::TrustSsh(_)
         )
 }
 
@@ -374,6 +403,44 @@ mod tests {
             true,
             &ConfirmAction::Analyze(1)
         ));
+    }
+
+    #[test]
+    fn trust_cancel_advances_queue_but_confirm_waits_for_persistence() {
+        use crate::app::ssh_trust::{SshRetry, SshTrustPrompt};
+        use cellar_core::error::{CellarError, SshHostKey};
+        let prompt = SshTrustPrompt::from_error(
+            CellarError::SshHostKeyUnknown(SshHostKey {
+                host: "server".into(),
+                port: 22,
+                algorithm: "ssh-ed25519".into(),
+                fingerprint: "SHA256:fingerprint".into(),
+                public_key: "public".into(),
+            }),
+            SshRetry::Saved {
+                id: "saved".into(),
+                revision: 1,
+                reconnect: true,
+                refresh: true,
+            },
+        )
+        .unwrap();
+        let action = ConfirmAction::TrustSsh(prompt);
+        assert!(!skip_pending_connection_errors(false, &action));
+        assert!(skip_pending_connection_errors(true, &action));
+        let trust = Confirmation {
+            title: "Trust".into(),
+            message: "verify".into(),
+            confirm_label: "Trust & Connect",
+            cancel_label: "Cancel",
+            danger: false,
+            action,
+        };
+        assert!(!can_replace_confirmation(Some(&trust)));
+        assert_eq!(
+            defer_connection_error_id(Some(&trust), "other").as_deref(),
+            Some("other")
+        );
     }
 
     #[test]

@@ -17,6 +17,7 @@ members = [
     "crates/cellar-diff",
     "crates/cellar-schema-diff",
     "crates/cellar-secrets",
+    "crates/cellar-ssh",
 ]
 
 [workspace.package]

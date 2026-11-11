@@ -58,6 +58,7 @@ pub(crate) mod sidebar_layout;
 mod sidebar_menu;
 mod sql_completion;
 mod sqlite_files;
+mod ssh_trust;
 mod status_bar;
 mod tab_context_menu;
 mod table_column_menus;
@@ -177,6 +178,7 @@ pub struct CellarApp {
     confirmation: Option<confirm::Confirmation>,
     confirmation_focus: FocusHandle,
     pending_connection_errors: Vec<String>,
+    pending_ssh_trust: std::collections::VecDeque<ssh_trust::SshTrustPrompt>,
     settings_open: bool,
     settings_category: settings::SettingsCategory,
     settings_search: Entity<InputState>,
@@ -366,6 +368,7 @@ impl CellarApp {
             confirmation: None,
             confirmation_focus: cx.focus_handle().tab_stop(true),
             pending_connection_errors: Vec::new(),
+            pending_ssh_trust: Default::default(),
             settings_open: false,
             settings_category: settings::SettingsCategory::Appearance,
             settings_search,
