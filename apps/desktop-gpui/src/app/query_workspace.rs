@@ -310,6 +310,8 @@ impl CellarApp {
         if !self.model.begin_query(tab_id) {
             return;
         }
+        // Syncs the sidebar when Run opens a closed connection; a no-op when connected.
+        self.start_connect(target.connection_id.clone(), window, cx);
         self.bottom_panel_tab = super::shell::BottomPanelTab::Results;
         self.reveal_bottom_panel(true, cx);
         self.clear_query_error(tab_id, cx);
@@ -340,10 +342,14 @@ impl CellarApp {
                     .send_blocking(QueryUiEvent::Page(page))
                     .map_err(|_| CellarError::query("query view closed"))
             };
-            let result = registry
-                .run_query_stream(&target.connection_id, query, QUERY_PAGE_SIZE, &mut on_page)
-                .await
-                .map_err(|error| error.to_string());
+            let result = async {
+                registry.ensure_connected(&target.connection_id).await?;
+                registry
+                    .run_query_stream(&target.connection_id, query, QUERY_PAGE_SIZE, &mut on_page)
+                    .await
+            }
+            .await
+            .map_err(|error| error.to_string());
             if let Some(history) = history {
                 let (success, duration_ms, row_count, truncated, error_summary) = match &result {
                     Ok(summary) => (
