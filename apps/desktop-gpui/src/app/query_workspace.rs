@@ -310,8 +310,6 @@ impl CellarApp {
         if !self.model.begin_query(tab_id) {
             return;
         }
-        // Syncs the sidebar when Run opens a closed connection; a no-op when connected.
-        self.start_connect(target.connection_id.clone(), window, cx);
         self.bottom_panel_tab = super::shell::BottomPanelTab::Results;
         self.reveal_bottom_panel(true, cx);
         self.clear_query_error(tab_id, cx);
@@ -328,6 +326,7 @@ impl CellarApp {
         let history_sql = sql.clone();
         let history_database = target.database.clone();
         let connection_id = target.connection_id.clone();
+        let sidebar_connection_id = connection_id.clone();
         let query = Query::new(sql)
             .with_max_rows(QUERY_ROW_LIMIT)
             .with_database(target.database)
@@ -385,9 +384,9 @@ impl CellarApp {
             let _ = sender.send(QueryUiEvent::Complete(result)).await;
         });
 
-        cx.spawn(async move |this, cx| {
+        cx.spawn_in(window, async move |this, cx| {
             while let Ok(event) = receiver.recv().await {
-                this.update(cx, |this, cx| {
+                this.update_in(cx, |this, window, cx| {
                     if this.query_generations.get(&tab_id) != Some(&generation)
                         || !this.model.tabs().iter().any(|tab| tab.id == tab_id)
                     {
@@ -426,6 +425,8 @@ impl CellarApp {
                         }
                         QueryUiEvent::Complete(result) => match result {
                             Ok(mut summary) => {
+                                // Run owns the connect; this reuses its pool to sync the sidebar.
+                                this.start_connect(sidebar_connection_id.clone(), window, cx);
                                 if let Some(editor) = this.editors.get(&tab_id) {
                                     this.query_saved_sql
                                         .insert(tab_id, editor.read(cx).value().to_string());
