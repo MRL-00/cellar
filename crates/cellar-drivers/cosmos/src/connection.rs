@@ -671,6 +671,7 @@ mod tests {
             database: "".into(),
             user: "".into(),
             ssl_mode: SslMode::Require,
+            ssh: None,
             env_tag: None,
             application_name: Some("cellar-test".into()),
             color: None,

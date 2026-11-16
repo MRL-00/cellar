@@ -1,8 +1,12 @@
 use std::any::Any;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use async_trait::async_trait;
-use cellar_core::driver::{Connection, ConnectionConfig, DriverInfo, Engine, SslMode};
+use cellar_core::driver::{
+    Connection, ConnectionConfig, ConnectionSecrets, DriverInfo, Engine, SslMode,
+};
 use cellar_core::error::{CellarError, CellarResult};
+use cellar_ssh::SshTunnel;
 use tiberius::{AuthMethod, Client, Config, EncryptionLevel};
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
@@ -16,6 +20,10 @@ pub struct SqlServerConnection {
     /// `None` after the session is poisoned (failed restore / rollback) so the
     /// shared TDS client cannot be reused in an unknown database or tran state.
     client: Mutex<Option<TdsClient>>,
+    /// Set by `close()` without waiting for the client lock; an operation that
+    /// holds the lock drops the client when it finishes and new ones refuse.
+    closed: AtomicBool,
+    tunnel: Option<SshTunnel>,
 }
 
 impl SqlServerConnection {
@@ -27,13 +35,24 @@ impl SqlServerConnection {
         &self,
         f: impl AsyncFnOnce(&mut TdsClient) -> CellarResult<T>,
     ) -> CellarResult<T> {
-        let mut guard = self.client.lock().await;
-        let client = guard.as_mut().ok_or_else(|| {
+        let closed = || {
             CellarError::NotConnected("SQL Server connection is closed; reconnect and retry".into())
-        })?;
+        };
+        if self.closed.load(Ordering::Acquire) {
+            return Err(closed());
+        }
+        let mut guard = self.client.lock().await;
+        if self.closed.load(Ordering::Acquire) {
+            *guard = None;
+            return Err(closed());
+        }
+        let client = guard.as_mut().ok_or_else(closed)?;
         let result = f(client).await;
-        if matches!(&result, Err(err) if is_session_poison(err)) {
-            // Drop the TDS client so later ops cannot run on a contaminated session.
+        if self.closed.load(Ordering::Acquire)
+            || matches!(&result, Err(err) if is_session_poison(err))
+        {
+            // Drop the TDS client so later ops cannot run on a closed or
+            // contaminated session.
             *guard = None;
         }
         result
@@ -77,6 +96,17 @@ impl Connection for SqlServerConnection {
     }
 
     async fn close(&self) -> CellarResult<()> {
+        // Never wait for an in-flight operation. If one holds the client, it
+        // drops it on completion (see `with_client`); aborting the tunnel
+        // below also kills its socket so the operation fails promptly.
+        self.closed.store(true, Ordering::Release);
+        if let Ok(mut client) = self.client.try_lock() {
+            // Release the database socket before tearing down its transport.
+            client.take();
+        }
+        if let Some(tunnel) = &self.tunnel {
+            tunnel.close().await;
+        }
         Ok(())
     }
 
@@ -90,23 +120,68 @@ pub async fn open_client(
     password: Option<&str>,
     engine: Engine,
 ) -> CellarResult<SqlServerConnection> {
-    let tds_config = build_config(config, password, engine)?;
-    let tcp = TcpStream::connect(tds_config.get_addr())
-        .await
-        .map_err(|e| CellarError::connection(format!("could not reach SQL Server: {e}")))?;
+    let secrets = ConnectionSecrets {
+        password: password.map(str::to_owned),
+        ..Default::default()
+    };
+    open_client_with_secrets(config, &secrets, engine).await
+}
+
+pub async fn open_client_with_secrets(
+    config: &ConnectionConfig,
+    secrets: &ConnectionSecrets,
+    engine: Engine,
+) -> CellarResult<SqlServerConnection> {
+    // Azure SQL redirects are incompatible with this fixed-target tunnel.
+    // Reject saved Azure tunnel settings rather than connecting directly.
+    if engine == Engine::Azure || config.engine == Engine::Azure {
+        config.reject_ssh()?;
+    }
+    let tds_config = build_config(config, secrets.password.as_deref(), engine)?;
+    let tunnel = if config.ssh.is_some() {
+        Some(SshTunnel::open(config, secrets).await?)
+    } else {
+        None
+    };
+    // Only the TCP destination changes. Tiberius retains the original host for
+    // certificate verification, SNI, and the Azure SQL login server name.
+    let tcp = tokio::time::timeout(std::time::Duration::from_secs(30), async {
+        if let Some(tunnel) = &tunnel {
+            TcpStream::connect(tunnel.address()).await
+        } else {
+            TcpStream::connect(tds_config.get_addr()).await
+        }
+    })
+    .await
+    .map_err(|_| CellarError::Timeout("SQL Server TCP connection timed out".into()))?
+    .map_err(|e| CellarError::connection(format!("could not reach SQL Server: {e}")))?;
     tcp.set_nodelay(true).map_err(|e| {
         CellarError::connection(format!("could not configure SQL Server TCP socket: {e}"))
     })?;
 
-    let mut client = Client::connect(tds_config, tcp.compat_write())
-        .await
-        .map_err(map_tiberius_connect_err)?;
+    // Tiberius accepts a supplied stream and returns Routing as an error; it
+    // never opens a redirect socket itself. Do not retry redirects over
+    // direct TCP, which would bypass SSH.
+    let mut client = tokio::time::timeout(
+        std::time::Duration::from_secs(30),
+        Client::connect(tds_config, tcp.compat_write()),
+    )
+    .await
+    .map_err(|_| CellarError::Timeout("SQL Server TLS/login negotiation timed out".into()))?
+    .map_err(|error| {
+        tunnel
+            .as_ref()
+            .and_then(SshTunnel::take_error)
+            .unwrap_or_else(|| map_tiberius_connect_err(error))
+    })?;
     let version = server_version(&mut client).await?;
 
     Ok(SqlServerConnection {
         info: DriverInfo { engine, version },
         config: config.clone(),
         client: Mutex::new(Some(client)),
+        closed: AtomicBool::new(false),
+        tunnel,
     })
 }
 
@@ -171,6 +246,11 @@ async fn server_version(client: &mut TdsClient) -> CellarResult<String> {
 }
 
 fn map_tiberius_connect_err(err: tiberius::error::Error) -> CellarError {
+    if matches!(err, tiberius::error::Error::Routing { .. }) {
+        return CellarError::Connection(
+            "SQL Server requested a redirect; redirects are not followed".into(),
+        );
+    }
     let msg = err.to_string();
     let lower = msg.to_lowercase();
     if lower.contains("login failed") || lower.contains("authentication") {
@@ -204,6 +284,10 @@ pub(crate) fn map_tiberius_runtime_err(
         CellarError::query(msg)
     }
 }
+
+#[cfg(test)]
+#[path = "connect_tests.rs"]
+mod tests;
 
 pub(crate) fn as_sqlserver<'a>(conn: &'a dyn Connection) -> CellarResult<&'a SqlServerConnection> {
     conn.as_any()

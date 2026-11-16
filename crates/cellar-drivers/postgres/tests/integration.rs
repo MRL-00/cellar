@@ -58,6 +58,7 @@ async fn boot() -> Live {
         database: "postgres".into(),
         user: "postgres".into(),
         ssl_mode: SslMode::Disable,
+        ssh: None,
         env_tag: None,
         application_name: Some("cellar-tests".into()),
         color: None,

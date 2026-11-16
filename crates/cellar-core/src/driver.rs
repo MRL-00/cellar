@@ -43,6 +43,19 @@ impl Engine {
         }
     }
 
+    /// Network SQL drivers that implement authenticated SSH forwarding.
+    pub fn supports_ssh(&self) -> bool {
+        matches!(
+            self,
+            Self::Postgres
+                | Self::Supabase
+                | Self::Neon
+                | Self::MySql
+                | Self::PlanetScale
+                | Self::Mssql
+        )
+    }
+
     /// The wire-protocol family this engine speaks. Hosted providers map onto
     /// the driver and SQL dialect of their base engine (Azure did this first
     /// via `SqlServerDriver::azure()`), so capability gates and dispatch
@@ -84,9 +97,43 @@ impl Default for SslMode {
     }
 }
 
+/// SSH authentication is explicit; credentials are stored separately.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum SshAuthMethod {
+    Agent,
+    Password,
+    PrivateKey,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]
+pub struct SshHostConfig {
+    pub host: String,
+    pub port: u16,
+    pub user: String,
+    pub auth_method: SshAuthMethod,
+    pub private_key_path: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]
+pub struct SshTunnelConfig {
+    pub server: SshHostConfig,
+    pub jump_host: Option<SshHostConfig>,
+}
+
+/// In-memory credentials. Deliberately neither serializable nor formattable.
+#[derive(Default, Clone)]
+pub struct ConnectionSecrets {
+    pub password: Option<String>,
+    pub ssh_password: Option<String>,
+    pub ssh_key_passphrase: Option<String>,
+    pub jump_password: Option<String>,
+    pub jump_key_passphrase: Option<String>,
+}
+
 /// Inputs required to open a connection. Passwords never live here — they
 /// come out of [`cellar-secrets`](../cellar_secrets) at connect time.
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]
 pub struct ConnectionConfig {
     pub id: String,
     pub name: String,
@@ -96,10 +143,23 @@ pub struct ConnectionConfig {
     pub database: String,
     pub user: String,
     pub ssl_mode: SslMode,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ssh: Option<SshTunnelConfig>,
     pub env_tag: Option<EnvTag>,
     pub application_name: Option<String>,
     /// Color swatch used by the sidebar accent strip; opaque hex like `#4f8ff7`.
     pub color: Option<String>,
+}
+
+impl ConnectionConfig {
+    pub fn reject_ssh(&self) -> CellarResult<()> {
+        if self.ssh.is_some() {
+            return Err(CellarError::invalid_config(
+                "SSH tunneling is supported only by PostgreSQL, MySQL, and SQL Server connections (Azure SQL excluded)",
+            ));
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -140,6 +200,17 @@ pub trait Driver: Send + Sync {
         config: &ConnectionConfig,
         password: Option<&str>,
     ) -> CellarResult<Box<dyn Connection>>;
+
+    /// Open with separately supplied SSH credentials. Unsupported drivers fail
+    /// closed rather than silently opening a direct database connection.
+    async fn connect_with_secrets(
+        &self,
+        config: &ConnectionConfig,
+        secrets: &ConnectionSecrets,
+    ) -> CellarResult<Box<dyn Connection>> {
+        config.reject_ssh()?;
+        self.connect(config, secrets.password.as_deref()).await
+    }
 
     /// Walk system catalogs and return the database → schema → table tree.
     /// Implementations should cache nothing — the host owns caching.

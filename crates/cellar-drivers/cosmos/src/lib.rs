@@ -50,6 +50,7 @@ impl Driver for CosmosDriver {
         config: &ConnectionConfig,
         secret: Option<&str>,
     ) -> CellarResult<Box<dyn Connection>> {
+        config.reject_ssh()?;
         let connection = CosmosConnection::open(config, secret).await?;
         Ok(Box::new(connection))
     }

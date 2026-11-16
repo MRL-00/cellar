@@ -17,6 +17,18 @@ pub struct Profile {
     pub ssl_ca_pem: Option<String>,
 }
 
+pub const SSH_UNSUPPORTED: &str =
+    "SSH tunnels are not supported by the extension service; remove the SSH settings or use the Cellar desktop app";
+
+/// The extension service has no SSH transport. Refuse tunnelled profiles so
+/// they never fall back to a direct connection to the database host.
+pub fn reject_ssh(profile: &Profile) -> Result<(), String> {
+    if profile.config.ssh.is_some() {
+        return Err(SSH_UNSUPPORTED.into());
+    }
+    Ok(())
+}
+
 pub fn directory() -> Result<PathBuf, String> {
     env::var("CELLAR_EXTENSION_STATE")
         .map(PathBuf::from)
@@ -98,6 +110,7 @@ pub fn manage(
         let mut profile: Profile =
             serde_json::from_value(value.ok_or("Connection details required")?)
                 .map_err(|_| "Invalid connection details")?;
+        reject_ssh(&profile)?;
         let previous = profiles
             .iter()
             .find(|p| p.config.id == profile.config.id)

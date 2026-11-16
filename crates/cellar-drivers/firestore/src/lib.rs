@@ -50,6 +50,7 @@ impl Driver for FirestoreDriver {
         config: &ConnectionConfig,
         secret: Option<&str>,
     ) -> CellarResult<Box<dyn Connection>> {
+        config.reject_ssh()?;
         let connection = FirestoreConnection::open(config, secret).await?;
         Ok(Box::new(connection))
     }
@@ -683,6 +684,7 @@ mod tests {
             database: "demo-project".into(),
             user: "".into(),
             ssl_mode: SslMode::Disable,
+            ssh: None,
             env_tag: None,
             application_name: Some("cellar-test".into()),
             color: None,

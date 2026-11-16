@@ -46,6 +46,7 @@ fn config_for_path(path: &Path) -> ConnectionConfig {
         database: path.to_string_lossy().into_owned(),
         user: String::new(),
         ssl_mode: SslMode::Disable,
+        ssh: None,
         env_tag: Some(EnvTag::Local),
         application_name: None,
         color: Some("#a78bfa".into()),

@@ -143,7 +143,8 @@ cellar/
 │   ├── cellar-diff/             # Pending changes → SQL
 │   ├── cellar-schema-diff/      # Schema comparison and migration generation
 │   ├── cellar-ai/               # Native provider transports and auth
-│   └── cellar-secrets/          # Credential storage
+│   ├── cellar-secrets/          # Credential storage
+│   └── cellar-ssh/              # Shared authenticated SSH transport
 ├── plugins/                     # First-party plugins
 ├── docs/                        # Architecture, ADRs, contributor guides
 ├── examples/                    # Docker compose for local DBs, sample data
@@ -184,6 +185,8 @@ Each driver is responsible for dialect-specific quirks (identifier quoting, type
 - Optimistic concurrency: re-validates rows against the DB before commit
 
 **`cellar-secrets`** stores connection credentials. Uses OS keychain (`keyring` crate) on macOS, Windows, and Linux where available. Falls back to a file encrypted with a key derived from a user-supplied master password.
+
+**`cellar-ssh`** owns protocol-neutral SSH authentication, jump hosts, host-key verification, and startup-bounded forwarding (established connections are not time-limited). Database drivers retain protocol negotiation and TLS identity checks; forwarding does not substitute localhost for the database's TLS hostname.
 
 An out-of-process plugin host is planned but not yet implemented. See §9.
 
@@ -238,9 +241,9 @@ Per-engine form. Common fields: host, port, database, user, password, SSL mode. 
 - **SQL Server / Azure SQL:** instance name, trust server certificate, encrypt
 - **Azure SQL only:** auth method (SQL auth, Azure AD password, Azure AD interactive, Managed Identity)
 
-Optional: SSH tunnel (host, port, user, key file / password), HTTP proxy, custom JDBC-style connection string override.
+Optional: SSH tunnel for PostgreSQL, MySQL, and SQL Server (including Supabase, Neon, and PlanetScale, but excluding Azure SQL), with SSH-agent, private-key (including passphrase), or password authentication. An optional jump host has its own host, port, user, and independent authentication method. SSH passwords and key passphrases are stored in the OS keychain, never connection metadata. Each SSH hop must pass host-key verification against the user's known-hosts file. Unknown keys require an explicit in-app confirmation showing the host, port, algorithm, and SHA256 fingerprint, with guidance to verify it independently. Only confirmation appends the presented key and retries; cancellation does not modify trust. Jump hosts and SSH servers are confirmed independently. Changed or revoked keys fail closed without an in-app override. Database host names retain their TLS identity through the tunnel. SSL modes keep standard client semantics through the tunnel: Prefer and Require encrypt without verifying the server certificate (Prefer also accepts a server without TLS; MySQL then protects the password with the server's RSA key), Verify CA checks the chain, and Verify full also checks the database host name. HTTP proxy and custom JDBC-style connection string override are planned.
 
-Test connection button. Save to keychain.
+Test connection button. Save to keychain. Clicking outside the connection editor does not dismiss it; use Cancel, Close, or a successful save. Connection feedback is displayed separately from the action buttons, wraps to the editor width, and scrolls for long diagnostics.
 
 #### Connection tagging
 

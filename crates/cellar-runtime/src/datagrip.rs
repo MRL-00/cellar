@@ -275,6 +275,7 @@ fn build_config(
         // DataGrip's SSL settings live elsewhere; default to prefer like the
         // new-connection form does.
         ssl_mode: SslMode::Prefer,
+        ssh: None,
         env_tag: None,
         application_name: Some("cellar".into()),
         color: None,

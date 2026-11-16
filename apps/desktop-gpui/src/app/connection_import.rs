@@ -36,7 +36,7 @@ impl ImportSource {
     fn hint(self) -> &'static str {
         match self {
             Self::Datagrip => "Passwords aren't stored by DataGrip — add them now or on first connect.",
-            Self::Tableplus => "Passwords aren't stored by TablePlus — add them now or on first connect. Tunnelled connections will import, but Cellar can't open SSH tunnels yet.",
+            Self::Tableplus => "Passwords aren't stored by TablePlus — add them now or on first connect. SSH settings aren't imported; configure the SSH tunnel tab before connecting to a tunnelled database.",
         }
     }
 

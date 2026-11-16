@@ -263,6 +263,7 @@ mod tests {
             database: path.to_string_lossy().into_owned(),
             user: String::new(),
             ssl_mode: SslMode::Disable,
+            ssh: None,
             env_tag: None,
             application_name: None,
             color: None,

@@ -11,8 +11,8 @@ mod splits;
 
 pub use crate::workspace_model::{
     ErDiagramState, ErDiagramTarget, QueryState, QueryTarget, SchemaCompareConfig,
-    SchemaCompareSource, SchemaCompareState, TabKind, TableLoadState, TablePage, TableTarget,
-    TableLookupContext, WorkspaceTab,
+    SchemaCompareSource, SchemaCompareState, TabKind, TableLoadState, TableLookupContext,
+    TablePage, TableTarget, WorkspaceTab,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -103,6 +103,8 @@ pub enum SplitOrientation {
 #[derive(Default)]
 pub struct AppModel {
     connections: Vec<ConnectionConfig>,
+    connection_revisions: HashMap<String, u64>,
+    next_connection_revision: u64,
     active_connection: Option<String>,
     states: HashMap<String, ConnectionState>,
     schemas: HashMap<String, Vec<Database>>,
@@ -132,6 +134,8 @@ impl AppModel {
                 .iter()
                 .map(|config| (config.id.clone(), ConnectionState::Disconnected))
                 .collect(),
+            connection_revisions: connections.iter().map(|c| (c.id.clone(), 1)).collect(),
+            next_connection_revision: 1,
             connections,
             active_connection,
             schemas: HashMap::new(),
@@ -155,8 +159,28 @@ impl AppModel {
         &self.connections
     }
 
+    pub fn connection_revision(&self, id: &str) -> Option<u64> {
+        self.connection_revisions.get(id).copied()
+    }
+
+    pub fn connection_revision_is_current(&self, id: &str, revision: u64) -> bool {
+        self.connection_revision(id) == Some(revision)
+    }
+
+    fn bump_connection_revision(&mut self) -> u64 {
+        self.next_connection_revision = self
+            .next_connection_revision
+            .checked_add(1)
+            .expect("connection revision exhausted");
+        self.next_connection_revision
+    }
+
     pub fn upsert_connection(&mut self, config: ConnectionConfig) {
         let id = config.id.clone();
+        // Even identical metadata can represent changed credentials. Never reuse
+        // a revision across saves or a delete/re-add of the same ID.
+        let revision = self.bump_connection_revision();
+        self.connection_revisions.insert(id.clone(), revision);
         if let Some(existing) = self
             .connections
             .iter_mut()
@@ -173,6 +197,8 @@ impl AppModel {
     }
 
     pub fn remove_connection(&mut self, id: &str) {
+        self.bump_connection_revision();
+        self.connection_revisions.remove(id);
         self.connections.retain(|config| config.id != id);
         self.states.remove(id);
         self.schemas.remove(id);

@@ -5,7 +5,7 @@
 //! plus TLS defaults.
 
 use async_trait::async_trait;
-use cellar_core::driver::{Connection, ConnectionConfig, Driver, Engine};
+use cellar_core::driver::{Connection, ConnectionConfig, ConnectionSecrets, Driver, Engine};
 use cellar_core::error::{CellarError, CellarResult};
 use cellar_core::query::{
     PlanMode, Query, QueryPlan, QueryResult, QueryResultPage, QueryResultSummary,
@@ -19,7 +19,7 @@ mod introspect;
 mod query;
 mod table_browse;
 
-pub use connect::{open_client, SqlServerConnection};
+pub use connect::{open_client, open_client_with_secrets, SqlServerConnection};
 
 #[derive(Debug, Clone, Copy)]
 pub struct SqlServerDriver {
@@ -84,6 +84,16 @@ impl Driver for SqlServerDriver {
     ) -> CellarResult<Box<dyn Connection>> {
         let conn = open_client(config, password, self.engine).await?;
         Ok(Box::new(conn))
+    }
+
+    async fn connect_with_secrets(
+        &self,
+        config: &ConnectionConfig,
+        secrets: &ConnectionSecrets,
+    ) -> CellarResult<Box<dyn Connection>> {
+        Ok(Box::new(
+            open_client_with_secrets(config, secrets, self.engine).await?,
+        ))
     }
 
     async fn introspect(&self, conn: &dyn Connection) -> CellarResult<Vec<Database>> {

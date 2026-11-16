@@ -41,6 +41,7 @@ async fn introspect_returns_columns_keys_indexes_and_views() {
         database: "test".into(),
         user: "root".into(),
         ssl_mode: SslMode::Disable,
+        ssh: None,
         env_tag: None,
         application_name: None,
         color: None,

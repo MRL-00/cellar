@@ -14,6 +14,8 @@ use tokio::sync::RwLock;
 
 mod bulk_connections;
 pub mod connection_import;
+mod connection_secrets;
+pub use cellar_core::driver::ConnectionSecrets;
 pub mod csv_import;
 pub mod datagrip;
 pub mod export;
@@ -25,9 +27,16 @@ pub mod tableplus;
 #[cfg(test)]
 mod tests;
 
+/// Call only after the user independently validates the presented fingerprint.
+/// The original operation must then retry with normal host-key verification.
+pub fn trust_ssh_host_key(key: &cellar_core::error::SshHostKey) -> CellarResult<()> {
+    cellar_ssh::trust_host_key(key)
+}
+
 pub use support::cellar_dir;
 use support::{
-    driver_for, find_table, persist, reconnectable_error, should_evict_connection, storage_path,
+    driver_for, find_table, keep_existing_pool, persist, reconnectable_error,
+    should_evict_connection, storage_path,
 };
 
 /// Filename for the on-disk connection list. Lives under `~/.cellar/` —
@@ -135,27 +144,14 @@ impl ConnectionRegistry {
         config: ConnectionConfig,
         password: Option<&str>,
     ) -> CellarResult<ConnectionConfig> {
-        let Some(password) = password else {
-            return self.save(config).await;
-        };
-        if config.id.is_empty() {
-            return Err(CellarError::invalid_config("connection id is empty"));
-        }
-        let mut inner = self.inner.write().await;
-        let previous = inner.configs.clone();
-        let mut updated = previous.clone();
-        updated.insert(config.id.clone(), config.clone());
-        persist(&updated).await?;
-        if let Err(error) = cellar_secrets::store(&config.id, password) {
-            persist(&previous).await.map_err(|rollback| {
-                CellarError::Internal(format!(
-                    "keychain update failed and connection metadata rollback failed: {error}; {rollback}"
-                ))
-            })?;
-            return Err(error.into());
-        }
-        inner.configs = updated;
-        Ok(config)
+        self.save_with_secrets(
+            config,
+            &ConnectionSecrets {
+                password: password.map(str::to_owned),
+                ..Default::default()
+            },
+        )
+        .await
     }
 
     pub async fn delete(&self, id: &str) -> CellarResult<()> {
@@ -183,29 +179,8 @@ impl ConnectionRegistry {
 
     pub async fn delete_with_secret(&self, id: &str) -> CellarResult<()> {
         self.delete(id).await?;
-        let _ = cellar_secrets::delete(id);
+        connection_secrets::delete_all(id);
         Ok(())
-    }
-
-    pub async fn test(
-        &self,
-        config: &ConnectionConfig,
-        password: Option<&str>,
-    ) -> CellarResult<DriverInfo> {
-        let driver = driver_for(config.engine)?;
-        let conn = driver.connect(config, password).await?;
-        let info = conn.info().clone();
-        let _ = conn.close().await;
-        Ok(info)
-    }
-
-    pub async fn test_with_secret(
-        &self,
-        config: &ConnectionConfig,
-        password: Option<String>,
-    ) -> CellarResult<DriverInfo> {
-        let password = password.or_else(|| cellar_secrets::load(&config.id).ok().flatten());
-        self.test(config, password.as_deref()).await
     }
 
     pub async fn open_info(&self, id: &str) -> Option<DriverInfo> {
@@ -220,13 +195,18 @@ impl ConnectionRegistry {
         let config = self.config_for(id).await?;
         let existing = {
             let inner = self.inner.read().await;
-            inner
-                .open
-                .get(id)
-                .map(|open| (open.connection.info().clone(), Arc::clone(&open.connection)))
+            inner.open.get(id).map(|open| {
+                (
+                    open.config == config,
+                    open.connection.info().clone(),
+                    Arc::clone(&open.connection),
+                )
+            })
         };
-        if let Some((info, connection)) = existing {
-            if connection.ping().await.is_ok() {
+        if let Some((current, info, connection)) = existing {
+            // A pool opened with settings since edited (e.g. an attempt that
+            // raced a save) must not be reused, even if it still answers.
+            if current && connection.ping().await.is_ok() {
                 return Ok(info);
             }
             if let Some(open) = self.remove_open_if_same(id, &connection).await {
@@ -235,19 +215,46 @@ impl ConnectionRegistry {
         }
 
         let driver = driver_for(config.engine)?;
-        let conn = driver.connect(&config, password).await?;
+        let secrets = connection_secrets::resolve(
+            &config,
+            ConnectionSecrets {
+                password: password.map(str::to_owned),
+                ..Default::default()
+            },
+        )?;
+        let conn = driver.connect_with_secrets(&config, &secrets).await?;
         let info = conn.info().clone();
         let connection: Arc<dyn Connection> = conn.into();
         let mut inner = self.inner.write().await;
-        if let Some(open) = inner.open.get(id) {
-            let existing = open.connection.info().clone();
+        // The settings were edited or removed while this attempt was opening:
+        // never publish a pool built from superseded settings.
+        if inner.configs.get(id) != Some(&config) {
             drop(inner);
             let _ = connection.close().await;
-            return Ok(existing);
+            return Err(CellarError::NotConnected(
+                "connection settings changed while connecting; retry".into(),
+            ));
+        }
+        if let Some(open) = inner.open.get(id) {
+            if keep_existing_pool(&open.config, &config, inner.configs.get(id)) {
+                let existing = open.connection.info().clone();
+                drop(inner);
+                let _ = connection.close().await;
+                return Ok(existing);
+            }
+        }
+        let replaced = inner.open.remove(id);
+        if replaced.is_some() {
+            inner.invalidate_connection(id);
         }
         inner
             .open
             .insert(id.to_string(), OpenConnection { config, connection });
+        drop(inner);
+        if let Some(old) = replaced {
+            // Best-effort, as for any evicted pool.
+            let _ = old.connection.close().await;
+        }
         Ok(info)
     }
 
@@ -255,8 +262,7 @@ impl ConnectionRegistry {
     /// missing or unavailable credential falls back to the driver's
     /// passwordless path, matching the legacy desktop behaviour.
     pub async fn connect_saved(&self, id: &str) -> CellarResult<DriverInfo> {
-        let password = cellar_secrets::load(id).ok().flatten();
-        self.connect(id, password.as_deref()).await
+        self.connect(id, None).await
     }
 
     pub async fn reconnect(&self, id: &str, password: Option<&str>) -> CellarResult<DriverInfo> {
@@ -267,8 +273,7 @@ impl ConnectionRegistry {
     }
 
     pub async fn reconnect_saved(&self, id: &str) -> CellarResult<DriverInfo> {
-        let password = cellar_secrets::load(id).ok().flatten();
-        self.reconnect(id, password.as_deref()).await
+        self.reconnect(id, None).await
     }
 
     pub async fn disconnect(&self, id: &str) -> CellarResult<()> {

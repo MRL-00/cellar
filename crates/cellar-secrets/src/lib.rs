@@ -12,6 +12,57 @@ use cellar_core::error::CellarError;
 
 const SERVICE: &str = "com.cellar.desktop";
 
+/// Separate services prevent SSH credential names colliding with legacy
+/// database password entries, including user/import-supplied connection IDs.
+#[derive(Clone, Copy)]
+pub enum ConnectionSecretKind {
+    Password,
+    SshPassword,
+    SshKeyPassphrase,
+    JumpPassword,
+    JumpKeyPassphrase,
+}
+
+impl ConnectionSecretKind {
+    fn service(self) -> &'static str {
+        match self {
+            Self::Password => SERVICE,
+            Self::SshPassword => "com.cellar.desktop.ssh-password",
+            Self::SshKeyPassphrase => "com.cellar.desktop.ssh-key-passphrase",
+            Self::JumpPassword => "com.cellar.desktop.jump-password",
+            Self::JumpKeyPassphrase => "com.cellar.desktop.jump-key-passphrase",
+        }
+    }
+}
+
+pub fn load_connection(
+    name: &str,
+    kind: ConnectionSecretKind,
+) -> Result<Option<String>, SecretError> {
+    let entry = keyring::Entry::new(kind.service(), name)?;
+    match entry.get_password() {
+        Ok(password) => Ok(Some(password)),
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(other) => Err(other.into()),
+    }
+}
+
+pub fn store_connection(
+    name: &str,
+    kind: ConnectionSecretKind,
+    password: &str,
+) -> Result<(), SecretError> {
+    keyring::Entry::new(kind.service(), name)?.set_password(password)?;
+    Ok(())
+}
+
+pub fn delete_connection(name: &str, kind: ConnectionSecretKind) -> Result<(), SecretError> {
+    match keyring::Entry::new(kind.service(), name)?.delete_credential() {
+        Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+        Err(other) => Err(other.into()),
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum SecretError {
     #[error("no secret found for {0}")]

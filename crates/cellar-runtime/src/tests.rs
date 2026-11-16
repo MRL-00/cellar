@@ -13,6 +13,7 @@ fn make_config(id: &str, name: &str) -> ConnectionConfig {
         user: "user".into(),
         database: "db".into(),
         ssl_mode: SslMode::Prefer,
+        ssh: None,
         env_tag: None,
         application_name: None,
         color: None,
@@ -102,4 +103,142 @@ async fn delete_removes_config_from_disk() {
         parsed.is_empty(),
         "disk must not contain deleted config after persist"
     );
+}
+
+#[test]
+fn connection_metadata_is_backward_compatible_and_roundtrips_ssh_without_secrets() {
+    use cellar_core::driver::{SshAuthMethod, SshHostConfig, SshTunnelConfig};
+    let config = make_config("legacy", "Legacy");
+    let legacy = serde_json::to_value(&config).unwrap();
+    assert!(legacy.get("ssh").is_none());
+    assert!(serde_json::from_value::<ConnectionConfig>(legacy)
+        .unwrap()
+        .ssh
+        .is_none());
+    let mut config = config;
+    let host = SshHostConfig {
+        host: "ssh.internal".into(),
+        port: 22,
+        user: "ssh-user".into(),
+        auth_method: SshAuthMethod::PrivateKey,
+        private_key_path: Some("~/.ssh/id_ed25519".into()),
+    };
+    config.ssh = Some(SshTunnelConfig {
+        server: host.clone(),
+        jump_host: Some(SshHostConfig {
+            auth_method: SshAuthMethod::Password,
+            ..host
+        }),
+    });
+    let json = serde_json::to_value(config).unwrap();
+    let decoded: ConnectionConfig = serde_json::from_value(json.clone()).unwrap();
+    assert_eq!(
+        decoded.ssh.unwrap().jump_host.unwrap().auth_method,
+        SshAuthMethod::Password
+    );
+    let encoded = json.to_string();
+    assert!(!encoded.contains("password\":"));
+    assert!(!encoded.contains("passphrase"));
+}
+
+#[tokio::test]
+async fn unsupported_drivers_reject_ssh_before_opening_any_transport() {
+    use cellar_core::driver::{ConnectionSecrets, SshAuthMethod, SshHostConfig, SshTunnelConfig};
+    let mut config = make_config("unsupported", "Unsupported");
+    config.ssh = Some(SshTunnelConfig {
+        server: SshHostConfig {
+            host: "127.0.0.1".into(),
+            port: 1,
+            user: "ssh".into(),
+            auth_method: SshAuthMethod::Agent,
+            private_key_path: None,
+        },
+        jump_host: None,
+    });
+    for engine in [
+        Engine::Azure,
+        Engine::Sqlite,
+        Engine::Firestore,
+        Engine::Cosmos,
+        Engine::Convex,
+    ] {
+        config.engine = engine;
+        let driver = super::support::driver_for(engine).unwrap();
+        for result in [
+            driver.connect(&config, None).await,
+            driver
+                .connect_with_secrets(&config, &ConnectionSecrets::default())
+                .await,
+        ] {
+            let error = result.err().expect("must reject SSH");
+            assert!(
+                error.to_string().contains(
+                    "SSH tunneling is supported only by PostgreSQL, MySQL, and SQL Server"
+                ),
+                "{engine:?}: {error}"
+            );
+        }
+    }
+}
+
+#[test]
+fn stale_pool_never_wins_over_current_settings() {
+    use super::support::keep_existing_pool;
+    let (old, new, other) = (
+        make_config("c", "Old"),
+        make_config("c", "New"),
+        make_config("c", "Other"),
+    );
+    assert!(
+        !keep_existing_pool(&old, &new, Some(&new)),
+        "replace stale pool"
+    );
+    assert!(
+        keep_existing_pool(&new, &old, Some(&new)),
+        "stale attempt loses"
+    );
+    assert!(keep_existing_pool(&new, &new, Some(&new)));
+    assert!(keep_existing_pool(&old, &other, Some(&new)), "both stale");
+    assert!(!keep_existing_pool(&old, &new, None), "deleted config");
+}
+
+#[tokio::test]
+async fn connect_replaces_pool_opened_with_edited_settings() {
+    let dir = tempfile::tempdir().expect("tmpdir");
+    let (first, second) = (dir.path().join("a.db"), dir.path().join("b.db"));
+    std::fs::File::create(&first).expect("first db");
+    std::fs::File::create(&second).expect("second db");
+    let mut config = make_config("c", "SQLite");
+    config.engine = Engine::Sqlite;
+    config.database = first.to_string_lossy().into_owned();
+    let registry = ConnectionRegistry::empty();
+    registry
+        .inner
+        .write()
+        .await
+        .configs
+        .insert("c".into(), config.clone());
+    // A supplied password keeps the test off the OS keychain.
+    registry.connect("c", Some("")).await.expect("connect");
+    let pool = std::sync::Arc::clone(&registry.inner.read().await.open["c"].connection);
+    registry.connect("c", Some("")).await.expect("reuse");
+    assert!(std::sync::Arc::ptr_eq(
+        &pool,
+        &registry.inner.read().await.open["c"].connection
+    ));
+
+    config.database = second.to_string_lossy().into_owned();
+    registry
+        .inner
+        .write()
+        .await
+        .configs
+        .insert("c".into(), config.clone());
+    registry.connect("c", Some("")).await.expect("reconnect");
+    {
+        let inner = registry.inner.read().await;
+        assert_eq!(inner.open["c"].config, config);
+        assert!(!std::sync::Arc::ptr_eq(&pool, &inner.open["c"].connection));
+    }
+    registry.disconnect("c").await.expect("disconnect");
 }

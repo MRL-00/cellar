@@ -53,6 +53,7 @@ impl Connection for SqliteConnection {
 }
 
 pub async fn open_pool(config: &ConnectionConfig) -> CellarResult<SqliteConnection> {
+    config.reject_ssh()?;
     let path = config.database.trim();
     if path.is_empty() {
         return Err(CellarError::invalid_config(

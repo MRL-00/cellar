@@ -714,6 +714,7 @@ mod tests {
             user: "cellar".into(),
             database: "epicdb".into(),
             ssl_mode: SslMode::Prefer,
+            ssh: None,
             env_tag: None,
             application_name: None,
             color: None,
