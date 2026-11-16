@@ -65,7 +65,7 @@ impl CodexAppServer {
             .spawn()
             .map_err(|error| {
                 CellarError::InvalidConfig(format!(
-                    "ChatGPT sign-in requires the Codex CLI in PATH ({error}). Install or update Codex, then restart Cellar."
+                    "ChatGPT sign-in requires the Codex CLI, which was not found on Cellar's PATH or your login shell's PATH ({error}). Install or update Codex, then restart Cellar."
                 ))
             })?;
         let stdin = child.stdin.take().ok_or_else(|| {
@@ -479,6 +479,7 @@ async fn login_shell_path() -> Option<String> {
     let output = timeout(Duration::from_secs(5), output).await.ok()?.ok()?;
     String::from_utf8_lossy(&output.stdout)
         .lines()
+        .rev()
         .find_map(|line| line.strip_prefix(MARKER))
         .filter(|path| !path.is_empty())
         .map(str::to_owned)
