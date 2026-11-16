@@ -83,7 +83,7 @@ pub async fn open_pool_with_secrets(
             opts = bridge.local_options(opts);
             SshTunnel::open_with(config, secrets, move |local, remote| {
                 let bridge = bridge.clone();
-                async move { bridge.forward(local, remote).await }
+                async move { bridge.negotiate(local, remote).await }
             })
             .await?
         };

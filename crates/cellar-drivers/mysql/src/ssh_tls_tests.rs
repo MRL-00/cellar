@@ -3,6 +3,15 @@ use cellar_core::driver::Engine;
 use sqlx::{ConnectOptions, Connection};
 use tokio::net::TcpListener;
 
+/// Production negotiation followed by the tunnel's relay, as `SshTunnel`
+/// runs them for each forwarded connection.
+async fn forward(bridge: &TlsBridge, local: TcpStream, remote: BoxedStream) -> CellarResult<()> {
+    if let Some((local, remote)) = bridge.negotiate(local, remote).await? {
+        cellar_ssh::relay(local, remote).await;
+    }
+    Ok(())
+}
+
 fn config(mode: SslMode, host: &str) -> ConnectionConfig {
     ConnectionConfig {
         id: "test".into(),
@@ -129,7 +138,7 @@ async fn login_case(
     let (channel, mut server) = tokio::io::duplex(64 * 1024);
     let forward = tokio::spawn(async move {
         let (local, _) = listener.accept().await.unwrap();
-        bridge.forward(local, Box::new(channel)).await
+        forward(&bridge, local, Box::new(channel)).await
     });
     let plugin = plugin.to_owned();
     let mock = tokio::spawn(async move {
@@ -313,7 +322,7 @@ async fn stalled_handshake_times_out_and_drops_both_streams() {
     let local = accepted.unwrap().0;
     let (channel, mut server) = tokio::io::duplex(64);
     tokio::time::pause();
-    let forward = tokio::spawn(async move { bridge.forward(local, Box::new(channel)).await });
+    let forward = tokio::spawn(async move { forward(&bridge, local, Box::new(channel)).await });
     tokio::task::yield_now().await;
     tokio::time::advance(std::time::Duration::from_secs(31)).await;
     assert!(matches!(
@@ -448,7 +457,7 @@ async fn preferred_never_retries_failed_tls_in_plaintext() {
     let (channel, mut server) = tokio::io::duplex(4096);
     let forward = tokio::spawn(async move {
         let (local, _) = listener.accept().await.unwrap();
-        bridge.forward(local, Box::new(channel)).await
+        forward(&bridge, local, Box::new(channel)).await
     });
     let mock = tokio::spawn(async move {
         server
@@ -509,7 +518,7 @@ async fn clear_password_switch(tls: bool) -> (bool, CellarResult<()>, bool) {
     let (channel, mut server) = tokio::io::duplex(64 * 1024);
     let forward = tokio::spawn(async move {
         let (local, _) = listener.accept().await.unwrap();
-        bridge.forward(local, Box::new(channel)).await
+        forward(&bridge, local, Box::new(channel)).await
     });
     let mock = tokio::spawn(async move {
         server

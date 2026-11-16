@@ -4,7 +4,7 @@
 //! authentication using MySQL's RSA protocol; local TLS is still pinned.
 use cellar_core::driver::{ConnectionConfig, SslMode};
 use cellar_core::error::{CellarError, CellarResult};
-use cellar_ssh::BoxedStream;
+use cellar_ssh::{BoxedStream, Negotiated};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio_rustls::{rustls, TlsAcceptor};
@@ -68,10 +68,16 @@ impl TlsBridge {
         )
     }
 
-    pub(crate) async fn forward(&self, local: TcpStream, remote: BoxedStream) -> CellarResult<()> {
-        // Match shared SSH/PG startup's 30-second budget. Only connection
-        // startup is bounded: queries and idle established sessions are not.
-        let ready = tokio::time::timeout(
+    /// Negotiates TLS and authentication; the tunnel relays the returned
+    /// streams. Only connection startup is bounded: queries and idle
+    /// established sessions are not.
+    pub(crate) async fn negotiate(
+        &self,
+        local: TcpStream,
+        remote: BoxedStream,
+    ) -> CellarResult<Negotiated> {
+        // Match shared SSH/PG startup's 30-second budget.
+        tokio::time::timeout(
             std::time::Duration::from_secs(30),
             self.prepare(local, remote),
         )
@@ -80,13 +86,7 @@ impl TlsBridge {
             CellarError::Timeout(
                 "MySQL SSH handshake and authentication timed out after 30 seconds".into(),
             )
-        })??;
-        if let Some((mut local, mut remote)) = ready {
-            tokio::io::copy_bidirectional(&mut local, &mut remote)
-                .await
-                .map_err(io_error)?;
-        }
-        Ok(())
+        })?
     }
 
     async fn prepare(
