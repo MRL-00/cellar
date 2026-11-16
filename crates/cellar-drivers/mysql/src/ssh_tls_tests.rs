@@ -84,26 +84,6 @@ async fn login_with_trust(
     trust_remote: bool,
     trust_local: bool,
 ) -> (bool, CellarResult<()>) {
-    login_case(
-        mode,
-        hostname,
-        plugin,
-        tls,
-        (trust_remote, trust_local),
-        Some("secret"),
-    )
-    .await
-}
-
-async fn login_case(
-    mode: SslMode,
-    hostname: &str,
-    plugin: &str,
-    tls: bool,
-    trust: (bool, bool),
-    password: Option<&str>,
-) -> (bool, CellarResult<()>) {
-    let (trust_remote, trust_local) = trust;
     let (acceptor, trust) = server_tls("database.example");
     let mut connector = native_tls::TlsConnector::builder();
     configure_remote(&mut connector, mode);
@@ -119,13 +99,9 @@ async fn login_case(
             .host("127.0.0.1")
             .port(address.port())
             .username("user")
+            .password("secret")
             .database("db"),
     );
-    if let Some(password) = password {
-        options = options.password(password);
-    }
-    let password_configured = password.is_some();
-    let password = password.unwrap_or_default().to_owned();
     if !trust_local {
         options = options.ssl_ca_from_pem(
             rcgen::generate_simple_self_signed(vec!["127.0.0.1".into()])
@@ -142,15 +118,7 @@ async fn login_case(
     });
     let plugin = plugin.to_owned();
     let mock = tokio::spawn(async move {
-        let initial_plugin = if plugin == "switch_sha256_password" {
-            "mysql_native_password"
-        } else {
-            &plugin
-        };
-        server
-            .write_all(&greeting(tls, initial_plugin))
-            .await
-            .unwrap();
+        server.write_all(&greeting(tls, &plugin)).await.unwrap();
         let Ok(first) = read_packet(&mut server).await else {
             return false;
         };
@@ -162,7 +130,7 @@ async fn login_case(
             };
             Box::new(server)
         } else {
-            // Plain fallback sends login at sequence 1, without SSLRequest.
+            // Plaintext login is at sequence 1, without SSLRequest.
             assert_eq!(first[3], 1);
             Box::new(server)
         };
@@ -189,36 +157,6 @@ async fn login_case(
             } else {
                 5
             }
-        } else if plugin == "sha256_password" && !password_configured {
-            assert_eq!(first[3], 1);
-            assert_eq!(
-                first[41], 0,
-                "absent password keeps empty auth, no RSA request"
-            );
-            2
-        } else if mode != SslMode::Disable && plugin != "mysql_native_password" {
-            assert_eq!(first[3], 1, "remote login has no SSLRequest sequence");
-            assert_eq!(first[5] & 8, 0, "remote login must clear CLIENT_SSL");
-            assert!(
-                !first.windows(7).any(|w| w == b"secret\0"),
-                "never forward plaintext password"
-            );
-            let next = if plugin == "switch_sha256_password" {
-                let switch = b"\xfesha256_password\0abcdefghijklmnopqrst\0";
-                server.write_all(&packet(2, switch)).await.unwrap();
-                assert_eq!(read_packet(&mut server).await.unwrap(), packet(3, &[1]));
-                4
-            } else if plugin == "caching_sha2_password" {
-                server.write_all(&packet(2, &[1, 4])).await.unwrap();
-                assert_eq!(read_packet(&mut server).await.unwrap(), packet(3, &[2]));
-                4
-            } else {
-                // HandshakeResponse has auth length 1 and public-key request 1.
-                assert_eq!(&first[41..43], &[1, 1]);
-                2
-            };
-            verify_rsa(&mut server, next, password.as_bytes()).await;
-            next + 2
         } else {
             2
         };
@@ -248,66 +186,6 @@ async fn login_case(
     let result = forward.await.unwrap();
     assert_eq!(mock.await.unwrap(), connected);
     (connected, result)
-}
-
-async fn verify_rsa(server: &mut BoxedStream, sequence: u8, expected: &[u8]) {
-    use rsa::pkcs8::{EncodePublicKey, LineEnding};
-    let key = rsa::RsaPrivateKey::new(&mut rand::thread_rng(), 2048).unwrap();
-    let pem = key
-        .to_public_key()
-        .to_public_key_pem(LineEnding::LF)
-        .unwrap();
-    let mut response = vec![1];
-    response.extend_from_slice(pem.as_bytes());
-    server
-        .write_all(&packet(sequence, &response))
-        .await
-        .unwrap();
-    let encrypted = read_packet(server).await.unwrap();
-    assert_eq!(encrypted[3], sequence + 1);
-    let decrypted = key
-        .decrypt(rsa::Oaep::new::<sha1::Sha1>(), &encrypted[4..])
-        .unwrap();
-    let password: Vec<_> = decrypted
-        .iter()
-        .enumerate()
-        .map(|(i, b)| b ^ b"abcdefghijklmnopqrst"[i % 20])
-        .collect();
-    assert_eq!(password.strip_suffix(&[0]).unwrap(), expected);
-}
-
-#[tokio::test]
-async fn preferred_plaintext_rsa_full_authentication() {
-    for plugin in [
-        "caching_sha2_password",
-        "sha256_password",
-        "switch_sha256_password",
-    ] {
-        let (connected, result) = login(SslMode::Prefer, "database.example", plugin, false).await;
-        assert!(connected);
-        result.unwrap();
-    }
-}
-
-#[tokio::test]
-async fn passwordless_sha256_initial_and_switch_authentication() {
-    for (plugin, password) in [
-        ("sha256_password", None),
-        ("switch_sha256_password", None),
-        ("sha256_password", Some("")),
-    ] {
-        let (connected, result) = login_case(
-            SslMode::Prefer,
-            "database.example",
-            plugin,
-            false,
-            (true, true),
-            password,
-        )
-        .await;
-        assert!(connected);
-        result.unwrap();
-    }
 }
 
 #[tokio::test]
@@ -384,25 +262,17 @@ async fn preferred_and_required_tls_authentication() {
 
 #[tokio::test]
 async fn preferred_plaintext_fallback_and_required_rejection() {
-    assert!(
-        login(
-            SslMode::Prefer,
-            "database.example",
-            "mysql_native_password",
-            false
-        )
-        .await
-        .0
-    );
-    let (connected, result) = login(
-        SslMode::Require,
-        "database.example",
-        "mysql_native_password",
-        false,
-    )
-    .await;
-    assert!(!connected);
-    assert!(matches!(result, Err(CellarError::Tls(_))));
+    // SQLx authenticates with the plaintext server itself, as PostgreSQL does.
+    let (connected, result) =
+        login(SslMode::Prefer, "database.example", "caching_sha2_password", false).await;
+    assert!(connected);
+    result.unwrap();
+    for mode in [SslMode::Require, SslMode::VerifyFull] {
+        let (connected, result) =
+            login(mode, "database.example", "caching_sha2_password", false).await;
+        assert!(!connected);
+        assert!(matches!(result, Err(CellarError::Tls(_))), "{mode:?}");
+    }
 }
 
 #[tokio::test]
@@ -420,28 +290,19 @@ async fn certificate_trust_is_enforced_on_both_legs() {
         assert!(!connected);
         assert!(matches!(result, Err(CellarError::Tls(_))));
     }
-    // Even Preferred must validate the local certificate and loopback SAN.
-    for tls in [false, true] {
-        let (connected, result) = login_with_trust(
-            SslMode::Prefer,
-            "database.example",
-            "caching_sha2_password",
-            tls,
-            true,
-            false,
-        )
-        .await;
-        assert!(!connected);
-        assert!(matches!(result, Err(CellarError::Tls(_))));
-    }
-}
-
-#[tokio::test]
-async fn unknown_plaintext_authentication_fails_closed() {
-    let (connected, result) =
-        login(SslMode::Prefer, "database.example", "unknown_plugin", false).await;
+    // Require does not verify the database certificate, but still pins the
+    // local bridge's certificate and loopback SAN.
+    let (connected, result) = login_with_trust(
+        SslMode::Require,
+        "database.example",
+        "caching_sha2_password",
+        true,
+        true,
+        false,
+    )
+    .await;
     assert!(!connected);
-    assert!(matches!(result, Err(CellarError::Authentication(_))));
+    assert!(matches!(result, Err(CellarError::Tls(_))));
 }
 
 #[tokio::test]
@@ -484,18 +345,12 @@ async fn truncated_packet_is_rejected() {
     for body in [&[][..], &[10][..], b"\x0a8.0\0"] {
         assert!(greeting_flags(&packet(0, body)).is_err());
     }
-    let complete = greeting(true, "caching_sha2_password");
-    for end in 4..complete.len() {
-        let truncated = packet(0, &complete[4..end]);
-        if let Ok(flags) = greeting_flags(&truncated) {
-            assert!(plain_auth::Handshake::parse(&truncated, flags).is_err());
-        }
-    }
 }
 
-// Real SQLx with the cleartext plugin enabled; the bridge must relay the switch
-// over a TLS remote leg and refuse it, before SQLx answers, over plaintext.
-async fn clear_password_switch(tls: bool) -> (bool, CellarResult<()>, bool) {
+// Real SQLx with the cleartext plugin enabled; the bridge relays the switch
+// unchanged because both legs are TLS.
+#[tokio::test]
+async fn clear_password_relayed_over_remote_tls() {
     let (acceptor, trust) = server_tls("database.example");
     let mut connector = native_tls::TlsConnector::builder();
     configure_remote(&mut connector, SslMode::Prefer);
@@ -522,49 +377,26 @@ async fn clear_password_switch(tls: bool) -> (bool, CellarResult<()>, bool) {
     });
     let mock = tokio::spawn(async move {
         server
-            .write_all(&greeting(tls, "caching_sha2_password"))
+            .write_all(&greeting(true, "caching_sha2_password"))
             .await
             .unwrap();
         let first = read_packet(&mut server).await.unwrap();
-        let (mut server, sequence): (BoxedStream, u8) = if tls {
-            assert_eq!(first.len(), 36, "SSLRequest, not login");
-            let mut server = acceptor.accept(server).await.unwrap();
-            assert_eq!(read_packet(&mut server).await.unwrap()[3], 2);
-            (Box::new(server), 3)
-        } else {
-            (Box::new(server), 2)
-        };
+        assert_eq!(first.len(), 36, "SSLRequest, not login");
+        let mut server = acceptor.accept(server).await.unwrap();
+        assert_eq!(read_packet(&mut server).await.unwrap()[3], 2);
+        let sequence = 3;
         // AWS Aurora IAM style: plugin name without challenge data.
         let switch = b"\xfemysql_clear_password\0";
         server.write_all(&packet(sequence, switch)).await.unwrap();
-        let Ok(answer) = read_packet(&mut server).await else {
-            return false;
-        };
-        assert!(tls, "cleartext password reached a plaintext server");
+        let answer = read_packet(&mut server).await.unwrap();
         assert_eq!(answer, packet(sequence + 1, b"secret\0"));
         let ok = [0, 0, 0, 2, 0, 0, 0];
         server.write_all(&packet(sequence + 2, &ok)).await.unwrap();
         assert_eq!(read_packet(&mut server).await.unwrap()[3], 0);
         server.write_all(&packet(1, &ok)).await.unwrap();
         let _ = read_packet(&mut server).await;
-        true
     });
-    let connected = match options.connect().await {
-        Ok(connection) => {
-            connection.close().await.unwrap();
-            true
-        }
-        Err(_) => false,
-    };
-    (connected, forward.await.unwrap(), mock.await.unwrap())
-}
-
-#[tokio::test]
-async fn clear_password_relayed_only_over_remote_tls() {
-    let (connected, result, answered) = clear_password_switch(true).await;
-    assert!(connected && answered);
-    result.unwrap();
-    let (connected, result, answered) = clear_password_switch(false).await;
-    assert!(!connected && !answered);
-    assert!(matches!(result, Err(CellarError::Authentication(_))));
+    options.connect().await.unwrap().close().await.unwrap();
+    mock.await.unwrap();
+    forward.await.unwrap().unwrap();
 }
