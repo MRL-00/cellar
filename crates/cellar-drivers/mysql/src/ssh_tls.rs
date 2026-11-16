@@ -1,18 +1,24 @@
 //! SQLx has no public custom MySQL socket or independent TLS-hostname option.
 //! Terminate TLS on both sides: SQLx keeps its TLS-aware authentication and
-//! packets are unchanged. Prefer's no-TLS remote fallback additionally bridges
-//! authentication using MySQL's RSA protocol; local TLS is still pinned.
+//! packets are unchanged, so after both handshakes the streams are relayed
+//! as-is. The loopback leg always pins the bridge's certificate. Prefer
+//! matches the PostgreSQL tunnel: when the server offers no TLS, neither leg
+//! uses it and SQLx authenticates directly with the server. Both legs must
+//! agree, because a TLS-aware client sends passwords that a plaintext server
+//! leg would expose.
 use cellar_core::driver::{ConnectionConfig, SslMode};
 use cellar_core::error::{CellarError, CellarResult};
-use cellar_ssh::BoxedStream;
+use cellar_ssh::{BoxedStream, Negotiated};
+use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::Arc;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio_rustls::{rustls, TlsAcceptor};
 
 const CLIENT_SSL: u16 = 0x0800;
-
-#[path = "ssh_plain_auth.rs"]
-mod plain_auth;
+const SERVER_TLS_UNKNOWN: u8 = 0;
+const SERVER_TLS_OFFERED: u8 = 1;
+const SERVER_TLS_ABSENT: u8 = 2;
 
 #[derive(Clone)]
 pub(crate) struct TlsBridge {
@@ -21,6 +27,9 @@ pub(crate) struct TlsBridge {
     remote: tokio_native_tls::TlsConnector,
     local: TlsAcceptor,
     certificate: Vec<u8>,
+    /// TLS support in the latest greeting read from the server over SSH. It
+    /// comes from the tunnelled leg, so a loopback peer cannot forge it.
+    server_tls: Arc<AtomicU8>,
 }
 
 impl TlsBridge {
@@ -52,9 +61,14 @@ impl TlsBridge {
             remote: remote.into(),
             local: TlsAcceptor::from(std::sync::Arc::new(local)),
             certificate,
+            server_tls: Arc::new(AtomicU8::new(SERVER_TLS_UNKNOWN)),
         })
     }
 
+    /// SQLx Preferred never verifies a certificate, so Prefer also pins the
+    /// loopback certificate with VerifyIdentity. A server without TLS makes
+    /// that attempt fail; [`Self::plaintext_fallback`] then decides whether
+    /// to retry in plaintext.
     pub(crate) fn local_options(
         &self,
         options: sqlx::mysql::MySqlConnectOptions,
@@ -68,10 +82,29 @@ impl TlsBridge {
         )
     }
 
-    pub(crate) async fn forward(&self, local: TcpStream, remote: BoxedStream) -> CellarResult<()> {
-        // Match shared SSH/PG startup's 30-second budget. Only connection
-        // startup is bounded: queries and idle established sessions are not.
-        let ready = tokio::time::timeout(
+    /// Plaintext options for a Prefer connection whose server, as seen over
+    /// SSH, offered no TLS. Later pool connections keep these options; if the
+    /// server starts offering TLS, the bridge refuses them instead of using
+    /// it in plaintext.
+    pub(crate) fn plaintext_fallback(
+        &self,
+        options: sqlx::mysql::MySqlConnectOptions,
+    ) -> Option<sqlx::mysql::MySqlConnectOptions> {
+        (self.mode == SslMode::Prefer
+            && self.server_tls.load(Ordering::SeqCst) == SERVER_TLS_ABSENT)
+            .then(|| options.ssl_mode(sqlx::mysql::MySqlSslMode::Disabled))
+    }
+
+    /// Negotiates TLS and authentication; the tunnel relays the returned
+    /// streams. Only connection startup is bounded: queries and idle
+    /// established sessions are not.
+    pub(crate) async fn negotiate(
+        &self,
+        local: TcpStream,
+        remote: BoxedStream,
+    ) -> CellarResult<Negotiated> {
+        // Match shared SSH/PG startup's 30-second budget.
+        tokio::time::timeout(
             std::time::Duration::from_secs(30),
             self.prepare(local, remote),
         )
@@ -80,13 +113,7 @@ impl TlsBridge {
             CellarError::Timeout(
                 "MySQL SSH handshake and authentication timed out after 30 seconds".into(),
             )
-        })??;
-        if let Some((mut local, mut remote)) = ready {
-            tokio::io::copy_bidirectional(&mut local, &mut remote)
-                .await
-                .map_err(io_error)?;
-        }
-        Ok(())
+        })?
     }
 
     async fn prepare(
@@ -105,54 +132,60 @@ impl TlsBridge {
         let flags = greeting_flags(&greeting)?;
         let supports_tls =
             u16::from_le_bytes([greeting[flags], greeting[flags + 1]]) & CLIENT_SSL != 0;
+        // Recorded before SQLx sees the greeting, so it is current when a
+        // pinned Prefer attempt fails.
+        self.server_tls.store(
+            if supports_tls {
+                SERVER_TLS_OFFERED
+            } else {
+                SERVER_TLS_ABSENT
+            },
+            Ordering::SeqCst,
+        );
         if !supports_tls && !matches!(self.mode, SslMode::Disable | SslMode::Prefer) {
             return Err(CellarError::Tls(
                 "MySQL server does not support required TLS".into(),
             ));
         }
-        // Validate the complete modern greeting before handing it to SQLx's
-        // decoder; truncated challenge/plugin fields must not reach its parser.
-        let handshake = plain_auth::Handshake::parse(&greeting, flags)?;
-        if self.mode != SslMode::Disable {
-            handshake.check(supports_tls)?;
-        }
+        // Without server TLS, Prefer continues in plaintext on both legs.
+        let plaintext = self.mode == SslMode::Disable || !supports_tls;
         if self.mode == SslMode::Disable {
             greeting[flags + 1] &= !0x08;
-        } else {
-            // Even when the remote lacks TLS, SQLx authenticates the local
-            // ephemeral identity. Never use SQLx Preferred (it ignores pins).
-            greeting[flags + 1] |= 0x08;
         }
         local.write_all(&greeting).await.map_err(io_error)?;
-        let request = read_packet(&mut local).await?;
+        let request = match read_packet(&mut local).await {
+            // A pinned Prefer client closes on a server without TLS; it
+            // reports that itself and retries in plaintext, so keeping this
+            // error would misreport the retry.
+            Err(_) if self.mode == SslMode::Prefer && plaintext => return Ok(None),
+            request => request?,
+        };
         if request[3] != 1 || request.len() < 8 {
             return Err(protocol_error());
         }
         let wants_tls = u16::from_le_bytes([request[4], request[5]]) & CLIENT_SSL != 0;
         if wants_tls {
             // Protocol 4.1 SSLRequest contains precisely 32 bytes and no login.
-            if request.len() != 36 || self.mode == SslMode::Disable {
+            if request.len() != 36 || plaintext {
                 return Err(protocol_error());
             }
-            let mut remote: BoxedStream = if supports_tls {
-                remote.write_all(&request).await.map_err(io_error)?;
-                remote.flush().await.map_err(io_error)?;
-                // Verify the original identity before accepting any login.
-                // TLS failure is never retried in plaintext, even in Prefer.
-                Box::new(
-                    self.remote
-                        .connect(&self.host, remote)
-                        .await
-                        .map_err(tls_error)?,
-                )
-            } else {
-                remote
-            };
-            let mut local = self.local.accept(local).await.map_err(tls_error)?;
-            plain_auth::authenticate(&mut local, &mut remote, handshake, supports_tls).await?;
-            Ok(Some((Box::new(local), remote)))
+            remote.write_all(&request).await.map_err(io_error)?;
+            remote.flush().await.map_err(io_error)?;
+            // Verify the original identity before accepting any login.
+            // TLS failure is never retried in plaintext, even in Prefer.
+            let remote = self
+                .remote
+                .connect(&self.host, remote)
+                .await
+                .map_err(tls_error)?;
+            let local = self.local.accept(local).await.map_err(tls_error)?;
+            // Both legs saw the same SSLRequest, so login packets and their
+            // sequence numbers match and need no translation.
+            Ok(Some((Box::new(local), Box::new(remote))))
         } else {
-            if self.mode != SslMode::Disable {
+            // A server that offers TLS is never used in plaintext, even in
+            // Prefer.
+            if !plaintext {
                 return Err(CellarError::Tls(
                     "MySQL client did not negotiate TLS".into(),
                 ));
@@ -185,6 +218,25 @@ fn greeting_flags(packet: &[u8]) -> CellarResult<usize> {
     let flags = version_end + 14;
     if packet.len() < flags + 18 {
         return Err(protocol_error());
+    }
+    // SQLx's handshake decoder panics, rather than erroring, when the second
+    // scramble part or its NUL is cut short, so require the length it reads.
+    // Lower capabilities (2), collation (1), status (2), upper capabilities
+    // (2), scramble length (1), reserved (10).
+    const SECURE_CONNECTION: u16 = 0x8000;
+    const UPPER_PLUGIN_AUTH: u16 = 0x0008;
+    let lower = u16::from_le_bytes([packet[flags], packet[flags + 1]]);
+    let upper = u16::from_le_bytes([packet[flags + 5], packet[flags + 6]]);
+    if lower & SECURE_CONNECTION != 0 {
+        let declared = if upper & UPPER_PLUGIN_AUTH != 0 {
+            packet[flags + 7]
+        } else {
+            0
+        };
+        let scramble = usize::from(declared.saturating_sub(9).max(12));
+        if packet.len() < flags + 18 + scramble + 1 {
+            return Err(protocol_error());
+        }
     }
     Ok(flags)
 }

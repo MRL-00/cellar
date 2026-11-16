@@ -11,11 +11,11 @@ pub(crate) async fn open(
 ) -> CellarResult<SshTunnel> {
     let config = config.clone();
     let tls_config = config.clone();
-    SshTunnel::open_with(&config, secrets, move |mut local, remote| {
+    SshTunnel::open_with(&config, secrets, move |local, remote| {
         let config = tls_config.clone();
         async move {
             // Bound only negotiation, never the lifetime of an established query.
-            let mut remote = timeout(
+            let remote = timeout(
                 Duration::from_secs(30),
                 crate::ssh_tls::database_stream(remote, &config),
             )
@@ -23,10 +23,10 @@ pub(crate) async fn open(
             .map_err(|_| {
                 CellarError::Timeout("PostgreSQL TLS negotiation inside SSH timed out".into())
             })??;
-            tokio::io::copy_bidirectional(&mut local, &mut remote)
-                .await
-                .map_err(|e| CellarError::Connection(format!("SSH forwarding failed: {e}")))?;
-            Ok(())
+            Ok(Some((
+                Box::new(local) as cellar_ssh::BoxedStream,
+                Box::new(remote) as cellar_ssh::BoxedStream,
+            )))
         }
     })
     .await

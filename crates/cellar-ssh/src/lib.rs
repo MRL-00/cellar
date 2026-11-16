@@ -15,7 +15,7 @@ use tokio::time::{timeout, Duration};
 
 mod known_hosts;
 pub use known_hosts::trust_host_key;
-use known_hosts::verify_host_key;
+use known_hosts::{preferred_host_key_algorithms, verify_host_key};
 
 // Match sqlx's default pool acquire budget; bound stalled SSH peers and agents
 // before pool acquisition begins. This is not an idle/query timeout.
@@ -30,6 +30,10 @@ const KEEPALIVE_MAX: usize = 3;
 pub trait TunnelStream: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send {}
 impl<T: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send> TunnelStream for T {}
 pub type BoxedStream = Box<dyn TunnelStream>;
+/// Result of a forwarding callback's negotiation: the local and remote
+/// streams to relay, or `None` when the callback already finished the
+/// exchange (for example by relaying a server error to the client).
+pub type Negotiated = Option<(BoxedStream, BoxedStream)>;
 
 #[derive(Debug, thiserror::Error)]
 enum SshError {
@@ -124,26 +128,30 @@ impl SshTunnel {
         config: &ConnectionConfig,
         secrets: &ConnectionSecrets,
     ) -> CellarResult<Self> {
-        Self::open_with(config, secrets, forward_bytes).await
+        Self::open_with(config, secrets, passthrough).await
     }
 
-    /// The callback owns protocol negotiation and its deadlines. Established
-    /// forwarding is never subject to the SSH startup deadline.
+    /// The callback owns protocol negotiation and its deadlines; the tunnel
+    /// relays the streams it returns. Only negotiation errors are kept for
+    /// [`Self::take_error`]: a relay error belongs to a connection the client
+    /// already holds, and keeping it would misreport a later, unrelated
+    /// connect failure. Established relays are never subject to the SSH
+    /// startup deadline.
     pub async fn open_with<F, Fut>(
         config: &ConnectionConfig,
         secrets: &ConnectionSecrets,
-        forward: F,
+        negotiate: F,
     ) -> CellarResult<Self>
     where
         F: Fn(TcpStream, BoxedStream) -> Fut + Send + Sync + 'static,
-        Fut: Future<Output = CellarResult<()>> + Send + 'static,
+        Fut: Future<Output = CellarResult<Negotiated>> + Send + 'static,
     {
         let known_hosts = dirs::home_dir()
             .ok_or_else(|| CellarError::invalid_config("cannot locate SSH known_hosts"))?
             .join(".ssh/known_hosts");
         timeout(
             STARTUP_TIMEOUT,
-            Self::open_inner(config, secrets, &known_hosts, forward),
+            Self::open_inner(config, secrets, &known_hosts, negotiate),
         )
         .await
         .map_err(|_| CellarError::Timeout("SSH connection/authentication timed out".into()))?
@@ -154,11 +162,11 @@ impl SshTunnel {
         config: &ConnectionConfig,
         secrets: &ConnectionSecrets,
         known_hosts: &Path,
-        forward: F,
+        negotiate: F,
     ) -> Result<Self, SshError>
     where
         F: Fn(TcpStream, BoxedStream) -> Fut + Send + Sync + 'static,
-        Fut: Future<Output = CellarResult<()>> + Send + 'static,
+        Fut: Future<Output = CellarResult<Negotiated>> + Send + 'static,
     {
         let ssh = config
             .ssh
@@ -185,13 +193,19 @@ impl SshTunnel {
             port: host.port,
             known_hosts: known_hosts.to_owned(),
         };
-        let options = Arc::new(client::Config {
-            keepalive_interval: Some(KEEPALIVE_INTERVAL),
-            keepalive_max: KEEPALIVE_MAX,
-            ..Default::default()
-        });
+        let options = |host: &SshHostConfig| -> CellarResult<Arc<client::Config>> {
+            Ok(Arc::new(client::Config {
+                keepalive_interval: Some(KEEPALIVE_INTERVAL),
+                keepalive_max: KEEPALIVE_MAX,
+                preferred: russh::Preferred {
+                    key: preferred_host_key_algorithms(&host.host, host.port, known_hosts)?.into(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            }))
+        };
         let mut initial =
-            client::connect_stream(options.clone(), socket, make_verifier(first)).await?;
+            client::connect_stream(options(first)?, socket, make_verifier(first)).await?;
         let (server, jump) = if let Some(jump_config) = &ssh.jump_host {
             authenticate(
                 &mut initial,
@@ -203,9 +217,12 @@ impl SshTunnel {
             let channel = initial
                 .channel_open_direct_tcpip(&ssh.server.host, ssh.server.port.into(), "127.0.0.1", 0)
                 .await?;
-            let mut server =
-                client::connect_stream(options, channel.into_stream(), make_verifier(&ssh.server))
-                    .await?;
+            let mut server = client::connect_stream(
+                options(&ssh.server)?,
+                channel.into_stream(),
+                make_verifier(&ssh.server),
+            )
+            .await?;
             authenticate(
                 &mut server,
                 &ssh.server,
@@ -231,7 +248,7 @@ impl SshTunnel {
         let (target_host, target_port) = (config.host.clone(), config.port);
         let error = Arc::new(Mutex::new(None));
         let task_error = error.clone();
-        let forward = Arc::new(forward);
+        let negotiate = Arc::new(negotiate);
         let server = Arc::new(server);
         let task = tokio::spawn(async move {
             // Both authenticated sessions outlive every forwarded connection.
@@ -241,7 +258,7 @@ impl SshTunnel {
                 tokio::select! {
                     accepted = listener.accept() => {
                         let Ok((local, _)) = accepted else { break };
-                        let (server, forward, error) = (server.clone(), forward.clone(), task_error.clone());
+                        let (server, negotiate, error) = (server.clone(), negotiate.clone(), task_error.clone());
                         let host = target_host.clone();
                         // Channel opening runs per connection so a slow open
                         // never delays accepting other local connections.
@@ -252,13 +269,17 @@ impl SshTunnel {
                             )
                             .await;
                             let result = match opened {
-                                Ok(Ok(channel)) => forward(local, Box::new(channel.into_stream())).await,
+                                Ok(Ok(channel)) => negotiate(local, Box::new(channel.into_stream())).await,
                                 Ok(Err(e)) => Err(channel_open_error(e)),
                                 Err(_) => Err(CellarError::Timeout(
                                     "SSH forwarding channel did not open within 30 seconds".into(),
                                 )),
                             };
-                            if let Err(e) = result { *error.lock().unwrap() = Some(e); }
+                            match result {
+                                Ok(Some((local, remote))) => relay(local, remote).await,
+                                Ok(None) => {}
+                                Err(e) => *error.lock().unwrap() = Some(e),
+                            }
                         });
                     }
                     _ = forwards.join_next(), if !forwards.is_empty() => {}
@@ -420,11 +441,16 @@ async fn authenticate_agent_with<S: tokio::io::AsyncRead + tokio::io::AsyncWrite
     Ok(false)
 }
 
-async fn forward_bytes(mut local: TcpStream, mut remote: BoxedStream) -> CellarResult<()> {
-    tokio::io::copy_bidirectional(&mut local, &mut remote)
-        .await
-        .map_err(transport_error)?;
-    Ok(())
+async fn passthrough(local: TcpStream, remote: BoxedStream) -> CellarResult<Negotiated> {
+    Ok(Some((Box::new(local), remote)))
+}
+
+/// Copies an established connection until either side closes. Errors are
+/// dropped deliberately: the database client sees them on its own socket,
+/// and a TLS peer that closes without close_notify (an EOF error under
+/// OpenSSL 3, a clean close under Secure Transport) is an ordinary close.
+pub async fn relay(mut local: BoxedStream, mut remote: BoxedStream) {
+    let _ = tokio::io::copy_bidirectional(&mut local, &mut remote).await;
 }
 
 #[cfg(test)]

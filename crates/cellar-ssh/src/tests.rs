@@ -114,10 +114,14 @@ impl Drop for TestServer {
 }
 
 async fn start_server(seed: u8, handler: MockSsh) -> TestServer {
+    start_server_with_keys(vec![key(seed)], handler).await
+}
+
+async fn start_server_with_keys(keys: Vec<PrivateKey>, handler: MockSsh) -> TestServer {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
     let options = Arc::new(server::Config {
-        keys: vec![key(seed)],
+        keys,
         auth_rejection_time: Duration::ZERO,
         auth_rejection_time_initial: Some(Duration::ZERO),
         ..Default::default()
@@ -215,7 +219,7 @@ async fn password_forward_multiple_connections_and_drop_teardown() {
     let callback_calls = calls.clone();
     let tunnel = SshTunnel::open_inner(&config, &secrets, &known, move |local, remote| {
         callback_calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        forward_bytes(local, remote)
+        passthrough(local, remote)
     })
     .await
     .unwrap();
@@ -293,14 +297,14 @@ async fn jump_password_and_independent_encrypted_private_key_auth() {
         ..Default::default()
     };
     assert!(
-        SshTunnel::open_inner(&config, &secrets, &known, forward_bytes)
+        SshTunnel::open_inner(&config, &secrets, &known, passthrough)
             .await
             .is_err()
     );
     secrets.jump_password = Some("jump-password".into());
     let tunnel = timeout(
         Duration::from_secs(15),
-        SshTunnel::open_inner(&config, &secrets, &known, forward_bytes),
+        SshTunnel::open_inner(&config, &secrets, &known, passthrough),
     )
     .await
     .unwrap()
@@ -316,10 +320,144 @@ async fn jump_password_and_independent_encrypted_private_key_auth() {
             ..Default::default()
         },
         &known,
-        forward_bytes,
+        passthrough,
     )
     .await
     .is_err());
+}
+
+#[tokio::test]
+async fn host_pinned_only_by_rsa_negotiates_its_recorded_key_type() {
+    let target = echo().await;
+    let rsa = PrivateKey::from(
+        keys::ssh_key::private::RsaKeypair::random(&mut rand::rng(), 2048).unwrap(),
+    );
+    let rsa_public = rsa.public_key().to_openssh().unwrap();
+    // The server offers ed25519 first; only its RSA key is in known_hosts.
+    let server = start_server_with_keys(
+        vec![key(15), rsa],
+        MockSsh {
+            user: "user",
+            password: "password",
+            public_key: None,
+        },
+    )
+    .await;
+    let temp = tempfile::tempdir().unwrap();
+    let known = temp.path().join("known_hosts");
+    std::fs::write(
+        &known,
+        format!("[127.0.0.1]:{} {rsa_public}\n", server.port),
+    )
+    .unwrap();
+    let config = config(
+        host(server.port, "user"),
+        ([127, 0, 0, 1], target.port).into(),
+    );
+    let secrets = ConnectionSecrets {
+        ssh_password: Some("password".into()),
+        ..Default::default()
+    };
+    let tunnel = SshTunnel::open_inner(&config, &secrets, &known, passthrough)
+        .await
+        .unwrap();
+    let _stream = roundtrip(&tunnel).await;
+    tunnel.close().await;
+    // With both types recorded, ed25519 is still negotiated: a different
+    // recorded ed25519 key is reported as changed even though the recorded
+    // RSA key matches, so the tunnel cannot fall back to the weaker type.
+    std::fs::write(
+        &known,
+        format!(
+            "[127.0.0.1]:{port} {rsa_public}\n[127.0.0.1]:{port} {}\n",
+            key(16).public_key().to_openssh().unwrap(),
+            port = server.port,
+        ),
+    )
+    .unwrap();
+    let error = match SshTunnel::open_inner(&config, &secrets, &known, passthrough).await {
+        Err(error) => CellarError::from(error).to_string(),
+        Ok(_) => panic!("changed ed25519 key was accepted"),
+    };
+    assert!(error.contains("host key changed"), "{error}");
+}
+
+/// A TLS peer that closes without close_notify: OpenSSL 3 reports EOF.
+struct UncleanClose;
+
+impl tokio::io::AsyncRead for UncleanClose {
+    fn poll_read(
+        self: std::pin::Pin<&mut Self>,
+        _: &mut std::task::Context<'_>,
+        _: &mut tokio::io::ReadBuf<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        std::task::Poll::Ready(Err(std::io::ErrorKind::UnexpectedEof.into()))
+    }
+}
+
+impl tokio::io::AsyncWrite for UncleanClose {
+    fn poll_write(
+        self: std::pin::Pin<&mut Self>,
+        _: &mut std::task::Context<'_>,
+        buf: &[u8],
+    ) -> std::task::Poll<std::io::Result<usize>> {
+        std::task::Poll::Ready(Ok(buf.len()))
+    }
+    fn poll_flush(
+        self: std::pin::Pin<&mut Self>,
+        _: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        std::task::Poll::Ready(Ok(()))
+    }
+    fn poll_shutdown(
+        self: std::pin::Pin<&mut Self>,
+        _: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        std::task::Poll::Ready(Ok(()))
+    }
+}
+
+#[tokio::test]
+async fn relay_errors_after_negotiation_are_not_kept_on_the_tunnel() {
+    let target = echo().await;
+    let server = start_server(
+        17,
+        MockSsh {
+            user: "user",
+            password: "password",
+            public_key: None,
+        },
+    )
+    .await;
+    let temp = tempfile::tempdir().unwrap();
+    let known = temp.path().join("known_hosts");
+    trust(&known, &[(&server, 17)]);
+    let config = config(
+        host(server.port, "user"),
+        ([127, 0, 0, 1], target.port).into(),
+    );
+    let secrets = ConnectionSecrets {
+        ssh_password: Some("password".into()),
+        ..Default::default()
+    };
+    let tunnel = SshTunnel::open_inner(&config, &secrets, &known, |local, _remote| async move {
+        Ok(Some((
+            Box::new(local) as BoxedStream,
+            Box::new(UncleanClose) as BoxedStream,
+        )))
+    })
+    .await
+    .unwrap();
+    let mut local = TcpStream::connect(tunnel.address()).await.unwrap();
+    let mut byte = [0];
+    let closed = timeout(Duration::from_secs(5), local.read(&mut byte))
+        .await
+        .unwrap();
+    assert!(matches!(closed, Ok(0) | Err(_)));
+    // The client sees the close before a forward task could record an error.
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    assert!(tunnel.take_error().is_none());
+    tunnel.close().await;
 }
 
 #[test]
@@ -434,7 +572,7 @@ async fn unknown_jump_and_server_keys_fail_before_forwarding() {
     };
     // Both hops must preserve the typed challenge through russh authentication.
     for (port, seed) in [(jump.port, 6), (server.port, 5)] {
-        let error = match SshTunnel::open_inner(&config, &secrets, &known, forward_bytes).await {
+        let error = match SshTunnel::open_inner(&config, &secrets, &known, passthrough).await {
             Err(error) => CellarError::from(error),
             Ok(_) => panic!("unknown hop was accepted"),
         };
@@ -449,7 +587,7 @@ async fn unknown_jump_and_server_keys_fail_before_forwarding() {
         );
         super::known_hosts::trust_host_key_at(&challenge, &known).unwrap();
     }
-    let tunnel = SshTunnel::open_inner(&config, &secrets, &known, forward_bytes)
+    let tunnel = SshTunnel::open_inner(&config, &secrets, &known, passthrough)
         .await
         .unwrap();
     let _stream = roundtrip(&tunnel).await;
@@ -457,7 +595,7 @@ async fn unknown_jump_and_server_keys_fail_before_forwarding() {
     // Every new network attempt rechecks the exact recorded key, not a cached
     // confirmation or an algorithm-only pin.
     trust(&known, &[(&jump, 6), (&server, 9)]);
-    let error = match SshTunnel::open_inner(&config, &secrets, &known, forward_bytes).await {
+    let error = match SshTunnel::open_inner(&config, &secrets, &known, passthrough).await {
         Err(error) => CellarError::from(error),
         Ok(_) => panic!("changed server key was accepted"),
     };
@@ -547,7 +685,7 @@ async fn refused_forwarding_channel_reports_readable_error() {
         ssh_password: Some("password".into()),
         ..Default::default()
     };
-    let tunnel = SshTunnel::open_inner(&config, &secrets, &known, forward_bytes)
+    let tunnel = SshTunnel::open_inner(&config, &secrets, &known, passthrough)
         .await
         .unwrap();
     let mut local = TcpStream::connect(tunnel.address()).await.unwrap();
