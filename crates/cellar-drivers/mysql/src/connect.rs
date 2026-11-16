@@ -75,14 +75,16 @@ pub async fn open_pool_with_secrets(
     secrets: &ConnectionSecrets,
 ) -> CellarResult<MySqlConnection> {
     let mut opts = connect_options(config, secrets.password.as_deref());
+    let mut bridge = None;
     let tunnel = if config.ssh.is_some() {
         let tunnel = if config.ssl_mode == SslMode::Disable {
             SshTunnel::open(config, secrets).await?
         } else {
-            let bridge = TlsBridge::new(config)?;
-            opts = bridge.local_options(opts);
+            let tls = TlsBridge::new(config)?;
+            opts = tls.local_options(opts);
+            bridge = Some(tls.clone());
             SshTunnel::open_with(config, secrets, move |local, remote| {
-                let bridge = bridge.clone();
+                let bridge = tls.clone();
                 async move { bridge.negotiate(local, remote).await }
             })
             .await?
@@ -94,16 +96,21 @@ pub async fn open_pool_with_secrets(
     } else {
         None
     };
-    let pool = MySqlPoolOptions::new()
-        .max_connections(DEFAULT_POOL_SIZE)
-        .connect_with(opts)
-        .await
-        .map_err(|error| {
-            tunnel
-                .as_ref()
-                .and_then(SshTunnel::take_error)
-                .unwrap_or_else(|| map_sqlx_err_for_connect(error))
-        })?;
+    let pool_options = || MySqlPoolOptions::new().max_connections(DEFAULT_POOL_SIZE);
+    let pool = match pool_options().connect_with(opts.clone()).await {
+        // Prefer's pinned attempt fails on a server without TLS.
+        Err(error) => match bridge.as_ref().and_then(|b| b.plaintext_fallback(opts)) {
+            Some(plaintext) => pool_options().connect_with(plaintext).await,
+            None => Err(error),
+        },
+        connected => connected,
+    };
+    let pool = pool.map_err(|error| {
+        tunnel
+            .as_ref()
+            .and_then(SshTunnel::take_error)
+            .unwrap_or_else(|| map_sqlx_err_for_connect(error))
+    })?;
 
     let version = sqlx::query("SELECT VERSION() AS v")
         .fetch_one(&pool)

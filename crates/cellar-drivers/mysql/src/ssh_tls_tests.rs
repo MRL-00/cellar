@@ -92,7 +92,7 @@ async fn login_with_trust(
     }
     let bridge =
         TlsBridge::with_connector(&config(mode, hostname), connector.build().unwrap()).unwrap();
-    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let listener = std::sync::Arc::new(TcpListener::bind("127.0.0.1:0").await.unwrap());
     let address = listener.local_addr().unwrap();
     let mut options = bridge.local_options(
         sqlx::mysql::MySqlConnectOptions::new()
@@ -111,7 +111,38 @@ async fn login_with_trust(
                 .into_bytes(),
         );
     }
+    let first = attempt(
+        &bridge,
+        &listener,
+        &acceptor,
+        options.clone(),
+        mode,
+        plugin,
+        tls,
+    )
+    .await;
+    // As in `open_pool_with_secrets`: Prefer's pinned attempt is refused by
+    // a server without TLS and retried in plaintext.
+    match bridge.plaintext_fallback(options) {
+        Some(plaintext) if !first.0 => {
+            assert!(first.1.is_ok(), "abandoned pinned attempt is not an error");
+            attempt(&bridge, &listener, &acceptor, plaintext, mode, plugin, tls).await
+        }
+        _ => first,
+    }
+}
+
+async fn attempt(
+    bridge: &TlsBridge,
+    listener: &std::sync::Arc<TcpListener>,
+    acceptor: &TlsAcceptor,
+    options: sqlx::mysql::MySqlConnectOptions,
+    mode: SslMode,
+    plugin: &str,
+    tls: bool,
+) -> (bool, CellarResult<()>) {
     let (channel, mut server) = tokio::io::duplex(64 * 1024);
+    let (bridge, listener, acceptor) = (bridge.clone(), listener.clone(), acceptor.clone());
     let forward = tokio::spawn(async move {
         let (local, _) = listener.accept().await.unwrap();
         forward(&bridge, local, Box::new(channel)).await
@@ -290,19 +321,21 @@ async fn certificate_trust_is_enforced_on_both_legs() {
         assert!(!connected);
         assert!(matches!(result, Err(CellarError::Tls(_))));
     }
-    // Require does not verify the database certificate, but still pins the
-    // local bridge's certificate and loopback SAN.
-    let (connected, result) = login_with_trust(
-        SslMode::Require,
-        "database.example",
-        "caching_sha2_password",
-        true,
-        true,
-        false,
-    )
-    .await;
-    assert!(!connected);
-    assert!(matches!(result, Err(CellarError::Tls(_))));
+    // Prefer and Require do not verify the database certificate, but still
+    // pin the local bridge's certificate and loopback SAN.
+    for mode in [SslMode::Prefer, SslMode::Require] {
+        let (connected, result) = login_with_trust(
+            mode,
+            "database.example",
+            "caching_sha2_password",
+            true,
+            true,
+            false,
+        )
+        .await;
+        assert!(!connected, "{mode:?}");
+        assert!(matches!(result, Err(CellarError::Tls(_))), "{mode:?}");
+    }
 }
 
 #[tokio::test]
