@@ -21,7 +21,7 @@ members = [
 ]
 
 [workspace.package]
-version = "1.0.13"
+version = "1.0.14"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/nzmrl/cellar"

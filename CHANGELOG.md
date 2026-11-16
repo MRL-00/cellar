@@ -1,5 +1,34 @@
 # Changelog
 
+## 1.0.14
+
+### Features
+
+- **Connect through SSH** — PostgreSQL, Supabase, Neon, MySQL, PlanetScale,
+  and SQL Server connections can reach the database through an SSH server,
+  with an optional jump host. Each hop signs in with the SSH agent, a private
+  key, or a password, and those secrets stay in the OS keychain. An unknown
+  host key shows its fingerprint and is only added to `known_hosts` when you
+  choose Trust & Connect. Thanks to @edlundin (#203).
+
+### Bug fixes
+
+- **Run connects for you** — running a query on a connection that isn't open,
+  has dropped, or was restored from your last session now connects first
+  instead of failing with "no open connection". The sidebar catches up once
+  the query finishes.
+- **ChatGPT sign-in finds Codex** — Cellar looks for the Codex CLI in your
+  login shell's PATH, so Codex installed with nvm, Homebrew, or similar works
+  when Cellar is opened from the Dock or Finder.
+- **The Ask AI bar under the editor works** — clicking it opens the AI panel
+  ready to type, and it shows the real shortcut, ⌘J.
+- **The connection editor stays open** — clicking outside it no longer
+  discards your changes, and test results show in full above the buttons.
+  Thanks to @edlundin (#203).
+- **SQL Server doesn't wait on running queries** — disconnecting or saving a
+  SQL Server connection no longer waits for a query to finish. Thanks to
+  @edlundin (#203).
+
 ## 1.0.13
 
 ### Features
