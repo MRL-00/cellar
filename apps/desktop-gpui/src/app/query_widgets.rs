@@ -1,10 +1,21 @@
-use gpui::{div, prelude::*, AnyElement};
+use gpui::{div, prelude::*, AnyElement, Context};
 use gpui_component::Icon;
+
+use super::CellarApp;
 
 use cellar_desktop_gpui::theme::{ui_px, ACCENT, BORDER, FG_MUTED, PANEL, PANEL_RAISED};
 
-pub(super) fn query_ai_strip() -> AnyElement {
+pub(super) fn query_ai_strip(cx: &mut Context<CellarApp>) -> AnyElement {
     div()
+        .id("query-ai-strip")
+        .cursor_pointer()
+        .on_click(cx.listener(|this, _, window, cx| {
+            this.right_panel_open = true;
+            this.ai
+                .draft
+                .update(cx, |draft, cx| draft.focus(window, cx));
+            cx.notify();
+        }))
         .absolute()
         .left(ui_px(12.))
         .right(ui_px(12.))
@@ -42,7 +53,7 @@ pub(super) fn query_ai_strip() -> AnyElement {
                 .flex()
                 .gap(ui_px(2.))
                 .child(query_keycap("⌘", false))
-                .child(query_keycap("I", false)),
+                .child(query_keycap("J", false)),
         )
         .into_any_element()
 }

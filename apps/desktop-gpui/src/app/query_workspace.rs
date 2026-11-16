@@ -772,7 +772,7 @@ impl CellarApp {
                             .text_size(ui_px(13.))
                             .line_height(ui_px(20.)),
                     )
-                    .child(query_ai_strip()),
+                    .child(query_ai_strip(cx)),
             )
             .into_any_element()
     }
