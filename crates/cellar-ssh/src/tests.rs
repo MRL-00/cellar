@@ -363,16 +363,15 @@ async fn host_pinned_only_by_rsa_negotiates_its_recorded_key_type() {
         .unwrap();
     let _stream = roundtrip(&tunnel).await;
     tunnel.close().await;
-    // A recorded ed25519 key still ends up the strongest choice, and a
-    // different recorded key of the offered type is still a changed key.
-    let ordered = known_hosts::order_algorithms(&[keys::Algorithm::Ed25519]);
-    assert_eq!(ordered, russh::Preferred::DEFAULT.key.to_vec());
+    // With both types recorded, ed25519 is still negotiated: a different
+    // recorded ed25519 key is reported as changed even though the recorded
+    // RSA key matches, so the tunnel cannot fall back to the weaker type.
     std::fs::write(
         &known,
         format!(
-            "[127.0.0.1]:{} {}\n",
-            server.port,
-            key(16).public_key().to_openssh().unwrap()
+            "[127.0.0.1]:{port} {rsa_public}\n[127.0.0.1]:{port} {}\n",
+            key(16).public_key().to_openssh().unwrap(),
+            port = server.port,
         ),
     )
     .unwrap();
