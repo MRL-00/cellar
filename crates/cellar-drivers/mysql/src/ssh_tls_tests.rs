@@ -345,6 +345,14 @@ async fn truncated_packet_is_rejected() {
     for body in [&[][..], &[10][..], b"\x0a8.0\0"] {
         assert!(greeting_flags(&packet(0, body)).is_err());
     }
+    // Everything SQLx reads without a bounds check must be present; the
+    // plugin name after it is decoded with an error, not a panic.
+    let complete = greeting(true, "caching_sha2_password");
+    let scramble_end = complete.len() - "caching_sha2_password\0".len();
+    for end in 4..scramble_end {
+        assert!(greeting_flags(&packet(0, &complete[4..end])).is_err());
+    }
+    assert!(greeting_flags(&packet(0, &complete[4..scramble_end])).is_ok());
 }
 
 // Real SQLx with the cleartext plugin enabled; the bridge relays the switch

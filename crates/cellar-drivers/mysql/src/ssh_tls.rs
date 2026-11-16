@@ -180,6 +180,25 @@ fn greeting_flags(packet: &[u8]) -> CellarResult<usize> {
     if packet.len() < flags + 18 {
         return Err(protocol_error());
     }
+    // SQLx's handshake decoder panics, rather than erroring, when the second
+    // scramble part or its NUL is cut short, so require the length it reads.
+    // Lower capabilities (2), collation (1), status (2), upper capabilities
+    // (2), scramble length (1), reserved (10).
+    const SECURE_CONNECTION: u16 = 0x8000;
+    const UPPER_PLUGIN_AUTH: u16 = 0x0008;
+    let lower = u16::from_le_bytes([packet[flags], packet[flags + 1]]);
+    let upper = u16::from_le_bytes([packet[flags + 5], packet[flags + 6]]);
+    if lower & SECURE_CONNECTION != 0 {
+        let declared = if upper & UPPER_PLUGIN_AUTH != 0 {
+            packet[flags + 7]
+        } else {
+            0
+        };
+        let scramble = usize::from(declared.saturating_sub(9).max(12));
+        if packet.len() < flags + 18 + scramble + 1 {
+            return Err(protocol_error());
+        }
+    }
     Ok(flags)
 }
 
