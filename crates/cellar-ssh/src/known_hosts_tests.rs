@@ -209,6 +209,46 @@ fn canonical_hashed_pin_protects_uppercase_configured_hostname() {
 }
 
 #[test]
+fn recorded_algorithms_follow_host_matching_and_skip_markers() {
+    use hmac::Mac;
+    use keys::ssh_key::known_hosts::HostPatterns;
+
+    let p256 = Algorithm::Ecdsa {
+        curve: EcdsaCurve::NistP256,
+    };
+    let ecdsa = PrivateKey::random(&mut rand::rng(), p256.clone())
+        .unwrap()
+        .public_key()
+        .to_openssh()
+        .unwrap();
+    let ed25519 = public(1).to_openssh().unwrap();
+    let salt = b"recorded-algorithm-salt".to_vec();
+    let hash = hmac::Hmac::<sha1::Sha1>::new_from_slice(&salt)
+        .unwrap()
+        .chain_update(b"[db.example.com]:2222")
+        .finalize()
+        .into_bytes()
+        .into();
+    let hashed = HostPatterns::HashedName { salt, hash }.to_string();
+    // Only the hashed ECDSA entry pins this host: revocations, comments, and
+    // other hosts' entries must not move ed25519 to the front.
+    let text = format!(
+        "{hashed} {ecdsa}\n\
+         @revoked [db.example.com]:2222 {ed25519}\n\
+         # [db.example.com]:2222 {ed25519}\n\
+         other.example.com {ed25519}\n"
+    );
+    assert_eq!(
+        recorded_algorithms("db.example.com", 2222, &text),
+        [p256.clone()]
+    );
+    assert!(recorded_algorithms("db.example.com", 22, &text).is_empty());
+    let ordered = order_algorithms(&[p256.clone()]);
+    assert_eq!(ordered[0], p256);
+    assert_eq!(ordered.len(), russh::Preferred::DEFAULT.key.len());
+}
+
+#[test]
 fn public_key_comment_cannot_inject_an_unconfirmed_pin() {
     let temp = tempfile::tempdir().unwrap();
     let path = temp.path().join("known_hosts");
