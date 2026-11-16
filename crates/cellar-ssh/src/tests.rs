@@ -114,10 +114,14 @@ impl Drop for TestServer {
 }
 
 async fn start_server(seed: u8, handler: MockSsh) -> TestServer {
+    start_server_with_keys(vec![key(seed)], handler).await
+}
+
+async fn start_server_with_keys(keys: Vec<PrivateKey>, handler: MockSsh) -> TestServer {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
     let options = Arc::new(server::Config {
-        keys: vec![key(seed)],
+        keys,
         auth_rejection_time: Duration::ZERO,
         auth_rejection_time_initial: Some(Duration::ZERO),
         ..Default::default()
@@ -320,6 +324,63 @@ async fn jump_password_and_independent_encrypted_private_key_auth() {
     )
     .await
     .is_err());
+}
+
+#[tokio::test]
+async fn host_pinned_only_by_rsa_negotiates_its_recorded_key_type() {
+    let target = echo().await;
+    let rsa = PrivateKey::from(
+        keys::ssh_key::private::RsaKeypair::random(&mut rand::rng(), 2048).unwrap(),
+    );
+    let rsa_public = rsa.public_key().to_openssh().unwrap();
+    // The server offers ed25519 first; only its RSA key is in known_hosts.
+    let server = start_server_with_keys(
+        vec![key(15), rsa],
+        MockSsh {
+            user: "user",
+            password: "password",
+            public_key: None,
+        },
+    )
+    .await;
+    let temp = tempfile::tempdir().unwrap();
+    let known = temp.path().join("known_hosts");
+    std::fs::write(
+        &known,
+        format!("[127.0.0.1]:{} {rsa_public}\n", server.port),
+    )
+    .unwrap();
+    let config = config(
+        host(server.port, "user"),
+        ([127, 0, 0, 1], target.port).into(),
+    );
+    let secrets = ConnectionSecrets {
+        ssh_password: Some("password".into()),
+        ..Default::default()
+    };
+    let tunnel = SshTunnel::open_inner(&config, &secrets, &known, passthrough)
+        .await
+        .unwrap();
+    let _stream = roundtrip(&tunnel).await;
+    tunnel.close().await;
+    // A recorded ed25519 key still ends up the strongest choice, and a
+    // different recorded key of the offered type is still a changed key.
+    let ordered = known_hosts::order_algorithms(&[keys::Algorithm::Ed25519]);
+    assert_eq!(ordered, russh::Preferred::DEFAULT.key.to_vec());
+    std::fs::write(
+        &known,
+        format!(
+            "[127.0.0.1]:{} {}\n",
+            server.port,
+            key(16).public_key().to_openssh().unwrap()
+        ),
+    )
+    .unwrap();
+    let error = match SshTunnel::open_inner(&config, &secrets, &known, passthrough).await {
+        Err(error) => CellarError::from(error).to_string(),
+        Ok(_) => panic!("changed ed25519 key was accepted"),
+    };
+    assert!(error.contains("host key changed"), "{error}");
 }
 
 /// A TLS peer that closes without close_notify: OpenSSL 3 reports EOF.

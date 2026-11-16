@@ -15,7 +15,7 @@ use tokio::time::{timeout, Duration};
 
 mod known_hosts;
 pub use known_hosts::trust_host_key;
-use known_hosts::verify_host_key;
+use known_hosts::{preferred_host_key_algorithms, verify_host_key};
 
 // Match sqlx's default pool acquire budget; bound stalled SSH peers and agents
 // before pool acquisition begins. This is not an idle/query timeout.
@@ -193,13 +193,19 @@ impl SshTunnel {
             port: host.port,
             known_hosts: known_hosts.to_owned(),
         };
-        let options = Arc::new(client::Config {
-            keepalive_interval: Some(KEEPALIVE_INTERVAL),
-            keepalive_max: KEEPALIVE_MAX,
-            ..Default::default()
-        });
+        let options = |host: &SshHostConfig| -> CellarResult<Arc<client::Config>> {
+            Ok(Arc::new(client::Config {
+                keepalive_interval: Some(KEEPALIVE_INTERVAL),
+                keepalive_max: KEEPALIVE_MAX,
+                preferred: russh::Preferred {
+                    key: preferred_host_key_algorithms(&host.host, host.port, known_hosts)?.into(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            }))
+        };
         let mut initial =
-            client::connect_stream(options.clone(), socket, make_verifier(first)).await?;
+            client::connect_stream(options(first)?, socket, make_verifier(first)).await?;
         let (server, jump) = if let Some(jump_config) = &ssh.jump_host {
             authenticate(
                 &mut initial,
@@ -211,9 +217,12 @@ impl SshTunnel {
             let channel = initial
                 .channel_open_direct_tcpip(&ssh.server.host, ssh.server.port.into(), "127.0.0.1", 0)
                 .await?;
-            let mut server =
-                client::connect_stream(options, channel.into_stream(), make_verifier(&ssh.server))
-                    .await?;
+            let mut server = client::connect_stream(
+                options(&ssh.server)?,
+                channel.into_stream(),
+                make_verifier(&ssh.server),
+            )
+            .await?;
             authenticate(
                 &mut server,
                 &ssh.server,

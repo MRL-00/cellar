@@ -9,7 +9,7 @@ use std::path::Path;
 use cellar_core::error::{CellarError, CellarResult, SshHostKey};
 use russh::keys::{
     self,
-    ssh_key::{HashAlg, PublicKey},
+    ssh_key::{Algorithm, HashAlg, PublicKey},
 };
 
 fn challenge(host: &str, port: u16, key: &PublicKey) -> CellarResult<SshHostKey> {
@@ -156,11 +156,7 @@ fn verify_snapshot(
     }
     // Parse the already-read snapshot so whitespace handling and revocation
     // checks cannot disagree, or race a second read of known_hosts.
-    let host_port = if port == 22 {
-        host.to_owned()
-    } else {
-        format!("[{host}]:{port}")
-    };
+    let host_port = host_port(host, port);
     let mut trusted = false;
     let mut recorded_host = false;
     for line in text.lines() {
@@ -195,6 +191,64 @@ fn verify_snapshot(
         Err(changed_key(host, port, path))
     } else {
         Err(CellarError::SshHostKeyUnknown(challenge(host, port, key)?))
+    }
+}
+
+/// Host-key algorithms in the order to offer them, following OpenSSH's
+/// order_hostkeyalgs: types already recorded for this host come first, the
+/// rest keep russh's default order. Otherwise russh asks for ed25519 first
+/// and a host pinned only by its RSA or ECDSA key fails as "changed".
+pub(crate) fn preferred_host_key_algorithms(
+    host: &str,
+    port: u16,
+    path: &Path,
+) -> CellarResult<Vec<Algorithm>> {
+    let text = match std::fs::read_to_string(path) {
+        Ok(text) => text,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(error) => return Err(error.into()),
+    };
+    Ok(order_algorithms(&recorded_algorithms(host, port, &text)))
+}
+
+fn recorded_algorithms(host: &str, port: u16, text: &str) -> Vec<Algorithm> {
+    let host_port = host_port(host, port);
+    text.lines()
+        .filter_map(|line| {
+            let mut fields = line.split_whitespace();
+            let patterns = fields.next()?;
+            // Markers (@revoked, @cert-authority) never pin a host's key type.
+            if patterns.starts_with(['#', '@']) || !matches_host_patterns(&host_port, patterns) {
+                return None;
+            }
+            fields.next()?.parse().ok()
+        })
+        .collect()
+}
+
+pub(crate) fn order_algorithms(recorded: &[Algorithm]) -> Vec<Algorithm> {
+    // Any RSA entry pins the key, whichever signature hash is negotiated.
+    let is_recorded = |algorithm: &Algorithm| {
+        recorded.iter().any(|known| {
+            known == algorithm
+                || (matches!(known, Algorithm::Rsa { .. })
+                    && matches!(algorithm, Algorithm::Rsa { .. }))
+        })
+    };
+    let defaults = russh::Preferred::DEFAULT.key;
+    let (mut ordered, rest): (Vec<_>, Vec<_>) = defaults
+        .iter()
+        .cloned()
+        .partition(|algorithm| is_recorded(algorithm));
+    ordered.extend(rest);
+    ordered
+}
+
+fn host_port(host: &str, port: u16) -> String {
+    if port == 22 {
+        host.to_owned()
+    } else {
+        format!("[{host}]:{port}")
     }
 }
 
