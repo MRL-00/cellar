@@ -35,7 +35,19 @@ impl CodexAppServer {
         let workspace = root.join("workspace");
         tokio::fs::create_dir_all(&workspace).await?;
 
-        let mut child = Command::new("codex")
+        let mut command = match login_shell_path().await {
+            Some(path) => {
+                let codex = std::env::split_paths(&path)
+                    .map(|dir| dir.join("codex"))
+                    .find(|candidate| candidate.is_file())
+                    .unwrap_or_else(|| "codex".into());
+                let mut command = Command::new(codex);
+                command.env("PATH", path);
+                command
+            }
+            None => Command::new("codex"),
+        };
+        let mut child = command
             .args([
                 "app-server",
                 "-c",
@@ -53,7 +65,7 @@ impl CodexAppServer {
             .spawn()
             .map_err(|error| {
                 CellarError::InvalidConfig(format!(
-                    "ChatGPT sign-in requires the Codex CLI in PATH ({error}). Install or update Codex, then restart Cellar."
+                    "ChatGPT sign-in requires the Codex CLI, which was not found on Cellar's PATH or your login shell's PATH ({error}). Install or update Codex, then restart Cellar."
                 ))
             })?;
         let stdin = child.stdin.take().ok_or_else(|| {
@@ -443,6 +455,39 @@ impl CodexAppServer {
         }
         serde_json::from_str(&line).map_err(CellarError::from)
     }
+}
+
+/// Apps launched from Finder or the Dock inherit launchd's minimal PATH, which
+/// misses Codex installed through Homebrew, nvm, and similar tools. The npm
+/// `codex` launcher also needs `node` on PATH, so the whole login-shell PATH is
+/// used, not only the binary's location.
+#[cfg(unix)]
+async fn login_shell_path() -> Option<String> {
+    const MARKER: &str = "__CELLAR_PATH__=";
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".into());
+    let output = Command::new(shell)
+        .args([
+            "-l",
+            "-i",
+            "-c",
+            &format!("printf '\\n{MARKER}%s\\n' \"$PATH\""),
+        ])
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .kill_on_drop(true)
+        .output();
+    let output = timeout(Duration::from_secs(5), output).await.ok()?.ok()?;
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .rev()
+        .find_map(|line| line.strip_prefix(MARKER))
+        .filter(|path| !path.is_empty())
+        .map(str::to_owned)
+}
+
+#[cfg(not(unix))]
+async fn login_shell_path() -> Option<String> {
+    None
 }
 
 fn required_string(value: &Value, field: &str) -> CellarResult<String> {

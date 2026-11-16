@@ -265,6 +265,15 @@ impl ConnectionRegistry {
         self.connect(id, None).await
     }
 
+    /// Opens a closed or evicted saved connection before work that has not
+    /// executed anything yet, without pinging a connection that is already open.
+    pub async fn ensure_connected(&self, id: &str) -> CellarResult<()> {
+        if self.inner.read().await.open.contains_key(id) {
+            return Ok(());
+        }
+        self.connect_saved(id).await.map(|_| ())
+    }
+
     pub async fn reconnect(&self, id: &str, password: Option<&str>) -> CellarResult<DriverInfo> {
         if let Some(open) = self.remove_open(id).await {
             let _ = open.connection.close().await;
